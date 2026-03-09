@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;font-family:Calibri,Arial,sans-serif;font-size:14px;color:#222;">
+
+<!-- Header -->
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#1a1a2e;">
+  <tr>
+    <td style="padding:18px 24px;">
+      <span style="color:#ffffff;font-size:20px;font-weight:bold;">IMDR &mdash; FX OHLC Ingest Report</span>
+      {% if has_errors %}
+      <span style="background:#e74c3c;color:#fff;padding:4px 12px;border-radius:4px;font-size:13px;font-weight:bold;margin-left:16px;">ERROR</span>
+      {% else %}
+      <span style="background:#27ae60;color:#fff;padding:4px 12px;border-radius:4px;font-size:13px;font-weight:bold;margin-left:16px;">OK</span>
+      {% endif %}
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:0 24px 14px 24px;">
+      <span style="color:#a0a0c0;font-size:14px;">{{ mode }} | {{ window_utc }} / {{ window_sgt }}</span>
+    </td>
+  </tr>
+</table>
+
+<!-- Execution Details -->
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;">
+  <tr><td style="padding:0 24px;"><span style="font-size:16px;font-weight:bold;color:#1a1a2e;">EXECUTION</span></td></tr>
+</table>
+<table width="96%" cellpadding="6" cellspacing="0" style="margin:8px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;">
+  <tr style="background:#f5f5f5;"><td style="border:1px solid #ddd;font-weight:bold;width:200px;">Pipeline</td><td style="border:1px solid #ddd;">{{ pipeline_name }}</td></tr>
+  <tr><td style="border:1px solid #ddd;font-weight:bold;">Run Time</td><td style="border:1px solid #ddd;">{{ run_time_utc }} / {{ run_time_sgt }}</td></tr>
+  <tr style="background:#f5f5f5;"><td style="border:1px solid #ddd;font-weight:bold;">Window</td><td style="border:1px solid #ddd;">{{ window_utc }} / {{ window_sgt }}</td></tr>
+  <tr><td style="border:1px solid #ddd;font-weight:bold;">Elapsed</td><td style="border:1px solid #ddd;">{{ elapsed }}</td></tr>
+  <tr style="background:#f5f5f5;"><td style="border:1px solid #ddd;font-weight:bold;">Provider</td><td style="border:1px solid #ddd;">BidFX (basic auth)</td></tr>
+  <tr><td style="border:1px solid #ddd;font-weight:bold;">Target Table</td><td style="border:1px solid #ddd;">[FX].[fact_ohlc]</td></tr>
+  <tr style="background:#f5f5f5;"><td style="border:1px solid #ddd;font-weight:bold;">DB Write</td>
+    <td style="border:1px solid #ddd;">
+      {% if bars_approved > 0 %}
+      <span style="color:#27ae60;font-weight:bold;">SUCCESS</span> &mdash; {{ bars_approved }} rows upserted
+      {% else %}
+      <span style="color:#e74c3c;font-weight:bold;">NO ROWS WRITTEN</span>
+      {% endif %}
+    </td>
+  </tr>
+</table>
+
+<!-- Summary -->
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;">
+  <tr><td style="padding:0 24px;"><span style="font-size:16px;font-weight:bold;color:#1a1a2e;">SUMMARY</span></td></tr>
+</table>
+<table width="96%" cellpadding="6" cellspacing="0" style="margin:8px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;">
+  <tr style="background:#f5f5f5;"><td style="border:1px solid #ddd;font-weight:bold;width:200px;">Symbols</td><td style="border:1px solid #ddd;">{{ n_symbols }}</td></tr>
+  <tr><td style="border:1px solid #ddd;font-weight:bold;">Bars Produced</td><td style="border:1px solid #ddd;">{{ bars_produced }}</td></tr>
+  <tr style="background:#f5f5f5;"><td style="border:1px solid #ddd;font-weight:bold;">Bars Written to DB</td><td style="border:1px solid #ddd;">{{ bars_approved }}</td></tr>
+  <tr><td style="border:1px solid #ddd;font-weight:bold;">Bars Dropped</td><td style="border:1px solid #ddd;">{{ bars_dropped }}</td></tr>
+  <tr style="background:#f5f5f5;"><td style="border:1px solid #ddd;font-weight:bold;">Missing CCY Pairs</td><td style="border:1px solid #ddd;">{{ n_missing }}</td></tr>
+  <tr><td style="border:1px solid #ddd;font-weight:bold;">Anomalies Flagged</td><td style="border:1px solid #ddd;">{{ n_anomalies }}</td></tr>
+  <tr style="background:#f5f5f5;"><td style="border:1px solid #ddd;font-weight:bold;">Holidays Affecting</td><td style="border:1px solid #ddd;">{{ n_holidays }}</td></tr>
+</table>
+
+<!-- Per-Series Bar Breakdown -->
+{% for series_name, series_bars in bar_groups %}
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;">
+  <tr><td style="padding:0 24px;"><span style="font-size:16px;font-weight:bold;color:#1a1a2e;">{{ series_name }} BARS ({{ series_bars|length }})</span></td></tr>
+</table>
+<table width="96%" cellpadding="5" cellspacing="0" style="margin:8px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;font-size:12px;">
+  <tr style="background:#1a1a2e;color:#fff;">
+    <th style="border:1px solid #555;padding:6px;text-align:center;">#</th>
+    <th style="border:1px solid #555;padding:6px;text-align:left;">Symbol</th>
+    <th style="border:1px solid #555;padding:6px;text-align:right;">Close</th>
+    <th style="border:1px solid #555;padding:6px;text-align:right;">Open</th>
+    <th style="border:1px solid #555;padding:6px;text-align:right;">High</th>
+    <th style="border:1px solid #555;padding:6px;text-align:right;">Low</th>
+    <th style="border:1px solid #555;padding:6px;text-align:right;">Bid</th>
+    <th style="border:1px solid #555;padding:6px;text-align:right;">Ask</th>
+    <th style="border:1px solid #555;padding:6px;text-align:right;">Spread(bps)</th>
+    <th style="border:1px solid #555;padding:6px;text-align:right;">Ticks</th>
+  </tr>
+  {% for bar in series_bars %}
+  <tr style="background:{{ '#f9f9f9' if loop.index is odd else '#ffffff' }};">
+    <td style="border:1px solid #ddd;padding:5px;text-align:center;">{{ loop.index }}</td>
+    <td style="border:1px solid #ddd;padding:5px;font-weight:bold;">{{ bar.symbol }}</td>
+    <td style="border:1px solid #ddd;padding:5px;text-align:right;font-family:Consolas,monospace;">{{ bar.close_px }}</td>
+    <td style="border:1px solid #ddd;padding:5px;text-align:right;font-family:Consolas,monospace;">{{ bar.open_px }}</td>
+    <td style="border:1px solid #ddd;padding:5px;text-align:right;font-family:Consolas,monospace;">{{ bar.high_px }}</td>
+    <td style="border:1px solid #ddd;padding:5px;text-align:right;font-family:Consolas,monospace;">{{ bar.low_px }}</td>
+    <td style="border:1px solid #ddd;padding:5px;text-align:right;font-family:Consolas,monospace;">{{ bar.bid }}</td>
+    <td style="border:1px solid #ddd;padding:5px;text-align:right;font-family:Consolas,monospace;">{{ bar.ask }}</td>
+    <td style="border:1px solid #ddd;padding:5px;text-align:right;font-family:Consolas,monospace;">{{ bar.spread_bps }}</td>
+    <td style="border:1px solid #ddd;padding:5px;text-align:right;">{{ bar.n_ticks }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endfor %}
+
+<!-- Anomalies -->
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;">
+  <tr><td style="padding:0 24px;"><span style="font-size:16px;font-weight:bold;color:#1a1a2e;">ANOMALIES ({{ n_anomalies }})</span></td></tr>
+</table>
+{% if anomalies %}
+<table width="96%" cellpadding="5" cellspacing="0" style="margin:8px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;font-size:13px;">
+  <tr style="background:#e74c3c;color:#fff;">
+    <th style="border:1px solid #c0392b;padding:6px;text-align:left;">Symbol</th>
+    <th style="border:1px solid #c0392b;padding:6px;text-align:left;">Series</th>
+    <th style="border:1px solid #c0392b;padding:6px;text-align:left;">Field</th>
+    <th style="border:1px solid #c0392b;padding:6px;text-align:right;">Previous</th>
+    <th style="border:1px solid #c0392b;padding:6px;text-align:right;">Current</th>
+    <th style="border:1px solid #c0392b;padding:6px;text-align:right;">Change %</th>
+  </tr>
+  {% for a in anomalies %}
+  <tr style="background:#fdecea;">
+    <td style="border:1px solid #ddd;padding:5px;">{{ a.symbol }}</td>
+    <td style="border:1px solid #ddd;padding:5px;">{{ a.series }}</td>
+    <td style="border:1px solid #ddd;padding:5px;">{{ a.field }}</td>
+    <td style="border:1px solid #ddd;padding:5px;text-align:right;font-family:Consolas,monospace;">{{ a.previous }}</td>
+    <td style="border:1px solid #ddd;padding:5px;text-align:right;font-family:Consolas,monospace;">{{ a.current }}</td>
+    <td style="border:1px solid #ddd;padding:5px;text-align:right;font-weight:bold;color:#c0392b;">{{ "%.2f"|format(a.pct_change) }}%</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<table width="96%" cellpadding="0" cellspacing="0" style="margin:8px auto 0 auto;">
+  <tr><td style="padding:8px;color:#27ae60;">No anomalies detected.</td></tr>
+</table>
+{% endif %}
+
+<!-- Drops -->
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;">
+  <tr><td style="padding:0 24px;"><span style="font-size:16px;font-weight:bold;color:#1a1a2e;">DROPS ({{ diagnostics|length }})</span></td></tr>
+</table>
+{% if diagnostics %}
+<table width="96%" cellpadding="5" cellspacing="0" style="margin:8px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;font-size:13px;">
+  <tr style="background:#e67e22;color:#fff;">
+    <th style="border:1px solid #d35400;padding:6px;text-align:left;">Symbol</th>
+    <th style="border:1px solid #d35400;padding:6px;text-align:left;">Series</th>
+    <th style="border:1px solid #d35400;padding:6px;text-align:left;">Reason</th>
+  </tr>
+  {% for d in diagnostics %}
+  <tr style="background:{{ '#fef5e7' if loop.index is odd else '#fdebd0' }};">
+    <td style="border:1px solid #ddd;padding:5px;">{{ d.symbol }}</td>
+    <td style="border:1px solid #ddd;padding:5px;">{{ d.series }}</td>
+    <td style="border:1px solid #ddd;padding:5px;font-weight:bold;">{{ d.reason }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<table width="96%" cellpadding="0" cellspacing="0" style="margin:8px auto 0 auto;">
+  <tr><td style="padding:8px;color:#27ae60;">No drops.</td></tr>
+</table>
+{% endif %}
+
+<!-- Missing Currencies -->
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;">
+  <tr><td style="padding:0 24px;"><span style="font-size:16px;font-weight:bold;color:#1a1a2e;">MISSING CURRENCIES ({{ n_missing }})</span></td></tr>
+</table>
+{% if missing_ccy %}
+<table width="96%" cellpadding="0" cellspacing="0" style="margin:8px auto 0 auto;">
+  <tr><td style="padding:8px;color:#e74c3c;font-weight:bold;">{{ missing_ccy | join(', ') }}</td></tr>
+</table>
+{% else %}
+<table width="96%" cellpadding="0" cellspacing="0" style="margin:8px auto 0 auto;">
+  <tr><td style="padding:8px;color:#27ae60;">All {{ n_symbols }} currencies produced bars.</td></tr>
+</table>
+{% endif %}
+
+<!-- Holiday Hits -->
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;">
+  <tr><td style="padding:0 24px;"><span style="font-size:16px;font-weight:bold;color:#1a1a2e;">HOLIDAY HITS ({{ n_holidays }})</span></td></tr>
+</table>
+{% if holiday_hits %}
+<table width="96%" cellpadding="5" cellspacing="0" style="margin:8px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;font-size:13px;">
+  <tr style="background:#8e44ad;color:#fff;">
+    <th style="border:1px solid #7d3c98;padding:6px;text-align:left;">Currency</th>
+    <th style="border:1px solid #7d3c98;padding:6px;text-align:left;">Market</th>
+    <th style="border:1px solid #7d3c98;padding:6px;text-align:left;">Holiday</th>
+  </tr>
+  {% for h in holiday_hits %}
+  <tr style="background:{{ '#f5eef8' if loop.index is odd else '#ebdef0' }};">
+    <td style="border:1px solid #ddd;padding:5px;">{{ h.currency }}</td>
+    <td style="border:1px solid #ddd;padding:5px;">{{ h.market_code }}</td>
+    <td style="border:1px solid #ddd;padding:5px;">{{ h.name }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<table width="96%" cellpadding="0" cellspacing="0" style="margin:8px auto 0 auto;">
+  <tr><td style="padding:8px;color:#27ae60;">No holidays affecting this window.</td></tr>
+</table>
+{% endif %}
+
+<!-- Footer -->
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:24px;background-color:#f0f0f0;border-top:2px solid #ddd;">
+  <tr>
+    <td style="padding:12px 24px;color:#888;font-size:12px;">
+      Generated by IMDR | {{ pipeline_name }} | {{ run_time_utc }}
+    </td>
+  </tr>
+</table>
+
+</body>
+</html>

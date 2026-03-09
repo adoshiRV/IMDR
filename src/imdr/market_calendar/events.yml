@@ -1,0 +1,47 @@
+# Custom market events — central bank meetings, early closes, data blackouts.
+# Maintained manually. Add events as they are announced.
+
+events:
+  # Central bank rate decisions (example entries — update annually)
+  - date: "2026-01-29"
+    market: US
+    type: central_bank
+    description: "FOMC rate decision"
+
+  - date: "2026-03-19"
+    market: US
+    type: central_bank
+    description: "FOMC rate decision"
+
+  - date: "2026-01-30"
+    market: EU
+    type: central_bank
+    description: "ECB rate decision"
+
+  - date: "2026-03-06"
+    market: EU
+    type: central_bank
+    description: "ECB rate decision"
+
+  - date: "2026-02-06"
+    market: UK
+    type: central_bank
+    description: "BOE rate decision"
+
+  - date: "2026-01-24"
+    market: JP
+    type: central_bank
+    description: "BOJ rate decision"
+
+  # Early closes (example)
+  - date: "2026-12-24"
+    market: US
+    type: early_close
+    description: "Christmas Eve early close"
+    close_hour: 13
+
+  # Data blackout periods (example)
+  - date: "2026-01-01"
+    market: US
+    type: data_blackout
+    description: "New Year's Day — no data expected"

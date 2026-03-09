@@ -24,6 +24,44 @@ class Settings(BaseSettings):
     max_overflow: int = 10
     pool_timeout: int = 30
 
+    # Read optimization
+    mssql_read_pool_size: int = 10
+    mssql_read_max_overflow: int = 20
+
+    # HTTP
+    http_timeout: int = 30
+    http_retries: int = 3
+
+    # API Keys (per provider)
+    bidfx_api_key: str = ""
+    citivelocity_api_key: str = ""
+
+    # BidFX
+    bidfx_username: str = ""
+    bidfx_password: str = ""
+    bidfx_base_url: str = "https://data.app.bidfx.com/api/price/historical/v1/fx"
+    bidfx_max_workers: int = 16
+    bidfx_timeout_connect: int = 3
+    bidfx_timeout_read: int = 7
+
+    # Email
+    email_enabled: bool = False
+    email_to: str = ""
+    email_anomaly_to: str = ""
+
+    # Anomaly
+    anomaly_pct_threshold: float = 50.0
+
+    # Parquet
+    parquet_batch_dir: str = ""
+    parquet_retention_days: int = 90
+
+    # Run logs
+    run_log_dir: str = ""
+
+    # Cache
+    cache_dir: str = ""
+
     # Logging
     log_level: str = "INFO"
     log_format: str = "console"

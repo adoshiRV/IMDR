@@ -1,0 +1,65 @@
+pipelines:
+  fx.spot_rates:
+    domain: fx
+    target_schema: fx
+    target_table: fx_spot_rates
+    date_column: rate_date
+    unique_columns:
+      - base_currency
+      - quote_currency
+      - rate_date
+    required_columns:
+      - mid
+      - base_currency
+      - quote_currency
+    health_checks:
+      row_count_min: 5
+      max_staleness_hours: 24
+      value_ranges:
+        mid:
+          min: 0.0001
+          max: 10000.0
+    sources:
+      bidfx:
+        type: rest
+        # API details to be filled in
+      citivelocity:
+        type: rest
+        # API details to be filled in
+
+  fx.ohlc:
+    domain: fx
+    target_schema: fx
+    target_table: fact_ohlc
+    date_column: ts
+    unique_columns:
+      - ts
+      - symbol
+      - series
+      - tenor
+    required_columns:
+      - open_px
+      - high_px
+      - low_px
+      - close_px
+      - mid_px
+      - bid
+      - ask
+      - n_ticks
+    health_checks:
+      row_count_min: 10
+      max_staleness_hours: 2
+      value_ranges:
+        close_px:
+          min: 0.0001
+          max: 100000.0
+        mid_px:
+          min: 0.0001
+          max: 100000.0
+    sources:
+      bidfx:
+        type: rest
+        auth: basic
+      citivelocity:
+        type: rest
+        auth: bearer

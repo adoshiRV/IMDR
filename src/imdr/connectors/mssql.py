@@ -23,6 +23,7 @@ class MSSQLConnector:
             pool_pre_ping=True,
             echo=False,
         )
+        self._read_engine: Engine | None = None
         self._session_factory: sessionmaker[Session] = sessionmaker(
             bind=self._engine,
             expire_on_commit=False,
@@ -31,6 +32,20 @@ class MSSQLConnector:
     @property
     def engine(self) -> Engine:
         return self._engine
+
+    @property
+    def read_engine(self) -> Engine:
+        """Separate engine for analytical reads — larger pool, no ORM overhead."""
+        if self._read_engine is None:
+            self._read_engine = create_engine(
+                self._settings.mssql_connection_url,
+                pool_size=self._settings.mssql_read_pool_size,
+                max_overflow=self._settings.mssql_read_max_overflow,
+                pool_timeout=self._settings.pool_timeout,
+                pool_pre_ping=True,
+                echo=False,
+            )
+        return self._read_engine
 
     @contextmanager
     def session(self) -> Generator[Session, None, None]:
@@ -46,5 +61,7 @@ class MSSQLConnector:
             session.close()
 
     def dispose(self) -> None:
-        """Dispose the engine and release all pooled connections."""
+        """Dispose all engines and release pooled connections."""
         self._engine.dispose()
+        if self._read_engine is not None:
+            self._read_engine.dispose()

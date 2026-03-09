@@ -1,0 +1,104 @@
+# FX Universe Configuration
+# Currencies, classifications, pair conventions, market hours, series, and provider mappings.
+
+currencies:
+  g10:
+    - USD
+    - EUR
+    - GBP
+    - JPY
+    - CHF
+    - AUD
+    - NZD
+    - CAD
+    - NOK
+    - SEK
+    - CNH
+
+  em_ndf:
+    - INR
+    - KRW
+    - TWD
+    - THB
+    - IDR
+    - PHP
+
+  em_deliverable:
+    - SGD
+
+classifications:
+  # Maps each currency to its classification
+  USD: g10
+  EUR: g10
+  GBP: g10
+  JPY: g10
+  CHF: g10
+  AUD: g10
+  NZD: g10
+  CAD: g10
+  NOK: g10
+  SEK: g10
+  CNH: g10
+  INR: em_ndf
+  KRW: em_ndf
+  TWD: em_ndf
+  THB: em_ndf
+  IDR: em_ndf
+  PHP: em_ndf
+  SGD: em_deliverable
+
+# Pair convention priority (higher = base currency in standard quoting)
+pair_priority:
+  - EUR
+  - GBP
+  - AUD
+  - NZD
+  - USD
+  - CAD
+  - CHF
+  - NOK
+  - SEK
+  - JPY
+
+market_hours:
+  # FX market open hours (UTC) — Sunday 21:00 to Friday 21:00
+  open_day: 6   # Sunday
+  open_hour: 21
+  close_day: 4  # Friday
+  close_hour: 21
+
+series:
+  SPOT:
+    tenor: SPOT
+    deal_type: SPOT
+  FORWARD_1M:
+    tenor: 1M
+    deal_type: FORWARD
+  NDF_1M:
+    tenor: 1M
+    deal_type: NDF
+
+providers:
+  bidfx:
+    # Maps classification to which series to fetch
+    g10:
+      - SPOT
+      - FORWARD_1M
+    em_ndf:
+      - SPOT
+      - NDF_1M
+    em_deliverable:
+      - SPOT
+      - FORWARD_1M
+    auth_type: basic
+    base_url: "https://data.app.bidfx.com/api/price/historical/v1/fx"
+
+  citivelocity:
+    g10:
+      - SPOT
+    em_ndf:
+      - SPOT
+    em_deliverable:
+      - SPOT
+    auth_type: bearer
+    base_url: ""

@@ -1,0 +1,57 @@
+# Read-side optimization declarations.
+# Defines columnstore indexes, views, and partitioning targets.
+# Used by scripts/generate_optimization_sql.py to produce migration SQL.
+
+columnstore_indexes:
+  - schema: fx
+    table: fact_ohlc
+    index_name: ncci_fact_ohlc
+    columns:
+      - ts
+      - symbol
+      - series
+      - tenor
+      - deal_type
+      - pair_used
+      - open_px
+      - high_px
+      - low_px
+      - close_px
+      - mid_px
+      - mid_mean_px
+      - mid_median_px
+      - bid
+      - ask
+      - n_ticks
+
+views:
+  - schema: fx
+    name: vw_ohlc_daily
+    type: regular
+    description: Daily OHLC bars aggregated from tick data
+
+  - schema: fx
+    name: vw_daily_change
+    type: regular
+    description: Day-over-day percentage change on close_px
+
+  - schema: fx
+    name: vw_ohlc_moving_avg
+    type: regular
+    description: 5/20/50-day moving averages and 20-day z-score
+
+  - schema: fx
+    name: vw_ohlc_summary
+    type: indexed
+    index_columns:
+      - symbol
+      - series
+    description: Per symbol/series inventory with date ranges
+
+partitioning:
+  threshold_rows: 50000000
+  tables:
+    - schema: fx
+      table: fact_ohlc
+      partition_column: ts
+      grain: monthly

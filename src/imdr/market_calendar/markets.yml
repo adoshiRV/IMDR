@@ -1,0 +1,220 @@
+# Market definitions — globally extensible across domains.
+# Each market has a timezone, associated currencies, exchanges, and holiday calendar type.
+
+markets:
+  US:
+    timezone: America/New_York
+    currencies: [USD]
+    exchanges: [NYSE, NASDAQ, CME]
+    calendar_type: us_federal
+    country_code: US
+
+  UK:
+    timezone: Europe/London
+    currencies: [GBP]
+    exchanges: [LSE]
+    calendar_type: uk_bank
+    country_code: GB
+
+  EU:
+    timezone: Europe/Berlin
+    currencies: [EUR]
+    exchanges: [EUREX, EURONEXT]
+    calendar_type: target2
+    country_code: DE
+
+  JP:
+    timezone: Asia/Tokyo
+    currencies: [JPY]
+    exchanges: [TSE, JPX]
+    calendar_type: japan_bank
+    country_code: JP
+
+  CH:
+    timezone: Europe/Zurich
+    currencies: [CHF]
+    exchanges: [SIX]
+    calendar_type: swiss
+    country_code: CH
+
+  AU:
+    timezone: Australia/Sydney
+    currencies: [AUD]
+    exchanges: [ASX]
+    calendar_type: australia
+    country_code: AU
+
+  NZ:
+    timezone: Pacific/Auckland
+    currencies: [NZD]
+    exchanges: [NZX]
+    calendar_type: new_zealand
+    country_code: NZ
+
+  CA:
+    timezone: America/Toronto
+    currencies: [CAD]
+    exchanges: [TSX]
+    calendar_type: canada
+    country_code: CA
+
+  "NO":
+    timezone: Europe/Oslo
+    currencies: [NOK]
+    exchanges: [OSE]
+    calendar_type: norway
+    country_code: "NO"
+
+  SE:
+    timezone: Europe/Stockholm
+    currencies: [SEK]
+    exchanges: [NASDAQ_STOCKHOLM]
+    calendar_type: sweden
+    country_code: SE
+
+  CN:
+    timezone: Asia/Shanghai
+    currencies: [CNY]
+    exchanges: [SSE, SZSE]
+    calendar_type: china
+    country_code: CN
+
+  IN:
+    timezone: Asia/Kolkata
+    currencies: [INR]
+    exchanges: [NSE, BSE]
+    calendar_type: india
+    country_code: IN
+
+  KR:
+    timezone: Asia/Seoul
+    currencies: [KRW]
+    exchanges: [KRX]
+    calendar_type: south_korea
+    country_code: KR
+
+  BR:
+    timezone: America/Sao_Paulo
+    currencies: [BRL]
+    exchanges: [B3]
+    calendar_type: brazil
+    country_code: BR
+
+  MX:
+    timezone: America/Mexico_City
+    currencies: [MXN]
+    exchanges: [BMV]
+    calendar_type: mexico
+    country_code: MX
+
+  ZA:
+    timezone: Africa/Johannesburg
+    currencies: [ZAR]
+    exchanges: [JSE]
+    calendar_type: south_africa
+    country_code: ZA
+
+  TR:
+    timezone: Europe/Istanbul
+    currencies: [TRY]
+    exchanges: [BIST]
+    calendar_type: turkey
+    country_code: TR
+
+  SG:
+    timezone: Asia/Singapore
+    currencies: [SGD]
+    exchanges: [SGX]
+    calendar_type: singapore
+    country_code: SG
+
+  HK:
+    timezone: Asia/Hong_Kong
+    currencies: [HKD]
+    exchanges: [HKEX]
+    calendar_type: hong_kong
+    country_code: HK
+
+  PL:
+    timezone: Europe/Warsaw
+    currencies: [PLN]
+    exchanges: [WSE]
+    calendar_type: poland
+    country_code: PL
+
+  CZ:
+    timezone: Europe/Prague
+    currencies: [CZK]
+    exchanges: [PSE]
+    calendar_type: czech_republic
+    country_code: CZ
+
+  HU:
+    timezone: Europe/Budapest
+    currencies: [HUF]
+    exchanges: [BSE_HU]
+    calendar_type: hungary
+    country_code: HU
+
+  IL:
+    timezone: Asia/Jerusalem
+    currencies: [ILS]
+    exchanges: [TASE]
+    calendar_type: israel
+    country_code: IL
+
+  TW:
+    timezone: Asia/Taipei
+    currencies: [TWD]
+    exchanges: [TWSE]
+    calendar_type: taiwan
+    country_code: TW
+
+  PH:
+    timezone: Asia/Manila
+    currencies: [PHP]
+    exchanges: [PSE_PH]
+    calendar_type: philippines
+    country_code: PH
+
+  ID:
+    timezone: Asia/Jakarta
+    currencies: [IDR]
+    exchanges: [IDX]
+    calendar_type: indonesia
+    country_code: ID
+
+  MY:
+    timezone: Asia/Kuala_Lumpur
+    currencies: [MYR]
+    exchanges: [BURSA]
+    calendar_type: malaysia
+    country_code: MY
+
+  TH:
+    timezone: Asia/Bangkok
+    currencies: [THB]
+    exchanges: [SET]
+    calendar_type: thailand
+    country_code: TH
+
+  CL:
+    timezone: America/Santiago
+    currencies: [CLP]
+    exchanges: [BCS]
+    calendar_type: chile
+    country_code: CL
+
+  CO:
+    timezone: America/Bogota
+    currencies: [COP]
+    exchanges: [BVC]
+    calendar_type: colombia
+    country_code: CO
+
+  PE:
+    timezone: America/Lima
+    currencies: [PEN]
+    exchanges: [BVL]
+    calendar_type: peru
+    country_code: PE

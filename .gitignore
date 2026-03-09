@@ -1,16 +1,30 @@
+# Python
 __pycache__/
 *.py[cod]
 *.egg-info/
+*.egg
 dist/
 build/
 .venv/
+
+# Secrets
 .env
-*.db
+
+# Tool caches
 .mypy_cache/
 .pytest_cache/
 .ruff_cache/
 .claude/
-.ipynb_checkpoints/
-*.egg
+
+# Test / coverage
 .coverage
 htmlcov/
+
+# IDE / notebooks
+.ipynb_checkpoints/
+*.db
+
+# IMDR data outputs (domain-structured, auto-created at runtime)
+data/parquet/
+data/logs/
+data/cache/
