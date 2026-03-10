@@ -27,11 +27,12 @@ from imdr.domains.fx.clean_fx_fact_ohlc import (
     CleaningRunner,
     HardBoundViolationRule,
     NonPositivePriceRule,
+    PercentageChangeRule,
     RobustOutlierRule,
 )
 from imdr.universe.fx import get_fx_universe
 
-RULE_NAMES = ["non_positive", "hard_bound", "robust_outlier", "bid_ask"]
+RULE_NAMES = ["non_positive", "hard_bound", "pct_change", "robust_outlier", "bid_ask"]
 
 
 def _build_rules(
@@ -48,6 +49,7 @@ def _build_rules(
     all_rules = [
         NonPositivePriceRule(),
         HardBoundViolationRule(ranges=ranges),
+        PercentageChangeRule(threshold_pct=args.pct_threshold),
         RobustOutlierRule(
             n_mad=args.n_mad,
             trailing_months=args.trailing_months,
@@ -70,20 +72,51 @@ def _build_where(args: argparse.Namespace) -> str:
     return " ".join(parts)
 
 
+def _overlap_stats(
+    results: list[CleaningResult],
+) -> tuple[dict[str, set[int]], dict[str, int], int]:
+    """Compute per-rule ID sets, unique-only counts, and global unique count.
+
+    Returns (id_sets, unique_counts, total_unique) considering only
+    null_prices rules (bid_ask is a separate action and excluded).
+    """
+    null_rules = [r for r in results if r.actions and r.actions[0].action == "null_prices"]
+    id_sets: dict[str, set[int]] = {
+        r.rule_name: {a.row_id for a in r.actions} for r in null_rules
+    }
+    all_ids = set().union(*id_sets.values()) if id_sets else set()
+
+    unique_counts: dict[str, int] = {}
+    for name, ids in id_sets.items():
+        others = set().union(*(s for n, s in id_sets.items() if n != name)) if len(id_sets) > 1 else set()
+        unique_counts[name] = len(ids - others)
+
+    return id_sets, unique_counts, len(all_ids)
+
+
 def _print_summary(results: list[CleaningResult], dry_run: bool) -> None:
     mode = "DRY RUN" if dry_run else "EXECUTED"
     total = sum(r.count for r in results)
 
+    id_sets, unique_counts, total_unique = _overlap_stats(results)
+
     print(f"\n{'=' * 60}")
     print(f"  CLEANING SUMMARY  [{mode}]")
     print(f"{'=' * 60}")
-    print(f"  {'Rule':<20} {'Rows':>8}  Action")
-    print(f"  {'-' * 50}")
+    print(f"  {'Rule':<20} {'Rows':>8} {'Unique':>8}  Action")
+    print(f"  {'-' * 56}")
     for r in results:
         action = r.actions[0].action if r.actions else "-"
-        print(f"  {r.rule_name:<20} {r.count:>8}  {action}")
-    print(f"  {'-' * 50}")
+        uniq = unique_counts.get(r.rule_name)
+        uniq_str = str(uniq) if uniq is not None else "-"
+        print(f"  {r.rule_name:<20} {r.count:>8} {uniq_str:>8}  {action}")
+    print(f"  {'-' * 56}")
     print(f"  {'TOTAL':<20} {total:>8}")
+
+    if id_sets:
+        null_total = sum(r.count for r in results if r.rule_name in id_sets)
+        overlap = null_total - total_unique
+        print(f"  {'UNIQUE (null_prices)':<20} {total_unique:>8}  ({overlap} overlapping)")
     print(f"{'=' * 60}\n")
 
     if dry_run and total > 0:
@@ -107,6 +140,12 @@ def main() -> None:
         help="Run a single rule instead of all",
     )
     parser.add_argument(
+        "--pct-threshold",
+        type=float,
+        default=5.0,
+        help="Percentage change threshold for bar-to-bar detection (default: 5.0)",
+    )
+    parser.add_argument(
         "--n-mad",
         type=float,
         default=4.0,
@@ -115,8 +154,8 @@ def main() -> None:
     parser.add_argument(
         "--trailing-months",
         type=int,
-        default=12,
-        help="Trailing window in months for robust stats (default: 12)",
+        default=1,
+        help="Trailing window in months for robust stats (default: 1)",
     )
     parser.add_argument(
         "--batch-size",
@@ -155,10 +194,18 @@ def main() -> None:
 
     results = runner.run(where=where)
 
+    # Compute overlap sets for per-rule annotation
+    id_sets, unique_counts, total_unique = _overlap_stats(results)
+
     # Print flagged rows detail
     for r in results:
         if r.count > 0:
-            print(f"\n  {r.rule_name} — {r.count} rows:")
+            uniq = unique_counts.get(r.rule_name)
+            if uniq is not None:
+                overlap = r.count - uniq
+                print(f"\n  {r.rule_name} — {r.count} rows ({uniq} unique, {overlap} overlap):")
+            else:
+                print(f"\n  {r.rule_name} — {r.count} rows:")
             for a in r.actions[:20]:
                 print(f"    {a.detail}")
             if r.count > 20:
@@ -173,25 +220,25 @@ def main() -> None:
 
 
 def _write_gaps_file(results: list[CleaningResult], path: str) -> None:
-    """Write unique flagged timestamps as a gaps file for re-pull."""
-    timestamps: set[str] = set()
+    """Write unique (symbol, timestamp) pairs for null_prices rows as a gaps file for re-pull."""
+    pairs: set[tuple[str, str]] = set()
     for r in results:
+        if not r.actions or r.actions[0].action != "null_prices":
+            continue
         for a in r.actions:
-            ts = a.ts
-            if hasattr(ts, "strftime"):
-                timestamps.add(ts.strftime("%Y-%m-%dT%H:%M:%S"))
-            else:
-                timestamps.add(str(ts))
+            ts_str = a.ts.strftime("%Y-%m-%dT%H:%M:%S") if hasattr(a.ts, "strftime") else str(a.ts)
+            pairs.add((a.symbol, ts_str))
 
-    if not timestamps:
-        print("  No flagged timestamps — gaps file not written.")
+    if not pairs:
+        print("  No flagged rows — gaps file not written.")
         return
 
     out = Path(path)
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text("\n".join(sorted(timestamps)) + "\n")
-    print(f"  Wrote {len(timestamps)} unique timestamps to {out}")
-    print(f"  → Set MODE='gaps' and GAPS_FILE='{out}' in fx_bidfx_historical.py to re-pull.")
+    lines = sorted(pairs)
+    out.write_text("\n".join(f"{sym},{ts}" for sym, ts in lines) + "\n")
+    print(f"  Wrote {len(lines)} unique (symbol, timestamp) pairs to {out}")
+    print(f"  → Set MODE='cleanup' and GAPS_FILE='{out}' in fx_bidfx_historical.py to re-pull.")
 
 
 if __name__ == "__main__":

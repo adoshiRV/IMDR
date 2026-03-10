@@ -4,6 +4,7 @@ Usage:
     python -m scripts.run_pipeline fx.spot_rates --source csv --path data/fx.csv
     python -m scripts.run_pipeline fx.spot_rates --source bidfx
     python -m scripts.run_pipeline fx.ohlc --hour 2026-03-09T13:00:00
+    python -m scripts.run_pipeline rates.historical --start 2024-01-01 --end 2024-01-31 --quotes par,spread
 """
 
 from __future__ import annotations
@@ -82,11 +83,49 @@ def _build_fx_ohlc_pipeline(
     )
 
 
+def _build_rates_historical_pipeline(
+    connector: MSSQLConnector, args: argparse.Namespace
+) -> BasePipeline[Any, Any, Any]:
+    """Build a Rates Historical pipeline based on CLI args."""
+    from datetime import datetime, timezone
+
+    from imdr.domains.rates.pipeline import RatesHistoricalPipeline
+    from imdr.universe.rates import get_rates_universe
+
+    settings = get_settings()
+    universe = get_rates_universe()
+
+    if not hasattr(args, "start") or not args.start:
+        print("ERROR: --start is required for rates.historical")
+        sys.exit(1)
+    if not hasattr(args, "end") or not args.end:
+        print("ERROR: --end is required for rates.historical")
+        sys.exit(1)
+
+    start = datetime.strptime(args.start, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    end = datetime.strptime(args.end, "%Y-%m-%d").replace(
+        hour=23, minute=59, tzinfo=timezone.utc
+    )
+
+    quotes = args.quotes.split(",") if hasattr(args, "quotes") and args.quotes else None
+
+    return RatesHistoricalPipeline(
+        connector=connector,
+        settings=settings,
+        universe=universe,
+        start=start,
+        end=end,
+        quotes=quotes,
+        frequency=getattr(args, "frequency", "DAILY") or "DAILY",
+    )
+
+
 # Registry maps pipeline names to their factory functions.
 # Add new pipelines here — no if-chain needed in main().
 PIPELINE_REGISTRY: dict[str, PipelineFactory] = {
     "fx.spot_rates": _build_fx_pipeline,
     "fx.ohlc": _build_fx_ohlc_pipeline,
+    "rates.historical": _build_rates_historical_pipeline,
 }
 
 
@@ -96,6 +135,10 @@ def main() -> int:
     parser.add_argument("--source", default="csv", help="Data source (csv, bidfx, citivelocity)")
     parser.add_argument("--path", type=str, help="File path (when source=csv)")
     parser.add_argument("--hour", type=str, help="Hour override for fx.ohlc (ISO format)")
+    parser.add_argument("--start", type=str, help="Start date for rates.historical (YYYY-MM-DD)")
+    parser.add_argument("--end", type=str, help="End date for rates.historical (YYYY-MM-DD)")
+    parser.add_argument("--quotes", type=str, help="Comma-separated quote types for rates.historical (par,spread,fwd)")
+    parser.add_argument("--frequency", type=str, help="Data frequency for rates.historical (DAILY, HOURLY)")
     args = parser.parse_args()
 
     settings = get_settings()

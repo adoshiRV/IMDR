@@ -246,7 +246,7 @@ class RobustOutlierRule(CleaningRule):
         value_column: str = "close_px",
         group_columns: list[str] | None = None,
         n_mad: float = 4.0,
-        trailing_months: int = 12,
+        trailing_months: int = 1,
         ts_column: str = "ts",
         min_obs: int = 100,
     ) -> None:
@@ -336,6 +336,69 @@ class RobustOutlierRule(CleaningRule):
             f"robust outlier: {row['symbol']} {row.get('series', '')} "
             f"{self._value_col}={row.get(self._value_col, '?')} "
             f"z={row.get('robust_z', '?'):.1f} @ {row['ts']}"
+        )
+
+
+class PercentageChangeRule(CleaningRule):
+    """NULL out rows where close_px changed by more than threshold from previous bar."""
+
+    def __init__(
+        self,
+        value_column: str = "close_px",
+        threshold_pct: float = 5.0,
+    ) -> None:
+        self._value_col = value_column
+        self._threshold = threshold_pct
+
+    @property
+    def name(self) -> str:
+        return "pct_change"
+
+    @property
+    def action_label(self) -> str:
+        return "null_prices"
+
+    def detect(
+        self,
+        reader: AnalyticalReader,
+        table: str = TABLE,
+        where: str = "",
+        params: dict[str, Any] | None = None,
+    ) -> pd.DataFrame:
+        sql = f"""
+            WITH with_prev AS (
+                SELECT [id], [ts], [symbol], [series], [{self._value_col}],
+                       LAG([{self._value_col}]) OVER (
+                           PARTITION BY [symbol], [series]
+                           ORDER BY [ts]
+                       ) AS prev_val
+                FROM {table}
+                WHERE [{self._value_col}] IS NOT NULL
+                  {where}
+            )
+            SELECT [id], [ts], [symbol], [series],
+                   [{self._value_col}], prev_val,
+                   ([{self._value_col}] - prev_val)
+                       / ABS(NULLIF(prev_val, 0)) * 100.0 AS pct_change
+            FROM with_prev
+            WHERE prev_val IS NOT NULL
+              AND prev_val != 0
+              AND ABS(([{self._value_col}] - prev_val)
+                      / ABS(prev_val) * 100.0) > {self._threshold}
+        """
+        return reader.read_sql(sql, params)
+
+    def build_update_sql(self, ids: list[int]) -> str:
+        id_list = ", ".join(str(i) for i in ids)
+        return f"UPDATE {TABLE} SET {_NULL_SET} WHERE [id] IN ({id_list})"
+
+    def describe(self, row: pd.Series) -> str:
+        pct = row.get("pct_change")
+        pct_str = f" ({pct:+.1f}%)" if pd.notna(pct) else ""
+        return (
+            f"pct_change: {row['symbol']} {row['series']} "
+            f"{self._value_col}={row[self._value_col]}{pct_str} "
+            f"from prev={row.get('prev_val', '?')} @ {row['ts']}"
         )
 
 

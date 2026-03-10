@@ -250,12 +250,14 @@ class BidFXExtractor(APIExtractor[list[dict[str, Any]]]):
         universe: FXUniverse,
         window: HourWindow,
         pair_cache: PairCache | None = None,
+        currencies: set[str] | None = None,
     ) -> None:
         super().__init__()
         self._settings = settings
         self._universe = universe
         self._window = window
         self._pair_cache = pair_cache or PairCache()
+        self._currencies = currencies
         self._diagnostics: list[BarDiagnostic] = []
 
     @property
@@ -280,7 +282,7 @@ class BidFXExtractor(APIExtractor[list[dict[str, Any]]]):
         with ThreadPoolExecutor(max_workers=self._settings.bidfx_max_workers) as pool:
             futures = {
                 pool.submit(self._process_currency, ccy): ccy
-                for ccy in self._universe.active_currencies
+                for ccy in (self._currencies if self._currencies else self._universe.active_currencies)
             }
 
             for future in as_completed(futures):

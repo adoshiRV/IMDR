@@ -619,6 +619,74 @@ class RobustStatisticalOutlierCheck(QualityCheck):
         )
 
 
+class PercentageChangeCheck(QualityCheck):
+    """Flag rows where the value changed by more than threshold_pct from the previous bar.
+
+    Uses LAG() partitioned by (symbol, series) ordered by timestamp.
+    """
+
+    def __init__(
+        self,
+        value_column: str = "close_px",
+        symbol_column: str = "symbol",
+        series_column: str = "series",
+        ts_column: str = "ts",
+        threshold_pct: float = 5.0,
+        max_rows: int = 50,
+    ) -> None:
+        self._value_col = value_column
+        self._symbol_col = symbol_column
+        self._series_col = series_column
+        self._ts_col = ts_column
+        self._threshold = threshold_pct
+        self._max_rows = max_rows
+
+    def run(self, reader: AnalyticalReader, table: str,
+            where: str = "", params: dict[str, Any] | None = None) -> QualityResult:
+        sql = f"""
+            WITH with_prev AS (
+                SELECT [{self._ts_col}], [{self._symbol_col}], [{self._series_col}],
+                       [{self._value_col}],
+                       LAG([{self._value_col}]) OVER (
+                           PARTITION BY [{self._symbol_col}], [{self._series_col}]
+                           ORDER BY [{self._ts_col}]
+                       ) AS prev_val
+                FROM {table}
+                WHERE [{self._value_col}] IS NOT NULL
+                  {where}
+            )
+            SELECT TOP {self._max_rows}
+                   [{self._ts_col}], [{self._symbol_col}], [{self._series_col}],
+                   [{self._value_col}], prev_val,
+                   ([{self._value_col}] - prev_val) / ABS(NULLIF(prev_val, 0)) * 100.0
+                       AS pct_change
+            FROM with_prev
+            WHERE prev_val IS NOT NULL
+              AND prev_val != 0
+              AND ABS(([{self._value_col}] - prev_val) / ABS(prev_val) * 100.0)
+                  > {self._threshold}
+            ORDER BY ABS(([{self._value_col}] - prev_val) / ABS(prev_val) * 100.0) DESC
+        """
+        flagged = reader.read_sql(sql, params)
+
+        if flagged.empty:
+            return QualityResult(
+                check_name="pct_change",
+                status=CheckStatus.PASSED,
+                category="statistical",
+                message=f"No bars with >{self._threshold}% change from previous bar",
+            )
+
+        return QualityResult(
+            check_name="pct_change",
+            status=CheckStatus.WARNING,
+            category="statistical",
+            message=f"{len(flagged)} bars with >{self._threshold}% change from previous bar",
+            flagged=flagged,
+            meta={"threshold_pct": self._threshold, "flagged_count": len(flagged)},
+        )
+
+
 class SeriesBasisCheck(QualityCheck):
     """Compare a base series against comparison series for the same symbol/timestamp.
 

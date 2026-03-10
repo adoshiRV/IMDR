@@ -22,8 +22,10 @@ from imdr.domains.fx.time_utils import HourWindow
 from imdr.healthchecks.base import CheckStatus
 from imdr.healthchecks.quality import (
     ColumnOrderCheck,
+    PercentageChangeCheck,
     PositiveValueCheck,
     RobustStatisticalOutlierCheck,
+    SymbolRangeCheck,
 )
 from imdr.reporting.run_report import RunReport
 from imdr.schemas.fx_ohlc import FXFactOHLCCreate
@@ -54,10 +56,12 @@ def process_hour(
     connector: MSSQLConnector,
     report: RunReport,
     pair_cache: PairCache | None = None,
+    currencies: set[str] | None = None,
 ) -> HourResult:
     """Process a single hour: fetch ticks -> build bars -> validate -> write DB -> parquet.
 
     This is the shared core. Live calls it once. Historical calls it in a loop.
+    When *currencies* is provided, only those currencies are fetched (cleanup mode).
     """
     result = HourResult(window=window)
 
@@ -67,6 +71,7 @@ def process_hour(
         universe=universe,
         window=window,
         pair_cache=pair_cache,
+        currencies=currencies,
     )
     bars = extractor.extract()
     result.bars = bars
@@ -95,7 +100,13 @@ def process_hour(
             report.warning("validation", f"Bar validation failed: {exc}", details=bar)
 
     # 3. Check for missing currencies
-    expected_symbols = set(universe.api_symbols())
+    if currencies is not None:
+        expected_symbols = {
+            sym for sym in universe.api_symbols()
+            if universe.currency_from_symbol(sym) in currencies
+        }
+    else:
+        expected_symbols = set(universe.api_symbols())
     produced_symbols = {bar["symbol"] for bar in bars}
     result.missing_ccy = sorted(expected_symbols - produced_symbols)
     if result.missing_ccy:
@@ -127,7 +138,7 @@ def process_hour(
 
     # 6. Post-ingest quality check (robust outlier + invariant checks)
     if approved:
-        quality_flags = _post_ingest_quality(connector, window, report)
+        quality_flags = _post_ingest_quality(connector, window, universe, report)
         result.quality_flags = quality_flags
 
     # 7. Write Parquet archive
@@ -143,21 +154,37 @@ _PRICE_COLS = [
     "mid_px", "mid_mean_px", "mid_median_px", "bid", "ask",
 ]
 
-_QUALITY_CHECKS = [
-    PositiveValueCheck(columns=_PRICE_COLS),
-    ColumnOrderCheck(rules=[("bid", "<=", "ask")]),
-    RobustStatisticalOutlierCheck(
-        value_column="close_px",
-        group_columns=["symbol", "series"],
-        n_mad=4.0,
-        trailing_months=12,
-    ),
-]
+def _build_quality_checks(universe: FXUniverse) -> list:
+    """Build the post-ingest quality check list."""
+    checks: list = [
+        PositiveValueCheck(columns=_PRICE_COLS),
+        ColumnOrderCheck(rules=[("bid", "<=", "ask")]),
+        PercentageChangeCheck(
+            value_column="close_px",
+            threshold_pct=5.0,
+        ),
+        SymbolRangeCheck(
+            ranges={
+                sym: (r.min, r.max)
+                for sym in universe.expected_ranges
+                if (r := universe.expected_range_for(sym)) is not None
+            },
+            value_column="close_px",
+        ),
+        RobustStatisticalOutlierCheck(
+            value_column="close_px",
+            group_columns=["symbol", "series"],
+            n_mad=4.0,
+            trailing_months=12,
+        ),
+    ]
+    return checks
 
 
 def _post_ingest_quality(
     connector: MSSQLConnector,
     window: HourWindow,
+    universe: FXUniverse,
     report: RunReport,
 ) -> list[dict[str, Any]]:
     """Run quality checks on the just-ingested hour and return flags."""
@@ -167,7 +194,7 @@ def _post_ingest_quality(
     # Scope checks to this hour
     where = f"AND [ts] = '{window.start:%Y-%m-%d %H:%M:%S}'"
 
-    for check in _QUALITY_CHECKS:
+    for check in _build_quality_checks(universe):
         try:
             result = check.run(reader, table, where=where)
             if result.status != CheckStatus.PASSED:

@@ -5,7 +5,8 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import DateTime, Integer, Numeric, String, UniqueConstraint
+from sqlalchemy import Integer, Numeric, String, UniqueConstraint
+from sqlalchemy.dialects.mssql import DATETIMEOFFSET
 from sqlalchemy.orm import Mapped, mapped_column
 
 from imdr.models.base import Base
@@ -23,7 +24,7 @@ class FXFactOHLC(Base):
     # Table has id + created_at but NOT updated_at — suppress inherited column
     updated_at = None
 
-    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    ts: Mapped[datetime] = mapped_column(DATETIMEOFFSET, nullable=False, index=True)
     symbol: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
     series: Mapped[str] = mapped_column(String(30), nullable=False)
     tenor: Mapped[str] = mapped_column(String(10), nullable=False)

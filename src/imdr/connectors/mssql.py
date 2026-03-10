@@ -22,6 +22,9 @@ class MSSQLConnector:
             pool_timeout=settings.pool_timeout,
             pool_pre_ping=True,
             echo=False,
+            # Legacy 'SQL Server' ODBC driver can't handle setinputsizes
+            # for DATETIMEOFFSET columns — let pyodbc infer types instead.
+            use_setinputsizes=False,
         )
         self._read_engine: Engine | None = None
         self._session_factory: sessionmaker[Session] = sessionmaker(

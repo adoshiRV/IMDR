@@ -3,7 +3,8 @@ from __future__ import annotations
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Date, DateTime, Numeric, String, UniqueConstraint
+from sqlalchemy import Date, Numeric, String, UniqueConstraint
+from sqlalchemy.dialects.mssql import DATETIMEOFFSET
 from sqlalchemy.orm import Mapped, mapped_column
 
 from imdr.models.base import Base
@@ -25,7 +26,7 @@ class FXSpotRate(Base):
     ask: Mapped[Decimal | None] = mapped_column(Numeric(18, 8), nullable=True)
     mid: Mapped[Decimal] = mapped_column(Numeric(18, 8), nullable=False)
     source: Mapped[str] = mapped_column(String(50), nullable=False)
-    observed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    observed_at: Mapped[datetime | None] = mapped_column(DATETIMEOFFSET, nullable=True)
 
     def __repr__(self) -> str:
         return f"<FXSpotRate {self.base_currency}/{self.quote_currency} {self.rate_date} mid={self.mid}>"

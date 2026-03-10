@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="IMDR_",
-        env_file=".env",
+        env_file=str(_PROJECT_ROOT / ".env"),
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -43,6 +46,20 @@ class Settings(BaseSettings):
     bidfx_max_workers: int = 16
     bidfx_timeout_connect: int = 3
     bidfx_timeout_read: int = 7
+
+    # Citi Velocity (Rates)
+    citi_host: str = "api.citivelocity.com"
+    citi_client_id: str = ""
+    citi_client_secret: str = ""
+    citi_scope: str = "/api"
+    citi_token_path: str = "/markets/cv/api/oauth2/token"
+    citi_data_path: str = "/markets/analytics/chartingbe/rest/external/authed/data"
+    citi_taglisting_path: str = "/markets/analytics/chartingbe/rest/external/authed/taglisting"
+    citi_tagbrowsing_path: str = "/markets/analytics/chartingbe/rest/external/authed/tagbrowsing"
+    citi_rate_limit_sec: float = 1.0
+    citi_batch_size: int = 100
+    citi_token_ttl: int = 3600
+    citi_timeout: int = 60
 
     # Email
     email_enabled: bool = False

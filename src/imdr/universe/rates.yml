@@ -1,0 +1,633 @@
+# Rates Universe Configuration
+# Merged from RATES_data curve_catalog.yml + rates_universe.yml
+# Single source of truth for currencies, curves, maturities, instruments, and provider mappings.
+
+currencies:
+  g10:
+    - USD
+    - EUR
+    - GBP
+    - JPY
+    - CHF
+    - AUD
+    - NZD
+    - CAD
+    - NOK
+    - SEK
+
+  asia:
+    - JPY
+    - SGD
+    - THB
+    - CNH
+    - CNY
+    - CNY_NDIRS
+    - HKD
+    - IDR
+    - INR
+    - KRW
+    - MYR
+    - PHP
+    - TWD
+    - VND
+
+  other:
+    - DKK
+    - ILS
+    - MXN
+    - ZAR
+
+classifications:
+  USD: g10
+  EUR: g10
+  GBP: g10
+  JPY: g10
+  CHF: g10
+  AUD: g10
+  NZD: g10
+  CAD: g10
+  NOK: g10
+  SEK: g10
+  SGD: asia
+  THB: asia
+  CNH: asia
+  CNY: asia
+  CNY_NDIRS: asia
+  HKD: asia
+  IDR: asia
+  INR: asia
+  KRW: asia
+  MYR: asia
+  PHP: asia
+  TWD: asia
+  VND: asia
+  DKK: other
+  ILS: other
+  MXN: other
+  ZAR: other
+
+target_groups:
+  - g10
+  - asia
+
+# ── Maturities ────────────────────────────────────────────────────
+# Confirmed via taglisting API 2026-03-10
+
+maturities:
+  ois:
+    # sub-month
+    - "1D"
+    - "1W"
+    - "2W"
+    - "3W"
+    # months
+    - "1M"
+    - "2M"
+    - "3M"
+    - "4M"
+    - "5M"
+    - "6M"
+    - "7M"
+    - "8M"
+    - "9M"
+    - "10M"
+    - "11M"
+    # years (with intermediate month tenors)
+    - "1Y"
+    - "15M"
+    - "18M"
+    - "21M"
+    - "2Y"
+    - "3Y"
+    - "4Y"
+    - "5Y"
+    - "6Y"
+    - "7Y"
+    - "8Y"
+    - "9Y"
+    - "10Y"
+    - "11Y"
+    - "12Y"
+    - "13Y"
+    - "14Y"
+    - "15Y"
+    - "16Y"
+    - "17Y"
+    - "18Y"
+    - "19Y"
+    - "20Y"
+    - "25Y"
+    - "30Y"
+    - "35Y"
+    - "40Y"
+    - "45Y"
+    - "50Y"
+
+  swap_libor:
+    - "1W"
+    - "1M"
+    - "2M"
+    - "3M"
+    - "4M"
+    - "5M"
+    - "6M"
+    - "7M"
+    - "8M"
+    - "9M"
+    - "10M"
+    - "11M"
+    - "1Y"
+    - "2Y"
+    - "3Y"
+    - "4Y"
+    - "5Y"
+    - "6Y"
+    - "7Y"
+    - "8Y"
+    - "9Y"
+    - "10Y"
+    - "11Y"
+    - "12Y"
+    - "13Y"
+    - "14Y"
+    - "15Y"
+    - "16Y"
+    - "17Y"
+    - "18Y"
+    - "19Y"
+    - "20Y"
+    - "25Y"
+    - "30Y"
+    - "40Y"
+    - "50Y"
+
+# ── Instruments ───────────────────────────────────────────────────
+
+instruments:
+  ois:
+    tag_prefix: "RATES.OIS"
+    description: "OIS Swaps (RFR) — overnight index swap rates"
+    quote_types:
+      par_rate: "PAR"
+      butterfly: "BFLY"
+      curves: "CURVES"
+      forward: "FWD"
+      roll_carry: "ROLL_CARRY"
+      swap_spread: "SWAP_SPREAD"
+    maturities: ois
+    ccy_index_pairs:
+      AUD: AONIA
+      CAD: CORRA
+      CHF: SARON
+      EUR:
+        - EONIA
+        - EUROSTR
+      GBP: SONIA
+      JPY:
+        - TONAR
+        - TONAR_JSCC
+        - TONAR_LCH
+      NOK: NOWA
+      NZD: NZIONA
+      SEK: STINA
+      USD:
+        - FEDFUND
+        - SOFR
+      SGD: SORA
+      THB: THOR
+      DKK: TNDKK
+      ILS: SHIR
+      MXN: TIIE_FONDEO
+      ZAR: ZARONIA
+
+  swap_libor:
+    tag_prefix: "RATES.SWAP_LIBOR"
+    tag_format: "ccy_only"
+    description: "Swaps (Libor/IBOR) — interest rate swap rates"
+    quote_types:
+      par_rate: "PAR"
+      butterfly: "BFLY"
+      curves: "CURVES"
+      forward: "FWD"
+      roll_carry: "ROLL_CARRY"
+      swap_spread: "SWAP_SPREAD"
+    maturities: swap_libor
+    currencies:
+      - USD
+      - EUR
+      - GBP
+      - JPY
+      - JPY_LCH
+      - CHF
+      - AUD
+      - NZD
+      - CAD
+      - NOK
+      - SEK
+      - SGD
+      - THB
+      - CNH
+      - CNY
+      - CNY_NDIRS
+      - HKD
+      - IDR
+      - INR
+      - KRW
+      - MYR
+      - PHP
+      - TWD
+      - VND
+      - AED
+      - ARS
+      - BDT
+      - BRL
+      - CLP
+      - COP
+      - CZK
+      - DKK
+      - EGP
+      - HUF
+      - ILS
+      - KZT
+      - LKR
+      - MXN
+      - NGN
+      - PLN
+      - RON
+      - RUB
+      - SAR
+      - TRY
+      - ZAR
+
+# ── Curve Catalog ─────────────────────────────────────────────────
+# Maps internal (ccy, curve) to provider source + benchmark metadata.
+
+curves:
+  # ═══ G10 RFR (OIS) ═══
+  - ccy: USD
+    curve: SOFR
+    type: rfr
+    status: active
+    primary_from: "2023-07-01"
+    supersedes: LIBOR
+    maturities: ois
+    providers:
+      citi: { prefix: "RATES.OIS.USD_SOFR", instrument: ois }
+
+  - ccy: USD
+    curve: FEDFUND
+    type: rfr
+    status: active
+    maturities: ois
+    providers:
+      citi: { prefix: "RATES.OIS.USD_FEDFUND", instrument: ois }
+
+  - ccy: EUR
+    curve: EUROSTR
+    type: rfr
+    status: active
+    primary_from: "2022-01-03"
+    supersedes: EONIA
+    maturities: ois
+    providers:
+      citi: { prefix: "RATES.OIS.EUR_EUROSTR", instrument: ois }
+
+  - ccy: EUR
+    curve: EONIA
+    type: rfr
+    status: ceased
+    cessation: "2022-01-03"
+    superseded_by: EUROSTR
+    maturities: ois
+    providers:
+      citi: { prefix: "RATES.OIS.EUR_EONIA", instrument: ois }
+
+  - ccy: GBP
+    curve: SONIA
+    type: rfr
+    status: active
+    primary_from: "2022-01-01"
+    supersedes: GBP_LIBOR
+    maturities: ois
+    providers:
+      citi: { prefix: "RATES.OIS.GBP_SONIA", instrument: ois }
+
+  - ccy: JPY
+    curve: TONAR
+    type: rfr
+    status: active
+    primary_from: "2022-01-01"
+    supersedes: JPY_LIBOR
+    maturities: ois
+    providers:
+      citi: { prefix: "RATES.OIS.JPY_TONAR", instrument: ois }
+
+  - ccy: JPY
+    curve: TONAR_JSCC
+    type: rfr
+    status: active
+    maturities: ois
+    providers:
+      citi: { prefix: "RATES.OIS.JPY_TONAR_JSCC", instrument: ois }
+
+  - ccy: JPY
+    curve: TONAR_LCH
+    type: rfr
+    status: active
+    maturities: ois
+    providers:
+      citi: { prefix: "RATES.OIS.JPY_TONAR_LCH", instrument: ois }
+
+  - ccy: CHF
+    curve: SARON
+    type: rfr
+    status: active
+    primary_from: "2022-01-01"
+    supersedes: CHF_LIBOR
+    maturities: ois
+    providers:
+      citi: { prefix: "RATES.OIS.CHF_SARON", instrument: ois }
+
+  - ccy: AUD
+    curve: AONIA
+    type: rfr
+    status: active
+    maturities: ois
+    providers:
+      citi: { prefix: "RATES.OIS.AUD_AONIA", instrument: ois }
+
+  - ccy: NZD
+    curve: NZIONA
+    type: rfr
+    status: active
+    maturities: ois
+    providers:
+      citi: { prefix: "RATES.OIS.NZD_NZIONA", instrument: ois }
+
+  - ccy: CAD
+    curve: CORRA
+    type: rfr
+    status: active
+    primary_from: "2024-06-28"
+    supersedes: CDOR
+    maturities: ois
+    providers:
+      citi: { prefix: "RATES.OIS.CAD_CORRA", instrument: ois }
+
+  - ccy: NOK
+    curve: NOWA
+    type: rfr
+    status: active
+    maturities: ois
+    providers:
+      citi: { prefix: "RATES.OIS.NOK_NOWA", instrument: ois }
+
+  - ccy: SEK
+    curve: STINA
+    type: rfr
+    status: active
+    maturities: ois
+    providers:
+      citi: { prefix: "RATES.OIS.SEK_STINA", instrument: ois }
+
+  # ═══ Asia RFR (OIS) ═══
+  - ccy: SGD
+    curve: SORA
+    type: rfr
+    status: active
+    primary_from: "2023-07-01"
+    supersedes: SOR
+    maturities: ois
+    providers:
+      citi: { prefix: "RATES.OIS.SGD_SORA", instrument: ois }
+
+  - ccy: THB
+    curve: THOR
+    type: rfr
+    status: active
+    primary_from: "2023-07-01"
+    supersedes: THBFIX
+    maturities: ois
+    providers:
+      citi: { prefix: "RATES.OIS.THB_THOR", instrument: ois }
+
+  # ═══ G10 IBOR (SWAP_LIBOR) ═══
+  - ccy: USD
+    curve: LIBOR
+    type: ibor
+    status: ceased
+    cessation: "2023-06-30"
+    superseded_by: SOFR
+    maturities: swap_libor
+    notes: "Final panel publication Jun 30 2023. Historical data only."
+    providers:
+      citi: { prefix: "RATES.SWAP_LIBOR.USD", instrument: swap_libor }
+
+  - ccy: EUR
+    curve: EURIBOR
+    type: ibor
+    status: reformed
+    maturities: swap_libor
+    notes: "Reformed 2019 (hybrid methodology). Active, no cessation planned."
+    providers:
+      citi: { prefix: "RATES.SWAP_LIBOR.EUR", instrument: swap_libor }
+
+  - ccy: GBP
+    curve: GBP_LIBOR
+    type: ibor
+    status: ceased
+    cessation: "2024-03-28"
+    superseded_by: SONIA
+    maturities: swap_libor
+    notes: "Panel ceased Dec 2021. Synthetic 1M/3M/6M ceased Mar 28 2024."
+    providers:
+      citi: { prefix: "RATES.SWAP_LIBOR.GBP", instrument: swap_libor }
+
+  - ccy: JPY
+    curve: JPY_LIBOR
+    type: ibor
+    status: ceased
+    cessation: "2021-12-31"
+    superseded_by: TONAR
+    maturities: swap_libor
+    providers:
+      citi: { prefix: "RATES.SWAP_LIBOR.JPY", instrument: swap_libor }
+
+  - ccy: CHF
+    curve: CHF_LIBOR
+    type: ibor
+    status: ceased
+    cessation: "2021-12-31"
+    superseded_by: SARON
+    maturities: swap_libor
+    providers:
+      citi: { prefix: "RATES.SWAP_LIBOR.CHF", instrument: swap_libor }
+
+  - ccy: AUD
+    curve: BBSW
+    type: ibor
+    status: active
+    maturities: swap_libor
+    notes: "Dual-rate market. BBSW robust, no cessation planned."
+    providers:
+      citi: { prefix: "RATES.SWAP_LIBOR.AUD", instrument: swap_libor }
+
+  - ccy: NZD
+    curve: BKBM
+    type: ibor
+    status: active
+    maturities: swap_libor
+    providers:
+      citi: { prefix: "RATES.SWAP_LIBOR.NZD", instrument: swap_libor }
+
+  - ccy: CAD
+    curve: CDOR
+    type: ibor
+    status: ceased
+    cessation: "2024-06-28"
+    superseded_by: CORRA
+    maturities: swap_libor
+    providers:
+      citi: { prefix: "RATES.SWAP_LIBOR.CAD", instrument: swap_libor }
+
+  - ccy: NOK
+    curve: NIBOR
+    type: ibor
+    status: active
+    maturities: swap_libor
+    notes: "Active with NOWA as RFR fallback."
+    providers:
+      citi: { prefix: "RATES.SWAP_LIBOR.NOK", instrument: swap_libor }
+
+  - ccy: SEK
+    curve: STIBOR
+    type: ibor
+    status: active
+    maturities: swap_libor
+    notes: "Active. SWESTR gaining but slow transition."
+    providers:
+      citi: { prefix: "RATES.SWAP_LIBOR.SEK", instrument: swap_libor }
+
+  # ═══ Asia IBOR (SWAP_LIBOR) ═══
+  - ccy: SGD
+    curve: SOR
+    type: ibor
+    status: ceased
+    cessation: "2023-06-30"
+    superseded_by: SORA
+    maturities: swap_libor
+    providers:
+      citi: { prefix: "RATES.SWAP_LIBOR.SGD", instrument: swap_libor }
+
+  - ccy: THB
+    curve: THBFIX
+    type: ibor
+    status: ceased
+    cessation: "2023-06-30"
+    superseded_by: THOR
+    maturities: swap_libor
+    providers:
+      citi: { prefix: "RATES.SWAP_LIBOR.THB", instrument: swap_libor }
+
+  - ccy: CNH
+    curve: CNH_HIBOR
+    type: ibor
+    status: active
+    maturities: swap_libor
+    providers:
+      citi: { prefix: "RATES.SWAP_LIBOR.CNH", instrument: swap_libor }
+
+  - ccy: CNY
+    curve: SHIBOR
+    type: ibor
+    status: active
+    maturities: swap_libor
+    providers:
+      citi: { prefix: "RATES.SWAP_LIBOR.CNY", instrument: swap_libor }
+
+  - ccy: CNY
+    curve: NDIRS
+    type: ibor
+    status: active
+    maturities: swap_libor
+    providers:
+      citi: { prefix: "RATES.SWAP_LIBOR.CNY_NDIRS", instrument: swap_libor }
+
+  - ccy: HKD
+    curve: HIBOR
+    type: ibor
+    status: active
+    maturities: swap_libor
+    notes: "No cessation planned. HONIA as RFR alternative."
+    providers:
+      citi: { prefix: "RATES.SWAP_LIBOR.HKD", instrument: swap_libor }
+
+  - ccy: IDR
+    curve: JIBOR
+    type: ibor
+    status: active
+    maturities: swap_libor
+    providers:
+      citi: { prefix: "RATES.SWAP_LIBOR.IDR", instrument: swap_libor }
+
+  - ccy: INR
+    curve: MIFOR
+    type: ibor
+    status: reformed
+    maturities: swap_libor
+    notes: "Modified MIFOR references SOFR instead of LIBOR since 2023."
+    providers:
+      citi: { prefix: "RATES.SWAP_LIBOR.INR", instrument: swap_libor }
+
+  - ccy: KRW
+    curve: CD
+    type: ibor
+    status: active
+    maturities: swap_libor
+    providers:
+      citi: { prefix: "RATES.SWAP_LIBOR.KRW", instrument: swap_libor }
+
+  - ccy: MYR
+    curve: KLIBOR
+    type: ibor
+    status: active
+    maturities: swap_libor
+    providers:
+      citi: { prefix: "RATES.SWAP_LIBOR.MYR", instrument: swap_libor }
+
+  - ccy: PHP
+    curve: PHIREF
+    type: ibor
+    status: active
+    maturities: swap_libor
+    providers:
+      citi: { prefix: "RATES.SWAP_LIBOR.PHP", instrument: swap_libor }
+
+  - ccy: TWD
+    curve: TAIBOR
+    type: ibor
+    status: active
+    maturities: swap_libor
+    providers:
+      citi: { prefix: "RATES.SWAP_LIBOR.TWD", instrument: swap_libor }
+
+  - ccy: VND
+    curve: VND_REF
+    type: ibor
+    status: active
+    maturities: swap_libor
+    providers:
+      citi: { prefix: "RATES.SWAP_LIBOR.VND", instrument: swap_libor }
+
+# ── Provider config ───────────────────────────────────────────────
+
+providers:
+  citivelocity:
+    auth_type: bearer
+    base_url: "https://api.citivelocity.com"
+    rate_limit:
+      requests_per_second: 1
+      max_concurrent: 1
+      max_tags_per_request: 100
+      max_daily_calls: 10000
+    token_expiry_seconds: 3600

@@ -63,3 +63,31 @@ pipelines:
       citivelocity:
         type: rest
         auth: bearer
+
+  rates.historical:
+    domain: rates
+    target_schema: rates
+    target_table: fact_observation
+    date_column: ts
+    unique_columns:
+      - curve_id
+      - ts
+      - quote
+      - tenor
+    required_columns:
+      - curve_id
+      - ts
+      - quote
+      - tenor
+      - value
+    health_checks:
+      row_count_min: 1
+      max_staleness_hours: 48
+      value_ranges:
+        value:
+          min: -50.0
+          max: 100.0
+    sources:
+      citivelocity:
+        type: rest
+        auth: bearer

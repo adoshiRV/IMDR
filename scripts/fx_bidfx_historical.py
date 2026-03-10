@@ -1,7 +1,7 @@
 """FX BidFX Historical Backfiller.
 
 Target table: [FX].[fact_ohlc]
-Modes: range, catchup, rewrite, gaps
+Modes: range, catchup, rewrite, gaps, cleanup
 Source: BidFX Historical Tick API (basic auth)
 
 Edit the variables below and run:
@@ -11,6 +11,8 @@ Edit the variables below and run:
 from __future__ import annotations
 
 import sys
+from collections import defaultdict
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -26,7 +28,7 @@ from imdr.market_calendar.holidays import holiday_hits_for_timestamp
 from imdr.notifications.email import send_outlook_email
 from imdr.notifications.formatters.fx_ingest import FXIngestFormatter
 from imdr.reporting.run_report import RunReport
-from imdr.universe.fx import get_fx_universe
+from imdr.universe.fx import FXUniverse, get_fx_universe
 from imdr.utils.logging import configure_logging
 
 log = structlog.get_logger(__name__)
@@ -35,7 +37,7 @@ log = structlog.get_logger(__name__)
 # CONFIGURE HERE
 # ============================================================================
 
-MODE = "range"  # "range" | "catchup" | "rewrite" | "gaps"
+MODE = "cleanup"  # "range" | "catchup" | "rewrite" | "gaps" | "cleanup"
 
 # range / rewrite: ISO datetimes (UTC)
 START = "2024-10-16T17:00:00"
@@ -45,12 +47,44 @@ END = "2024-10-16T18:00:00"
 LOOKBACK_HOURS = 48
 
 # gaps: path to a text file with one ISO timestamp per line
-GAPS_FILE = "data/gaps/gaps.txt"
+# cleanup: path to a CSV file with symbol,timestamp per line (from --emit-gaps)
+GAPS_FILE = "data\\gaps\\cleaning_gaps.txt"
 
 # 0 = unlimited
 MAX_HOURS = 0
 
 # ============================================================================
+
+
+@dataclass
+class CleanupPlan:
+    """Pre-computed plan: which currencies to re-pull per hour."""
+
+    window_currencies: dict[datetime, set[str]] = field(default_factory=dict)
+
+    @property
+    def windows(self) -> list[HourWindow]:
+        return [
+            HourWindow(start=ts, end=ts + timedelta(hours=1))
+            for ts in sorted(self.window_currencies)
+        ]
+
+    def currencies_for(self, window: HourWindow) -> set[str]:
+        return self.window_currencies.get(window.start, set())
+
+
+def _build_cleanup_plan(gaps_path: Path, universe: FXUniverse) -> CleanupPlan:
+    """Parse symbol,timestamp gaps file and group by hour with currency dedup."""
+    window_currencies: dict[datetime, set[str]] = defaultdict(set)
+    for line in gaps_path.read_text().strip().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        symbol, ts_str = line.split(",", 1)
+        ts = datetime.fromisoformat(ts_str.strip()).replace(tzinfo=timezone.utc)
+        ccy = universe.currency_from_symbol(symbol.strip())
+        window_currencies[ts].add(ccy)
+    return CleanupPlan(window_currencies=dict(window_currencies))
 
 
 def _compute_windows(mode: str, connector: MSSQLConnector) -> list[HourWindow]:
@@ -102,7 +136,25 @@ def main() -> int:
     connector = MSSQLConnector(settings)
     report = RunReport(pipeline_name="fx.bidfx_historical")
 
-    windows = _compute_windows(MODE, connector)
+    # Build windows (and cleanup plan if applicable)
+    cleanup_plan: CleanupPlan | None = None
+    if MODE == "cleanup":
+        gaps_path = Path(GAPS_FILE)
+        if not gaps_path.exists():
+            print(f"ERROR: Gaps file not found: {gaps_path}")
+            return 1
+        cleanup_plan = _build_cleanup_plan(gaps_path, universe)
+        windows = cleanup_plan.windows
+        total_ccys = sum(len(s) for s in cleanup_plan.window_currencies.values())
+        log.info(
+            "cleanup_plan",
+            unique_hours=len(windows),
+            total_currency_fetches=total_ccys,
+            vs_full_pull=len(windows) * len(universe.active_currencies),
+        )
+    else:
+        windows = _compute_windows(MODE, connector)
+
     if not windows:
         log.info("no_windows_to_process")
         return 0
@@ -127,7 +179,9 @@ def main() -> int:
                 log.debug("skipping_closed_hour", window=str(w))
                 continue
 
-            log.info("processing_hour", window=str(w), progress=f"{i + 1}/{len(windows)}")
+            currencies = cleanup_plan.currencies_for(w) if cleanup_plan else None
+            log.info("processing_hour", window=str(w), progress=f"{i + 1}/{len(windows)}",
+                     currencies=sorted(currencies) if currencies else "all")
             result = process_hour(
                 window=w,
                 universe=universe,
@@ -135,6 +189,7 @@ def main() -> int:
                 connector=connector,
                 report=report,
                 pair_cache=pair_cache,
+                currencies=currencies,
             )
             all_results.append(result)
 

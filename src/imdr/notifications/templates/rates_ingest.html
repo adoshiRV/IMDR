@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;font-family:Calibri,Arial,sans-serif;font-size:14px;color:#222;">
+
+<!-- Header -->
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#0d2137;">
+  <tr>
+    <td style="padding:18px 24px;">
+      <span style="color:#ffffff;font-size:20px;font-weight:bold;">IMDR &mdash; Rates Ingest Report</span>
+      {% if has_errors %}
+      <span style="background:#e74c3c;color:#fff;padding:4px 12px;border-radius:4px;font-size:13px;font-weight:bold;margin-left:16px;">ERROR</span>
+      {% else %}
+      <span style="background:#27ae60;color:#fff;padding:4px 12px;border-radius:4px;font-size:13px;font-weight:bold;margin-left:16px;">OK</span>
+      {% endif %}
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:0 24px 14px 24px;">
+      <span style="color:#7ba4c7;font-size:14px;">{{ mode }} | {{ date_str }} ({{ day_name }}) | {{ quotes | join(', ') | upper }}</span>
+    </td>
+  </tr>
+</table>
+
+<!-- Execution Details -->
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;">
+  <tr><td style="padding:0 24px;"><span style="font-size:16px;font-weight:bold;color:#0d2137;">EXECUTION</span></td></tr>
+</table>
+<table width="96%" cellpadding="6" cellspacing="0" style="margin:8px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;">
+  <tr style="background:#f5f5f5;"><td style="border:1px solid #ddd;font-weight:bold;width:200px;">Pipeline</td><td style="border:1px solid #ddd;">{{ pipeline_name }}</td></tr>
+  <tr><td style="border:1px solid #ddd;font-weight:bold;">Run Time</td><td style="border:1px solid #ddd;">{{ run_time_utc }} / {{ run_time_sgt }}</td></tr>
+  <tr style="background:#f5f5f5;"><td style="border:1px solid #ddd;font-weight:bold;">Data Date</td><td style="border:1px solid #ddd;">{{ date_str }} ({{ day_name }})</td></tr>
+  <tr><td style="border:1px solid #ddd;font-weight:bold;">Elapsed</td><td style="border:1px solid #ddd;">{{ elapsed }}</td></tr>
+  <tr style="background:#f5f5f5;"><td style="border:1px solid #ddd;font-weight:bold;">Provider</td><td style="border:1px solid #ddd;">Citi Velocity (OAuth2)</td></tr>
+  <tr><td style="border:1px solid #ddd;font-weight:bold;">Target Table</td><td style="border:1px solid #ddd;">[rates].[fact_observation]</td></tr>
+  <tr style="background:#f5f5f5;"><td style="border:1px solid #ddd;font-weight:bold;">Quotes</td><td style="border:1px solid #ddd;">{{ quotes | join(', ') | upper }}</td></tr>
+  <tr><td style="border:1px solid #ddd;font-weight:bold;">Frequency</td><td style="border:1px solid #ddd;">{{ frequency }}</td></tr>
+  <tr style="background:#f5f5f5;"><td style="border:1px solid #ddd;font-weight:bold;">DB Write</td>
+    <td style="border:1px solid #ddd;">
+      {% if rows_loaded > 0 %}
+      <span style="color:#27ae60;font-weight:bold;">SUCCESS</span> &mdash; {{ rows_loaded }} observations upserted
+      {% else %}
+      <span style="color:#e74c3c;font-weight:bold;">NO ROWS WRITTEN</span>
+      {% endif %}
+    </td>
+  </tr>
+</table>
+
+<!-- Summary -->
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;">
+  <tr><td style="padding:0 24px;"><span style="font-size:16px;font-weight:bold;color:#0d2137;">SUMMARY</span></td></tr>
+</table>
+<table width="96%" cellpadding="6" cellspacing="0" style="margin:8px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;">
+  <tr style="background:#f5f5f5;"><td style="border:1px solid #ddd;font-weight:bold;width:200px;">Curves</td><td style="border:1px solid #ddd;">{{ n_curves }}</td></tr>
+  <tr><td style="border:1px solid #ddd;font-weight:bold;">Rows Extracted</td><td style="border:1px solid #ddd;">{{ rows_extracted }}</td></tr>
+  <tr style="background:#f5f5f5;"><td style="border:1px solid #ddd;font-weight:bold;">Observations Loaded</td><td style="border:1px solid #ddd;">{{ rows_loaded }}</td></tr>
+  <tr><td style="border:1px solid #ddd;font-weight:bold;">Missing Curves</td><td style="border:1px solid #ddd;">{{ n_missing }}</td></tr>
+  <tr style="background:#f5f5f5;"><td style="border:1px solid #ddd;font-weight:bold;">Holidays Affecting</td><td style="border:1px solid #ddd;">{{ n_holidays }}</td></tr>
+  <tr><td style="border:1px solid #ddd;font-weight:bold;">Quality Flags</td>
+    <td style="border:1px solid #ddd;">
+      {% if n_quality_flags > 0 %}
+      <span style="color:#e74c3c;font-weight:bold;">{{ n_quality_flags }}</span>
+      {% else %}
+      <span style="color:#27ae60;">0</span>
+      {% endif %}
+    </td>
+  </tr>
+  <tr style="background:#f5f5f5;"><td style="border:1px solid #ddd;font-weight:bold;">Health Check</td>
+    <td style="border:1px solid #ddd;">
+      {% if health_passed is none %}
+      <span style="color:#888;">N/A</span>
+      {% elif health_passed %}
+      <span style="color:#27ae60;font-weight:bold;">PASSED</span>
+      {% else %}
+      <span style="color:#e74c3c;font-weight:bold;">FAILED</span>
+      {% endif %}
+    </td>
+  </tr>
+</table>
+
+<!-- Metadata Freshness -->
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;">
+  <tr><td style="padding:0 24px;"><span style="font-size:16px;font-weight:bold;color:#0d2137;">DATA FRESHNESS</span></td></tr>
+</table>
+{% if freshness_error %}
+<table width="96%" cellpadding="0" cellspacing="0" style="margin:8px auto 0 auto;">
+  <tr><td style="padding:8px;color:#e67e22;font-weight:bold;">Metadata freshness check failed &mdash; data may still be valid.</td></tr>
+</table>
+{% elif freshness_entries %}
+<table width="96%" cellpadding="5" cellspacing="0" style="margin:8px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;font-size:13px;">
+  <tr style="background:#0d2137;color:#fff;">
+    <th style="border:1px solid #555;padding:6px;text-align:left;">Sample Tag</th>
+    <th style="border:1px solid #555;padding:6px;text-align:left;">Last Modified</th>
+    <th style="border:1px solid #555;padding:6px;text-align:right;">Recent Updates</th>
+  </tr>
+  {% for f in freshness_entries %}
+  <tr style="background:{{ '#f0f7ff' if loop.index is odd else '#ffffff' }};">
+    <td style="border:1px solid #ddd;padding:5px;font-family:Consolas,monospace;font-size:12px;">{{ f.tag }}</td>
+    <td style="border:1px solid #ddd;padding:5px;">
+      {% if f.last_modified %}
+      {{ f.last_modified }}
+      {% else %}
+      <span style="color:#e74c3c;">No updates found</span>
+      {% endif %}
+    </td>
+    <td style="border:1px solid #ddd;padding:5px;text-align:right;">{{ f.recent_updates }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<table width="96%" cellpadding="0" cellspacing="0" style="margin:8px auto 0 auto;">
+  <tr><td style="padding:8px;color:#888;">No freshness data available.</td></tr>
+</table>
+{% endif %}
+
+<!-- Quality Flags -->
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;">
+  <tr><td style="padding:0 24px;"><span style="font-size:16px;font-weight:bold;color:#0d2137;">QUALITY FLAGS ({{ n_quality_flags }})</span></td></tr>
+</table>
+{% if quality_flags %}
+<table width="96%" cellpadding="5" cellspacing="0" style="margin:8px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;font-size:13px;">
+  <tr style="background:#c0392b;color:#fff;">
+    <th style="border:1px solid #922b21;padding:6px;text-align:left;">Check</th>
+    <th style="border:1px solid #922b21;padding:6px;text-align:left;">Status</th>
+    <th style="border:1px solid #922b21;padding:6px;text-align:left;">Message</th>
+    <th style="border:1px solid #922b21;padding:6px;text-align:right;">Flagged</th>
+  </tr>
+  {% for q in quality_flags %}
+  <tr style="background:#fdecea;">
+    <td style="border:1px solid #ddd;padding:5px;font-weight:bold;">{{ q.check }}</td>
+    <td style="border:1px solid #ddd;padding:5px;">{{ q.status }}</td>
+    <td style="border:1px solid #ddd;padding:5px;">{{ q.message }}</td>
+    <td style="border:1px solid #ddd;padding:5px;text-align:right;">{{ q.flagged_count|default('&mdash;') }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<table width="96%" cellpadding="0" cellspacing="0" style="margin:8px auto 0 auto;">
+  <tr><td style="padding:8px;color:#27ae60;">All quality checks passed.</td></tr>
+</table>
+{% endif %}
+
+<!-- Per-Classification Curve Breakdown -->
+{% for group_name, group_curves in curve_groups %}
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;">
+  <tr><td style="padding:0 24px;"><span style="font-size:16px;font-weight:bold;color:#0d2137;">{{ group_name }} CURVES ({{ group_curves|length }})</span></td></tr>
+</table>
+<table width="96%" cellpadding="5" cellspacing="0" style="margin:8px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;font-size:12px;">
+  <tr style="background:#0d2137;color:#fff;">
+    <th style="border:1px solid #555;padding:6px;text-align:center;">#</th>
+    <th style="border:1px solid #555;padding:6px;text-align:left;">CCY</th>
+    <th style="border:1px solid #555;padding:6px;text-align:left;">Curve</th>
+    <th style="border:1px solid #555;padding:6px;text-align:left;">Status</th>
+    <th style="border:1px solid #555;padding:6px;text-align:right;">Tenors</th>
+    <th style="border:1px solid #555;padding:6px;text-align:right;">Rows</th>
+  </tr>
+  {% for c in group_curves %}
+  <tr style="background:{{ '#f0f7ff' if loop.index is odd else '#ffffff' }};">
+    <td style="border:1px solid #ddd;padding:5px;text-align:center;">{{ loop.index }}</td>
+    <td style="border:1px solid #ddd;padding:5px;font-weight:bold;">{{ c.ccy }}</td>
+    <td style="border:1px solid #ddd;padding:5px;font-family:Consolas,monospace;">{{ c.curve }}</td>
+    <td style="border:1px solid #ddd;padding:5px;">
+      {% if c.status == 'active' %}
+      <span style="color:#27ae60;">{{ c.status }}</span>
+      {% else %}
+      <span style="color:#e67e22;">{{ c.status }}</span>
+      {% endif %}
+    </td>
+    <td style="border:1px solid #ddd;padding:5px;text-align:right;">{{ c.tenors }}</td>
+    <td style="border:1px solid #ddd;padding:5px;text-align:right;">
+      {% if c.rows == 0 %}
+      <span style="color:#e74c3c;font-weight:bold;">0</span>
+      {% else %}
+      {{ c.rows }}
+      {% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% endfor %}
+
+<!-- Missing Curves -->
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;">
+  <tr><td style="padding:0 24px;"><span style="font-size:16px;font-weight:bold;color:#0d2137;">MISSING CURVES ({{ n_missing }})</span></td></tr>
+</table>
+{% if missing_curves %}
+<table width="96%" cellpadding="5" cellspacing="0" style="margin:8px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;font-size:13px;">
+  <tr style="background:#e74c3c;color:#fff;">
+    <th style="border:1px solid #c0392b;padding:6px;text-align:left;">CCY</th>
+    <th style="border:1px solid #c0392b;padding:6px;text-align:left;">Curve</th>
+    <th style="border:1px solid #c0392b;padding:6px;text-align:left;">Reason</th>
+  </tr>
+  {% for m in missing_curves %}
+  <tr style="background:#fdecea;">
+    <td style="border:1px solid #ddd;padding:5px;font-weight:bold;">{{ m.ccy }}</td>
+    <td style="border:1px solid #ddd;padding:5px;">{{ m.curve }}</td>
+    <td style="border:1px solid #ddd;padding:5px;">{{ m.reason|default('No data returned') }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<table width="96%" cellpadding="0" cellspacing="0" style="margin:8px auto 0 auto;">
+  <tr><td style="padding:8px;color:#27ae60;">All {{ n_curves }} curves produced observations.</td></tr>
+</table>
+{% endif %}
+
+<!-- Holiday Hits -->
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;">
+  <tr><td style="padding:0 24px;"><span style="font-size:16px;font-weight:bold;color:#0d2137;">HOLIDAY HITS ({{ n_holidays }})</span></td></tr>
+</table>
+{% if holiday_hits %}
+<table width="96%" cellpadding="5" cellspacing="0" style="margin:8px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;font-size:13px;">
+  <tr style="background:#8e44ad;color:#fff;">
+    <th style="border:1px solid #7d3c98;padding:6px;text-align:left;">Currency</th>
+    <th style="border:1px solid #7d3c98;padding:6px;text-align:left;">Market</th>
+    <th style="border:1px solid #7d3c98;padding:6px;text-align:left;">Holiday</th>
+  </tr>
+  {% for h in holiday_hits %}
+  <tr style="background:{{ '#f5eef8' if loop.index is odd else '#ebdef0' }};">
+    <td style="border:1px solid #ddd;padding:5px;">{{ h.currency }}</td>
+    <td style="border:1px solid #ddd;padding:5px;">{{ h.market_code }}</td>
+    <td style="border:1px solid #ddd;padding:5px;">{{ h.name }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<table width="96%" cellpadding="0" cellspacing="0" style="margin:8px auto 0 auto;">
+  <tr><td style="padding:8px;color:#27ae60;">No holidays affecting this date.</td></tr>
+</table>
+{% endif %}
+
+<!-- Footer -->
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:24px;background-color:#f0f0f0;border-top:2px solid #ddd;">
+  <tr>
+    <td style="padding:12px 24px;color:#888;font-size:12px;">
+      Generated by IMDR | {{ pipeline_name }} | {{ run_time_utc }}
+    </td>
+  </tr>
+</table>
+
+</body>
+</html>

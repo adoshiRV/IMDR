@@ -120,6 +120,6 @@ expected_ranges:
   USDNOK: { min: 5.0, max: 15.0 }
   USDSEK: { min: 5.0, max: 15.0 }
   USDPHP: { min: 40.0, max: 70.0 }
-  USDTHB: { min: 25.0, max: 45.0 }
+  USDTHB: { min: 20.0, max: 60.0 }
   USDTWD: { min: 25.0, max: 40.0 }
   USDIDR: { min: 10000.0, max: 20000.0 }

@@ -127,6 +127,21 @@ class FXUniverse(BaseUniverse):
         flipped = f"{quote}{base}"
         return [compact, flipped]
 
+    def currency_from_symbol(self, symbol: str) -> str:
+        """Extract the non-USD currency from a compact symbol.
+
+        Examples: EURUSD → EUR, USDCNH → CNH, USDJPY → JPY.
+        """
+        compact = symbol.replace(".", "").upper()
+        first, second = compact[:3], compact[3:]
+        known = set(self.all_currencies)
+        if first != "USD" and first in known:
+            return first
+        if second != "USD" and second in known:
+            return second
+        msg = f"Cannot resolve non-USD currency from symbol '{symbol}'"
+        raise ValueError(msg)
+
     def classification_for(self, ccy: str) -> str:
         """Get classification (g10, em_ndf, em_deliverable) for a currency."""
         cls = self._config.classifications.get(ccy.upper())
@@ -159,6 +174,10 @@ class FXUniverse(BaseUniverse):
             msg = f"Provider '{provider}' not found in universe"
             raise KeyError(msg)
         return prov
+
+    @property
+    def expected_ranges(self) -> dict[str, ExpectedRange]:
+        return self._config.expected_ranges
 
     def expected_range_for(self, symbol: str) -> ExpectedRange | None:
         """Get hard bounds for a symbol, or None if not configured."""
