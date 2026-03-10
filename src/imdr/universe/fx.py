@@ -36,6 +36,13 @@ class MarketHoursConfig(BaseModel):
     close_hour: int
 
 
+class ExpectedRange(BaseModel):
+    """Hard bounds for a symbol — prices outside these are corrupt."""
+
+    min: float
+    max: float
+
+
 class CurrenciesConfig(BaseModel):
     g10: list[str] = []
     em_ndf: list[str] = []
@@ -49,6 +56,7 @@ class FXUniverseConfig(BaseModel):
     market_hours: MarketHoursConfig
     series: dict[str, SeriesConfig]
     providers: dict[str, ProviderConfig]
+    expected_ranges: dict[str, ExpectedRange] = {}
 
 
 class FXUniverse(BaseUniverse):
@@ -151,6 +159,10 @@ class FXUniverse(BaseUniverse):
             msg = f"Provider '{provider}' not found in universe"
             raise KeyError(msg)
         return prov
+
+    def expected_range_for(self, symbol: str) -> ExpectedRange | None:
+        """Get hard bounds for a symbol, or None if not configured."""
+        return self._config.expected_ranges.get(symbol)
 
     def is_fx_open(self, dt: datetime) -> bool:
         """Check if the FX market is open at a given UTC datetime.

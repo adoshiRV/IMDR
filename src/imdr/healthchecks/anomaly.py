@@ -78,6 +78,14 @@ class AnomalyDetector:
         sym_col = getattr(model, symbol_column)
         ser_col = getattr(model, series_column)
 
+        # Strip timezone to avoid pyodbc 'Invalid precision value' error
+        # with datetimeoffset bind parameters (ODBC Driver 17 limitation).
+        # Safe because all data is stored as UTC.
+        if getattr(current_ts, "tzinfo", None):
+            current_ts = current_ts.replace(tzinfo=None)
+        if getattr(previous_ts, "tzinfo", None):
+            previous_ts = previous_ts.replace(tzinfo=None)
+
         # Fetch current and previous bars
         current_bars = session.scalars(
             select(model).where(ts_col == current_ts)

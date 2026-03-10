@@ -117,6 +117,7 @@ class FXIngestFormatter:
         holiday_hits: list[dict[str, str]] | None = None,
         anomalies: list[dict[str, Any]] | None = None,
         diagnostics: list[dict[str, Any]] | None = None,
+        quality_flags: list[dict[str, Any]] | None = None,
         elapsed_secs: float = 0.0,
         n_symbols: int = 0,
         is_historical: bool = False,
@@ -127,6 +128,7 @@ class FXIngestFormatter:
         holiday_hits = holiday_hits or []
         anomalies = anomalies or []
         diagnostics = diagnostics or []
+        quality_flags = quality_flags or []
 
         now_utc = datetime.now(timezone.utc)
 
@@ -168,9 +170,11 @@ class FXIngestFormatter:
             "n_missing": len(missing_ccy),
             "n_anomalies": len(anomalies),
             "n_holidays": len(holiday_hits),
+            "n_quality_flags": len(quality_flags),
             "bar_groups": bar_groups,
             "anomalies": anomalies,
             "diagnostics": diagnostics,
+            "quality_flags": quality_flags,
             "missing_ccy": missing_ccy,
             "holiday_hits": holiday_hits,
         }

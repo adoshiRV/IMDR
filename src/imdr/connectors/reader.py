@@ -2,8 +2,6 @@
 
 Uses engine.connect() directly to avoid session/identity-map overhead.
 Returns pandas or polars DataFrames for downstream analysis.
-All queries hit the columnstore index automatically when SQL Server's
-cost-based optimizer determines it's cheaper than the rowstore.
 """
 
 from __future__ import annotations
@@ -64,7 +62,7 @@ class AnalyticalReader:
         end: date | datetime,
         columns: list[str] | None = None,
     ) -> pd.DataFrame:
-        """Optimized date range scan — hits NCCI for large ranges.
+        """Date range scan on a table.
 
         Args:
             table: Fully qualified table name, e.g. "[fx].[fact_ohlc]"
@@ -94,7 +92,7 @@ class AnalyticalReader:
         """Read from a view with optional parameterized filters.
 
         Args:
-            view_name: Fully qualified view name, e.g. "[fx].[vw_ohlc_daily]"
+            view_name: Fully qualified view name, e.g. "[fx].[some_view]"
             filters: Column=value filters applied as WHERE clauses
             order_by: Column name to order by (validated, not raw SQL)
             limit: Max rows to return

@@ -15,9 +15,16 @@ import structlog
 
 from imdr.config.settings import Settings
 from imdr.connectors.mssql import MSSQLConnector
+from imdr.connectors.reader import AnalyticalReader
 from imdr.domains.fx.extractors import BidFXExtractor, PairCache
 from imdr.domains.fx.repository import FXOHLCRepository
 from imdr.domains.fx.time_utils import HourWindow
+from imdr.healthchecks.base import CheckStatus
+from imdr.healthchecks.quality import (
+    ColumnOrderCheck,
+    PositiveValueCheck,
+    RobustStatisticalOutlierCheck,
+)
 from imdr.reporting.run_report import RunReport
 from imdr.schemas.fx_ohlc import FXFactOHLCCreate
 from imdr.universe.fx import FXUniverse
@@ -37,6 +44,7 @@ class HourResult:
     diagnostics: list[dict[str, Any]] = field(default_factory=list)
     missing_ccy: list[str] = field(default_factory=list)
     anomalies: list[dict[str, Any]] = field(default_factory=list)
+    quality_flags: list[dict[str, Any]] = field(default_factory=list)
 
 
 def process_hour(
@@ -117,12 +125,68 @@ def process_hour(
             "bars_written": len(approved),
         })
 
-    # 6. Write Parquet archive
+    # 6. Post-ingest quality check (robust outlier + invariant checks)
+    if approved:
+        quality_flags = _post_ingest_quality(connector, window, report)
+        result.quality_flags = quality_flags
+
+    # 7. Write Parquet archive
     if approved and settings.parquet_batch_dir:
         _write_parquet(approved, window, settings.parquet_batch_dir)
         report.info("parquet", f"Archived {len(approved)} bars to parquet")
 
     return result
+
+
+_PRICE_COLS = [
+    "open_px", "high_px", "low_px", "close_px",
+    "mid_px", "mid_mean_px", "mid_median_px", "bid", "ask",
+]
+
+_QUALITY_CHECKS = [
+    PositiveValueCheck(columns=_PRICE_COLS),
+    ColumnOrderCheck(rules=[("bid", "<=", "ask")]),
+    RobustStatisticalOutlierCheck(
+        value_column="close_px",
+        group_columns=["symbol", "series"],
+        n_mad=4.0,
+        trailing_months=12,
+    ),
+]
+
+
+def _post_ingest_quality(
+    connector: MSSQLConnector,
+    window: HourWindow,
+    report: RunReport,
+) -> list[dict[str, Any]]:
+    """Run quality checks on the just-ingested hour and return flags."""
+    flags: list[dict[str, Any]] = []
+    reader = AnalyticalReader(connector)
+    table = "[fx].[fact_ohlc]"
+    # Scope checks to this hour
+    where = f"AND [ts] = '{window.start:%Y-%m-%d %H:%M:%S}'"
+
+    for check in _QUALITY_CHECKS:
+        try:
+            result = check.run(reader, table, where=where)
+            if result.status != CheckStatus.PASSED:
+                flag = {
+                    "check": result.check_name,
+                    "status": result.status.value,
+                    "message": result.message,
+                }
+                if result.flagged is not None and not result.flagged.empty:
+                    flag["flagged_count"] = len(result.flagged)
+                flags.append(flag)
+                report.warning("quality", result.message, details=flag)
+        except Exception as exc:
+            log.warning("quality_check_failed", check=type(check).__name__, error=str(exc))
+
+    if not flags:
+        report.info("quality", "All post-ingest quality checks passed")
+
+    return flags
 
 
 def _anomaly_prescreen(
@@ -168,7 +232,7 @@ def _write_parquet(
 
         records = [b.model_dump() for b in bars]
         df = pd.DataFrame(records)
-        path = Path(batch_dir) / "fx" / "fact_ohlc" / f"fx_ohlc_{window.start:%Y%m%d_%H%M}.parquet"
+        path = Path(batch_dir) / "fx" / "fact_ohlc" / f"{window.start:%Y}" / f"{window.start:%m}" / f"{window.start:%d}" / f"fx_ohlc_{window.start:%Y%m%d_%H%M}.parquet"
         path.parent.mkdir(parents=True, exist_ok=True)
         df.to_parquet(path, index=False)
     except Exception:

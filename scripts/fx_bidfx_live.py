@@ -158,6 +158,7 @@ def _send_report_email(
         ],
         anomalies=result.anomalies,
         diagnostics=result.diagnostics,
+        quality_flags=result.quality_flags,
         elapsed_secs=elapsed_secs,
         n_symbols=n_symbols,
     )

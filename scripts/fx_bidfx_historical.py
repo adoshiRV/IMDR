@@ -38,8 +38,8 @@ log = structlog.get_logger(__name__)
 MODE = "range"  # "range" | "catchup" | "rewrite" | "gaps"
 
 # range / rewrite: ISO datetimes (UTC)
-START = "2026-03-04T00:00:00"
-END = "2026-03-04T01:00:00"
+START = "2024-10-16T17:00:00"
+END = "2024-10-16T18:00:00"
 
 # catchup: how many hours back from now
 LOOKBACK_HOURS = 48
@@ -191,9 +191,11 @@ def _send_summary_email(
     total_drops = sum(r.bars_dropped for r in results)
     all_missing: set[str] = set()
     all_anomalies: list[dict] = []
+    all_quality_flags: list[dict] = []
     for r in results:
         all_missing.update(r.missing_ccy)
         all_anomalies.extend(r.anomalies)
+        all_quality_flags.extend(r.quality_flags)
 
     first_window = results[0].window
     last_window = results[-1].window
@@ -215,6 +217,7 @@ def _send_summary_email(
         bars_dropped=total_drops,
         missing_ccy=sorted(all_missing),
         anomalies=all_anomalies,
+        quality_flags=all_quality_flags,
         is_historical=True,
         hours_processed=len(results),
         total_bars=total_bars,

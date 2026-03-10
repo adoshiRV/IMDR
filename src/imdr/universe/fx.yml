@@ -102,3 +102,24 @@ providers:
       - SPOT
     auth_type: bearer
     base_url: ""
+
+# Per-symbol hard bounds — prices should NEVER fall outside these ranges.
+# Used by quality checks and ingest validation to flag corrupt data.
+expected_ranges:
+  AUDUSD: { min: 0.3, max: 3.0 }
+  EURUSD: { min: 0.3, max: 3.0 }
+  GBPUSD: { min: 0.3, max: 3.0 }
+  NZDUSD: { min: 0.3, max: 3.0 }
+  USDCAD: { min: 0.5, max: 2.5 }
+  USDCHF: { min: 0.5, max: 2.5 }
+  USDSGD: { min: 0.5, max: 2.5 }
+  USDCNH: { min: 5.0, max: 9.0 }
+  USDJPY: { min: 60.0, max: 200.0 }
+  USDINR: { min: 50.0, max: 100.0 }
+  USDKRW: { min: 800.0, max: 1600.0 }
+  USDNOK: { min: 5.0, max: 15.0 }
+  USDSEK: { min: 5.0, max: 15.0 }
+  USDPHP: { min: 40.0, max: 70.0 }
+  USDTHB: { min: 25.0, max: 45.0 }
+  USDTWD: { min: 25.0, max: 40.0 }
+  USDIDR: { min: 10000.0, max: 20000.0 }

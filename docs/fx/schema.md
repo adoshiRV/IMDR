@@ -40,87 +40,7 @@ The primary fact table for FX data. Stores hourly OHLC (Open/High/Low/Close) bar
 **Indexes:**
 - Rowstore index on `ts`
 - Rowstore index on `symbol`
-- `ncci_fact_ohlc` - Nonclustered columnstore index on all analytical columns (10-100x faster for scans, aggregations, cross-symbol comparisons)
-
 **Note:** This table does NOT have an `updated_at` column. Bars are insert-or-replace (upsert on the unique constraint), not updated in place.
-
----
-
-## Views
-
-### `[fx].[vw_ohlc_daily]` - Daily OHLC Rollup
-
-Aggregates hourly bars into daily OHLC bars. Groups by `(symbol, series, tenor, deal_type, pair_used, trade_date)`.
-
-| Column | Description |
-|---|---|
-| `symbol` | Currency pair |
-| `series` | Price series |
-| `tenor` | Instrument tenor |
-| `deal_type` | Deal type |
-| `pair_used` | API pair used |
-| `trade_date` | Calendar date (from `CAST(ts AS DATE)`) |
-| `open_px` | `MIN(open_px)` across hours |
-| `high_px` | `MAX(high_px)` across hours |
-| `low_px` | `MIN(low_px)` across hours |
-| `close_px` | `MAX(close_px)` across hours |
-| `avg_mid_px` | `AVG(mid_px)` across hours |
-| `avg_mid_mean_px` | `AVG(mid_mean_px)` across hours |
-| `avg_mid_median_px` | `AVG(mid_median_px)` across hours |
-| `min_bid` | `MIN(bid)` across hours |
-| `max_ask` | `MAX(ask)` across hours |
-| `total_ticks` | `SUM(n_ticks)` across hours |
-| `row_count` | Number of hourly bars in the day |
-
----
-
-### `[fx].[vw_daily_change]` - Day-over-Day % Change
-
-Computes day-over-day percentage change on `close_px` using `LAG()`, partitioned by `(symbol, series)`.
-
-| Column | Description |
-|---|---|
-| `symbol` | Currency pair |
-| `series` | Price series |
-| `trade_date` | Calendar date |
-| `close_px` | Daily close |
-| `mid_px` | Daily mid |
-| `prev_close_px` | Previous day's close (via `LAG`) |
-| `pct_change_close` | `(close - prev_close) / prev_close * 100` |
-
----
-
-### `[fx].[vw_ohlc_moving_avg]` - Moving Averages + Z-Score
-
-Daily close with 5/20/50-day moving averages and a 20-day rolling z-score, partitioned by `(symbol, series)`.
-
-| Column | Description |
-|---|---|
-| `symbol` | Currency pair |
-| `series` | Price series |
-| `trade_date` | Calendar date |
-| `close_px` | Daily close |
-| `ma_5d` | 5-day moving average |
-| `ma_20d` | 20-day moving average |
-| `ma_50d` | 50-day moving average |
-| `z_score_20d` | 20-day rolling z-score: `(close - ma_20d) / stdev_20d` |
-
----
-
-### `[fx].[vw_ohlc_summary]` - Data Inventory (Indexed View)
-
-Materialized summary of what data exists per symbol/series. This is an **indexed view** (with `SCHEMABINDING`) for instant lookups.
-
-| Column | Description |
-|---|---|
-| `symbol` | Currency pair |
-| `series` | Price series |
-| `total_rows` | Number of hourly bars |
-| `total_ticks` | Sum of all ticks across bars |
-| `first_ts` | Earliest bar timestamp |
-| `last_ts` | Latest bar timestamp |
-
-**Index:** Unique clustered index on `(symbol, series)` as `uci_vw_ohlc_summary`
 
 ---
 
@@ -190,17 +110,9 @@ Pipeline runs are tracked in `[audit].[pipeline_runs]` (separate schema, shared 
 
 ---
 
-## Partitioning (Future)
-
-Monthly partitioning on `ts` is documented in `migrations/005_partitioning_strategy.sql` but **not yet applied**. Should be considered when `fact_ohlc` exceeds ~50M rows. The template covers partition function creation, scheme setup, clustered index rebuild, and maintenance for adding new monthly boundaries.
-
----
-
 ## Migration Files
 
 | Migration | Description | Status |
 |---|---|---|
 | `001_create_pipeline_runs.sql` | Creates `[audit].[pipeline_runs]` table | Applied |
-| `003_columnstore_fx_fact_ohlc.sql` | Adds NCCI on `[fx].[fact_ohlc]` for analytical queries | Applied |
-| `004_views_fx_analytics.sql` | Creates 4 analytical views (daily, change, moving avg, summary) | Applied |
-| `005_partitioning_strategy.sql` | Monthly partitioning template (commented out) | Not applied |
+| `006_nullable_price_columns.sql` | Makes price columns nullable for cleaning | Applied |
