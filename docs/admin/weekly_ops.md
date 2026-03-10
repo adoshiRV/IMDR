@@ -141,6 +141,7 @@ This NULLs all price columns for non-positive/hard-bound/robust-outlier rows, an
 |------|----------------|--------|----------|
 | `non_positive` | Any price column <= 0 | NULL all prices | Always corrupt |
 | `hard_bound` | `close_px` outside per-symbol hard bounds (from `fx.yml`) | NULL all prices | Check `pct_change` — sudden jumps are corrupt, gradual drift near boundary may be real |
+| `pct_change` | `close_px` moved >5% from previous bar (per symbol+series) | NULL all prices | Catches sudden jumps; tune with `--pct-threshold` |
 | `robust_outlier` | `close_px` deviates > N MADs from rolling median (per symbol+series) | NULL all prices | Rolling 12-month window, expanding for first 12 months. Catches spikes, ignores long-term drift |
 | `bid_ask` | `bid > ask` | Swap bid and ask | Common in EM NDFs, usually minor |
 
@@ -158,4 +159,81 @@ python -m scripts.fx_bidfx_historical
 python -m scripts.diagnostics.fx_ohlc_report --year 2026
 python -m scripts.clean_fx_fact_ohlc --year 2026
 python -m scripts.clean_fx_fact_ohlc --year 2026 --execute
+```
+
+---
+
+## Rates Domain
+
+Rates has a simpler maintenance cycle — no tick-level cleaning rules. The main concern is coverage gaps (missed API fetches).
+
+For full architecture and troubleshooting, see `docs/admin/rates/overview.md`.
+
+### Step 1: Diagnostic Report
+
+Check pipeline runs and daily row counts:
+
+```sql
+-- Failed runs in past week
+SELECT * FROM [audit].[pipeline_runs]
+WHERE pipeline_name = 'rates.historical'
+  AND started_at >= DATEADD(DAY, -7, GETDATE())
+  AND run_status = 'failed'
+ORDER BY started_at DESC;
+
+-- Daily par row counts (expect ~1,000-1,700 per business day)
+SELECT CAST(ts AS DATE) AS obs_date, COUNT(*) AS rows
+FROM [rates].[fact_observation]
+WHERE quote = 'par'
+  AND ts >= DATEADD(DAY, -7, GETDATE())
+GROUP BY CAST(ts AS DATE)
+ORDER BY obs_date DESC;
+
+-- Active curves missing data in past week
+SELECT c.ccy, c.curve
+FROM [rates].[dim_curve] c
+WHERE c.curve_status = 'active'
+  AND c.id NOT IN (
+    SELECT DISTINCT curve_id FROM [rates].[fact_observation]
+    WHERE ts >= DATEADD(DAY, -7, GETDATE())
+  );
+```
+
+**What to look for:**
+- Failed pipeline runs — check logs for token or rate limit errors
+- Days with significantly fewer rows than usual — indicates partial fetch
+- Active curves with zero observations — may need `seed_rates_dim_curve.py` re-run
+
+### Step 2: Re-Pull Missing Dates
+
+```bash
+# Single date
+python -m scripts.run_pipeline rates.historical --start 2026-03-05 --end 2026-03-05 --quotes par
+
+# Date range, all quote types
+python -m scripts.run_pipeline rates.historical --start 2026-03-03 --end 2026-03-07 --quotes par,spread,fwd,bfly,ssw,rc
+```
+
+Upsert is idempotent — safe to re-run dates that already have data.
+
+### Step 3: Validate
+
+```sql
+-- Confirm row counts recovered
+SELECT CAST(ts AS DATE) AS obs_date, COUNT(*) AS rows
+FROM [rates].[fact_observation]
+WHERE quote = 'par'
+  AND ts >= DATEADD(DAY, -7, GETDATE())
+GROUP BY CAST(ts AS DATE)
+ORDER BY obs_date DESC;
+```
+
+### Quick Reference
+
+```bash
+# Full weekly cycle — Rates
+# 1. Run diagnostic SQL queries above
+# 2. Re-pull any gap dates:
+python -m scripts.run_pipeline rates.historical --start YYYY-MM-DD --end YYYY-MM-DD --quotes par
+# 3. Verify row counts recovered
 ```
