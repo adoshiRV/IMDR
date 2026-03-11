@@ -209,6 +209,32 @@ ORDER BY obs_date DESC;
 
 ---
 
+## Expected Value Ranges
+
+Each quote type has configured bounds for quality check validation. Values outside these ranges are flagged (but not rejected) during pipeline runs. Configured in `src/imdr/universe/rates.yml`:
+
+| Quote | Min | Max | Notes |
+|---|---|---|---|
+| `par` | -3.0 | 20.0 | Par swap rates (percentage points) |
+| `spread` | -500.0 | 500.0 | Curve spreads (basis points) |
+| `fwd` | -5.0 | 25.0 | Forward rates (percentage points) |
+| `bfly` | -100.0 | 100.0 | Butterfly spreads (basis points) |
+| `ssw` | -500.0 | 500.0 | Swap spreads (basis points) |
+| `rc` | -200.0 | 200.0 | Roll & carry (basis points) |
+
+These use the shared `ExpectedRange` model (`src/imdr/universe/base.py`), matching the FX domain's per-symbol range pattern.
+
+---
+
+## Cache Files
+
+| File | Purpose |
+|---|---|
+| `data/cache/rates/empty_combos.json` | Tracks `(ccy, curve, quote)` combos known to return 0 rows from the API. Used to skip wasted API calls. Auto-retries after 30 days. |
+| `data/cache/rates/rates_tags.json` | Tag discovery cache (Citi tag listing). Used by `RatesTagDiscovery`. |
+
+---
+
 ## Audit
 
 Pipeline runs are tracked in `[audit].[pipeline_runs]` with `pipeline_name = 'rates.historical'` and `domain = 'rates'`. See `docs/fx/schema.md` for the full audit table schema.

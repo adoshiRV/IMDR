@@ -1,49 +1,50 @@
 """FX OHLC diagnostic report — health checks, missing data, and data quality.
 
-Reusable CLI script that uses the existing health check framework,
+Reusable CLI script that uses the HealthReporter framework,
 quality check framework, and CoverageAnalyzer for a full DB diagnostic.
 
 Usage:
-    python -m scripts.diagnostics.fx_ohlc_report
-    python -m scripts.diagnostics.fx_ohlc_report --year 2024
-    python -m scripts.diagnostics.fx_ohlc_report --section health
-    python -m scripts.diagnostics.fx_ohlc_report --section missing
-    python -m scripts.diagnostics.fx_ohlc_report --section quality
-    python -m scripts.diagnostics.fx_ohlc_report --section quality --sigma 3
-    python -m scripts.diagnostics.fx_ohlc_report --basis-threshold 3
+    python -m scripts.fx.health.fx_ohlc_report
+    python -m scripts.fx.health.fx_ohlc_report --year 2024
+    python -m scripts.fx.health.fx_ohlc_report --section health
+    python -m scripts.fx.health.fx_ohlc_report --section missing
+    python -m scripts.fx.health.fx_ohlc_report --section quality
+    python -m scripts.fx.health.fx_ohlc_report --section quality --sigma 3
+    python -m scripts.fx.health.fx_ohlc_report --basis-threshold 3
 """
 
 from __future__ import annotations
 
 import argparse
-import time
 
 import pandas as pd
-from sqlalchemy import text
 
 from imdr.config.settings import get_settings
 from imdr.connectors.mssql import MSSQLConnector
 from imdr.connectors.reader import AnalyticalReader
+from imdr.domains.fx.coverage import get_ohlc_coverage
+from imdr.healthchecks.checks import (
+    DuplicateCheck,
+    FreshnessCheck,
+    NullCheck,
+    RowCountCheck,
+    ValueRangeCheck,
+)
 from imdr.healthchecks.quality import (
     ColumnOrderCheck,
-    CoverageAnalyzer,
     DistributionCheck,
     PositiveValueCheck,
-    QualityResult,
     ReturnDistributionCheck,
     RobustStatisticalOutlierCheck,
     SeriesBasisCheck,
     StatisticalOutlierCheck,
     SymbolRangeCheck,
 )
+from imdr.healthchecks.reporter import HealthReporter
+from imdr.models.fx_ohlc import FXFactOHLC
 from imdr.universe.fx import get_fx_universe
-from scripts.migrations.load_fx_fact_ohlc import (
-    discover_years,
-    print_grand_summary,
-    print_year_report,
-    run_year_health_checks,
-)
 
+PIPELINE_NAME = "fx.ohlc"
 TABLE = "[fx].[fact_ohlc]"
 PRICE_COLUMNS = [
     "open_px", "high_px", "low_px", "close_px",
@@ -52,27 +53,42 @@ PRICE_COLUMNS = [
 
 
 # ---------------------------------------------------------------------------
-# Section 1: Health checks (reuses load script's per-year checks)
+# Section 1: Health checks (per-year, via HealthReporter)
 # ---------------------------------------------------------------------------
 
-def run_health_section(connector: MSSQLConnector, years: list[int]) -> None:
-    """Run per-year health checks and print summary."""
-    print("=" * 70)
-    print("  SECTION 1: HEALTH CHECKS (per-year)")
-    print("=" * 70)
+def build_health_checks(freshness_hours: int | None = None) -> list:
+    """Compose OHLC-specific health check list.
 
-    reports = []
-    t0 = time.perf_counter()
-    for year in years:
-        rpt = run_year_health_checks(connector, year)
-        print_year_report(rpt)
-        reports.append(rpt)
+    Args:
+        freshness_hours: Max staleness for FreshnessCheck. Defaults to
+            ``max_staleness_hours`` from pipelines.yml (fx.ohlc).
+    """
+    if freshness_hours is None:
+        from imdr.config.pipeline_config import get_pipeline_config
+        freshness_hours = get_pipeline_config(PIPELINE_NAME).health_checks.max_staleness_hours
 
-    print_grand_summary(reports, time.perf_counter() - t0)
+    # Derive value range bounds from per-symbol expected ranges in fx.yml
+    universe = get_fx_universe()
+    all_ranges = [
+        universe.expected_range_for(sym)
+        for sym in universe.api_symbols()
+    ]
+    all_ranges = [r for r in all_ranges if r is not None]
+    price_min = min(r.min for r in all_ranges) if all_ranges else 0.0001
+    price_max = max(r.max for r in all_ranges) if all_ranges else 100000.0
+
+    return [
+        RowCountCheck(FXFactOHLC, "ts", expected_min=10),
+        NullCheck(FXFactOHLC, PRICE_COLUMNS, "ts"),
+        DuplicateCheck(FXFactOHLC, ["ts", "symbol", "series", "tenor"], "ts"),
+        FreshnessCheck(FXFactOHLC, "created_at", max_staleness_hours=freshness_hours),
+        ValueRangeCheck(FXFactOHLC, "close_px", price_min, price_max, "ts"),
+        ValueRangeCheck(FXFactOHLC, "mid_px", price_min, price_max, "ts"),
+    ]
 
 
 # ---------------------------------------------------------------------------
-# Section 2: Missing data analysis (market-hours aware)
+# Section 2: Missing data analysis (market-hours aware) — OHLC-specific
 # ---------------------------------------------------------------------------
 
 def run_missing_section(reader: AnalyticalReader, years: list[int]) -> None:
@@ -81,35 +97,13 @@ def run_missing_section(reader: AnalyticalReader, years: list[int]) -> None:
     print("  SECTION 2: MISSING DATA ANALYSIS (market-hours aware)")
     print("=" * 70)
 
-    universe = get_fx_universe()
-
-    year_filter = ""
-    params: dict = {}
-    if years and len(years) < 6:
-        placeholders = ", ".join(f":y{i}" for i in range(len(years)))
-        year_filter = f"AND YEAR(ts) IN ({placeholders})"
-        params = {f"y{i}": y for i, y in enumerate(years)}
-
-    analyzer = CoverageAnalyzer(
-        ts_column="ts",
-        symbol_column="symbol",
-        is_market_open=universe.is_fx_open,
-    )
+    coverage = get_ohlc_coverage(reader, TABLE, years)
+    df_cov = coverage.tables.get("per_symbol", pd.DataFrame())
+    df_gaps = coverage.tables.get("gaps", pd.DataFrame())
 
     # 2A: Per-symbol coverage
     print("\n  A) Per-symbol coverage (actual vs expected market hours):")
-    df_cov = analyzer.coverage(reader, TABLE, where=year_filter, params=params)
     if not df_cov.empty:
-        # Add classification column
-        def _classify(sym: str) -> str:
-            non_usd = sym.replace("USD", "")
-            try:
-                return universe.classification_for(non_usd)
-            except KeyError:
-                return "unknown"
-
-        df_cov.insert(1, "class", df_cov["symbol"].apply(_classify))
-        # Format for display
         display_cols = ["symbol", "class", "actual_hours", "expected_hours",
                         "missing_hours", "coverage_pct"]
         print(df_cov[display_cols].to_string(index=False))
@@ -118,7 +112,6 @@ def run_missing_section(reader: AnalyticalReader, years: list[int]) -> None:
 
     # 2B: Largest gaps (market hours only)
     print("\n  B) Largest gaps (market hours, excluding weekends, top 20):")
-    df_gaps = analyzer.gaps(reader, TABLE, where=year_filter, params=params)
     if not df_gaps.empty:
         display_cols = ["symbol", "series", "gap_start", "gap_end",
                         "calendar_gap_hours", "market_gap_hours"]
@@ -128,15 +121,12 @@ def run_missing_section(reader: AnalyticalReader, years: list[int]) -> None:
 
     # 2C: Summary
     print("\n  C) Overall coverage summary:")
-    if not df_cov.empty:
-        total_missing = int(df_cov["missing_hours"].sum())
-        avg_coverage = df_cov["coverage_pct"].mean()
-        worst = df_cov.iloc[0]
-        best = df_cov.iloc[-1]
-        print(f"    Total missing market hours (all symbols): {total_missing:,}")
-        print(f"    Average coverage: {avg_coverage:.1f}%")
-        print(f"    Worst:  {worst['symbol']} ({worst['coverage_pct']:.1f}%)")
-        print(f"    Best:   {best['symbol']} ({best['coverage_pct']:.1f}%)")
+    s = coverage.summary
+    if s:
+        print(f"    Total missing market hours (all symbols): {s['total_missing_hours']:,}")
+        print(f"    Average coverage: {s['avg_coverage_pct']:.1f}%")
+        print(f"    Worst:  {s['worst_symbol']} ({s['worst_pct']:.1f}%)")
+        print(f"    Best:   {s['best_symbol']} ({s['best_pct']:.1f}%)")
         print()
         print("    Note: EM Asian currencies (INR, KRW, TWD, THB, IDR, PHP) have")
         print("    naturally lower hourly coverage due to restricted local trading hours.")
@@ -144,54 +134,32 @@ def run_missing_section(reader: AnalyticalReader, years: list[int]) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Section 3: Data quality
+# Section 3: Data quality (via HealthReporter)
 # ---------------------------------------------------------------------------
 
-def _print_quality_result(result: QualityResult) -> None:
-    """Print a single quality check result."""
-    icon = "OK" if result.status.value == "passed" else "!!"
-    print(f"\n  [{icon}] {result.check_name}: {result.message}")
+def build_quality_checks(sigma: float | None = None, basis_threshold: float = 5.0) -> list:
+    """Compose OHLC-specific quality check list.
 
-    if result.summary is not None and not result.summary.empty:
-        print()
-        # Limit wide DataFrames
-        pd.set_option("display.max_columns", 12)
-        pd.set_option("display.width", 120)
-        print(result.summary.to_string(index=False))
+    Args:
+        sigma: Outlier z-score threshold. Defaults to ``n_mad`` from
+            pipelines.yml (fx.ohlc.cleaning).
+        basis_threshold: Forward/spot basis threshold %.
+    """
+    from imdr.config.pipeline_config import get_pipeline_config
 
-    if result.flagged is not None and not result.flagged.empty:
-        print(f"\n  Flagged rows ({len(result.flagged)}):")
-        print(result.flagged.to_string(index=False))
-
-
-def run_quality_section(
-    reader: AnalyticalReader,
-    years: list[int],
-    sigma: float,
-    basis_threshold: float,
-) -> None:
-    """Run data quality checks using the quality check framework."""
-    print("=" * 70)
-    print(f"  SECTION 3: DATA QUALITY (sigma={sigma}, basis={basis_threshold}%)")
-    print("=" * 70)
+    cfg = get_pipeline_config(PIPELINE_NAME).cleaning
+    sigma = sigma if sigma is not None else cfg.n_mad
+    trailing_months = cfg.trailing_months
 
     universe = get_fx_universe()
 
-    year_filter = ""
-    params: dict = {}
-    if years and len(years) < 6:
-        placeholders = ", ".join(f":y{i}" for i in range(len(years)))
-        year_filter = f"AND YEAR(ts) IN ({placeholders})"
-        params = {f"y{i}": y for i, y in enumerate(years)}
-
-    # Build per-symbol ranges from config
     ranges: dict[str, tuple[float, float]] = {}
     for sym in universe.api_symbols():
         er = universe.expected_range_for(sym)
         if er:
             ranges[sym] = (er.min, er.max)
 
-    checks = [
+    return [
         PositiveValueCheck(columns=PRICE_COLUMNS),
         ColumnOrderCheck(rules=[
             ("bid", "<=", "ask"),
@@ -217,7 +185,7 @@ def run_quality_section(
             value_column="close_px",
             group_columns=["symbol", "series"],
             n_mad=sigma,
-            trailing_months=12,
+            trailing_months=trailing_months,
         ),
         SeriesBasisCheck(
             base_series="SPOT",
@@ -226,15 +194,6 @@ def run_quality_section(
             threshold_pct=basis_threshold,
         ),
     ]
-
-    for check in checks:
-        try:
-            result = check.run(reader, TABLE, where=year_filter, params=params)
-            _print_quality_result(result)
-        except Exception as exc:
-            print(f"\n  [!!] {type(check).__name__}: ERROR — {exc}")
-
-    print()
 
 
 # ---------------------------------------------------------------------------
@@ -254,8 +213,8 @@ def main() -> None:
     parser.add_argument(
         "--sigma",
         type=float,
-        default=4.0,
-        help="Statistical outlier z-score threshold (default: 4.0)",
+        default=None,
+        help="Statistical outlier z-score threshold (default: from pipelines.yml)",
     )
     parser.add_argument(
         "--basis-threshold",
@@ -267,18 +226,13 @@ def main() -> None:
 
     settings = get_settings()
     connector = MSSQLConnector(settings)
-    reader = AnalyticalReader(connector)
+    reporter = HealthReporter(connector, PIPELINE_NAME)
 
     # Determine years
     if args.year:
         years = [args.year]
     else:
-        with connector.read_engine.connect() as c:
-            df = pd.read_sql(
-                text("SELECT DISTINCT YEAR(ts) AS yr FROM [fx].[fact_ohlc] ORDER BY yr"),
-                c,
-            )
-            years = df["yr"].tolist()
+        years = reporter.discover_years()
 
     print(f"\nFX OHLC Diagnostic Report")
     print(f"Years: {years}")
@@ -287,13 +241,15 @@ def main() -> None:
     run_all = args.section is None
 
     if run_all or args.section == "health":
-        run_health_section(connector, years)
+        health_checks = build_health_checks()
+        reporter.run_health_section(health_checks, years)
 
     if run_all or args.section == "missing":
-        run_missing_section(reader, years)
+        run_missing_section(reporter.reader, years)
 
     if run_all or args.section == "quality":
-        run_quality_section(reader, years, args.sigma, args.basis_threshold)
+        quality_checks = build_quality_checks(args.sigma, args.basis_threshold)
+        reporter.run_quality_section(quality_checks, years)
 
     connector.dispose()
     print("Diagnostic report complete.")

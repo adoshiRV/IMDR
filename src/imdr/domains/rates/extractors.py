@@ -12,11 +12,12 @@ from typing import Any
 import pandas as pd
 import structlog
 
-from imdr.connectors.citi_velocity import CitiVelocityClient
 from imdr.config.settings import Settings
+from imdr.connectors.citi_helpers import fetch_and_parse_batched, parse_x_to_ts_utc
+from imdr.connectors.citi_velocity import CitiVelocityClient
+from imdr.domains.rates.cache import CurveQuoteCache
 from imdr.domains.rates.schema import COLUMNS, QUOTE_TO_CITI
 from imdr.domains.rates.translate import citi_response_to_df, internal_to_citi_tags
-from imdr.domains.rates.utils import parse_x_to_ts_utc
 from imdr.universe.rates import RatesUniverse, get_rates_universe
 
 _log = structlog.get_logger("RatesExtractor")
@@ -33,11 +34,13 @@ class CitiVelocityRatesExtractor:
         client: CitiVelocityClient,
         settings: Settings,
         universe: RatesUniverse | None = None,
+        cache: CurveQuoteCache | None = None,
     ) -> None:
         self._client = client
         self._batch_size = settings.citi_batch_size
         self._rate_limit = settings.citi_rate_limit_sec
         self._universe = universe or get_rates_universe()
+        self._cache = cache
 
     def extract(
         self,
@@ -71,12 +74,23 @@ class CitiVelocityRatesExtractor:
 
         frames: list[pd.DataFrame] = []
         done = 0
+        skipped = 0
 
         for ccy, curve in curves:
             for quote in quotes:
                 done += 1
+
+                if self._cache and self._cache.should_skip(ccy, curve, quote):
+                    skipped += 1
+                    continue
+
                 try:
                     df = self._fetch_curve(ccy, curve, quote, start, end, frequency)
+                    if self._cache:
+                        if df.empty:
+                            self._cache.mark_empty(ccy, curve, quote)
+                        else:
+                            self._cache.mark_active(ccy, curve, quote)
                     if not df.empty:
                         frames.append(df)
                     _log.info(
@@ -87,6 +101,11 @@ class CitiVelocityRatesExtractor:
                     )
                 except Exception:
                     _log.exception("curve_fetch_failed", ccy=ccy, curve=curve, quote=quote)
+
+        if self._cache:
+            self._cache.save()
+            if skipped:
+                _log.info("cache_skipped", count=skipped, fetched=done - skipped)
 
         if not frames:
             return pd.DataFrame(columns=COLUMNS)
@@ -121,27 +140,16 @@ class CitiVelocityRatesExtractor:
         frequency: str,
     ) -> pd.DataFrame:
         """Fetch in batches of batch_size, respecting rate limit."""
-        frames: list[pd.DataFrame] = []
+        universe = self._universe
 
-        for i in range(0, len(tags), self._batch_size):
-            batch = tags[i : i + self._batch_size]
+        def _parse_response(resp: dict) -> pd.DataFrame:
+            return citi_response_to_df(resp, parse_x_to_ts_utc, universe)
 
-            resp = self._client.fetch_historical(
-                tags=batch,
-                start=start,
-                end=end,
-                frequency=frequency,
-            )
-            df = citi_response_to_df(resp, parse_x_to_ts_utc, self._universe)
-
-            if not df.empty:
-                frames.append(df)
-
-            # Rate limit between batches
-            if i + self._batch_size < len(tags):
-                time.sleep(self._rate_limit)
-
-        if not frames:
+        df = fetch_and_parse_batched(
+            self._client, tags, start, end, frequency,
+            self._batch_size, self._rate_limit,
+            response_parser=_parse_response,
+        )
+        if df.empty:
             return pd.DataFrame(columns=COLUMNS)
-
-        return pd.concat(frames, ignore_index=True)
+        return df

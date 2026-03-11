@@ -20,8 +20,8 @@ import time
 # REGISTERED QUARTERLY PIPELINES
 # Add new quarterly pipelines here as [command, args...] lists.
 # Examples:
-#     ["python", "-m", "scripts.rates_quarterly_cleaning"],
-#     ["python", "-m", "scripts.fx_quarterly_quality_audit"],
+#     ["python", "-m", "scripts.rates.clean.rates_quarterly_cleaning"],
+#     ["python", "-m", "scripts.fx.clean.fx_quarterly_quality_audit"],
 # ============================================================================
 
 PIPELINES: list[list[str]] = []

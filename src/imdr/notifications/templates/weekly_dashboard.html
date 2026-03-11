@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;font-family:Calibri,Arial,sans-serif;font-size:14px;color:#222;">
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- HEADER -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#1a1a2e;">
+  <tr>
+    <td style="padding:18px 24px;">
+      <span style="color:#ffffff;font-size:22px;font-weight:bold;">IMDR &mdash; Weekly Health Dashboard</span>
+      {% if all_passed %}
+      <span style="background:#27ae60;color:#fff;padding:4px 14px;border-radius:4px;font-size:13px;font-weight:bold;margin-left:16px;">ALL PASS</span>
+      {% else %}
+      <span style="background:#e74c3c;color:#fff;padding:4px 14px;border-radius:4px;font-size:13px;font-weight:bold;margin-left:16px;">ISSUES FOUND</span>
+      {% endif %}
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:0 24px 14px 24px;">
+      <span style="color:#a0a0c0;font-size:14px;">{{ date_str }} {{ day_name }} | {{ n_domains }} domains | {{ time_utc }} / {{ time_sgt }}</span>
+    </td>
+  </tr>
+</table>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- DOMAIN LOOP -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+{% set domain_colors = ['#2c3e50', '#1a5276', '#7d3c98'] %}
+{% for domain in domains %}
+{% set dcolor = domain_colors[loop.index0 % domain_colors|length] %}
+
+<!-- Domain Header -->
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:24px;background-color:{{ dcolor }};">
+  <tr>
+    <td style="padding:14px 24px;">
+      <span style="color:#ffffff;font-size:18px;font-weight:bold;">{{ domain.domain_name }}</span>
+      <span style="color:#a0c0d0;font-size:13px;margin-left:12px;">{{ domain.table_name }}</span>
+      {% if domain.health_passed %}
+      <span style="background:#27ae60;color:#fff;padding:3px 10px;border-radius:3px;font-size:12px;font-weight:bold;margin-left:12px;">PASS</span>
+      {% else %}
+      <span style="background:#e74c3c;color:#fff;padding:3px 10px;border-radius:3px;font-size:12px;font-weight:bold;margin-left:12px;">FAIL</span>
+      {% endif %}
+    </td>
+  </tr>
+</table>
+
+<!-- ─────────────────────────────────────────────────────────────── -->
+<!-- SECTION 1: HEALTH CHECKS -->
+<!-- ─────────────────────────────────────────────────────────────── -->
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:12px;">
+  <tr><td style="padding:0 24px;"><span style="font-size:15px;font-weight:bold;color:#1a1a2e;">1. HEALTH CHECKS</span>
+    {% if domain.years_total == 1 %}
+    <span style="font-size:12px;color:#888;margin-left:8px;">({{ "PASS" if domain.years_passed == 1 else "FAIL" }})</span>
+    {% else %}
+    <span style="font-size:12px;color:#888;margin-left:8px;">({{ domain.years_passed }}/{{ domain.years_total }} years passed)</span>
+    {% endif %}
+  </td></tr>
+</table>
+
+{% for yh in domain.year_health %}
+<table width="96%" cellpadding="0" cellspacing="0" style="margin:8px auto 0 auto;">
+  <tr>
+    <td style="padding:4px 8px;font-weight:bold;font-size:13px;">
+      {% if yh.passed %}
+      <span style="color:#27ae60;">&#10003;</span>
+      {% else %}
+      <span style="color:#e74c3c;">&#10007;</span>
+      {% endif %}
+      Year {{ yh.year }}
+    </td>
+  </tr>
+</table>
+<table width="96%" cellpadding="4" cellspacing="0" style="margin:2px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;font-size:12px;">
+  <tr style="background:#e8e8e8;">
+    <th style="border:1px solid #ccc;padding:4px;text-align:left;width:200px;">Check</th>
+    <th style="border:1px solid #ccc;padding:4px;text-align:left;width:80px;">Status</th>
+    <th style="border:1px solid #ccc;padding:4px;text-align:left;">Message</th>
+  </tr>
+  {% for c in yh.checks %}
+  <tr style="background:{{ '#f9f9f9' if loop.index is odd else '#ffffff' }};">
+    <td style="border:1px solid #ddd;padding:4px;font-weight:bold;">{{ c.name }}</td>
+    <td style="border:1px solid #ddd;padding:4px;">
+      {% if c.status == 'passed' %}
+      <span style="color:#27ae60;font-weight:bold;">PASS</span>
+      {% elif c.status == 'warning' %}
+      <span style="color:#f39c12;font-weight:bold;">WARN</span>
+      {% else %}
+      <span style="color:#e74c3c;font-weight:bold;">FAIL</span>
+      {% endif %}
+    </td>
+    <td style="border:1px solid #ddd;padding:4px;">{{ c.message }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endfor %}
+
+<!-- ─────────────────────────────────────────────────────────────── -->
+<!-- SECTION 2: COVERAGE -->
+<!-- ─────────────────────────────────────────────────────────────── -->
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;">
+  <tr><td style="padding:0 24px;"><span style="font-size:15px;font-weight:bold;color:#1a1a2e;">2. COVERAGE</span></td></tr>
+</table>
+
+{% for ct in domain.coverage_tables %}
+<table width="96%" cellpadding="0" cellspacing="0" style="margin:8px auto 2px auto;">
+  <tr><td style="padding:4px 8px;font-size:13px;font-weight:bold;color:#555;">{{ ct.label }}</td></tr>
+</table>
+{{ ct.html }}
+{% endfor %}
+
+{% if domain.coverage_summary %}
+<table width="96%" cellpadding="0" cellspacing="0" style="margin:8px auto 0 auto;">
+  <tr><td style="padding:4px 8px;font-size:12px;color:#555;">
+    {% for key, val in domain.coverage_summary.items() %}
+    <span style="margin-right:16px;"><strong>{{ key.replace('_', ' ').title() }}:</strong> {{ val }}</span>
+    {% endfor %}
+  </td></tr>
+</table>
+{% endif %}
+
+<!-- ─────────────────────────────────────────────────────────────── -->
+<!-- SECTION 3: QUALITY CHECKS -->
+<!-- ─────────────────────────────────────────────────────────────── -->
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;">
+  <tr><td style="padding:0 24px;"><span style="font-size:15px;font-weight:bold;color:#1a1a2e;">3. QUALITY CHECKS</span>
+    <span style="font-size:12px;color:#888;margin-left:8px;">({{ domain.quality|length }} checks)</span>
+  </td></tr>
+</table>
+
+{% for q in domain.quality %}
+<table width="96%" cellpadding="0" cellspacing="0" style="margin:10px auto 2px auto;">
+  <tr>
+    <td style="padding:4px 8px;">
+      {% if q.status == 'passed' %}
+      <span style="color:#27ae60;font-weight:bold;">&#10003;</span>
+      {% elif q.status == 'warning' %}
+      <span style="color:#f39c12;font-weight:bold;">&#9888;</span>
+      {% else %}
+      <span style="color:#e74c3c;font-weight:bold;">&#10007;</span>
+      {% endif %}
+      <span style="font-size:13px;font-weight:bold;">{{ q.name }}</span>
+      <span style="font-size:11px;color:#888;margin-left:8px;">[{{ q.category }}]</span>
+      <span style="font-size:12px;color:#555;margin-left:8px;">{{ q.message }}</span>
+    </td>
+  </tr>
+</table>
+
+{% if q.has_summary %}
+<table width="96%" cellpadding="0" cellspacing="0" style="margin:0 auto;">
+  <tr><td style="padding:2px 8px;font-size:11px;color:#888;">Summary:</td></tr>
+</table>
+{{ q.summary_html }}
+{% endif %}
+
+{% if q.flagged_count > 0 %}
+<table width="96%" cellpadding="0" cellspacing="0" style="margin:4px auto 0 auto;">
+  <tr><td style="padding:2px 8px;font-size:11px;color:#c0392b;">Flagged rows ({{ q.flagged_count }} total, showing top 5):</td></tr>
+</table>
+{{ q.flagged_html }}
+{% endif %}
+{% endfor %}
+
+<!-- ─────────────────────────────────────────────────────────────── -->
+<!-- SECTION 4: CLEANING DRY-RUN -->
+<!-- ─────────────────────────────────────────────────────────────── -->
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;">
+  <tr><td style="padding:0 24px;"><span style="font-size:15px;font-weight:bold;color:#1a1a2e;">4. CLEANING DRY-RUN</span></td></tr>
+</table>
+
+{% if domain.cleaning_rules %}
+<table width="96%" cellpadding="5" cellspacing="0" style="margin:8px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;font-size:12px;">
+  <tr style="background:#1a1a2e;color:#fff;">
+    <th style="border:1px solid #555;padding:6px;text-align:left;">Rule</th>
+    <th style="border:1px solid #555;padding:6px;text-align:right;">Rows</th>
+    <th style="border:1px solid #555;padding:6px;text-align:right;">Unique</th>
+    <th style="border:1px solid #555;padding:6px;text-align:right;">Overlap</th>
+  </tr>
+  {% for cr in domain.cleaning_rules %}
+  <tr style="background:{{ '#f5f5f5' if loop.index is odd else '#ffffff' }};">
+    <td style="border:1px solid #ddd;padding:5px;font-weight:bold;">{{ cr.name }}</td>
+    <td style="border:1px solid #ddd;padding:5px;text-align:right;font-family:Consolas,monospace;">
+      {% if cr.count > 0 %}
+      <span style="color:#e74c3c;">{{ cr.count }}</span>
+      {% else %}
+      <span style="color:#27ae60;">0</span>
+      {% endif %}
+    </td>
+    <td style="border:1px solid #ddd;padding:5px;text-align:right;font-family:Consolas,monospace;">{{ cr.unique|default('—') }}</td>
+    <td style="border:1px solid #ddd;padding:5px;text-align:right;font-family:Consolas,monospace;">{{ cr.overlap|default('—') }}</td>
+  </tr>
+  {% endfor %}
+</table>
+<table width="96%" cellpadding="0" cellspacing="0" style="margin:4px auto 0 auto;">
+  <tr><td style="padding:4px 8px;font-size:12px;">
+    {% if domain.total_cleaning_flags > 0 %}
+    <span style="color:#e74c3c;font-weight:bold;">{{ domain.total_cleaning_flags }}</span> unique rows flagged for correction.
+    {% else %}
+    <span style="color:#27ae60;">No rows flagged for correction.</span>
+    {% endif %}
+  </td></tr>
+</table>
+{% else %}
+<table width="96%" cellpadding="0" cellspacing="0" style="margin:8px auto 0 auto;">
+  <tr><td style="padding:8px;color:#888;">No cleaning rules configured.</td></tr>
+</table>
+{% endif %}
+
+<!-- Domain separator -->
+{% if not loop.last %}
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:8px;">
+  <tr><td style="border-top:3px solid #ddd;">&nbsp;</td></tr>
+</table>
+{% endif %}
+
+{% endfor %}
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- FOOTER -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:24px;background-color:#f0f0f0;border-top:2px solid #ddd;">
+  <tr>
+    <td style="padding:12px 24px;color:#888;font-size:12px;">
+      Generated by IMDR Weekly Dashboard | {{ time_utc }}
+    </td>
+  </tr>
+</table>
+
+</body>
+</html>

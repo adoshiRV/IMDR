@@ -56,20 +56,20 @@ Threshold configured via `IMDR_ANOMALY_PCT_THRESHOLD` env var (pydantic-settings
 
 ## Scripts & CLI
 
-### Live Ingestion — `scripts/fx_bidfx_live.py`
+### Live Ingestion — `scripts/fx/bidfx/fx_bidfx_live.py`
 
 Processes a single hour. Designed for scheduled (hourly) execution.
 
 ```bash
-python -m scripts.fx_bidfx_live
-python -m scripts.fx_bidfx_live --hour 2026-03-09T13:00:00
+python -m scripts.fx.bidfx.fx_bidfx_live
+python -m scripts.fx.bidfx.fx_bidfx_live --hour 2026-03-09T13:00:00
 ```
 
 - Checks if FX market is open before running
 - Sends email report on completion
 - Saves/loads pair availability cache
 
-### Historical Backfill — `scripts/fx_bidfx_historical.py`
+### Historical Backfill — `scripts/fx/bidfx/fx_bidfx_historical.py`
 
 Batch backfill of multiple hours. Configure by editing variables at the top of the script:
 
@@ -89,20 +89,20 @@ MAX_HOURS = 0        # 0 = unlimited
 | `rewrite` | Delete existing data in range, then re-fetch |
 | `gaps` | Re-fetch specific hours from a gaps file (one ISO timestamp per line) |
 
-### Data Cleaning — `scripts/clean_fx_fact_ohlc.py`
+### Data Cleaning — `scripts/fx/clean/clean_fx_fact_ohlc.py`
 
 Detect and correct data quality issues. Dry-run by default.
 
 ```bash
-python -m scripts.clean_fx_fact_ohlc                           # dry-run, full table
-python -m scripts.clean_fx_fact_ohlc --execute                 # apply corrections
-python -m scripts.clean_fx_fact_ohlc --year 2026               # filter by year
-python -m scripts.clean_fx_fact_ohlc --symbol USDKRW           # filter by symbol
-python -m scripts.clean_fx_fact_ohlc --rule robust_outlier     # single rule only
-python -m scripts.clean_fx_fact_ohlc --pct-threshold 3.0       # bar-to-bar % threshold
-python -m scripts.clean_fx_fact_ohlc --n-mad 5.0               # MAD multiplier
-python -m scripts.clean_fx_fact_ohlc --trailing-months 6       # rolling window
-python -m scripts.clean_fx_fact_ohlc --emit-gaps data/gaps/cleaning_gaps.txt
+python -m scripts.fx.clean.clean_fx_fact_ohlc                           # dry-run, full table
+python -m scripts.fx.clean.clean_fx_fact_ohlc --execute                 # apply corrections
+python -m scripts.fx.clean.clean_fx_fact_ohlc --year 2026               # filter by year
+python -m scripts.fx.clean.clean_fx_fact_ohlc --symbol USDKRW           # filter by symbol
+python -m scripts.fx.clean.clean_fx_fact_ohlc --rule robust_outlier     # single rule only
+python -m scripts.fx.clean.clean_fx_fact_ohlc --pct-threshold 3.0       # bar-to-bar % threshold
+python -m scripts.fx.clean.clean_fx_fact_ohlc --n-mad 5.0               # MAD multiplier
+python -m scripts.fx.clean.clean_fx_fact_ohlc --trailing-months 6       # rolling window
+python -m scripts.fx.clean.clean_fx_fact_ohlc --emit-gaps data/gaps/cleaning_gaps.txt
 ```
 
 | Flag | Default | Description |
@@ -117,17 +117,17 @@ python -m scripts.clean_fx_fact_ohlc --emit-gaps data/gaps/cleaning_gaps.txt
 | `--batch-size` | 500 | UPDATE batch size |
 | `--emit-gaps` | off | Write flagged timestamps to file for re-pull |
 
-### Diagnostics Report — `scripts/diagnostics/fx_ohlc_report.py`
+### Diagnostics Report — `scripts/fx/health/fx_ohlc_report.py`
 
 Comprehensive health/quality report.
 
 ```bash
-python -m scripts.diagnostics.fx_ohlc_report                   # full report
-python -m scripts.diagnostics.fx_ohlc_report --year 2026       # filter by year
-python -m scripts.diagnostics.fx_ohlc_report --section health  # single section
-python -m scripts.diagnostics.fx_ohlc_report --section missing
-python -m scripts.diagnostics.fx_ohlc_report --section quality --sigma 3
-python -m scripts.diagnostics.fx_ohlc_report --basis-threshold 5.0
+python -m scripts.fx.health.fx_ohlc_report                   # full report
+python -m scripts.fx.health.fx_ohlc_report --year 2026       # filter by year
+python -m scripts.fx.health.fx_ohlc_report --section health  # single section
+python -m scripts.fx.health.fx_ohlc_report --section missing
+python -m scripts.fx.health.fx_ohlc_report --section quality --sigma 3
+python -m scripts.fx.health.fx_ohlc_report --basis-threshold 5.0
 ```
 
 **Sections:**
@@ -295,6 +295,72 @@ EUR > GBP > AUD > NZD > USD > CAD > CHF > NOK > SEK > JPY
 ```
 
 Higher-priority currency is the base. Example: `EURUSD` (not USDEUR), `USDJPY` (not JPYUSD).
+
+---
+
+## FX Vol Domain
+
+### Module Map (`src/imdr/domains/fx/`)
+
+| Module | Purpose |
+|---|---|
+| `extractors_vol.py` | Citi Velocity vol surface fetching, tag→DataFrame translation |
+| `pipeline_vol.py` | `FXVolPipeline` — `BasePipeline` wrapper: extract → transform → load → quality checks |
+| `repository_vol.py` | Data access: `FXVolRepository` with `bulk_upsert()`, `count_by_date()` |
+| `store_vol.py` | Parquet archive for vol observations |
+| `vol_translate.py` | Citi tag ↔ internal schema translation for vol surfaces |
+| `clean_fx_fact_vol.py` | 3 cleaning rules for `[fx].[fact_vol]` |
+
+### FX Vol Scripts
+
+| Script | Purpose |
+|---|---|
+| `scripts/fx/citi/fx_vol_citi_live.py` | Daily EOD vol ingest + email report |
+| `scripts/fx/citi/fx_vol_citi_historical.py` | Historical backfill of vol data |
+| `scripts/fx/health/fx_vol_report.py` | Diagnostic report (health, coverage, quality) |
+| `scripts/fx/clean/clean_fx_fact_vol.py` | Batch cleaning CLI (dry-run default) |
+
+### FX Vol Diagnostics — `scripts/fx/health/fx_vol_report.py`
+
+```bash
+python -m scripts.fx.health.fx_vol_report                    # full report
+python -m scripts.fx.health.fx_vol_report --year 2026        # filter by year
+python -m scripts.fx.health.fx_vol_report --section health   # single section
+python -m scripts.fx.health.fx_vol_report --section coverage
+python -m scripts.fx.health.fx_vol_report --section quality --sigma 4
+```
+
+**Sections:**
+1. **Health** — per-year row counts, null checks, duplicates, freshness, value ranges
+2. **Coverage** — per-pair date coverage, strike×tenor grid completeness, row counts
+3. **Quality** — composite range checks (strike+vol_type bounds), robust outliers, percentage change, distribution
+
+### FX Vol Cleaning — `scripts/fx/clean/clean_fx_fact_vol.py`
+
+```bash
+python -m scripts.fx.clean.clean_fx_fact_vol                           # dry-run, full table
+python -m scripts.fx.clean.clean_fx_fact_vol --execute                 # apply corrections
+python -m scripts.fx.clean.clean_fx_fact_vol --year 2026               # filter by year
+python -m scripts.fx.clean.clean_fx_fact_vol --pair 1                  # filter by pair_id
+python -m scripts.fx.clean.clean_fx_fact_vol --rule robust_outlier     # single rule
+python -m scripts.fx.clean.clean_fx_fact_vol --n-mad 5.0               # MAD multiplier
+```
+
+| Rule | Detection | Correction |
+|---|---|---|
+| **Hard bound violation** | `value` outside per-(strike, vol_type) bounds from `fx.yml` | NULL value |
+| **Robust outlier** | z > N MAD (12-month rolling, group by pair_id+strike+tenor) | NULL value |
+| **Percentage change** | Day-over-day > threshold (group by pair_id+strike+tenor) | NULL value |
+
+### FX Vol Quality Ranges
+
+Configured in `src/imdr/universe/fx.yml` under `vol.quality.ranges`. Per-(strike, vol_type) bounds:
+- **ATM IMPLIED**: 0.5–80.0
+- **ATM REALISED**: 0.5–80.0
+- **ATM SPREAD**: -40.0–40.0
+- **Risk reversals (25RR, 10RR)**: -20.0–20.0
+- **Strangles (25STR, 10STR)**: 0.0–20.0
+- **Strike calls/puts**: 0.5–100.0
 
 ---
 

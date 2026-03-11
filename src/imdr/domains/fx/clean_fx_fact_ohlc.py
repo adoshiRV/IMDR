@@ -1,34 +1,24 @@
-"""FX OHLC data cleaning module.
+"""FX OHLC data cleaning rules.
 
 Detects and corrects data quality issues in [fx].[fact_ohlc]:
   - Non-positive prices  → NULL all price columns
   - Hard-bound violations → NULL all price columns
   - Robust outliers       → NULL all price columns
+  - Percentage change     → NULL all price columns
   - Bid > Ask inversions  → Swap bid and ask
 
 Each rule is idempotent — safe to re-run.  Dry-run mode (default)
 shows what would change without writing.
-
-Usage:
-    runner = CleaningRunner(connector, reader, rules, dry_run=True)
-    results = runner.run()
 """
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from datetime import datetime
 from typing import Any
 
 import pandas as pd
-import structlog
-from sqlalchemy import text
 
-from imdr.connectors.mssql import MSSQLConnector
 from imdr.connectors.reader import AnalyticalReader
-
-log = structlog.get_logger(__name__)
+from imdr.healthchecks.cleaning import CleaningAction, CleaningRule
 
 TABLE = "[fx].[fact_ohlc]"
 
@@ -44,86 +34,12 @@ PRICE_COLUMNS = [
     "ask",
 ]
 
-
-# ---------------------------------------------------------------------------
-# Result types
-# ---------------------------------------------------------------------------
-
-@dataclass
-class CleaningAction:
-    """One correction applied (or proposed in dry-run) to a single row."""
-
-    rule_name: str
-    row_id: int
-    ts: datetime
-    symbol: str
-    series: str
-    action: str  # "null_prices" | "swap_bid_ask"
-    detail: str  # human-readable
-
-
-@dataclass
-class CleaningResult:
-    """Aggregate result for one rule across all detected rows."""
-
-    rule_name: str
-    actions: list[CleaningAction] = field(default_factory=list)
-    dry_run: bool = True
-
-    @property
-    def count(self) -> int:
-        return len(self.actions)
-
-
-# ---------------------------------------------------------------------------
-# ABC
-# ---------------------------------------------------------------------------
-
-class CleaningRule(ABC):
-    """Base class for cleaning rules.
-
-    Each rule knows how to *detect* bad rows and how to *fix* them.
-    """
-
-    @property
-    @abstractmethod
-    def name(self) -> str:
-        """Short identifier for this rule (e.g. 'non_positive')."""
-        ...
-
-    @property
-    @abstractmethod
-    def action_label(self) -> str:
-        """What this rule does (e.g. 'null_prices')."""
-        ...
-
-    @abstractmethod
-    def detect(
-        self,
-        reader: AnalyticalReader,
-        table: str = TABLE,
-        where: str = "",
-        params: dict[str, Any] | None = None,
-    ) -> pd.DataFrame:
-        """Return DataFrame of rows needing correction.  MUST include 'id'."""
-        ...
-
-    @abstractmethod
-    def build_update_sql(self, ids: list[int]) -> str:
-        """Return UPDATE statement for a batch of row IDs."""
-        ...
-
-    def describe(self, row: pd.Series) -> str:
-        """Human-readable description of the correction for one row."""
-        return f"{self.name}: {self.action_label} for {row.get('symbol', '?')} @ {row.get('ts', '?')}"
+_NULL_SET = ", ".join(f"[{c}] = NULL" for c in PRICE_COLUMNS)
 
 
 # ---------------------------------------------------------------------------
 # Rule implementations
 # ---------------------------------------------------------------------------
-
-_NULL_SET = ", ".join(f"[{c}] = NULL" for c in PRICE_COLUMNS)
-
 
 class NonPositivePriceRule(CleaningRule):
     """NULL out rows where any price column is non-positive."""
@@ -158,6 +74,16 @@ class NonPositivePriceRule(CleaningRule):
     def build_update_sql(self, ids: list[int]) -> str:
         id_list = ", ".join(str(i) for i in ids)
         return f"UPDATE {TABLE} SET {_NULL_SET} WHERE [id] IN ({id_list})"
+
+    def build_action(self, row: pd.Series) -> CleaningAction:
+        return CleaningAction(
+            rule_name=self.name,
+            row_id=int(row["id"]),
+            ts=row["ts"],
+            action=self.action_label,
+            detail=self.describe(row),
+            context={"symbol": row["symbol"], "series": row["series"]},
+        )
 
     def describe(self, row: pd.Series) -> str:
         bad = [c for c in self._columns if pd.notna(row.get(c)) and float(row[c]) <= 0]
@@ -225,6 +151,16 @@ class HardBoundViolationRule(CleaningRule):
         id_list = ", ".join(str(i) for i in ids)
         return f"UPDATE {TABLE} SET {_NULL_SET} WHERE [id] IN ({id_list})"
 
+    def build_action(self, row: pd.Series) -> CleaningAction:
+        return CleaningAction(
+            rule_name=self.name,
+            row_id=int(row["id"]),
+            ts=row["ts"],
+            action=self.action_label,
+            detail=self.describe(row),
+            context={"symbol": row["symbol"], "series": row["series"]},
+        )
+
     def describe(self, row: pd.Series) -> str:
         sym = row["symbol"]
         lo, hi = self._ranges.get(sym, (None, None))
@@ -279,7 +215,7 @@ class RobustOutlierRule(CleaningRule):
                    {', '.join(f'[{c}]' for c in self._group_cols)},
                    [{self._value_col}]
             FROM {table}
-            WHERE [{self._value_col}] IS NOT NULL
+            WHERE 1=1
               {where}
             ORDER BY {group_list}, [{self._ts_col}]
         """
@@ -300,17 +236,21 @@ class RobustOutlierRule(CleaningRule):
             if len(vals) < self._min_obs:
                 continue
 
-            roll_median = vals.rolling(
+            # Interpolate NaN for stable stats (NULL'd rows don't shift distribution)
+            vals_for_stats = vals.interpolate(method="time")
+
+            roll_median = vals_for_stats.rolling(
                 window, min_periods=self._min_obs,
             ).median()
-            abs_dev = (vals - roll_median).abs()
+            abs_dev = (vals_for_stats - roll_median).abs()
             roll_mad = abs_dev.rolling(
                 window, min_periods=self._min_obs,
             ).median()
             robust_sigma = roll_mad * self._MAD_SCALE
 
+            # Flag using ORIGINAL values (not interpolated)
             robust_z = (vals - roll_median).abs() / robust_sigma.replace(0, float("nan"))
-            mask = robust_z > self._n_mad
+            mask = (robust_z > self._n_mad) & vals.notna()
 
             if not mask.any():
                 continue
@@ -331,9 +271,22 @@ class RobustOutlierRule(CleaningRule):
         id_list = ", ".join(str(i) for i in ids)
         return f"UPDATE {TABLE} SET {_NULL_SET} WHERE [id] IN ({id_list})"
 
+    def build_action(self, row: pd.Series) -> CleaningAction:
+        return CleaningAction(
+            rule_name=self.name,
+            row_id=int(row["id"]),
+            ts=row["ts"],
+            action=self.action_label,
+            detail=self.describe(row),
+            context={
+                "symbol": row.get("symbol", ""),
+                "series": row.get("series", ""),
+            },
+        )
+
     def describe(self, row: pd.Series) -> str:
         return (
-            f"robust outlier: {row['symbol']} {row.get('series', '')} "
+            f"robust outlier: {row.get('symbol', '')} {row.get('series', '')} "
             f"{self._value_col}={row.get(self._value_col, '?')} "
             f"z={row.get('robust_z', '?'):.1f} @ {row['ts']}"
         )
@@ -373,7 +326,7 @@ class PercentageChangeRule(CleaningRule):
                            ORDER BY [ts]
                        ) AS prev_val
                 FROM {table}
-                WHERE [{self._value_col}] IS NOT NULL
+                WHERE 1=1
                   {where}
             )
             SELECT [id], [ts], [symbol], [series],
@@ -381,7 +334,8 @@ class PercentageChangeRule(CleaningRule):
                    ([{self._value_col}] - prev_val)
                        / ABS(NULLIF(prev_val, 0)) * 100.0 AS pct_change
             FROM with_prev
-            WHERE prev_val IS NOT NULL
+            WHERE [{self._value_col}] IS NOT NULL
+              AND prev_val IS NOT NULL
               AND prev_val != 0
               AND ABS(([{self._value_col}] - prev_val)
                       / ABS(prev_val) * 100.0) > {self._threshold}
@@ -391,6 +345,16 @@ class PercentageChangeRule(CleaningRule):
     def build_update_sql(self, ids: list[int]) -> str:
         id_list = ", ".join(str(i) for i in ids)
         return f"UPDATE {TABLE} SET {_NULL_SET} WHERE [id] IN ({id_list})"
+
+    def build_action(self, row: pd.Series) -> CleaningAction:
+        return CleaningAction(
+            rule_name=self.name,
+            row_id=int(row["id"]),
+            ts=row["ts"],
+            action=self.action_label,
+            detail=self.describe(row),
+            context={"symbol": row["symbol"], "series": row["series"]},
+        )
 
     def describe(self, row: pd.Series) -> str:
         pct = row.get("pct_change")
@@ -438,83 +402,18 @@ class BidAskInversionRule(CleaningRule):
             f"FROM {TABLE} t WHERE t.[id] IN ({id_list})"
         )
 
+    def build_action(self, row: pd.Series) -> CleaningAction:
+        return CleaningAction(
+            rule_name=self.name,
+            row_id=int(row["id"]),
+            ts=row["ts"],
+            action=self.action_label,
+            detail=self.describe(row),
+            context={"symbol": row["symbol"], "series": row["series"]},
+        )
+
     def describe(self, row: pd.Series) -> str:
         return (
             f"bid/ask inversion: {row['symbol']} bid={row['bid']} > ask={row['ask']} "
             f"@ {row['ts']}"
         )
-
-
-# ---------------------------------------------------------------------------
-# Runner
-# ---------------------------------------------------------------------------
-
-class CleaningRunner:
-    """Orchestrates cleaning rules with dry-run support."""
-
-    def __init__(
-        self,
-        connector: MSSQLConnector,
-        reader: AnalyticalReader,
-        rules: list[CleaningRule],
-        table: str = TABLE,
-        dry_run: bool = True,
-        batch_size: int = 500,
-    ) -> None:
-        self._connector = connector
-        self._reader = reader
-        self._rules = rules
-        self._table = table
-        self._dry_run = dry_run
-        self._batch_size = batch_size
-
-    def run(
-        self,
-        where: str = "",
-        params: dict[str, Any] | None = None,
-    ) -> list[CleaningResult]:
-        results: list[CleaningResult] = []
-
-        for rule in self._rules:
-            log.info("cleaning_detect", rule=rule.name, dry_run=self._dry_run)
-            detected = rule.detect(self._reader, self._table, where, params)
-
-            result = CleaningResult(rule_name=rule.name, dry_run=self._dry_run)
-
-            if detected.empty:
-                log.info("cleaning_none", rule=rule.name)
-                results.append(result)
-                continue
-
-            # Build actions
-            for _, row in detected.iterrows():
-                action = CleaningAction(
-                    rule_name=rule.name,
-                    row_id=int(row["id"]),
-                    ts=row["ts"],
-                    symbol=row["symbol"],
-                    series=row["series"],
-                    action=rule.action_label,
-                    detail=rule.describe(row),
-                )
-                result.actions.append(action)
-
-            log.info("cleaning_detected", rule=rule.name, rows=result.count)
-
-            # Apply if not dry-run
-            if not self._dry_run:
-                all_ids = [a.row_id for a in result.actions]
-                self._execute_batches(rule, all_ids)
-                log.info("cleaning_applied", rule=rule.name, rows=result.count)
-
-            results.append(result)
-
-        return results
-
-    def _execute_batches(self, rule: CleaningRule, ids: list[int]) -> None:
-        """Execute UPDATE in batches within a single session."""
-        with self._connector.session() as session:
-            for i in range(0, len(ids), self._batch_size):
-                batch = ids[i : i + self._batch_size]
-                sql = rule.build_update_sql(batch)
-                session.execute(text(sql))

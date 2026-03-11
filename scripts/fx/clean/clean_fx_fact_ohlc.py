@@ -4,13 +4,13 @@ Detects and corrects data quality issues in [fx].[fact_ohlc].
 Dry-run by default — pass --execute to apply changes.
 
 Usage:
-    python -m scripts.clean_fx_fact_ohlc
-    python -m scripts.clean_fx_fact_ohlc --execute
-    python -m scripts.clean_fx_fact_ohlc --year 2024
-    python -m scripts.clean_fx_fact_ohlc --symbol USDTWD
-    python -m scripts.clean_fx_fact_ohlc --rule bid_ask
-    python -m scripts.clean_fx_fact_ohlc --n-mad 4.0 --trailing-months 12
-    python -m scripts.clean_fx_fact_ohlc --emit-gaps data/gaps/cleaning_gaps.txt
+    python -m scripts.fx.clean.clean_fx_fact_ohlc
+    python -m scripts.fx.clean.clean_fx_fact_ohlc --execute
+    python -m scripts.fx.clean.clean_fx_fact_ohlc --year 2024
+    python -m scripts.fx.clean.clean_fx_fact_ohlc --symbol USDTWD
+    python -m scripts.fx.clean.clean_fx_fact_ohlc --rule bid_ask
+    python -m scripts.fx.clean.clean_fx_fact_ohlc --n-mad 4.0 --trailing-months 12
+    python -m scripts.fx.clean.clean_fx_fact_ohlc --emit-gaps data/gaps/cleaning_gaps.txt
 """
 
 from __future__ import annotations
@@ -23,22 +23,38 @@ from imdr.connectors.mssql import MSSQLConnector
 from imdr.connectors.reader import AnalyticalReader
 from imdr.domains.fx.clean_fx_fact_ohlc import (
     BidAskInversionRule,
-    CleaningResult,
-    CleaningRunner,
     HardBoundViolationRule,
     NonPositivePriceRule,
     PercentageChangeRule,
     RobustOutlierRule,
 )
+from imdr.healthchecks.clean_cli import compute_overlap_stats, print_clean_summary
+from imdr.healthchecks.cleaning import CleaningResult, CleaningRunner
 from imdr.universe.fx import get_fx_universe
 
+PIPELINE_NAME = "fx.ohlc"
+TABLE = "[fx].[fact_ohlc]"
 RULE_NAMES = ["non_positive", "hard_bound", "pct_change", "robust_outlier", "bid_ask"]
 
 
-def _build_rules(
-    args: argparse.Namespace,
+def build_cleaning_rules(
+    n_mad: float | None = None,
+    trailing_months: int | None = None,
+    pct_threshold: float | None = None,
+    rule: str | None = None,
 ) -> list:
-    """Build the ordered list of cleaning rules."""
+    """Build the ordered list of FX OHLC cleaning rules.
+
+    Defaults read from ``pipelines.yml`` (fx.ohlc.cleaning).
+    CLI ``--n-mad`` / ``--trailing-months`` / ``--pct-threshold`` override when provided.
+    """
+    from imdr.config.pipeline_config import get_pipeline_config
+
+    cfg = get_pipeline_config(PIPELINE_NAME).cleaning
+    n_mad = n_mad if n_mad is not None else cfg.n_mad
+    trailing_months = trailing_months if trailing_months is not None else cfg.trailing_months
+    pct_threshold = pct_threshold if pct_threshold is not None else cfg.pct_threshold
+
     universe = get_fx_universe()
     ranges = {
         sym: (r.min, r.max)
@@ -49,17 +65,24 @@ def _build_rules(
     all_rules = [
         NonPositivePriceRule(),
         HardBoundViolationRule(ranges=ranges),
-        PercentageChangeRule(threshold_pct=args.pct_threshold),
-        RobustOutlierRule(
-            n_mad=args.n_mad,
-            trailing_months=args.trailing_months,
-        ),
+        PercentageChangeRule(threshold_pct=pct_threshold),
+        RobustOutlierRule(n_mad=n_mad, trailing_months=trailing_months),
         BidAskInversionRule(),
     ]
 
-    if args.rule:
-        return [r for r in all_rules if r.name == args.rule]
+    if rule:
+        return [r for r in all_rules if r.name == rule]
     return all_rules
+
+
+def _build_rules(args: argparse.Namespace) -> list:
+    """CLI wrapper — forwards argparse values to build_cleaning_rules."""
+    return build_cleaning_rules(
+        n_mad=args.n_mad,
+        trailing_months=args.trailing_months,
+        pct_threshold=args.pct_threshold,
+        rule=getattr(args, "rule", None),
+    )
 
 
 def _build_where(args: argparse.Namespace) -> str:
@@ -70,57 +93,6 @@ def _build_where(args: argparse.Namespace) -> str:
     if args.symbol:
         parts.append(f"AND [symbol] = '{args.symbol.upper()}'")
     return " ".join(parts)
-
-
-def _overlap_stats(
-    results: list[CleaningResult],
-) -> tuple[dict[str, set[int]], dict[str, int], int]:
-    """Compute per-rule ID sets, unique-only counts, and global unique count.
-
-    Returns (id_sets, unique_counts, total_unique) considering only
-    null_prices rules (bid_ask is a separate action and excluded).
-    """
-    null_rules = [r for r in results if r.actions and r.actions[0].action == "null_prices"]
-    id_sets: dict[str, set[int]] = {
-        r.rule_name: {a.row_id for a in r.actions} for r in null_rules
-    }
-    all_ids = set().union(*id_sets.values()) if id_sets else set()
-
-    unique_counts: dict[str, int] = {}
-    for name, ids in id_sets.items():
-        others = set().union(*(s for n, s in id_sets.items() if n != name)) if len(id_sets) > 1 else set()
-        unique_counts[name] = len(ids - others)
-
-    return id_sets, unique_counts, len(all_ids)
-
-
-def _print_summary(results: list[CleaningResult], dry_run: bool) -> None:
-    mode = "DRY RUN" if dry_run else "EXECUTED"
-    total = sum(r.count for r in results)
-
-    id_sets, unique_counts, total_unique = _overlap_stats(results)
-
-    print(f"\n{'=' * 60}")
-    print(f"  CLEANING SUMMARY  [{mode}]")
-    print(f"{'=' * 60}")
-    print(f"  {'Rule':<20} {'Rows':>8} {'Unique':>8}  Action")
-    print(f"  {'-' * 56}")
-    for r in results:
-        action = r.actions[0].action if r.actions else "-"
-        uniq = unique_counts.get(r.rule_name)
-        uniq_str = str(uniq) if uniq is not None else "-"
-        print(f"  {r.rule_name:<20} {r.count:>8} {uniq_str:>8}  {action}")
-    print(f"  {'-' * 56}")
-    print(f"  {'TOTAL':<20} {total:>8}")
-
-    if id_sets:
-        null_total = sum(r.count for r in results if r.rule_name in id_sets)
-        overlap = null_total - total_unique
-        print(f"  {'UNIQUE (null_prices)':<20} {total_unique:>8}  ({overlap} overlapping)")
-    print(f"{'=' * 60}\n")
-
-    if dry_run and total > 0:
-        print("  Re-run with --execute to apply these corrections.\n")
 
 
 def main() -> None:
@@ -142,20 +114,20 @@ def main() -> None:
     parser.add_argument(
         "--pct-threshold",
         type=float,
-        default=5.0,
-        help="Percentage change threshold for bar-to-bar detection (default: 5.0)",
+        default=None,
+        help="Percentage change threshold for bar-to-bar detection (default: from pipelines.yml)",
     )
     parser.add_argument(
         "--n-mad",
         type=float,
-        default=4.0,
-        help="MAD threshold for robust outlier detection (default: 4.0)",
+        default=None,
+        help="MAD threshold for robust outlier detection (default: from pipelines.yml)",
     )
     parser.add_argument(
         "--trailing-months",
         type=int,
-        default=1,
-        help="Trailing window in months for robust stats (default: 1)",
+        default=None,
+        help="Trailing window in months for robust stats (default: from pipelines.yml)",
     )
     parser.add_argument(
         "--batch-size",
@@ -188,6 +160,7 @@ def main() -> None:
         connector=connector,
         reader=reader,
         rules=rules,
+        table=TABLE,
         dry_run=dry_run,
         batch_size=args.batch_size,
     )
@@ -195,7 +168,7 @@ def main() -> None:
     results = runner.run(where=where)
 
     # Compute overlap sets for per-rule annotation
-    id_sets, unique_counts, total_unique = _overlap_stats(results)
+    id_sets, unique_counts, total_unique = compute_overlap_stats(results)
 
     # Print flagged rows detail
     for r in results:
@@ -211,7 +184,7 @@ def main() -> None:
             if r.count > 20:
                 print(f"    ... and {r.count - 20} more")
 
-    _print_summary(results, dry_run)
+    print_clean_summary(results, dry_run)
 
     if args.emit_gaps:
         _write_gaps_file(results, args.emit_gaps)
@@ -227,7 +200,8 @@ def _write_gaps_file(results: list[CleaningResult], path: str) -> None:
             continue
         for a in r.actions:
             ts_str = a.ts.strftime("%Y-%m-%dT%H:%M:%S") if hasattr(a.ts, "strftime") else str(a.ts)
-            pairs.add((a.symbol, ts_str))
+            symbol = a.context.get("symbol", "")
+            pairs.add((symbol, ts_str))
 
     if not pairs:
         print("  No flagged rows — gaps file not written.")

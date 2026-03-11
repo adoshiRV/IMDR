@@ -7,17 +7,26 @@ from __future__ import annotations
 from collections.abc import Sequence
 from datetime import datetime
 
-import structlog
-from sqlalchemy import and_, func, select, text
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from imdr.connectors.bulk import MergeSpec, bulk_merge
 from imdr.models.rates import RatesCurve, RatesObservation
 from imdr.schemas.rates import RatesCurveCreate, RatesObservationCreate
 
-_log = structlog.get_logger("RatesObservationRepository")
-
-# Batch size for MERGE temp table inserts
-_MERGE_BATCH_SIZE = 1000
+_RATES_OBS_SPEC = MergeSpec(
+    target_table="[rates].[fact_observation]",
+    staging_name="#rates_staging",
+    columns={
+        "curve_id": "INT",
+        "ts": "DATETIMEOFFSET",
+        "quote": "VARCHAR(10)",
+        "tenor": "VARCHAR(30)",
+        "value": "FLOAT",
+    },
+    natural_key=["curve_id", "ts", "quote", "tenor"],
+    value_columns=["value"],
+)
 
 
 class RatesCurveRepository:
@@ -86,76 +95,8 @@ class RatesObservationRepository:
         self._session.flush()
 
     def bulk_upsert(self, items: list[RatesObservationCreate]) -> int:
-        """Upsert observations via SQL MERGE — single round-trip per batch.
-
-        Uses a temp table + MERGE INTO for idempotent insert/update on
-        the natural key (curve_id, ts, quote, tenor). Much faster than
-        row-by-row for large batches (backfills).
-        """
-        if not items:
-            return 0
-
-        conn = self._session.connection()
-
-        # 1. Create temp table (session-scoped, auto-dropped)
-        conn.execute(text("""
-            IF OBJECT_ID('tempdb..#rates_staging') IS NOT NULL
-                DROP TABLE #rates_staging;
-            CREATE TABLE #rates_staging (
-                curve_id    INT             NOT NULL,
-                ts          DATETIMEOFFSET  NOT NULL,
-                quote       VARCHAR(10)     NOT NULL,
-                tenor       VARCHAR(30)     NOT NULL,
-                value       FLOAT           NOT NULL
-            );
-        """))
-
-        # 2. Batch insert into temp table
-        for i in range(0, len(items), _MERGE_BATCH_SIZE):
-            batch = items[i : i + _MERGE_BATCH_SIZE]
-            rows = [
-                {
-                    "curve_id": item.curve_id,
-                    "ts": item.ts,
-                    "quote": item.quote,
-                    "tenor": item.tenor,
-                    "value": item.value,
-                }
-                for item in batch
-            ]
-            conn.execute(
-                text("""
-                    INSERT INTO #rates_staging (curve_id, ts, quote, tenor, value)
-                    VALUES (:curve_id, :ts, :quote, :tenor, :value)
-                """),
-                rows,
-            )
-
-        # 3. MERGE into fact table
-        result = conn.execute(text("""
-            MERGE [rates].[fact_observation] AS tgt
-            USING #rates_staging AS src
-                ON  tgt.curve_id = src.curve_id
-                AND tgt.ts       = src.ts
-                AND tgt.quote    = src.quote
-                AND tgt.tenor    = src.tenor
-            WHEN MATCHED THEN
-                UPDATE SET
-                    tgt.value      = src.value,
-                    tgt.updated_at = SYSDATETIMEOFFSET()
-            WHEN NOT MATCHED THEN
-                INSERT (curve_id, ts, quote, tenor, value, created_at, updated_at)
-                VALUES (src.curve_id, src.ts, src.quote, src.tenor, src.value,
-                        SYSDATETIMEOFFSET(), SYSDATETIMEOFFSET());
-        """))
-
-        merged = result.rowcount
-        _log.info("bulk_upsert_merge", total_items=len(items), rows_affected=merged)
-
-        # 4. Cleanup
-        conn.execute(text("DROP TABLE IF EXISTS #rates_staging;"))
-
-        return len(items)
+        """Upsert observations via shared temp→MERGE utility."""
+        return bulk_merge(self._session, _RATES_OBS_SPEC, items)
 
     def count_by_date(self, ts: datetime) -> int:
         """Count observations for a given timestamp."""

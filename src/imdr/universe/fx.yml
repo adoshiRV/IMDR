@@ -103,6 +103,82 @@ providers:
     auth_type: bearer
     base_url: ""
 
+vol:
+  # Pairs to track — uses Citi's ccy ordering (not market convention)
+  pairs:
+    # G10
+    - [EUR, USD]
+    - [GBP, USD]
+    - [USD, JPY]
+    - [AUD, USD]
+    - [NZD, USD]
+    - [USD, CAD]
+    - [USD, CHF]
+    - [USD, NOK]
+    - [USD, SEK]
+    - [USD, CNH]
+    # EM NDF
+    - [USD, INR]
+    - [USD, KRW]
+    - [USD, TWD]
+    - [USD, THB]
+    - [USD, IDR]
+    - [USD, PHP]
+    # EM Deliverable
+    - [USD, SGD]
+
+  strikes:
+    - ATM
+    - 25RR
+    - 10RR
+    - 25STR
+    - 10STR
+    - STRIKE_C25
+    - STRIKE_P25
+
+  tenors:
+    - 1W
+    - 1M
+    - 2M
+    - 3M
+    - 6M
+    - 9M
+    - 1Y
+    - 2Y
+    - 5Y
+    - 10Y
+
+  # ATM has 3 leaf types; all others have only IMPLIED
+  vol_types:
+    ATM: [IMPLIED, REALISED, SPREAD]
+    _default: [IMPLIED]
+
+  tag_template: "FX.VOL.{ccy1}.{ccy2}.{strike}.{tenor}.{vol_type}.CITI"
+
+  # Quality check configuration for vol surface data
+  quality:
+    # Per strike+vol_type hard ranges (vol in percentage points)
+    ranges:
+      ATM:
+        IMPLIED: { min: 0.5, max: 80.0 }
+        REALISED: { min: 0.5, max: 80.0 }
+        SPREAD: { min: -30.0, max: 30.0 }
+      25RR:
+        IMPLIED: { min: -20.0, max: 20.0 }
+      10RR:
+        IMPLIED: { min: -30.0, max: 30.0 }
+      25STR:
+        IMPLIED: { min: 0.01, max: 25.0 }    # Must be positive (convex smile invariant)
+      10STR:
+        IMPLIED: { min: 0.01, max: 40.0 }    # Must be positive (convex smile invariant)
+      STRIKE_C25:
+        IMPLIED: { min: 0.5, max: 80.0 }
+      STRIKE_P25:
+        IMPLIED: { min: 0.5, max: 80.0 }
+    # Statistical params (n_mad, trailing_months, pct_threshold) are in
+    # pipelines.yml under fx.vol.cleaning — single source of truth for
+    # both quality checks and cleaning rules.
+
 # Per-symbol hard bounds — prices should NEVER fall outside these ranges.
 # Used by quality checks and ingest validation to flag corrupt data.
 expected_ranges:

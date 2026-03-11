@@ -1,10 +1,33 @@
-"""Rates domain utilities — Citi x-axis timestamp parsing, date formatters.
+"""Rates domain utilities — date formatters, converters, and re-exports.
 
-Ported from RATES_data/src/utils.py (selective — 4 functions).
+Ported from RATES_data/src/utils.py (selective).
+parse_x_to_ts_utc moved to connectors.citi_helpers — re-exported for backward compat.
 """
 from __future__ import annotations
 
 from datetime import datetime, timezone
+
+from imdr.connectors.citi_helpers import parse_x_to_ts_utc  # noqa: F401
+from imdr.schemas.rates import RatesCurveCreate
+from imdr.universe.rates import CurveEntry
+
+
+def curve_entry_to_create(entry: CurveEntry) -> RatesCurveCreate:
+    """Convert a universe CurveEntry to a RatesCurveCreate schema object."""
+    citi = entry.providers.get("citi", {})
+    return RatesCurveCreate(
+        ccy=entry.ccy,
+        curve=entry.curve,
+        curve_type=entry.type,
+        curve_status=entry.status,
+        instrument=citi.get("instrument", ""),
+        citi_prefix=citi.get("prefix", ""),
+        cessation_date=entry.cessation,
+        primary_from=entry.primary_from,
+        supersedes=entry.supersedes,
+        superseded_by=entry.superseded_by,
+        notes=entry.notes,
+    )
 
 
 def parse_iso_utc(s: str) -> datetime:
@@ -24,33 +47,3 @@ def yyyymmdd(dt: datetime) -> int:
 
 def hhmm(dt: datetime) -> int:
     return int(dt.astimezone(timezone.utc).strftime("%H%M"))
-
-
-def parse_x_to_ts_utc(x: int) -> datetime:
-    """
-    Infer Citi x-axis format by digit count:
-      6  → YYYYMM   (monthly) or YYYYww (weekly)
-      8  → YYYYMMDD (daily)
-      10 → YYYYMMDDHH (hourly)
-      11 → YYYYMMDDHHm (ten-minutely, m = tens digit of minutes)
-      12 → YYYYMMDDHHMM (minutely)
-    """
-    s = str(int(x))
-    n = len(s)
-    if n == 6:
-        mm = int(s[4:6])
-        if 1 <= mm <= 12:
-            return datetime.strptime(s, "%Y%m").replace(tzinfo=timezone.utc)
-        else:
-            return datetime.strptime(s + "1", "%G%V%u").replace(tzinfo=timezone.utc)
-    if n == 8:
-        return datetime.strptime(s, "%Y%m%d").replace(tzinfo=timezone.utc)
-    if n == 10:
-        return datetime.strptime(s, "%Y%m%d%H").replace(tzinfo=timezone.utc)
-    if n == 11:
-        base = datetime.strptime(s[:10], "%Y%m%d%H").replace(tzinfo=timezone.utc)
-        tens = int(s[10])
-        return base.replace(minute=tens * 10)
-    if n == 12:
-        return datetime.strptime(s, "%Y%m%d%H%M").replace(tzinfo=timezone.utc)
-    raise ValueError(f"Unrecognized x timestamp format: {x} (len={n})")

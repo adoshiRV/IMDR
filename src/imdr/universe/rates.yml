@@ -631,3 +631,15 @@ providers:
       max_tags_per_request: 100
       max_daily_calls: 10000
     token_expiry_seconds: 3600
+
+# ── Expected value ranges per quote type ─────────────────────────
+# Used by SymbolRangeCheck quality check to flag corrupt observations.
+# Keyed by quote type (matches 'quote' column in fact_observation).
+
+expected_ranges:
+  par:    { min: -3.0, max: 20.0 }
+  spread: { min: -500.0, max: 500.0 }
+  fwd:    { min: -5.0, max: 25.0 }
+  bfly:   { min: -100.0, max: 100.0 }
+  ssw:    { min: -500.0, max: 500.0 }
+  rc:     { min: -200.0, max: 200.0 }

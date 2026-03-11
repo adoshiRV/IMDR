@@ -19,11 +19,13 @@ import time
 # REGISTERED WEEKLY PIPELINES
 # Add new weekly pipelines here as [command, args...] lists.
 # Examples:
-#     ["python", "-m", "scripts.rates_weekly_validation"],
-#     ["python", "-m", "scripts.fx_weekly_gap_fill"],
+#     ["python", "-m", "scripts.rates.citi.rates_weekly_validation"],
+#     ["python", "-m", "scripts.fx.bidfx.fx_weekly_gap_fill"],
 # ============================================================================
 
-PIPELINES: list[list[str]] = []
+PIPELINES: list[list[str]] = [
+    ["python", "-m", "scripts.imdr_health_dashboard"],
+]
 
 # ============================================================================
 

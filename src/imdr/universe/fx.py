@@ -1,17 +1,33 @@
-"""FX Universe — currencies, pair conventions, provider series, market hours."""
+"""FX Universe — currencies, pair conventions, provider series, market hours, vol config."""
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import yaml
 from pydantic import BaseModel
 
-from imdr.universe.base import BaseUniverse
+from imdr.universe.base import BaseUniverse, ExpectedRange
+
+if TYPE_CHECKING:
+    from imdr.schemas.fx_vol import FXCurrencyPairCreate
 
 _UNIVERSE_PATH = Path(__file__).parent / "fx.yml"
+
+
+@dataclass(frozen=True)
+class VolQualityParsed:
+    """Parsed vol quality config — per-(strike, vol_type) hard ranges.
+
+    Statistical params (n_mad, trailing_months, pct_threshold) are in
+    pipelines.yml under fx.vol.cleaning — single source of truth.
+    """
+
+    ranges: dict[tuple[str, str], tuple[float, float]] = field(default_factory=dict)
 
 
 class SeriesConfig(BaseModel):
@@ -36,17 +52,29 @@ class MarketHoursConfig(BaseModel):
     close_hour: int
 
 
-class ExpectedRange(BaseModel):
-    """Hard bounds for a symbol — prices outside these are corrupt."""
-
-    min: float
-    max: float
-
-
 class CurrenciesConfig(BaseModel):
     g10: list[str] = []
     em_ndf: list[str] = []
     em_deliverable: list[str] = []
+
+
+class VolQualityConfig(BaseModel):
+    """Per-(strike, vol_type) hard ranges from fx.yml.
+
+    Statistical params (n_mad, trailing_months, pct_threshold) are in
+    pipelines.yml under fx.vol.cleaning.
+    """
+
+    ranges: dict[str, dict[str, dict[str, float]]] = {}
+
+
+class VolConfig(BaseModel):
+    pairs: list[list[str]]
+    strikes: list[str]
+    tenors: list[str]
+    vol_types: dict[str, list[str]]  # strike→types mapping, _default key
+    tag_template: str
+    quality: VolQualityConfig = VolQualityConfig()
 
 
 class FXUniverseConfig(BaseModel):
@@ -57,6 +85,7 @@ class FXUniverseConfig(BaseModel):
     series: dict[str, SeriesConfig]
     providers: dict[str, ProviderConfig]
     expected_ranges: dict[str, ExpectedRange] = {}
+    vol: VolConfig | None = None
 
 
 class FXUniverse(BaseUniverse):
@@ -182,6 +211,76 @@ class FXUniverse(BaseUniverse):
     def expected_range_for(self, symbol: str) -> ExpectedRange | None:
         """Get hard bounds for a symbol, or None if not configured."""
         return self._config.expected_ranges.get(symbol)
+
+    # ── Vol surface methods ────────────────────────────────────
+
+    def _vol_config(self) -> VolConfig:
+        if self._config.vol is None:
+            raise RuntimeError("Vol config not present in fx.yml")
+        return self._config.vol
+
+    def vol_pairs(self) -> list[tuple[str, str]]:
+        """Return list of (ccy1, ccy2) tuples for vol surface ingestion."""
+        return [tuple(p) for p in self._vol_config().pairs]
+
+    def vol_strikes(self) -> list[str]:
+        return self._vol_config().strikes
+
+    def vol_tenors(self) -> list[str]:
+        return self._vol_config().tenors
+
+    def vol_types_for_strike(self, strike: str) -> list[str]:
+        """Return vol_types for a given strike (ATM has 3, others have 1)."""
+        vt = self._vol_config().vol_types
+        return vt.get(strike, vt.get("_default", ["IMPLIED"]))
+
+    def build_vol_tags(self, ccy1: str, ccy2: str) -> list[str]:
+        """Build all Citi vol tags for a single currency pair."""
+        cfg = self._vol_config()
+        tags: list[str] = []
+        for strike in cfg.strikes:
+            for tenor in cfg.tenors:
+                for vol_type in self.vol_types_for_strike(strike):
+                    tag = cfg.tag_template.format(
+                        ccy1=ccy1, ccy2=ccy2,
+                        strike=strike, tenor=tenor, vol_type=vol_type,
+                    )
+                    tags.append(tag)
+        return tags
+
+    def build_all_vol_tags(self) -> list[str]:
+        """Build all Citi vol tags for all pairs."""
+        tags: list[str] = []
+        for ccy1, ccy2 in self.vol_pairs():
+            tags.extend(self.build_vol_tags(ccy1, ccy2))
+        return tags
+
+    def vol_quality_config(self) -> VolQualityParsed:
+        """Parse vol quality config into a flat structure for quality checks.
+
+        Flattens nested YAML: {ATM: {IMPLIED: {min, max}}} →
+        {("ATM", "IMPLIED"): (0.5, 80.0)}
+        """
+        cfg = self._vol_config().quality
+        ranges: dict[tuple[str, str], tuple[float, float]] = {}
+        for strike, vol_types in cfg.ranges.items():
+            for vol_type, bounds in vol_types.items():
+                ranges[(strike, vol_type)] = (bounds["min"], bounds["max"])
+        return VolQualityParsed(ranges=ranges)
+
+    def vol_pair_create_entries(self) -> list[FXCurrencyPairCreate]:
+        """Build FXCurrencyPairCreate entries for dim seeding."""
+        from imdr.schemas.fx_vol import FXCurrencyPairCreate
+
+        entries: list[FXCurrencyPairCreate] = []
+        for ccy1, ccy2 in self.vol_pairs():
+            # Determine ccy_class from the non-USD currency
+            non_usd = ccy1 if ccy1 != "USD" else ccy2
+            ccy_class = self._config.classifications.get(non_usd, "g10")
+            entries.append(FXCurrencyPairCreate(
+                base_ccy=ccy1, quote_ccy=ccy2, ccy_class=ccy_class,
+            ))
+        return entries
 
     def is_fx_open(self, dt: datetime) -> bool:
         """Check if the FX market is open at a given UTC datetime.

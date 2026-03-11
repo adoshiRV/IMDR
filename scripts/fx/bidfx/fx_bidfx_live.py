@@ -5,8 +5,8 @@ Schedule: Hourly (via Windows Task Scheduler or cron)
 Source: BidFX Historical Tick API (basic auth)
 
 Usage:
-    python -m scripts.fx_bidfx_live
-    python -m scripts.fx_bidfx_live --hour 2026-03-09T13:00:00
+    python -m scripts.fx.bidfx.fx_bidfx_live
+    python -m scripts.fx.bidfx.fx_bidfx_live --hour 2026-03-09T13:00:00
 """
 
 from __future__ import annotations

@@ -1,7 +1,7 @@
 """Standard health check implementations.
 
 Each check queries the database to verify data quality after an append.
-Context kwargs (e.g. run_date) are passed from the pipeline at runtime.
+Context kwargs (e.g. run_date or window_start/window_end) are passed at runtime.
 """
 
 from __future__ import annotations
@@ -15,8 +15,21 @@ from sqlalchemy.orm import Session
 from imdr.healthchecks.base import CheckResult, CheckStatus, HealthCheck
 
 
+def _date_filter(model: type, date_col: str, context: dict[str, Any]):
+    """Build a SQLAlchemy date filter from context.
+
+    Supports two modes:
+      - **window**: ``window_start`` / ``window_end`` → ``BETWEEN`` range
+      - **run_date**: exact date match (legacy post-append pipeline checks)
+    """
+    col = getattr(model, date_col)
+    if "window_start" in context:
+        return col.between(context["window_start"], context["window_end"])
+    return col == context["run_date"]
+
+
 class RowCountCheck(HealthCheck):
-    """Verify that at least ``expected_min`` rows exist for the run date."""
+    """Verify that at least ``expected_min`` rows exist for the date window."""
 
     def __init__(self, model: type, date_column: str, expected_min: int = 1) -> None:
         self._model = model
@@ -24,9 +37,12 @@ class RowCountCheck(HealthCheck):
         self._expected_min = expected_min
 
     def run(self, session: Session, **context: Any) -> CheckResult:
-        run_date: date = context["run_date"]
-        col = getattr(self._model, self._date_col)
-        count: int = session.query(func.count(self._model.id)).filter(col == run_date).scalar() or 0
+        count: int = (
+            session.query(func.count(self._model.id))
+            .filter(_date_filter(self._model, self._date_col, context))
+            .scalar()
+            or 0
+        )
         passed = count >= self._expected_min
         return CheckResult(
             check_name="row_count",
@@ -37,7 +53,7 @@ class RowCountCheck(HealthCheck):
 
 
 class NullCheck(HealthCheck):
-    """Check that critical columns have no NULLs in the latest batch."""
+    """Check that critical columns have no NULLs in the date window."""
 
     def __init__(self, model: type, columns: list[str], date_column: str) -> None:
         self._model = model
@@ -45,8 +61,6 @@ class NullCheck(HealthCheck):
         self._date_col = date_column
 
     def run(self, session: Session, **context: Any) -> CheckResult:
-        run_date: date = context["run_date"]
-        date_col = getattr(self._model, self._date_col)
         null_counts: dict[str, int] = {}
 
         # Single query with conditional aggregation (instead of N queries)
@@ -54,7 +68,11 @@ class NullCheck(HealthCheck):
             func.sum(case((getattr(self._model, c).is_(None), 1), else_=0)).label(c)
             for c in self._columns
         ]
-        result = session.query(*agg_exprs).filter(date_col == run_date).one()
+        result = (
+            session.query(*agg_exprs)
+            .filter(_date_filter(self._model, self._date_col, context))
+            .one()
+        )
         for col_name, count in zip(self._columns, result):
             if count and count > 0:
                 null_counts[col_name] = count
@@ -82,13 +100,11 @@ class DuplicateCheck(HealthCheck):
         self._date_col = date_column
 
     def run(self, session: Session, **context: Any) -> CheckResult:
-        run_date: date = context["run_date"]
-        date_col = getattr(self._model, self._date_col)
         group_cols = [getattr(self._model, c) for c in self._unique_columns]
 
         dupes = (
             session.query(*group_cols, func.count(self._model.id).label("cnt"))
-            .filter(date_col == run_date)
+            .filter(_date_filter(self._model, self._date_col, context))
             .group_by(*group_cols)
             .having(func.count(self._model.id) > 1)
             .all()
@@ -127,6 +143,10 @@ class FreshnessCheck(HealthCheck):
                 message="No records found in table",
             )
 
+        # Legacy ODBC driver may return DATETIMEOFFSET as string
+        if isinstance(latest, str):
+            latest = datetime.fromisoformat(latest)
+
         now = datetime.now(timezone.utc)
         if latest.tzinfo is None:
             age_hours = (now.replace(tzinfo=None) - latest).total_seconds() / 3600
@@ -143,7 +163,7 @@ class FreshnessCheck(HealthCheck):
 
 
 class ValueRangeCheck(HealthCheck):
-    """Verify a numeric column falls within [min_val, max_val] for the batch."""
+    """Verify a numeric column falls within [min_val, max_val] for the date window."""
 
     def __init__(
         self, model: type, column: str, min_val: float, max_val: float, date_column: str
@@ -155,13 +175,11 @@ class ValueRangeCheck(HealthCheck):
         self._date_col = date_column
 
     def run(self, session: Session, **context: Any) -> CheckResult:
-        run_date: date = context["run_date"]
-        date_col = getattr(self._model, self._date_col)
         val_col = getattr(self._model, self._column)
 
         result = (
             session.query(func.min(val_col), func.max(val_col))
-            .filter(date_col == run_date)
+            .filter(_date_filter(self._model, self._date_col, context))
             .one()
         )
         actual_min, actual_max = result
@@ -170,7 +188,7 @@ class ValueRangeCheck(HealthCheck):
             return CheckResult(
                 check_name=f"value_range_{self._column}",
                 status=CheckStatus.WARNING,
-                message=f"No values for column '{self._column}' on {run_date}",
+                message=f"No values for column '{self._column}' in date window",
             )
 
         in_range = actual_min >= self._min_val and actual_max <= self._max_val

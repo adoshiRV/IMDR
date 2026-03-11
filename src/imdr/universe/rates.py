@@ -9,7 +9,7 @@ from typing import Any
 import yaml
 from pydantic import BaseModel
 
-from imdr.universe.base import BaseUniverse
+from imdr.universe.base import BaseUniverse, ExpectedRange
 
 _UNIVERSE_PATH = Path(__file__).parent / "rates.yml"
 
@@ -68,6 +68,7 @@ class RatesUniverseConfig(BaseModel):
     instruments: dict[str, InstrumentConfig]
     curves: list[CurveEntry]
     providers: dict[str, ProviderConfig]
+    expected_ranges: dict[str, ExpectedRange] = {}
 
 
 # ── Universe class ───────────────────────────────────────────────
@@ -98,6 +99,16 @@ class RatesUniverse(BaseUniverse):
             for c in self._config.curves
             if "citi" in c.providers
         ]
+
+    # ── Expected ranges ─────────────────────────────────────────
+
+    @property
+    def expected_ranges(self) -> dict[str, ExpectedRange]:
+        return self._config.expected_ranges
+
+    def expected_range_for(self, quote: str) -> ExpectedRange | None:
+        """Get hard bounds for a quote type, or None if not configured."""
+        return self._config.expected_ranges.get(quote)
 
     # ── Curve lookups ────────────────────────────────────────────
 

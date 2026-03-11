@@ -289,6 +289,127 @@ class SymbolRangeCheck(QualityCheck):
         )
 
 
+class CompositeRangeCheck(QualityCheck):
+    """Flag rows outside hard bounds defined by a composite key.
+
+    Generic check for tables where the valid range depends on multiple columns.
+    Example: FX vol where (strike=ATM, vol_type=IMPLIED) → (0.5, 80.0)
+             but (strike=25RR, vol_type=IMPLIED) → (-20.0, 20.0)
+
+    Args:
+        range_map: Dict mapping composite key tuples to (min, max).
+        key_columns: Columns forming the composite key (e.g. ["strike", "vol_type"]).
+        value_column: Column to check (e.g. "value").
+    """
+
+    def __init__(
+        self,
+        range_map: dict[tuple[str, ...], tuple[float, float]],
+        key_columns: list[str],
+        value_column: str,
+    ) -> None:
+        self._range_map = range_map
+        self._key_cols = key_columns
+        self._value_col = value_column
+
+    def run(
+        self,
+        reader: AnalyticalReader,
+        table: str,
+        where: str = "",
+        params: dict[str, Any] | None = None,
+    ) -> QualityResult:
+        if not self._range_map:
+            return QualityResult(
+                check_name="composite_range",
+                status=CheckStatus.PASSED,
+                category="range",
+                message="No composite ranges configured — skipped",
+            )
+
+        # Build dynamic CASE expression from composite keys
+        when_clauses = []
+        for keys, (lo, hi) in self._range_map.items():
+            conditions = " AND ".join(
+                f"[{col}] = '{val}'" for col, val in zip(self._key_cols, keys)
+            )
+            when_clauses.append(
+                f"WHEN {conditions} "
+                f"AND ([{self._value_col}] < {lo} OR [{self._value_col}] > {hi}) THEN 1"
+            )
+        case_expr = "CASE " + " ".join(when_clauses) + " ELSE 0 END"
+        group_cols = ", ".join(f"[{c}]" for c in self._key_cols)
+
+        sql = f"""
+            SELECT {group_cols},
+                   SUM({case_expr}) AS range_violations,
+                   MIN([{self._value_col}]) AS min_val,
+                   MAX([{self._value_col}]) AS max_val,
+                   COUNT(*) AS total_rows
+            FROM {table}
+            WHERE 1=1 {where}
+            GROUP BY {group_cols}
+            HAVING SUM({case_expr}) > 0
+        """
+        df = reader.read_sql(sql, params)
+
+        if df.empty:
+            return QualityResult(
+                check_name="composite_range",
+                status=CheckStatus.PASSED,
+                category="range",
+                message=(
+                    f"All {len(self._range_map)} composite keys within expected "
+                    f"ranges for {self._value_col}"
+                ),
+            )
+
+        total = int(df["range_violations"].sum())
+
+        # Fetch detail rows for violating groups
+        flagged = None
+        detail_whens = []
+        for keys, (lo, hi) in self._range_map.items():
+            conditions = " AND ".join(
+                f"[{col}] = '{val}'" for col, val in zip(self._key_cols, keys)
+            )
+            # Check if this key combo has violations in summary
+            match_mask = True
+            for col, val in zip(self._key_cols, keys):
+                match_mask = match_mask & (df[col] == val)
+            if df[match_mask].any(axis=None):
+                detail_whens.append(
+                    f"({conditions} "
+                    f"AND ([{self._value_col}] < {lo} OR [{self._value_col}] > {hi}))"
+                )
+
+        if detail_whens:
+            detail_filter = " OR ".join(detail_whens[:10])  # limit to 10 combos
+            detail_cols = ", ".join(f"[{c}]" for c in self._key_cols)
+            detail_sql = f"""
+                SELECT TOP 20 {detail_cols}, [{self._value_col}]
+                FROM {table}
+                WHERE ({detail_filter}) {where}
+            """
+            flagged = reader.read_sql(detail_sql, params)
+
+        violating_keys = [
+            tuple(row[c] for c in self._key_cols) for _, row in df.iterrows()
+        ]
+        return QualityResult(
+            check_name="composite_range",
+            status=CheckStatus.WARNING,
+            category="range",
+            message=(
+                f"{total} rows outside expected ranges across "
+                f"{len(df)} composite key groups"
+            ),
+            summary=df,
+            flagged=flagged,
+            meta={"total_violations": total, "violating_keys": violating_keys},
+        )
+
+
 class DistributionCheck(QualityCheck):
     """Compute per-group distribution stats: mean, std, min, max, percentiles.
 
@@ -622,7 +743,9 @@ class RobustStatisticalOutlierCheck(QualityCheck):
 class PercentageChangeCheck(QualityCheck):
     """Flag rows where the value changed by more than threshold_pct from the previous bar.
 
-    Uses LAG() partitioned by (symbol, series) ordered by timestamp.
+    Uses LAG() partitioned by group columns ordered by timestamp.
+    Default partition: (symbol, series). Override with group_columns for
+    domains that partition differently (e.g. vol: pair_id, strike, tenor).
     """
 
     def __init__(
@@ -633,6 +756,7 @@ class PercentageChangeCheck(QualityCheck):
         ts_column: str = "ts",
         threshold_pct: float = 5.0,
         max_rows: int = 50,
+        group_columns: list[str] | None = None,
     ) -> None:
         self._value_col = value_column
         self._symbol_col = symbol_column
@@ -640,15 +764,18 @@ class PercentageChangeCheck(QualityCheck):
         self._ts_col = ts_column
         self._threshold = threshold_pct
         self._max_rows = max_rows
+        self._group_cols = group_columns or [symbol_column, series_column]
 
     def run(self, reader: AnalyticalReader, table: str,
             where: str = "", params: dict[str, Any] | None = None) -> QualityResult:
+        partition = ", ".join(f"[{c}]" for c in self._group_cols)
+        select_cols = ", ".join(f"[{c}]" for c in self._group_cols)
         sql = f"""
             WITH with_prev AS (
-                SELECT [{self._ts_col}], [{self._symbol_col}], [{self._series_col}],
+                SELECT [{self._ts_col}], {select_cols},
                        [{self._value_col}],
                        LAG([{self._value_col}]) OVER (
-                           PARTITION BY [{self._symbol_col}], [{self._series_col}]
+                           PARTITION BY {partition}
                            ORDER BY [{self._ts_col}]
                        ) AS prev_val
                 FROM {table}
@@ -656,7 +783,7 @@ class PercentageChangeCheck(QualityCheck):
                   {where}
             )
             SELECT TOP {self._max_rows}
-                   [{self._ts_col}], [{self._symbol_col}], [{self._series_col}],
+                   [{self._ts_col}], {select_cols},
                    [{self._value_col}], prev_val,
                    ([{self._value_col}] - prev_val) / ABS(NULLIF(prev_val, 0)) * 100.0
                        AS pct_change

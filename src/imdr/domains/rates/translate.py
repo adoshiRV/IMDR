@@ -15,6 +15,7 @@ from typing import Any
 
 import pandas as pd
 
+from imdr.connectors.citi_helpers import citi_response_to_rows
 from imdr.domains.rates.schema import CITI_TO_QUOTE, COLUMNS, QUOTE_TO_CITI
 from imdr.universe.rates import RatesUniverse, get_rates_universe
 
@@ -115,6 +116,8 @@ def citi_response_to_df(
     """
     Convert Citi Historical API response to internal schema DataFrame.
 
+    Delegates to shared citi_response_to_rows() with a rates-specific tag parser.
+
     Parameters
     ----------
     resp : dict
@@ -129,39 +132,12 @@ def citi_response_to_df(
     if universe is None:
         universe = get_rates_universe()
 
-    if resp.get("status") != "OK":
-        raise RuntimeError(f"API status not OK: {resp}")
-
-    body = resp.get("body", {})
-    rows: list[tuple] = []
-
-    for tag, series in body.items():
-        if not isinstance(series, dict):
-            continue
-        if series.get("type") == "ERROR":
-            continue
-
-        parsed = citi_tag_to_internal(tag, universe)
-        if parsed is None:
-            continue
-
-        xs = series.get("x") or []
-        cs = series.get("c") or []
-
-        for x, c in zip(xs, cs):
-            if c is None:
-                continue
-            ts = parse_x(x)
-            rows.append((
-                ts,
-                parsed["ccy"],
-                parsed["curve"],
-                parsed["quote"],
-                parsed["tenor"],
-                float(c),
-            ))
-
-    df = pd.DataFrame(rows, columns=COLUMNS)
+    rows = citi_response_to_rows(
+        resp,
+        tag_parser=lambda t: citi_tag_to_internal(t, universe),
+        parse_x=parse_x,
+    )
+    df = pd.DataFrame(rows, columns=COLUMNS) if rows else pd.DataFrame(columns=COLUMNS)
     if not df.empty:
         df = df.sort_values(["ccy", "curve", "quote", "tenor", "ts"]).reset_index(drop=True)
     return df

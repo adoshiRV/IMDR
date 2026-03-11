@@ -45,6 +45,21 @@ class RatesCurve(Base):
         return f"<RatesCurve {self.ccy} {self.curve} ({self.curve_type})>"
 
 
+class RatesCacheEmptyCombo(Base):
+    """Cache of (ccy, curve, quote) combos that return 0 rows from Citi API."""
+
+    __tablename__ = "cache_empty_combo"
+    __table_args__ = (
+        UniqueConstraint("ccy", "curve", "quote", name="uq_cache_empty_combo"),
+        {"schema": "rates"},
+    )
+
+    ccy: Mapped[str] = mapped_column(String(10), nullable=False)
+    curve: Mapped[str] = mapped_column(String(30), nullable=False)
+    quote: Mapped[str] = mapped_column(String(10), nullable=False)
+    last_checked: Mapped[date] = mapped_column(Date, nullable=False)
+
+
 class RatesObservation(Base):
     """Rate observations fact table — one row per curve/ts/quote/tenor."""
 

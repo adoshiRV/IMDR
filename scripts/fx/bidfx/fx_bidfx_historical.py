@@ -5,7 +5,7 @@ Modes: range, catchup, rewrite, gaps, cleanup
 Source: BidFX Historical Tick API (basic auth)
 
 Edit the variables below and run:
-    python -m scripts.fx_bidfx_historical
+    python -m scripts.fx.bidfx.fx_bidfx_historical
 """
 
 from __future__ import annotations
@@ -37,14 +37,14 @@ log = structlog.get_logger(__name__)
 # CONFIGURE HERE
 # ============================================================================
 
-MODE = "cleanup"  # "range" | "catchup" | "rewrite" | "gaps" | "cleanup"
+MODE = "catchup"  # "range" | "catchup" | "rewrite" | "gaps" | "cleanup"
 
 # range / rewrite: ISO datetimes (UTC)
 START = "2024-10-16T17:00:00"
 END = "2024-10-16T18:00:00"
 
 # catchup: how many hours back from now
-LOOKBACK_HOURS = 48
+LOOKBACK_HOURS = 3
 
 # gaps: path to a text file with one ISO timestamp per line
 # cleanup: path to a CSV file with symbol,timestamp per line (from --emit-gaps)

@@ -14,8 +14,9 @@ For pipeline operations (setup, running, troubleshooting), see `docs/rates/opera
 
 | Module | Purpose |
 |---|---|
-| `extractors.py` | `CitiVelocityRatesExtractor` — batched tag fetching (100 tags/batch) with rate limiting |
-| `pipeline.py` | `RatesHistoricalPipeline` — `BasePipeline` wrapper: extract → transform → load → parquet archive |
+| `extractors.py` | `CitiVelocityRatesExtractor` — batched tag fetching (100 tags/batch) with rate limiting, empty combo cache integration |
+| `pipeline.py` | `RatesHistoricalPipeline` — `BasePipeline` wrapper: extract → transform → load → parquet archive → quality checks |
+| `cache.py` | `CurveQuoteCache` — JSON-backed cache of empty (ccy, curve, quote) combos to skip wasted API calls |
 | `repository.py` | Data access: `RatesCurveRepository` (dimension CRUD), `RatesObservationRepository` (bulk upsert, counts) |
 | `store.py` | Hive-partitioned parquet store: `write()` (atomic, dedup) and `read()` (filtered, benchmark-annotated) |
 | `schema.py` | Tenor encoding/decoding, quote type mappings (internal ↔ Citi), validation |
@@ -28,9 +29,10 @@ For pipeline operations (setup, running, troubleshooting), see `docs/rates/opera
 | Module | Purpose |
 |---|---|
 | `src/imdr/connectors/citi_velocity.py` | `CitiVelocityClient` — httpx client for all 5 Citi API endpoints, auto-refreshing OAuth2 token |
-| `src/imdr/universe/rates.py` + `rates.yml` | Universe config: 39 curves, 22 currencies, maturities, instruments, benchmarks |
-| `src/imdr/models/rates.py` | SQLAlchemy ORM: `RatesCurve`, `RatesObservation` |
+| `src/imdr/universe/rates.py` + `rates.yml` | Universe config: 39 curves, 22 currencies, maturities, instruments, benchmarks, expected ranges |
+| `src/imdr/models/rates.py` | SQLAlchemy ORM: `RatesCurve`, `RatesObservation`, `RatesCacheEmptyCombo` (reserved for future DB cache) |
 | `src/imdr/schemas/rates.py` | Pydantic schemas: `RatesCurveCreate`, `RatesObservationCreate` |
+| `src/imdr/healthchecks/quality.py` | `SymbolRangeCheck` — per-quote-type range validation (shared with FX) |
 
 ---
 
@@ -38,24 +40,30 @@ For pipeline operations (setup, running, troubleshooting), see `docs/rates/opera
 
 `RatesHistoricalPipeline` in `src/imdr/domains/rates/pipeline.py` — the core pipeline called via `run_pipeline`.
 
-### 4-Step Flow
+### 5-Step Flow
 
 | Step | What | Details |
 |---|---|---|
-| 1. **Extract** | Fetch time series from Citi Velocity API | `CitiVelocityRatesExtractor.extract()` — batched by 100 tags, 1s rate limit between batches |
-| 2. **Transform** | Resolve curve IDs, validate observations | Maps `(ccy, curve)` → `curve_id` via `dim_curve`, Pydantic validation on each row |
+| 1. **Extract** | Fetch time series from Citi Velocity API | `CitiVelocityRatesExtractor.extract()` — batched by 100 tags, 1s rate limit. Empty combo cache skips known-empty `(ccy, curve, quote)` combos (~78% of calls) |
+| 2. **Transform** | Resolve curve IDs, validate observations | Auto-seeds `dim_curve`, maps `(ccy, curve)` → `curve_id`, Pydantic validation on each row |
 | 3. **Load** | Upsert to `[rates].[fact_observation]` | Via `RatesObservationRepository.bulk_upsert()` — idempotent MERGE on `(curve_id, ts, quote, tenor)` |
-| 4. **Post-load** | Archive to Hive-partitioned parquet | Writes to `data/parquet/rates/ccy={CCY}/curve={CURVE}/quote={QUOTE}/{YYYY-MM}.parquet` with manifest |
+| 4. **Post-load** | Archive + quality checks | Parquet archive + `SymbolRangeCheck` per-quote-type range validation (flags, doesn't block) |
+| 5. **Health checks** | Structural data validation | Row count, null check, duplicate check, freshness check |
 
 ### Data Flow
 
 ```
+CurveQuoteCache.load() → read data/cache/rates/empty_combos.json
+    → skip cached empty combos (auto-retry after 30 days)
 Citi Velocity API → CitiVelocityClient → CitiVelocityRatesExtractor
     → citi_response_to_df() → [ts, ccy, curve, quote, tenor, value]
-    → resolve curve_ids from dim_curve
+    → CurveQuoteCache: mark_empty() / mark_active() → save()
+    → auto-seed dim_curve + resolve curve_ids
     → Pydantic validation (RatesObservationCreate)
     → RatesObservationRepository.bulk_upsert() → SQL Server
     → parquet_write() → data/parquet/rates/ccy=.../curve=.../quote=.../YYYY-MM.parquet
+    → SymbolRangeCheck: per-quote-type range validation (flag, don't block)
+    → health checks: row count, nulls, duplicates, freshness
     → audit record in [audit].[pipeline_runs]
 ```
 
@@ -63,34 +71,37 @@ Citi Velocity API → CitiVelocityClient → CitiVelocityRatesExtractor
 
 ## Scripts & CLI
 
-### Daily EOD — `scripts/rates_citi_live.py`
+### Daily EOD — `scripts/rates/citi/rates_citi_live.py`
 
 The primary daily script. Designed for scheduled (EOD) execution via Task Scheduler or cron.
 
 ```bash
 # Default: fetch last complete business day, par rates
-python -m scripts.rates_citi_live
+python -m scripts.rates.citi.rates_citi_live
 
 # Override date
-python -m scripts.rates_citi_live --date 2026-03-07
+python -m scripts.rates.citi.rates_citi_live --date 2026-03-07
 
 # Multiple quote types
-python -m scripts.rates_citi_live --quotes par,spread,fwd,bfly
+python -m scripts.rates.citi.rates_citi_live --quotes par,spread,fwd,bfly
 ```
 
 | Flag | Default | Description |
 |---|---|---|
 | `--date` | last business day | Override date (YYYY-MM-DD) |
-| `--quotes` | `par` | Comma-separated: par, spread, fwd, bfly, ssw, rc |
+| `--quotes` | from `pipelines.yml` | Comma-separated: par, spread, fwd, bfly, ssw, rc |
 | `--frequency` | `DAILY` | Data frequency |
+| `--no-cache` | off | Disable empty combo cache (retry all API calls) |
 
 **Behavior:**
 - Default date: yesterday, skipping weekends (Sun→Fri, Sat→Fri)
 - Weekend dates: logs and exits 0 (non-fatal)
+- Default quotes: loaded from `pipelines.yml` → `rates.historical.default_quotes` (all 6 types)
+- Empty combo cache: skips known-empty `(ccy, curve, quote)` combos to avoid wasted API calls. Use `--no-cache` to force-retry all
 - RunReport JSONL: `{run_log_dir}/rates/fact_observation/rates_citi_live_{YYYYMMDD}.jsonl`
 - Called by `scripts/imdr_daily.py` orchestrator
 
-### Historical Backfill — `scripts/rates_citi_historical.py`
+### Historical Backfill — `scripts/rates/citi/rates_citi_historical.py`
 
 Batch backfill of date ranges. Configure by editing variables at the top of the script:
 
@@ -108,7 +119,7 @@ FREQUENCY = "DAILY"
 Run:
 
 ```bash
-python -m scripts.rates_citi_historical
+python -m scripts.rates.citi.rates_citi_historical
 ```
 
 | Mode | Behavior |
@@ -121,10 +132,10 @@ python -m scripts.rates_citi_historical
 
 ```bash
 # 5-year backfill, par rates only (edit MODE="range", START, END, then run)
-python -m scripts.rates_citi_historical
+python -m scripts.rates.citi.rates_citi_historical
 
 # Re-pull specific gap dates (edit MODE="gaps", GAPS_FILE)
-python -m scripts.rates_citi_historical
+python -m scripts.rates.citi.rates_citi_historical
 ```
 
 ### Generic Pipeline Runner — `scripts/run_pipeline.py`
@@ -368,6 +379,132 @@ Citi Velocity settings in `src/imdr/config/settings.py` (all prefixed `IMDR_` in
 
 **All 6 quote types add multi-tenor tags** but the total stays comfortably within daily limits.
 
+**With empty combo cache:** After the first run, ~78% of the 234 (39 curves × 6 quotes) API calls are skipped (ceased curves, unavailable quote types). Only ~51 actual API calls per daily run.
+
+---
+
+## Empty Combo Cache
+
+### Problem
+
+With 6 quote types, the extractor makes 39 × 6 = 234 API calls per run. ~78% return 0 rows (ceased curves like LIBOR, unavailable quote types like `bfly` for certain instruments). This wastes time and API budget.
+
+### Solution
+
+`CurveQuoteCache` (`src/imdr/domains/rates/cache.py`) tracks which `(ccy, curve, quote)` combos are known to return 0 rows in a JSON file:
+
+```
+data/cache/rates/empty_combos.json
+```
+
+### How It Works
+
+1. **First run** (empty cache): all 234 calls made, cache populated with ~183 empties
+2. **Subsequent runs**: `should_skip()` checks the cache → skips known-empty combos → only ~51 API calls
+3. **Auto-retry**: entries older than 30 days are automatically retried (in case data becomes available)
+4. **Active removal**: if a previously-empty combo returns data, it's removed from cache immediately
+5. **`--no-cache` flag**: bypasses the cache entirely, forces all 234 API calls
+
+### Cache File Format
+
+```json
+{
+  "AUD|AONIA|bfly": "2026-03-11",
+  "AUD|AONIA|rc": "2026-03-11",
+  "AUD|AONIA|spread": "2026-03-11",
+  ...
+}
+```
+
+Each key is `{ccy}|{curve}|{quote}`, value is the date last confirmed empty (ISO format).
+
+### Maintenance
+
+- **Delete the JSON file** to force a full refresh on next run
+- **Edit individual entries** to force retry of specific combos
+- **Stale entries** (>30 days) are retried automatically — no manual intervention needed
+- Migration `migrations/003_create_cache_empty_combo.sql` is reserved for future DB-backed cache
+
+---
+
+## Quality Checks
+
+### Per-Quote Expected Ranges
+
+Each quote type has different valid value ranges. These are configured in `src/imdr/universe/rates.yml`:
+
+```yaml
+expected_ranges:
+  par:    { min: -3.0, max: 20.0 }
+  spread: { min: -500.0, max: 500.0 }
+  fwd:    { min: -5.0, max: 25.0 }
+  bfly:   { min: -100.0, max: 100.0 }
+  ssw:    { min: -500.0, max: 500.0 }
+  rc:     { min: -200.0, max: 200.0 }
+```
+
+These ranges use the same `ExpectedRange` model as FX (`src/imdr/universe/base.py`), loaded via `RatesUniverse.expected_ranges`.
+
+### How It Works
+
+After loading data to SQL and writing parquet, the pipeline runs `SymbolRangeCheck` (from `src/imdr/healthchecks/quality.py`):
+
+1. Builds a dynamic SQL CASE expression checking each quote type against its configured range
+2. Executes a single query scoped to the current run's date range
+3. **Flags but doesn't block** — violations are logged as warnings, not pipeline failures
+4. Results appear in structured logs: `quality_flag_quote_range` (warning) or `quality_passed_quote_range` (info)
+
+### Health Checks vs Quality Checks vs Cleaning
+
+| Term | When | What | Failure Mode | Tool |
+|------|------|------|-------------|------|
+| **Health Checks** | Post-load (inline) + batch report Section 1 | Structural: row counts, nulls, duplicates, freshness | Can FAIL the pipeline run | ORM-based `HealthCheck` classes via `HealthCheckRunner` |
+| **Quality Checks** | Post-load (inline) + batch report Section 3 | Analytical: per-quote range violations, statistical outliers, distribution anomalies | Flag only — never blocks | SQL-based `QualityCheck` classes via `AnalyticalReader` |
+| **Cleaning** | Batch only (weekly ops) | Detect + correct corrupt rows: NULL bad values | Dry-run by default, `--execute` to apply | `CleaningRule` subclasses via `CleaningRunner` |
+
+**Principle**: Flag, don't block — data is never rejected at ingest. Health checks can fail a pipeline run (audit trail), but quality checks and cleaning only flag/correct after the fact.
+
+### Diagnostics Report — `scripts/rates/health/rates_fact_observation_report.py`
+
+Comprehensive health/quality report using the shared `HealthReporter` framework.
+
+```bash
+python -m scripts.rates.health.rates_fact_observation_report                    # full report
+python -m scripts.rates.health.rates_fact_observation_report --year 2026        # filter by year
+python -m scripts.rates.health.rates_fact_observation_report --section health   # single section
+python -m scripts.rates.health.rates_fact_observation_report --section coverage
+python -m scripts.rates.health.rates_fact_observation_report --section quality --sigma 4
+```
+
+**Sections:**
+1. **Health** — per-year row counts, null checks, duplicates, freshness
+2. **Coverage** — per-curve date coverage, tenor completeness per curve×quote, quote type distribution, row counts
+3. **Quality** — per-quote-type range checks, robust statistical outliers (group by curve_id+quote+tenor), distribution stats
+
+### Batch Cleaning — `scripts/rates/clean/clean_rates_fact_observation.py`
+
+Detect and correct data quality issues. Dry-run by default.
+
+```bash
+python -m scripts.rates.clean.clean_rates_fact_observation                           # dry-run, full table
+python -m scripts.rates.clean.clean_rates_fact_observation --execute                 # apply corrections
+python -m scripts.rates.clean.clean_rates_fact_observation --year 2026               # filter by year
+python -m scripts.rates.clean.clean_rates_fact_observation --curve 1                 # filter by curve_id
+python -m scripts.rates.clean.clean_rates_fact_observation --quote par               # filter by quote type
+python -m scripts.rates.clean.clean_rates_fact_observation --rule robust_outlier     # single rule
+python -m scripts.rates.clean.clean_rates_fact_observation --n-mad 5.0               # MAD multiplier
+```
+
+| Rule | Detection | Correction |
+|---|---|---|
+| **Hard bound violation** | `value` outside per-quote-type bounds from `rates.yml` | NULL value |
+| **Robust outlier** | z > N MAD (12-month rolling, group by curve_id+quote+tenor) | NULL value |
+| **Percentage change** | Observation-over-observation > threshold (group by curve_id+quote+tenor) | NULL value |
+
+### Adjusting Ranges
+
+Edit `src/imdr/universe/rates.yml` → `expected_ranges` section. Changes take effect on next pipeline run (no restart needed — universe is loaded fresh each run).
+
 ---
 
 ## Gap Detection
@@ -422,6 +559,9 @@ ORDER BY c.ccy, c.curve;
 | `0 rows loaded` for a curve | Curve ceased or no data in range | Normal for ceased curves (e.g. LIBOR after Jun 2023) |
 | Large `rows_loaded` discrepancy | Duplicate or overlapping re-runs | Upsert is idempotent — safe to re-run |
 | Parquet read returns empty | Wrong filters or no data written | Check `data/parquet/rates/` directory structure |
+| `quality_flag_quote_range` warning | Observation values outside expected range for a quote type | Check the flagged quote type in logs; adjust `expected_ranges` in `rates.yml` if the range is too narrow |
+| `cache_skipped` too high | Cache is aggressively skipping combos that now have data | Run with `--no-cache` to force refresh, or delete `data/cache/rates/empty_combos.json` |
+| New curve not being fetched | Curve added to universe but cached as empty from before | Delete the cache file or wait 30 days for auto-retry |
 
 ---
 

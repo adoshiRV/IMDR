@@ -56,6 +56,10 @@ pipelines:
         mid_px:
           min: 0.0001
           max: 100000.0
+    cleaning:
+      n_mad: 6.0
+      trailing_months: 3
+      pct_threshold: 5.0
     sources:
       bidfx:
         type: rest
@@ -64,11 +68,49 @@ pipelines:
         type: rest
         auth: bearer
 
+  fx.vol:
+    domain: fx
+    target_schema: fx
+    target_table: fact_vol
+    date_column: obs_date
+    unique_columns:
+      - pair_id
+      - obs_date
+      - strike
+      - tenor
+      - vol_type
+    required_columns:
+      - pair_id
+      - obs_date
+      - strike
+      - tenor
+      - vol_type
+      - value
+    health_checks:
+      row_count_min: 50
+      max_staleness_hours: 48
+      # value_ranges derived from fx.yml per-(strike,vol_type) ranges at runtime
+    cleaning:
+      n_mad: 4.0
+      trailing_months: 12
+      pct_threshold: 30.0
+    sources:
+      citivelocity:
+        type: rest
+        auth_type: bearer
+
   rates.historical:
     domain: rates
     target_schema: rates
     target_table: fact_observation
     date_column: ts
+    default_quotes:
+      - par
+      - spread
+      - fwd
+      - bfly
+      - ssw
+      - rc
     unique_columns:
       - curve_id
       - ts
@@ -83,10 +125,10 @@ pipelines:
     health_checks:
       row_count_min: 1
       max_staleness_hours: 48
-      value_ranges:
-        value:
-          min: -50.0
-          max: 100.0
+    cleaning:
+      n_mad: 4.0
+      trailing_months: 12
+      pct_threshold: 30.0
     sources:
       citivelocity:
         type: rest

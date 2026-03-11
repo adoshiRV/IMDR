@@ -19,8 +19,8 @@ import time
 # REGISTERED MONTHLY PIPELINES
 # Add new monthly pipelines here as [command, args...] lists.
 # Examples:
-#     ["python", "-m", "scripts.rates_monthly_report"],
-#     ["python", "-m", "scripts.fx_monthly_aggregates"],
+#     ["python", "-m", "scripts.rates.citi.rates_monthly_report"],
+#     ["python", "-m", "scripts.fx.citi.fx_monthly_aggregates"],
 # ============================================================================
 
 PIPELINES: list[list[str]] = []

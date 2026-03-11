@@ -31,6 +31,12 @@ class HealthCheckConfig(BaseModel):
     value_ranges: dict[str, ValueRangeConfig] = {}
 
 
+class CleaningConfig(BaseModel):
+    n_mad: float = 4.0
+    trailing_months: int = 12
+    pct_threshold: float | None = None
+
+
 class SourceConfig(BaseModel):
     type: str  # "rest", "csv", etc.
     # Extensible — domain-specific keys can be added via model_config extra="allow"
@@ -45,7 +51,9 @@ class PipelineConfig(BaseModel):
     date_column: str
     unique_columns: list[str] = []
     required_columns: list[str] = []
+    default_quotes: list[str] = []
     health_checks: HealthCheckConfig = HealthCheckConfig()
+    cleaning: CleaningConfig = CleaningConfig()
     sources: dict[str, SourceConfig] = {}
 
     @property

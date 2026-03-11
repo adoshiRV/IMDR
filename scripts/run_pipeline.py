@@ -120,11 +120,51 @@ def _build_rates_historical_pipeline(
     )
 
 
+def _build_fx_vol_pipeline(
+    connector: MSSQLConnector, args: argparse.Namespace
+) -> BasePipeline[Any, Any, Any]:
+    """Build an FX Vol pipeline based on CLI args."""
+    from datetime import datetime, timezone
+
+    from imdr.domains.fx.pipeline_vol import FXVolPipeline
+    from imdr.universe.fx import get_fx_universe
+
+    settings = get_settings()
+    universe = get_fx_universe()
+
+    if not hasattr(args, "start") or not args.start:
+        print("ERROR: --start is required for fx.vol")
+        sys.exit(1)
+    if not hasattr(args, "end") or not args.end:
+        print("ERROR: --end is required for fx.vol")
+        sys.exit(1)
+
+    start = datetime.strptime(args.start, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    end = datetime.strptime(args.end, "%Y-%m-%d").replace(
+        hour=23, minute=59, tzinfo=timezone.utc
+    )
+
+    # Optional --pairs flag: "EUR/USD,GBP/USD" → [("EUR","USD"), ("GBP","USD")]
+    pairs = None
+    if hasattr(args, "pairs") and args.pairs:
+        pairs = [tuple(p.strip().split("/")) for p in args.pairs.split(",")]
+
+    return FXVolPipeline(
+        connector=connector,
+        settings=settings,
+        universe=universe,
+        start=start,
+        end=end,
+        pairs=pairs,
+    )
+
+
 # Registry maps pipeline names to their factory functions.
 # Add new pipelines here — no if-chain needed in main().
 PIPELINE_REGISTRY: dict[str, PipelineFactory] = {
     "fx.spot_rates": _build_fx_pipeline,
     "fx.ohlc": _build_fx_ohlc_pipeline,
+    "fx.vol": _build_fx_vol_pipeline,
     "rates.historical": _build_rates_historical_pipeline,
 }
 
@@ -135,10 +175,11 @@ def main() -> int:
     parser.add_argument("--source", default="csv", help="Data source (csv, bidfx, citivelocity)")
     parser.add_argument("--path", type=str, help="File path (when source=csv)")
     parser.add_argument("--hour", type=str, help="Hour override for fx.ohlc (ISO format)")
-    parser.add_argument("--start", type=str, help="Start date for rates.historical (YYYY-MM-DD)")
-    parser.add_argument("--end", type=str, help="End date for rates.historical (YYYY-MM-DD)")
+    parser.add_argument("--start", type=str, help="Start date (YYYY-MM-DD)")
+    parser.add_argument("--end", type=str, help="End date (YYYY-MM-DD)")
     parser.add_argument("--quotes", type=str, help="Comma-separated quote types for rates.historical (par,spread,fwd)")
-    parser.add_argument("--frequency", type=str, help="Data frequency for rates.historical (DAILY, HOURLY)")
+    parser.add_argument("--pairs", type=str, help="Comma-separated pairs for fx.vol (EUR/USD,GBP/USD)")
+    parser.add_argument("--frequency", type=str, help="Data frequency (DAILY, HOURLY)")
     args = parser.parse_args()
 
     settings = get_settings()

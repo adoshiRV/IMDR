@@ -5,7 +5,7 @@ Modes: range, catchup, gaps
 Source: Citi Velocity Historical Data API (OAuth2)
 
 Edit the variables below and run:
-    python -m scripts.rates_citi_historical
+    python -m scripts.rates.citi.rates_citi_historical
 """
 
 from __future__ import annotations
@@ -96,6 +96,7 @@ def _run_pipeline(
         end=end,
         quotes=quotes,
         frequency=frequency,
+        use_cache=False,
     )
     return pipeline.run()
 

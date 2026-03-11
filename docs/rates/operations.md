@@ -41,12 +41,22 @@ This reads from `universe/rates.yml` and inserts missing rows. Safe to re-run.
 ### Daily EOD (Standalone Script)
 
 ```bash
-# Default: last complete business day, par rates
-python -m scripts.rates_citi_live
+# Default: last complete business day, all 6 quote types
+python -m scripts.rates.citi.rates_citi_live
 
 # Override date and quote types
-python -m scripts.rates_citi_live --date 2026-03-10 --quotes par,spread,fwd,bfly
+python -m scripts.rates.citi.rates_citi_live --date 2026-03-10 --quotes par,spread,fwd,bfly
+
+# Force all API calls (bypass empty combo cache)
+python -m scripts.rates.citi.rates_citi_live --no-cache
 ```
+
+| Flag | Default | Description |
+|---|---|---|
+| `--date` | last business day | Override date (YYYY-MM-DD) |
+| `--quotes` | all 6 (from config) | Comma-separated: par, spread, fwd, bfly, ssw, rc |
+| `--frequency` | `DAILY` | Data frequency |
+| `--no-cache` | off | Disable empty combo cache — retry all API calls |
 
 ### Daily via Orchestrator
 
@@ -57,10 +67,10 @@ python -m scripts.imdr_daily
 
 ### Historical Backfill
 
-Edit config at top of `scripts/rates_citi_historical.py`, then run:
+Edit config at top of `scripts/rates/citi/rates_citi_historical.py`, then run:
 
 ```bash
-python -m scripts.rates_citi_historical
+python -m scripts.rates.citi.rates_citi_historical
 ```
 
 Modes: `range` (START→END), `catchup` (last N days), `gaps` (dates from file).
@@ -68,7 +78,7 @@ Modes: `range` (START→END), `catchup` (last N days), `gaps` (dates from file).
 ### Full Historical Backfill Example
 
 ```python
-# In scripts/rates_citi_historical.py:
+# In scripts/rates/citi/rates_citi_historical.py:
 MODE = "range"
 START = "2021-01-01"
 END = "2026-03-10"
@@ -76,7 +86,7 @@ QUOTES = "par"          # or "par,spread,fwd,bfly,ssw,rc"
 ```
 
 ```bash
-python -m scripts.rates_citi_historical
+python -m scripts.rates.citi.rates_citi_historical
 ```
 
 **API budget for full backfill (par only):**
@@ -97,14 +107,49 @@ python -m scripts.run_pipeline rates.historical --start 2026-03-10 --end 2026-03
 ## Data Flow
 
 ```
+CurveQuoteCache.load() → read data/cache/rates/empty_combos.json
+    → skip cached empty combos (auto-retry after 30 days)
 Citi Velocity API → CitiVelocityClient → CitiVelocityRatesExtractor
     → citi_response_to_df() → [ts, ccy, curve, quote, tenor, value]
-    → resolve curve_ids from dim_curve
+    → CurveQuoteCache: mark_empty() / mark_active() → save()
+    → auto-seed dim_curve + resolve curve_ids
     → Pydantic validation (RatesObservationCreate)
     → RatesObservationRepository.bulk_upsert() → SQL Server
     → parquet_write() → data/parquet/rates/ccy=.../curve=.../quote=.../YYYY-MM.parquet
+    → SymbolRangeCheck: per-quote-type range validation (flag, don't block)
+    → health checks: row count, nulls, duplicates, freshness
     → audit record in [audit].[pipeline_runs]
 ```
+
+---
+
+## Empty Combo Cache
+
+With 6 quote types, the extractor makes 39 × 6 = 234 API calls per run. ~78% return 0 rows (ceased curves, unavailable quote types). The cache tracks these and skips them on future runs.
+
+**Cache file:** `data/cache/rates/empty_combos.json`
+
+- First run: all 234 calls, cache populated with ~183 empties
+- Subsequent runs: ~51 actual API calls (~4x faster)
+- Entries auto-retry after 30 days
+- Use `--no-cache` to bypass, or delete the JSON file to force a full refresh
+
+---
+
+## Quality Checks
+
+After loading data, the pipeline runs per-quote-type range validation using ranges from `universe/rates.yml`:
+
+| Quote | Min | Max |
+|---|---|---|
+| par | -3.0 | 20.0 |
+| spread | -500.0 | 500.0 |
+| fwd | -5.0 | 25.0 |
+| bfly | -100.0 | 100.0 |
+| ssw | -500.0 | 500.0 |
+| rc | -200.0 | 200.0 |
+
+Violations are logged as warnings (`quality_flag_quote_range`) but **never block** the pipeline. To adjust ranges, edit `expected_ranges` in `src/imdr/universe/rates.yml`.
 
 ---
 
@@ -214,3 +259,5 @@ ORDER BY obs_date DESC;
 | `0 rows loaded` for a curve | Curve ceased or no data in range | Normal for ceased curves (e.g. LIBOR after Jun 2023) |
 | Large `rows_loaded` discrepancy | Duplicate or overlapping re-runs | Upsert is idempotent — safe to re-run |
 | Parquet read returns empty | Wrong filters or no data written | Check `data/parquet/rates/` directory structure |
+| `quality_flag_quote_range` | Values outside expected range for a quote type | Check flagged quote; widen range in `rates.yml` if legitimate |
+| Cache skipping too many combos | Stale cache entries | Run with `--no-cache` or delete `data/cache/rates/empty_combos.json` |

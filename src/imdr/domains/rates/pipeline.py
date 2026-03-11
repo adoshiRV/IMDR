@@ -12,14 +12,26 @@ from typing import Any
 import pandas as pd
 import structlog
 
+from imdr.config.pipeline_config import get_pipeline_config
 from imdr.config.settings import Settings
 from imdr.connectors.citi_velocity import CitiVelocityClient
 from imdr.connectors.mssql import MSSQLConnector
+from imdr.connectors.reader import AnalyticalReader
+from imdr.domains.rates.cache import CurveQuoteCache
 from imdr.domains.rates.extractors import CitiVelocityRatesExtractor
 from imdr.domains.rates.repository import RatesCurveRepository, RatesObservationRepository
 from imdr.domains.rates.store import write as parquet_write
+from imdr.domains.rates.utils import curve_entry_to_create
 from imdr.healthchecks.base import HealthCheck
-from imdr.healthchecks.checks import RowCountCheck
+from imdr.healthchecks.checks import (
+    DuplicateCheck,
+    FreshnessCheck,
+    NullCheck,
+    RowCountCheck,
+)
+from imdr.healthchecks.base import CheckStatus
+from imdr.healthchecks.quality import SymbolRangeCheck
+from imdr.models.rates import RatesObservation
 from imdr.pipelines.base import BasePipeline
 from imdr.schemas.rates import RatesObservationCreate
 from imdr.universe.rates import RatesUniverse, get_rates_universe
@@ -50,15 +62,18 @@ class RatesHistoricalPipeline(BasePipeline[pd.DataFrame, list[RatesObservationCr
         quotes: list[str] | None = None,
         frequency: str = "DAILY",
         curves: list[tuple[str, str]] | None = None,
+        use_cache: bool = True,
     ) -> None:
         super().__init__(connector)
         self._settings = settings
         self._universe = universe
+        self._config = get_pipeline_config(self.pipeline_name)
         self._start = start
         self._end = end
-        self._quotes = quotes or ["par"]
+        self._quotes = quotes or self._config.default_quotes or ["par"]
         self._frequency = frequency
         self._curves = curves
+        self._use_cache = use_cache
         self._raw_df: pd.DataFrame | None = None
         self._metadata_freshness: dict[str, Any] | None = None
 
@@ -93,6 +108,12 @@ class RatesHistoricalPipeline(BasePipeline[pd.DataFrame, list[RatesObservationCr
 
     def extract(self) -> pd.DataFrame:
         """Fetch from Citi Velocity Historical API (with pre-extract freshness check)."""
+        cache: CurveQuoteCache | None = None
+        if self._use_cache:
+            cache_dir = self._settings.cache_dir or "data/cache"
+            cache = CurveQuoteCache(cache_dir)
+            cache.load()
+
         with CitiVelocityClient(self._settings) as client:
             # Freshness check — sample metadata before pulling data
             self._metadata_freshness = self._check_metadata_freshness(client)
@@ -101,6 +122,7 @@ class RatesHistoricalPipeline(BasePipeline[pd.DataFrame, list[RatesObservationCr
                 client=client,
                 settings=self._settings,
                 universe=self._universe,
+                cache=cache,
             )
             df = extractor.extract(
                 start=self._start,
@@ -114,19 +136,24 @@ class RatesHistoricalPipeline(BasePipeline[pd.DataFrame, list[RatesObservationCr
         return df
 
     def transform(self, raw: pd.DataFrame) -> list[RatesObservationCreate]:
-        """Resolve curve_ids and validate via Pydantic."""
+        """Ensure dim_curve is populated, resolve curve_ids, validate via Pydantic."""
+        # Seed + cache in a single session to avoid N+1 round-trips
+        curves_to_seed = [curve_entry_to_create(e) for e in self._universe.all_curves()]
+        with self._connector.session() as session:
+            curve_repo = RatesCurveRepository(session)
+            inserted = curve_repo.bulk_seed_from_universe(curves_to_seed)
+            if inserted:
+                _log.info("dim_curve_seeded", new_curves=inserted, total=len(curves_to_seed))
+
+            # Build curve_id cache (same session — sees freshly seeded rows)
+            curve_id_cache: dict[tuple[str, str], int] = {}
+            for curve_entry in curve_repo.all():
+                curve_id_cache[(curve_entry.ccy, curve_entry.curve)] = curve_entry.id
+
         if raw.empty:
             return []
 
         observations: list[RatesObservationCreate] = []
-
-        with self._connector.session() as session:
-            curve_repo = RatesCurveRepository(session)
-
-            # Build curve_id cache
-            curve_id_cache: dict[tuple[str, str], int] = {}
-            for curve_entry in curve_repo.all():
-                curve_id_cache[(curve_entry.ccy, curve_entry.curve)] = curve_entry.id
 
         skipped = 0
         for _, row in raw.iterrows():
@@ -179,14 +206,25 @@ class RatesHistoricalPipeline(BasePipeline[pd.DataFrame, list[RatesObservationCr
         written = parquet_write(self._raw_df, manifest=manifest)
         _log.info("parquet_archive_complete", files_written=len(written))
 
+        # Per-quote quality check (replaces global ValueRangeCheck)
+        ranges = {qt: (r.min, r.max) for qt, r in self._universe.expected_ranges.items()}
+        if ranges:
+            check = SymbolRangeCheck(ranges, value_column="value", symbol_column="quote")
+            reader = AnalyticalReader(self._connector)
+            where = f"AND [ts] >= '{self._start:%Y-%m-%d}' AND [ts] <= '{self._end:%Y-%m-%d}'"
+            qr = check.run(reader, self._config.fully_qualified_table, where=where)
+            if qr.status != CheckStatus.PASSED:
+                _log.warning("quality_flag_quote_range", status=qr.status.value, message=qr.message)
+            else:
+                _log.info("quality_passed_quote_range")
+
     def get_health_checks(self) -> list[HealthCheck]:
+        cfg = self._config.health_checks
         return [
-            RowCountCheck(
-                schema="rates",
-                table="fact_observation",
-                date_column="ts",
-                min_rows=1,
-            ),
+            RowCountCheck(RatesObservation, self._config.date_column, cfg.row_count_min),
+            NullCheck(RatesObservation, self._config.required_columns, self._config.date_column),
+            DuplicateCheck(RatesObservation, self._config.unique_columns, self._config.date_column),
+            FreshnessCheck(RatesObservation, "created_at", cfg.max_staleness_hours),
         ]
 
     def get_run_context(self) -> dict[str, Any]:

@@ -10,11 +10,11 @@ import pytest
 
 from imdr.domains.fx.clean_fx_fact_ohlc import (
     BidAskInversionRule,
-    CleaningRunner,
     HardBoundViolationRule,
     NonPositivePriceRule,
     RobustOutlierRule,
 )
+from imdr.healthchecks.cleaning import CleaningRunner
 
 
 @pytest.fixture()
@@ -236,6 +236,7 @@ class TestCleaningRunner:
             connector=connector,
             reader=reader,
             rules=[rule],
+            table="[fx].[fact_ohlc]",
             dry_run=True,
         )
         results = runner.run()
@@ -264,6 +265,7 @@ class TestCleaningRunner:
             connector=connector,
             reader=reader,
             rules=[rule],
+            table="[fx].[fact_ohlc]",
             dry_run=False,
         )
         results = runner.run()
@@ -283,6 +285,7 @@ class TestCleaningRunner:
             connector=connector,
             reader=reader,
             rules=[rule],
+            table="[fx].[fact_ohlc]",
             dry_run=False,
         )
         results = runner.run()
@@ -303,6 +306,7 @@ class TestCleaningRunner:
             connector=connector,
             reader=reader,
             rules=rules,
+            table="[fx].[fact_ohlc]",
             dry_run=True,
         )
         results = runner.run()
@@ -321,6 +325,7 @@ class TestCleaningRunner:
             connector=connector,
             reader=reader,
             rules=[rule],
+            table="[fx].[fact_ohlc]",
             dry_run=True,
         )
         runner.run(where="AND YEAR([ts]) = 2024")

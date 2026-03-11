@@ -4,6 +4,15 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
+from pydantic import BaseModel
+
+
+class ExpectedRange(BaseModel):
+    """Hard bounds for a symbol/quote — values outside these are corrupt."""
+
+    min: float
+    max: float
+
 
 class BaseUniverse(ABC):
     """Base class for domain-specific instrument universes."""
