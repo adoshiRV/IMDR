@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import time
 from datetime import date, timedelta
-from typing import Any
+from typing import Any, Callable
 
 import pandas as pd
 from sqlalchemy import text
@@ -137,6 +137,7 @@ class HealthReporter:
         checks: list[QualityCheck],
         years: list[int],
         quiet: bool = False,
+        enrich: Callable[[QualityResult], QualityResult] | None = None,
     ) -> list[QualityResult]:
         """Run analytical quality checks using AnalyticalReader."""
         if not quiet:
@@ -158,6 +159,8 @@ class HealthReporter:
         for check in checks:
             try:
                 result = check.run(self.reader, table, where=year_filter, params=params)
+                if enrich is not None:
+                    result = enrich(result)
                 if not quiet:
                     self.print_quality_result(result)
                 results.append(result)

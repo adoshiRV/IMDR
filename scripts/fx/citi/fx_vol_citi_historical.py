@@ -20,6 +20,8 @@ import structlog
 from imdr.config.settings import get_settings
 from imdr.connectors.mssql import MSSQLConnector
 from imdr.domains.fx.pipeline_vol import FXVolPipeline
+from imdr.notifications.email import send_outlook_email
+from imdr.notifications.formatters.fx_vol_ingest import FXVolIngestFormatter
 from imdr.reporting.run_report import RunReport
 from imdr.universe.fx import get_fx_universe
 from imdr.utils.logging import configure_logging
@@ -33,8 +35,8 @@ log = structlog.get_logger(__name__)
 MODE = "range"  # "range" | "catchup" | "gaps"
 
 # range: start and end dates (YYYY-MM-DD)
-START = "2024-01-01"
-END = "2024-01-31"
+START = "2025-09-01"
+END = "2026-01-01"
 
 # catchup: how many calendar days back from today
 LOOKBACK_DAYS = 30
@@ -77,8 +79,8 @@ def _run_pipeline(
     start: datetime,
     end: datetime,
     label: str,
-) -> int:
-    """Run a single pipeline call and return rows loaded."""
+) -> tuple[int, list[dict]]:
+    """Run a single pipeline call and return (rows_loaded, quality_results)."""
     log.info("processing", label=label, start=str(start.date()), end=str(end.date()))
     pipeline = FXVolPipeline(
         connector=connector,
@@ -87,7 +89,8 @@ def _run_pipeline(
         start=start,
         end=end,
     )
-    return pipeline.run()
+    rows = pipeline.run()
+    return rows, pipeline._quality_results
 
 
 def main() -> int:
@@ -103,6 +106,9 @@ def main() -> int:
     try:
         t0 = time.perf_counter()
         total_rows = 0
+        all_quality: list[dict] = []
+        start: datetime | None = None
+        end: datetime | None = None
 
         if MODE == "range":
             start = datetime.strptime(START, "%Y-%m-%d").replace(tzinfo=timezone.utc)
@@ -110,7 +116,7 @@ def main() -> int:
                 hour=23, minute=59, tzinfo=timezone.utc,
             )
             start, end = _skip_weekends(start, end)
-            total_rows = _run_pipeline(
+            total_rows, all_quality = _run_pipeline(
                 connector, settings, universe, start, end,
                 label=f"range {START}\u2192{END}",
             )
@@ -124,7 +130,7 @@ def main() -> int:
                 hour=0, minute=0, second=0, microsecond=0,
             )
             start, end = _skip_weekends(start, end)
-            total_rows = _run_pipeline(
+            total_rows, all_quality = _run_pipeline(
                 connector, settings, universe, start, end,
                 label=f"catchup {LOOKBACK_DAYS}d",
             )
@@ -140,16 +146,19 @@ def main() -> int:
                 dates = dates[:MAX_DAYS]
 
             log.info("gaps_loaded", dates=len(dates))
+            start = dates[0] if dates else None
+            end = dates[-1] if dates else None
 
             for i, dt in enumerate(dates):
                 try:
-                    rows = _run_pipeline(
+                    rows, qr = _run_pipeline(
                         connector, settings, universe,
                         start=dt,
                         end=dt.replace(hour=23, minute=59),
                         label=f"gap {i + 1}/{len(dates)} ({dt.date()})",
                     )
                     total_rows += rows
+                    all_quality.extend(qr)
                 except Exception:
                     log.exception("gap_date_failed", date=str(dt.date()))
                     report.error("gap", f"Failed for {dt.date()}")
@@ -166,6 +175,20 @@ def main() -> int:
             "total_rows": total_rows,
             "elapsed_secs": round(elapsed, 1),
         })
+
+        # Send summary email
+        if settings.email_enabled and settings.email_to and total_rows > 0 and start is not None:
+            _send_summary_email(
+                settings=settings,
+                report=report,
+                universe=universe,
+                start=start,
+                end=end or start,
+                total_rows=total_rows,
+                quality_flags=all_quality,
+                elapsed_secs=elapsed,
+            )
+
         report.finish()
 
         # Flush RunReport to JSONL
@@ -194,6 +217,48 @@ def main() -> int:
         return 1
     finally:
         connector.dispose()
+
+
+def _send_summary_email(
+    settings: object,
+    report: RunReport,
+    universe: object,
+    start: datetime,
+    end: datetime,
+    total_rows: int,
+    quality_flags: list[dict],
+    elapsed_secs: float,
+) -> None:
+    """Build and send the historical backfill summary email."""
+    formatter = FXVolIngestFormatter()
+    has_errors = report.has_errors
+    all_vol_pairs = universe.vol_pairs()  # type: ignore[union-attr]
+
+    subject = formatter.format_subject(
+        pipeline_name="fx.vol_citi_historical",
+        run_date=start,
+        rows_loaded=total_rows,
+        n_pairs=len(all_vol_pairs),
+        has_errors=has_errors,
+        is_historical=True,
+    )
+    body = formatter.format_body(
+        pipeline_name="fx.vol_citi_historical",
+        run_date=start,
+        rows_extracted=total_rows,
+        rows_loaded=total_rows,
+        n_pairs=len(all_vol_pairs),
+        quality_flags=quality_flags,
+        is_historical=True,
+        has_errors=has_errors,
+        elapsed_secs=elapsed_secs,
+    )
+    send_outlook_email(
+        to=settings.email_to,  # type: ignore[attr-defined]
+        subject=subject,
+        html_body=body,
+        importance=2 if has_errors else 1,
+    )
 
 
 if __name__ == "__main__":

@@ -175,6 +175,57 @@ vol:
         IMPLIED: { min: 0.5, max: 80.0 }
       STRIKE_P25:
         IMPLIED: { min: 0.5, max: 80.0 }
+    # Absolute change thresholds for signed/small-magnitude strikes.
+    # Percentage change is meaningless when values cross zero (RR) or are
+    # near-zero (STR short tenors).  These strikes use absolute vol-point
+    # thresholds instead of the percentage threshold in pipelines.yml.
+    abs_change_thresholds:
+      25RR: 2.0     # vol points — typical daily move ~0.1–0.5
+      10RR: 3.0     # wider wings, larger moves normal
+      25STR: 1.0    # small positive values, % is misleading
+      10STR: 2.0    # same, wider wing
+    # Absolute change thresholds for vol_types where percentage change is
+    # meaningless (SPREAD crosses zero, REALISED resets weekly).
+    abs_change_vol_types:
+      SPREAD: 4.0     # vol points — ATM IMPLIED minus REALISED, crosses zero
+      REALISED: 5.0   # vol points — weekly rolling window causes large pct swings
+    # Percentage-change thresholds by ccy_class × tenor.
+    # Short tenors and EM pairs have higher vol-of-vol; long-dated G10 is stable.
+    # Falls back to pipelines.yml pct_threshold (30.0) for unmapped combos.
+    pct_thresholds:
+      g10:
+        1W: 75.0
+        1M: 60.0
+        2M: 50.0
+        3M: 45.0
+        6M: 35.0
+        9M: 30.0
+        1Y: 25.0
+        2Y: 20.0
+        5Y: 18.0
+        10Y: 15.0
+      em_ndf:
+        1W: 100.0
+        1M: 80.0
+        2M: 65.0
+        3M: 55.0
+        6M: 45.0
+        9M: 40.0
+        1Y: 35.0
+        2Y: 30.0
+        5Y: 25.0
+        10Y: 20.0
+      em_deliverable:
+        1W: 85.0
+        1M: 70.0
+        2M: 55.0
+        3M: 50.0
+        6M: 40.0
+        9M: 35.0
+        1Y: 30.0
+        2Y: 25.0
+        5Y: 20.0
+        10Y: 18.0
     # Statistical params (n_mad, trailing_months, pct_threshold) are in
     # pipelines.yml under fx.vol.cleaning — single source of truth for
     # both quality checks and cleaning rules.

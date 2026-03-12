@@ -35,6 +35,7 @@ class CleaningConfig(BaseModel):
     n_mad: float = 4.0
     trailing_months: int = 12
     pct_threshold: float | None = None
+    min_obs: int = 30
 
 
 class SourceConfig(BaseModel):

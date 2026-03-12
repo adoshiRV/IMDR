@@ -464,24 +464,24 @@ After loading data to SQL and writing parquet, the pipeline runs `SymbolRangeChe
 
 **Principle**: Flag, don't block — data is never rejected at ingest. Health checks can fail a pipeline run (audit trail), but quality checks and cleaning only flag/correct after the fact.
 
-### Diagnostics Report — `scripts/rates/health/rates_fact_observation_report.py`
+### Diagnostics & Cleaning — `scripts/rates/clean/clean_rates_fact_observation.py`
 
-Comprehensive health/quality report using the shared `HealthReporter` framework.
+The cleaning script is the single diagnostic tool for rates. Use `--section` to run health, coverage, or quality checks without applying any corrections.
 
 ```bash
-python -m scripts.rates.health.rates_fact_observation_report                    # full report
-python -m scripts.rates.health.rates_fact_observation_report --year 2026        # filter by year
-python -m scripts.rates.health.rates_fact_observation_report --section health   # single section
-python -m scripts.rates.health.rates_fact_observation_report --section coverage
-python -m scripts.rates.health.rates_fact_observation_report --section quality --sigma 4
+python -m scripts.rates.clean.clean_rates_fact_observation --section all                    # full report
+python -m scripts.rates.clean.clean_rates_fact_observation --section all --year 2026        # filter by year
+python -m scripts.rates.clean.clean_rates_fact_observation --section health                 # health checks only
+python -m scripts.rates.clean.clean_rates_fact_observation --section coverage               # coverage analysis
+python -m scripts.rates.clean.clean_rates_fact_observation --section quality                # quality checks
 ```
 
-**Sections:**
+**Sections (`--section clean|health|coverage|quality|all`, default: clean):**
 1. **Health** — per-year row counts, null checks, duplicates, freshness
 2. **Coverage** — per-curve date coverage, tenor completeness per curve×quote, quote type distribution, row counts
 3. **Quality** — per-quote-type range checks, robust statistical outliers (group by curve_id+quote+tenor), distribution stats
 
-### Batch Cleaning — `scripts/rates/clean/clean_rates_fact_observation.py`
+### Cleaning
 
 Detect and correct data quality issues. Dry-run by default.
 

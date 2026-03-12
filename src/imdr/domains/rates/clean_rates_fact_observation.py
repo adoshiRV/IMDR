@@ -21,6 +21,14 @@ from imdr.healthchecks.cleaning import CleaningAction, CleaningRule
 TABLE = "[rates].[fact_observation]"
 
 
+def _curve_label(row: pd.Series) -> str:
+    """Format curve as 'USD IRS' from ccy/curve columns, fallback to curve_id."""
+    ccy, curve = row.get("ccy"), row.get("curve")
+    if ccy and curve:
+        return f"{ccy} {curve}"
+    return f"curve_id={row['curve_id']}"
+
+
 # ---------------------------------------------------------------------------
 # Rule implementations
 # ---------------------------------------------------------------------------
@@ -55,13 +63,15 @@ class HardBoundViolationRule(CleaningRule):
         when_clauses = []
         for quote, (lo, hi) in self._ranges.items():
             when_clauses.append(
-                f"([quote] = '{quote}' AND ([value] < {lo} OR [value] > {hi}))"
+                f"(o.[quote] = '{quote}' AND (o.[value] < {lo} OR o.[value] > {hi}))"
             )
         filter_expr = " OR ".join(when_clauses)
 
         sql = f"""
-            SELECT [id], [ts], [curve_id], [quote], [tenor], [value]
-            FROM {table}
+            SELECT o.[id], o.[ts], o.[curve_id], c.[ccy], c.[curve],
+                   o.[quote], o.[tenor], o.[value]
+            FROM {table} o
+            JOIN [rates].[dim_curve] c ON c.id = o.curve_id
             WHERE ({filter_expr}) {where}
         """
         return reader.read_sql(sql, params)
@@ -87,7 +97,7 @@ class HardBoundViolationRule(CleaningRule):
     def describe(self, row: pd.Series) -> str:
         lo, hi = self._ranges.get(row["quote"], (None, None))
         return (
-            f"hard bound: curve_id={row['curve_id']} {row['quote']} {row['tenor']} "
+            f"hard bound: {_curve_label(row)} {row['quote']} {row['tenor']} "
             f"value={row['value']} outside [{lo}, {hi}] @ {row['ts']}"
         )
 
@@ -123,11 +133,13 @@ class RobustOutlierRule(CleaningRule):
         params: dict[str, Any] | None = None,
     ) -> pd.DataFrame:
         sql = f"""
-            SELECT [id], [ts], [curve_id], [quote], [tenor], [value]
-            FROM {table}
+            SELECT o.[id], o.[ts], o.[curve_id], c.[ccy], c.[curve],
+                   o.[quote], o.[tenor], o.[value]
+            FROM {table} o
+            JOIN [rates].[dim_curve] c ON c.id = o.curve_id
             WHERE 1=1
               {where}
-            ORDER BY [curve_id], [quote], [tenor], [ts]
+            ORDER BY o.[curve_id], o.[quote], o.[tenor], o.[ts]
         """
         df = reader.read_sql(sql, params)
         if df.empty:
@@ -194,7 +206,7 @@ class RobustOutlierRule(CleaningRule):
 
     def describe(self, row: pd.Series) -> str:
         return (
-            f"robust outlier: curve_id={row['curve_id']} {row['quote']} {row['tenor']} "
+            f"robust outlier: {_curve_label(row)} {row['quote']} {row['tenor']} "
             f"value={row.get('value', '?')} z={row.get('robust_z', '?'):.1f} "
             f"@ {row['ts']}"
         )
@@ -223,16 +235,18 @@ class PercentageChangeRule(CleaningRule):
     ) -> pd.DataFrame:
         sql = f"""
             WITH with_prev AS (
-                SELECT [id], [ts], [curve_id], [quote], [tenor], [value],
-                       LAG([value]) OVER (
-                           PARTITION BY [curve_id], [quote], [tenor]
-                           ORDER BY [ts]
+                SELECT o.[id], o.[ts], o.[curve_id], c.[ccy], c.[curve],
+                       o.[quote], o.[tenor], o.[value],
+                       LAG(o.[value]) OVER (
+                           PARTITION BY o.[curve_id], o.[quote], o.[tenor]
+                           ORDER BY o.[ts]
                        ) AS prev_val
-                FROM {table}
+                FROM {table} o
+                JOIN [rates].[dim_curve] c ON c.id = o.curve_id
                 WHERE 1=1
                   {where}
             )
-            SELECT [id], [ts], [curve_id], [quote], [tenor],
+            SELECT [id], [ts], [curve_id], [ccy], [curve], [quote], [tenor],
                    [value], prev_val,
                    ([value] - prev_val)
                        / ABS(NULLIF(prev_val, 0)) * 100.0 AS pct_change
@@ -267,7 +281,7 @@ class PercentageChangeRule(CleaningRule):
         pct = row.get("pct_change")
         pct_str = f" ({pct:+.1f}%)" if pd.notna(pct) else ""
         return (
-            f"pct_change: curve_id={row['curve_id']} {row['quote']} {row['tenor']}"
+            f"pct_change: {_curve_label(row)} {row['quote']} {row['tenor']}"
             f" value={row['value']}{pct_str} from prev={row.get('prev_val', '?')}"
             f" @ {row['ts']}"
         )

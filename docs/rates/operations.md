@@ -151,6 +151,8 @@ After loading data, the pipeline runs per-quote-type range validation using rang
 
 Violations are logged as warnings (`quality_flag_quote_range`) but **never block** the pipeline. To adjust ranges, edit `expected_ranges` in `src/imdr/universe/rates.yml`.
 
+**Note on `pct_threshold`**: The cleaning `PercentageChangeRule` currently uses a global 30% threshold for all quote types. This is a known limitation — BFLY, SSW, and RC values are naturally more volatile day-to-day than PAR or FWD, so a single threshold either over-flags PAR or under-flags BFLY. A per-quote-type calibration (e.g., PAR: 10-15%, FWD: 15-20%, BFLY/SSW/RC: 50-75%) would improve accuracy but requires data analysis to set appropriate bounds. Tracked for future implementation.
+
 ---
 
 ## Tag Discovery

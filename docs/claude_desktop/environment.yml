@@ -1,0 +1,14 @@
+name: imdr-mcp
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - pyodbc
+  - pip
+  - pandas
+  - pip:
+      - mcp>=1.0
+      - sqlalchemy>=2.0
+      - pydantic-settings>=2.0
+      - python-dotenv>=1.0

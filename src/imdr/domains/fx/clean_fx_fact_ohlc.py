@@ -366,6 +366,73 @@ class PercentageChangeRule(CleaningRule):
         )
 
 
+class OHLCOrderRule(CleaningRule):
+    """NULL out rows where OHLC candle structure is invalid.
+
+    Detects: low > open, low > close, high < open, high < close.
+    """
+
+    @property
+    def name(self) -> str:
+        return "ohlc_order"
+
+    @property
+    def action_label(self) -> str:
+        return "null_prices"
+
+    def detect(
+        self,
+        reader: AnalyticalReader,
+        table: str = TABLE,
+        where: str = "",
+        params: dict[str, Any] | None = None,
+    ) -> pd.DataFrame:
+        sql = f"""
+            SELECT [id], [ts], [symbol], [series],
+                   [open_px], [high_px], [low_px], [close_px]
+            FROM {table}
+            WHERE (
+                ([low_px] > [open_px]) OR ([low_px] > [close_px])
+                OR ([high_px] < [open_px]) OR ([high_px] < [close_px])
+            )
+            AND [open_px] IS NOT NULL
+            AND [high_px] IS NOT NULL
+            AND [low_px] IS NOT NULL
+            AND [close_px] IS NOT NULL
+            {where}
+        """
+        return reader.read_sql(sql, params)
+
+    def build_update_sql(self, ids: list[int]) -> str:
+        id_list = ", ".join(str(i) for i in ids)
+        return f"UPDATE {TABLE} SET {_NULL_SET} WHERE [id] IN ({id_list})"
+
+    def build_action(self, row: pd.Series) -> CleaningAction:
+        return CleaningAction(
+            rule_name=self.name,
+            row_id=int(row["id"]),
+            ts=row["ts"],
+            action=self.action_label,
+            detail=self.describe(row),
+            context={"symbol": row["symbol"], "series": row["series"]},
+        )
+
+    def describe(self, row: pd.Series) -> str:
+        violations = []
+        if row["low_px"] > row["open_px"]:
+            violations.append(f"low={row['low_px']} > open={row['open_px']}")
+        if row["low_px"] > row["close_px"]:
+            violations.append(f"low={row['low_px']} > close={row['close_px']}")
+        if row["high_px"] < row["open_px"]:
+            violations.append(f"high={row['high_px']} < open={row['open_px']}")
+        if row["high_px"] < row["close_px"]:
+            violations.append(f"high={row['high_px']} < close={row['close_px']}")
+        return (
+            f"ohlc_order: {row['symbol']} {row['series']} "
+            f"{', '.join(violations)} @ {row['ts']}"
+        )
+
+
 class BidAskInversionRule(CleaningRule):
     """Swap bid and ask when bid > ask."""
 

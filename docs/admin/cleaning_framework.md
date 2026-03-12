@@ -55,7 +55,19 @@ src/imdr/domains/rates/clean_rates_fact_observation.py  # Rates rule implementat
 | `robust_outlier` | `RobustOutlierRule` | NULL value | `value` | `pair_id, strike, tenor, vol_type` |
 | `pct_change` | `PercentageChangeRule` | NULL value | `value` | `pair_id, strike, tenor, vol_type` |
 
-**Defaults** (from `pipelines.yml` → `fx.vol.cleaning`): `n_mad: 4.0`, `trailing_months: 12`, `pct_threshold: 30.0`, `--min-obs 30`
+**Defaults** (from `pipelines.yml` → `fx.vol.cleaning`): `n_mad: 4.0`, `trailing_months: 12`, `pct_threshold: 30.0` (fallback), `--min-obs 30`
+
+**FX Vol `pct_change` uses 3-tier filtering** (2026-03-12):
+
+| Tier | Scope | Logic | Config |
+|------|-------|-------|--------|
+| 1 — Absolute change | Signed/small strikes (25RR, 10RR, 25STR, 10STR) | Uses absolute vol-point thresholds (2.0, 3.0, 1.0, 2.0 respectively) instead of percentage change | Hardcoded in rule |
+| 2 — Class×tenor pct | ccy_class × tenor matrix | Different pct thresholds per combination (e.g., G10 1W: 75%, G10 10Y: 15%, EM NDF 1W: 100%) | `fx.yml` → `vol.quality.pct_thresholds` |
+| 3 — Fallback pct | Any unmapped class×tenor combo | `pct_threshold: 30.0` from `pipelines.yml` | `pipelines.yml` → `fx.vol.cleaning` |
+
+Additional: `min_abs_prev=0.5` skips rows where the previous value is near zero (avoids division blow-up on ATM SPREAD). The rule JOINs `[fx].[dim_currency_pair]` to resolve `ccy_class`.
+
+**Note**: The generic `PercentageChangeCheck` in `quality.py` (used by pipeline post-ingest quality checks) applies `min_abs_value=0.5` but does NOT implement the full class×tenor logic — it is diagnostic, not cleaning.
 
 **Critical**: `vol_type` must be in the partition for both `robust_outlier` and `pct_change`. Without it, IMPLIED (~6-10), SPREAD (~-0.14), and REALISED values are mixed, causing hundreds of false flags. This was a bug found 2026-03-11.
 
@@ -244,6 +256,7 @@ These values are stored in `pipelines.yml` under each pipeline's `cleaning:` sec
 | `trailing_months` | 3 | 12 | FX spot has regime shifts every few months; vol/rates are more stable |
 | `n_mad` | 6.0 | 4.0 | FX spot is noisier (hourly bars); vol/rates are daily and smoother |
 | `min_obs` | 100 | 30 | FX spot has ~720 bars/month; vol/rates have ~22 obs/month |
+| `min_obs` | 100 | 30 | FX spot has ~720 bars/month; vol/rates have ~22 obs/month |
 
 **Tuning history** (FX OHLC, 2026-03-11):
 
@@ -329,27 +342,38 @@ Each domain runs in its own subprocess — one failure does not block others.
 
 ## Dashboard Integration
 
-The weekly health dashboard (`scripts/imdr_health_dashboard.py`) includes a cleaning dry-run preview for each domain. To avoid parameter drift and duplicated code, the dashboard **imports** the same builders that the CLI scripts use:
+The weekly health dashboard (`scripts/imdr_health_dashboard.py`) includes cleaning dry-run previews, health checks, and quality checks for each domain. To avoid parameter drift and duplicated code, the dashboard **imports** all builders from the cleaning CLI scripts — each cleaning CLI is the single diagnostic tool for its domain:
 
 ```python
-# Dashboard imports — single source of truth
-from scripts.fx.clean.clean_fx_fact_ohlc import build_cleaning_rules as ohlc_cleaning_rules
-from scripts.fx.clean.clean_fx_fact_vol import build_cleaning_rules as vol_cleaning_rules
-from scripts.rates.clean.clean_rates_fact_observation import build_cleaning_rules as rates_cleaning_rules
-
-# Both cleaning and quality builders read params from pipelines.yml
-rules = ohlc_cleaning_rules()
+# Dashboard imports — single source of truth (all from cleaning CLIs)
+from scripts.fx.clean.clean_fx_fact_ohlc import (
+    build_cleaning_rules as ohlc_cleaning_rules,
+    build_health_checks as ohlc_health_checks,
+    build_quality_checks as ohlc_quality_checks,
+)
+from scripts.fx.clean.clean_fx_fact_vol import (
+    build_cleaning_rules as vol_cleaning_rules,
+    build_health_checks as vol_health_checks,
+    build_quality_checks as vol_quality_checks,
+)
+from scripts.rates.clean.clean_rates_fact_observation import (
+    build_cleaning_rules as rates_cleaning_rules,
+    build_health_checks as rates_health_checks,
+    build_quality_checks as rates_quality_checks,
+)
 ```
 
-**Builder functions** (public API for each domain):
+**Builder functions** (public API for each domain cleaning CLI):
 
-| Script | Function | Config source |
-|--------|----------|---------------|
-| `clean_fx_fact_ohlc.py` | `build_cleaning_rules()` | `pipelines.yml` → `fx.ohlc.cleaning` (6.0 MAD, 3mo, 5.0%) |
-| `clean_fx_fact_vol.py` | `build_cleaning_rules()` | `pipelines.yml` → `fx.vol.cleaning` (4.0 MAD, 12mo, 30.0%) |
-| `clean_rates_fact_observation.py` | `build_cleaning_rules()` | `pipelines.yml` → `rates.historical.cleaning` (4.0 MAD, 12mo, 30.0%) |
+| Script | Exported Builders | Config source |
+|--------|-------------------|---------------|
+| `clean_fx_fact_ohlc.py` | `build_cleaning_rules()`, `build_health_checks()`, `build_quality_checks()` | `pipelines.yml` → `fx.ohlc.cleaning` (6.0 MAD, 3mo, 5.0%) |
+| `clean_fx_fact_vol.py` | `build_cleaning_rules()`, `build_health_checks()`, `build_quality_checks()` | `pipelines.yml` → `fx.vol.cleaning` (4.0 MAD, 12mo, 30.0%) |
+| `clean_rates_fact_observation.py` | `build_cleaning_rules()`, `build_health_checks()`, `build_quality_checks()` | `pipelines.yml` → `rates.historical.cleaning` (4.0 MAD, 12mo, 30.0%) |
 
-All cleaning params are config-driven via `pipelines.yml`. CLI `--n-mad` / `--trailing-months` / `--pct-threshold` override config when provided. Builder signatures use `None` defaults — `None` means "read from config".
+Each cleaning CLI supports `--section clean|health|coverage|quality|all` to run any combination of diagnostics from a single entry point. The separate report scripts (`scripts/{domain}/health/*_report.py`) have been removed — all diagnostic functionality (health checks, coverage, quality checks, cleaning) is consolidated in the cleaning CLIs.
+
+All cleaning params are config-driven via `pipelines.yml`. CLI `--n-mad` / `--trailing-months` / `--pct-threshold` / `--min-obs` override config when provided. Builder signatures use `None` defaults — `None` means "read from config".
 
 Health check and quality check builders follow the same pattern — `build_health_checks()` reads `max_staleness_hours` from `pipelines.yml`, and `build_quality_checks()` uses domain-specific universe YAML.
 
@@ -368,5 +392,7 @@ Health check and quality check builders follow the same pattern — `build_healt
 | 2026-03-11 | Config-driven cleaning params from `pipelines.yml` | All 3 builders + `clean_cli.py` |
 | 2026-03-11 | Fixed email HTML table rendering (`Markup()` wrapping) | `weekly_dashboard.py` + template |
 | 2026-03-11 | Unified quality + cleaning params — both read from `pipelines.yml` | All 3 quality builders + dashboard |
-| 2026-03-11 | Fixed FX Vol health check range — derived from `fx.yml` per-(strike,vol_type) bounds | `fx_vol_report.py` |
+| 2026-03-11 | Fixed FX Vol health check range — derived from `fx.yml` per-(strike,vol_type) bounds | `clean_fx_fact_vol.py` |
 | 2026-03-11 | Removed redundant vol quality params from `fx.yml` / `VolQualityParsed` | `fx.yml`, `fx.py` |
+| 2026-03-12 | Aligned grouping columns and `min_obs` across pipeline quality checks, health reports, and cleaning for FX Vol. Made `min_obs` configurable via `pipelines.yml` for all domains. Refactored OHLC clean script to use shared `add_common_clean_args()`. | All 3 domains, `pipeline_config.py`, `pipelines.yml` |
+| 2026-03-12 | FX Vol `PercentageChangeRule` 3-tier filtering: strike-aware absolute thresholds (Tier 1), class×tenor pct matrix from `fx.yml` (Tier 2), fallback 30% from `pipelines.yml` (Tier 3). Added `min_abs_prev=0.5` to skip near-zero denominators. Fixed `ts_column` to use `obs_date`. Aligned `min_obs` with rolling window params. | `clean_fx_fact_vol.py`, `fx.yml` |

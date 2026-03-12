@@ -103,3 +103,9 @@ def add_common_clean_args(parser: argparse.ArgumentParser) -> None:
         default=None,
         help="Percentage change threshold for bar-to-bar detection (default: from pipelines.yml)",
     )
+    parser.add_argument(
+        "--min-obs",
+        type=int,
+        default=None,
+        help="Minimum observations per group for robust outlier detection (default: from pipelines.yml)",
+    )

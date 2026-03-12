@@ -16,7 +16,7 @@ Each step references existing patterns from FX OHLC, FX Vol, and Rates.
  6. Frequency           Register in scheduler (hourly/daily/weekly/etc.)
  7. Health              Post-append checks (row count, nulls, dupes, freshness, range)
  8. Clean               Cleaning rules (hard bounds, outliers, pct change) + CLI script
- 9. Quality             Quality checks (distribution, statistical, range) + report script
+ 9. Quality             Quality checks (distribution, statistical, range) — in cleaning CLI
 10. Emailers            Formatter + Jinja2 template + dashboard integration
 ```
 
@@ -469,29 +469,43 @@ CLEANING_SCRIPTS = [
 
 ## Step 9: Quality Checks
 
-**Goal**: Diagnostic report for data quality analysis (deeper than health checks).
+**Goal**: Diagnostic quality analysis (deeper than health checks). No separate report script is needed -- quality checks, health checks, and coverage are all built into the cleaning CLI from Step 8.
 
 ### 9a. Quality Check Builders
 
-Create `scripts/{domain}/health/{table}_report.py`:
+Add `build_health_checks()` and `build_quality_checks()` to the cleaning CLI (`scripts/{domain}/clean/clean_{table}.py`):
 
 ```python
 PIPELINE_NAME = "{domain}.{product}"
 TABLE = "[{schema}].[{table}]"
 
 def build_health_checks(freshness_hours=None) -> list:
-    # Same as step 7, but standalone for the report CLI
+    # Same as step 7, but standalone for the cleaning CLI's --section health
 
-def build_quality_checks(sigma=None) -> list:
+def build_quality_checks() -> list:
     cfg = get_pipeline_config(PIPELINE_NAME).cleaning
-    sigma = sigma if sigma is not None else cfg.n_mad
-    trailing_months = cfg.trailing_months
     return [
         SymbolRangeCheck(ranges=..., value_column="value"),
         RobustStatisticalOutlierCheck(value_column="value", group_columns=[...],
-                                       n_mad=sigma, trailing_months=trailing_months),
+                                       n_mad=cfg.n_mad, trailing_months=cfg.trailing_months),
         DistributionCheck(value_column="value", group_column="symbol"),
     ]
+
+def build_cleaning_rules(...) -> list:
+    # From step 8
+```
+
+Each cleaning CLI exports three builders: `build_health_checks()`, `build_quality_checks()`, `build_cleaning_rules()`. The dashboard imports all three from the cleaning CLI.
+
+The cleaning CLI supports `--section clean|health|coverage|quality|all` to run any combination:
+
+```bash
+python -m scripts.{domain}.clean.clean_{table} --section all        # everything
+python -m scripts.{domain}.clean.clean_{table} --section health     # health checks only
+python -m scripts.{domain}.clean.clean_{table} --section coverage   # coverage only
+python -m scripts.{domain}.clean.clean_{table} --section quality    # quality checks only
+python -m scripts.{domain}.clean.clean_{table} --section clean      # cleaning dry-run only
+python -m scripts.{domain}.clean.clean_{table} --execute            # cleaning with writes
 ```
 
 **Available quality checks** (`src/imdr/healthchecks/quality.py`):
@@ -522,33 +536,12 @@ def get_my_coverage(reader, table, years) -> CoverageData:
     )
 ```
 
-### 9c. Report CLI
-
-Three-section pattern in the report script:
-
-```python
-def main():
-    reporter = HealthReporter(connector, PIPELINE_NAME)
-    years = reporter.discover_years()
-
-    # Section 1: Health checks
-    reporter.run_health_section(build_health_checks(), years)
-
-    # Section 2: Coverage (domain-specific)
-    run_coverage_section(reporter.reader, years)
-
-    # Section 3: Quality checks
-    reporter.run_quality_section(build_quality_checks(), years)
-```
-
-**CLI flags**: `--year`, `--section {health,coverage,quality}`, `--sigma` (override config)
-
 **Examples**:
-| Domain | Report Script |
-|--------|---------------|
-| FX OHLC | `scripts/fx/health/fx_ohlc_report.py` |
-| FX Vol | `scripts/fx/health/fx_vol_report.py` |
-| Rates | `scripts/rates/health/rates_fact_observation_report.py` |
+| Domain | Cleaning CLI (single diagnostic tool) |
+|--------|---------------------------------------|
+| FX OHLC | `scripts/fx/clean/clean_fx_fact_ohlc.py` |
+| FX Vol | `scripts/fx/clean/clean_fx_fact_vol.py` |
+| Rates | `scripts/rates/clean/clean_rates_fact_observation.py` |
 
 ---
 
@@ -597,12 +590,10 @@ send_outlook_email(to=settings.email_to, subject=subject, html_body=body)
 Add to `scripts/imdr_health_dashboard.py`:
 
 ```python
-# Import builders (single source of truth)
-from scripts.{domain}.health.{table}_report import (
+# Import all 3 builders from the cleaning CLI (single source of truth)
+from scripts.{domain}.clean.clean_{table} import (
     build_health_checks as my_health_checks,
     build_quality_checks as my_quality_checks,
-)
-from scripts.{domain}.clean.clean_{table} import (
     build_cleaning_rules as my_cleaning_rules,
 )
 
@@ -638,11 +629,10 @@ Complete list of files to create/modify when adding a new product:
 | 11 | `src/imdr/domains/{domain}/clean_{table}.py` | Cleaning rule classes |
 | 12 | `scripts/{domain}/{provider}/{product}_live.py` | Live ingest CLI |
 | 13 | `scripts/{domain}/{provider}/{product}_historical.py` | Historical backfill CLI |
-| 14 | `scripts/{domain}/clean/clean_{table}.py` | Cleaning CLI script |
-| 15 | `scripts/{domain}/health/{table}_report.py` | Health/quality report CLI |
-| 16 | `src/imdr/notifications/formatters/{product}_ingest.py` | Email formatter |
-| 17 | `src/imdr/notifications/templates/{product}_ingest.html` | Email template |
-| 18 | `tests/unit/test_{domain}_*.py` | Unit tests |
+| 14 | `scripts/{domain}/clean/clean_{table}.py` | Cleaning CLI (exports `build_cleaning_rules()`, `build_health_checks()`, `build_quality_checks()`) |
+| 15 | `src/imdr/notifications/formatters/{product}_ingest.py` | Email formatter |
+| 16 | `src/imdr/notifications/templates/{product}_ingest.html` | Email template |
+| 17 | `tests/unit/test_{domain}_*.py` | Unit tests |
 
 ### Modified Files
 
@@ -674,7 +664,7 @@ pipelines.yml
                                       + ValueRangeCheck (union for health check)
 ```
 
-CLI `--sigma` / `--pct-threshold` override config for ad-hoc analysis only.
+CLI `--n-mad` / `--pct-threshold` override config for ad-hoc analysis only.
 
 ---
 

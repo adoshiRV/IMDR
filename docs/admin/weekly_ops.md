@@ -61,19 +61,16 @@ Registered in `scripts/imdr_weekly.py` — runs automatically via the weekly sch
 - If health checks **FAIL** — investigate immediately (missing data, stale ingestion, duplicates). Health checks use a 30-day rolling window — a FAIL means recent data has issues, not historical.
 - If cleaning flags are high — run Steps 3–5 (re-pull, re-check, execute) per domain below
 - If everything passes with low cleaning flags — no action needed
-- For per-year historical diagnostics, use the individual report scripts (see domain sections below)
+- For per-year historical diagnostics, use the individual cleaning CLIs with `--section all` (see domain sections below)
 
 **Module map:**
 
 | File | Purpose |
 |------|---------|
-| `scripts/imdr_health_dashboard.py` | Thin orchestrator — imports builders from domain scripts, formats, sends |
-| `scripts/fx/health/fx_ohlc_report.py` | FX OHLC `build_health_checks()`, `build_quality_checks()` |
-| `scripts/fx/clean/clean_fx_fact_ohlc.py` | FX OHLC `build_cleaning_rules()` (defaults from `pipelines.yml`) |
-| `scripts/fx/health/fx_vol_report.py` | FX Vol `build_health_checks()`, `build_quality_checks()` |
-| `scripts/fx/clean/clean_fx_fact_vol.py` | FX Vol `build_cleaning_rules()` (defaults from `pipelines.yml`) |
-| `scripts/rates/health/rates_fact_observation_report.py` | Rates `build_health_checks()`, `build_quality_checks()` |
-| `scripts/rates/clean/clean_rates_fact_observation.py` | Rates `build_cleaning_rules()` (defaults from `pipelines.yml`) |
+| `scripts/imdr_health_dashboard.py` | Thin orchestrator — imports all builders from cleaning CLIs, formats, sends |
+| `scripts/fx/clean/clean_fx_fact_ohlc.py` | FX OHLC `build_cleaning_rules()`, `build_health_checks()`, `build_quality_checks()` |
+| `scripts/fx/clean/clean_fx_fact_vol.py` | FX Vol `build_cleaning_rules()`, `build_health_checks()`, `build_quality_checks()` |
+| `scripts/rates/clean/clean_rates_fact_observation.py` | Rates `build_cleaning_rules()`, `build_health_checks()`, `build_quality_checks()` |
 | `src/imdr/config/pipelines.yml` | Single source of truth for cleaning + health check params |
 | `src/imdr/healthchecks/reporter.py` | `run_health_window()` (30-day rolling) + `run_health_section()` (per-year) |
 | `src/imdr/healthchecks/dashboard.py` | Data model: `CoverageData`, `DomainReport`, `WeeklyDashboard` |
@@ -95,7 +92,7 @@ Domain-specific flags (`--symbol`, `--pair`, `--curve`) are **not supported** he
 
 ### Robust Outlier Tuning
 
-**Defaults** (from `pipelines.yml` → `fx.ohlc.cleaning`): `n_mad: 6.0`, `trailing_months: 3`. Calibrated via a parameter sweep across 1- and 3-month windows with MAD thresholds 3–8. The 3-month/6-MAD combination flags ~5,400 rows (0.50% of FX OHLC data), concentrated in genuinely noisy 2021–22 data, with zero false positives in 2023+ clean periods. The previous 1-month/4-MAD defaults flagged ~15,400 rows (1.43%) — most of which were legitimate regime shifts rather than data errors.
+**Defaults** (from `pipelines.yml` → `fx.ohlc.cleaning`): `n_mad: 6.0`, `trailing_months: 3`, `min_obs: 100`. Calibrated via a parameter sweep across 1- and 3-month windows with MAD thresholds 3–8. The 3-month/6-MAD combination flags ~5,400 rows (0.50% of FX OHLC data), concentrated in genuinely noisy 2021–22 data, with zero false positives in 2023+ clean periods. The previous 1-month/4-MAD defaults flagged ~15,400 rows (1.43%) — most of which were legitimate regime shifts rather than data errors.
 
 **Interpreting z-scores:**
 - z > 20: clearly bad data — NULL without hesitation
@@ -157,19 +154,19 @@ Applied to all 3 domains:
 
 For full architecture, see `docs/admin/fx/overview.md`.
 
-### Report
+### Diagnostics
 
 ```bash
-python -m scripts.fx.health.fx_ohlc_report
-python -m scripts.fx.health.fx_ohlc_report --year 2026
-python -m scripts.fx.health.fx_ohlc_report --section health
-python -m scripts.fx.health.fx_ohlc_report --section missing
-python -m scripts.fx.health.fx_ohlc_report --section quality --sigma 3  # override config
+python -m scripts.fx.clean.clean_fx_fact_ohlc --section all
+python -m scripts.fx.clean.clean_fx_fact_ohlc --section all --year 2026
+python -m scripts.fx.clean.clean_fx_fact_ohlc --section health
+python -m scripts.fx.clean.clean_fx_fact_ohlc --section coverage
+python -m scripts.fx.clean.clean_fx_fact_ohlc --section quality
 ```
 
 **What to look for:**
 - Health checks: any FAIL results (null counts, row counts off)
-- Missing data: symbols with low coverage % or large gaps
+- Coverage: symbols with low coverage % or large gaps
 - Quality: outlier counts per symbol — a few is normal, hundreds means something upstream broke
 
 ### Clean
@@ -231,12 +228,12 @@ python -m scripts.run_pipeline fx.ohlc --hour 2026-03-09T13:00:00
 ### Quick Reference
 
 ```bash
-python -m scripts.fx.health.fx_ohlc_report --year 2026
+python -m scripts.fx.clean.clean_fx_fact_ohlc --section all --year 2026
 python -m scripts.fx.clean.clean_fx_fact_ohlc --year 2026
 python -m scripts.fx.clean.clean_fx_fact_ohlc --year 2026 --emit-gaps data/gaps/cleaning_gaps.txt
 # edit fx/bidfx/fx_bidfx_historical.py → MODE="gaps", GAPS_FILE="data/gaps/cleaning_gaps.txt"
 python -m scripts.fx.bidfx.fx_bidfx_historical
-python -m scripts.fx.health.fx_ohlc_report --year 2026
+python -m scripts.fx.clean.clean_fx_fact_ohlc --section all --year 2026
 python -m scripts.fx.clean.clean_fx_fact_ohlc --year 2026
 python -m scripts.fx.clean.clean_fx_fact_ohlc --year 2026 --execute
 ```
@@ -247,12 +244,12 @@ python -m scripts.fx.clean.clean_fx_fact_ohlc --year 2026 --execute
 
 For full architecture, see `docs/admin/fx/overview.md` (FX Vol section).
 
-### Report
+### Diagnostics
 
 ```bash
-python -m scripts.fx.health.fx_vol_report --year 2026
-python -m scripts.fx.health.fx_vol_report --section coverage
-python -m scripts.fx.health.fx_vol_report --section quality --sigma 3  # override config
+python -m scripts.fx.clean.clean_fx_fact_vol --section all --year 2026
+python -m scripts.fx.clean.clean_fx_fact_vol --section coverage
+python -m scripts.fx.clean.clean_fx_fact_vol --section quality
 ```
 
 **What to look for:**
@@ -273,7 +270,7 @@ python -m scripts.fx.clean.clean_fx_fact_vol --execute --year 2026
 **What to look for:**
 - `hard_bound`: values outside per-(strike, vol_type) bounds from `fx.yml`
 - `robust_outlier`: should be in the low thousands or less — if huge, check trailing window params
-- `pct_change`: day-over-day jumps (threshold 30% by default — vol is naturally more volatile)
+- `pct_change`: 3-tier day-over-day check — Tier 1: absolute vol-point thresholds for signed/small strikes (25RR, 10RR, 25STR, 10STR); Tier 2: class×tenor percentage matrix from `fx.yml` (e.g., G10 1W: 75%, EM NDF 1W: 100%); Tier 3: fallback 30% from `pipelines.yml`. `min_abs_prev=0.5` skips near-zero denominators.
 
 ### Re-Pull
 
@@ -290,10 +287,10 @@ Re-run historical backfill for specific dates in `scripts/fx/citi/fx_vol_citi_hi
 ### Quick Reference
 
 ```bash
-python -m scripts.fx.health.fx_vol_report --year 2026
+python -m scripts.fx.clean.clean_fx_fact_vol --section all --year 2026
 python -m scripts.fx.clean.clean_fx_fact_vol --year 2026
 # Re-pull if needed via fx_vol_citi_historical.py
-python -m scripts.fx.health.fx_vol_report --year 2026
+python -m scripts.fx.clean.clean_fx_fact_vol --section all --year 2026
 python -m scripts.fx.clean.clean_fx_fact_vol --year 2026
 python -m scripts.fx.clean.clean_fx_fact_vol --year 2026 --execute
 ```
@@ -304,12 +301,12 @@ python -m scripts.fx.clean.clean_fx_fact_vol --year 2026 --execute
 
 For full architecture, see `docs/admin/rates/overview.md`.
 
-### Report
+### Diagnostics
 
 ```bash
-python -m scripts.rates.health.rates_fact_observation_report --year 2026
-python -m scripts.rates.health.rates_fact_observation_report --section coverage
-python -m scripts.rates.health.rates_fact_observation_report --section quality --sigma 3  # override config
+python -m scripts.rates.clean.clean_rates_fact_observation --section all --year 2026
+python -m scripts.rates.clean.clean_rates_fact_observation --section coverage
+python -m scripts.rates.clean.clean_rates_fact_observation --section quality
 ```
 
 **What to look for:**
@@ -330,7 +327,7 @@ python -m scripts.rates.clean.clean_rates_fact_observation --execute --year 2026
 **What to look for:**
 - `hard_bound`: values outside per-quote-type bounds (par: -3 to 20, spread: -500 to 500, etc.)
 - `robust_outlier`: should be a small number — check if specific curves dominate
-- `pct_change`: observation-over-observation jumps (tune with `--pct-threshold`)
+- `pct_change`: observation-over-observation jumps (tune with `--pct-threshold`). **Note**: currently uses a global 30% threshold for all quote types. BFLY/SSW/RC have naturally higher day-to-day volatility than PAR/FWD — a per-quote-type calibration (tighter for PAR, wider for BFLY) would reduce false positives. Needs data analysis before implementation.
 
 ### Re-Pull
 
@@ -355,11 +352,11 @@ Upsert is idempotent — safe to re-run dates that already have data.
 ### Quick Reference
 
 ```bash
-python -m scripts.rates.health.rates_fact_observation_report --year 2026
+python -m scripts.rates.clean.clean_rates_fact_observation --section all --year 2026
 python -m scripts.rates.clean.clean_rates_fact_observation --year 2026
 # Re-pull any gap dates:
 python -m scripts.run_pipeline rates.historical --start YYYY-MM-DD --end YYYY-MM-DD --quotes par
-python -m scripts.rates.health.rates_fact_observation_report --year 2026
+python -m scripts.rates.clean.clean_rates_fact_observation --section all --year 2026
 python -m scripts.rates.clean.clean_rates_fact_observation --year 2026
 python -m scripts.rates.clean.clean_rates_fact_observation --year 2026 --execute
 ```
@@ -391,10 +388,8 @@ python -m scripts.rates.clean.clean_rates_fact_observation --year 2026 --execute
 | `fx/citi/fx_vol_citi_historical.py` | Backfill FX vol | Manual |
 | `fx/citi/fx_citivelocity_live.py` | Legacy spot rates from Citi (deprecated) | — |
 | `fx/citi/fx_citivelocity_historical.py` | Legacy spot rates backfill (deprecated) | — |
-| `fx/clean/clean_fx_fact_ohlc.py` | FX OHLC cleaning (5 rules) | Manual / via `imdr_clean.py` |
-| `fx/clean/clean_fx_fact_vol.py` | FX Vol cleaning (3 rules) | Manual / via `imdr_clean.py` |
-| `fx/health/fx_ohlc_report.py` | FX OHLC diagnostic report (health, coverage, quality) | Manual |
-| `fx/health/fx_vol_report.py` | FX Vol diagnostic report | Manual |
+| `fx/clean/clean_fx_fact_ohlc.py` | FX OHLC cleaning + diagnostics (5 rules, `--section clean\|health\|coverage\|quality\|all`) | Manual / via `imdr_clean.py` |
+| `fx/clean/clean_fx_fact_vol.py` | FX Vol cleaning + diagnostics (3 rules, `--section clean\|health\|coverage\|quality\|all`) | Manual / via `imdr_clean.py` |
 
 ### Rates Domain (`scripts/rates/`)
 
@@ -402,8 +397,7 @@ python -m scripts.rates.clean.clean_rates_fact_observation --year 2026 --execute
 |--------|---------|------------|
 | `rates/citi/rates_citi_live.py` | Daily EOD rates ingest from Citi Velocity | Via `imdr_daily.py` |
 | `rates/citi/rates_citi_historical.py` | Backfill rates (date range, quote types) | Manual |
-| `rates/clean/clean_rates_fact_observation.py` | Rates cleaning (3 rules) | Manual / via `imdr_clean.py` |
-| `rates/health/rates_fact_observation_report.py` | Rates diagnostic report | Manual |
+| `rates/clean/clean_rates_fact_observation.py` | Rates cleaning + diagnostics (3 rules, `--section clean\|health\|coverage\|quality\|all`) | Manual / via `imdr_clean.py` |
 
 ### Exploration (`scripts/explore/`) — one-time, cached, DO NOT re-run
 

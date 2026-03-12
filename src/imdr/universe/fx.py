@@ -28,6 +28,9 @@ class VolQualityParsed:
     """
 
     ranges: dict[tuple[str, str], tuple[float, float]] = field(default_factory=dict)
+    abs_change_thresholds: dict[str, float] = field(default_factory=dict)
+    abs_change_vol_types: dict[str, float] = field(default_factory=dict)
+    pct_thresholds: dict[str, dict[str, float]] = field(default_factory=dict)
 
 
 class SeriesConfig(BaseModel):
@@ -66,6 +69,9 @@ class VolQualityConfig(BaseModel):
     """
 
     ranges: dict[str, dict[str, dict[str, float]]] = {}
+    abs_change_thresholds: dict[str, float] = {}
+    abs_change_vol_types: dict[str, float] = {}
+    pct_thresholds: dict[str, dict[str, float]] = {}
 
 
 class VolConfig(BaseModel):
@@ -266,7 +272,12 @@ class FXUniverse(BaseUniverse):
         for strike, vol_types in cfg.ranges.items():
             for vol_type, bounds in vol_types.items():
                 ranges[(strike, vol_type)] = (bounds["min"], bounds["max"])
-        return VolQualityParsed(ranges=ranges)
+        return VolQualityParsed(
+            ranges=ranges,
+            abs_change_thresholds=dict(cfg.abs_change_thresholds),
+            abs_change_vol_types=dict(cfg.abs_change_vol_types),
+            pct_thresholds={k: dict(v) for k, v in cfg.pct_thresholds.items()},
+        )
 
     def vol_pair_create_entries(self) -> list[FXCurrencyPairCreate]:
         """Build FXCurrencyPairCreate entries for dim seeding."""

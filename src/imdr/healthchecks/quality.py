@@ -746,6 +746,12 @@ class PercentageChangeCheck(QualityCheck):
     Uses LAG() partitioned by group columns ordered by timestamp.
     Default partition: (symbol, series). Override with group_columns for
     domains that partition differently (e.g. vol: pair_id, strike, tenor).
+
+    Args:
+        min_abs_value: Minimum ``ABS(prev_val)`` to apply percentage check.
+            Rows where the previous value is smaller than this are skipped,
+            avoiding misleading percentages on near-zero denominators
+            (e.g. risk reversals that cross zero).  Default 0.0 (no filter).
     """
 
     def __init__(
@@ -757,6 +763,7 @@ class PercentageChangeCheck(QualityCheck):
         threshold_pct: float = 5.0,
         max_rows: int = 50,
         group_columns: list[str] | None = None,
+        min_abs_value: float = 0.0,
     ) -> None:
         self._value_col = value_column
         self._symbol_col = symbol_column
@@ -765,11 +772,16 @@ class PercentageChangeCheck(QualityCheck):
         self._threshold = threshold_pct
         self._max_rows = max_rows
         self._group_cols = group_columns or [symbol_column, series_column]
+        self._min_abs_value = min_abs_value
 
     def run(self, reader: AnalyticalReader, table: str,
             where: str = "", params: dict[str, Any] | None = None) -> QualityResult:
         partition = ", ".join(f"[{c}]" for c in self._group_cols)
         select_cols = ", ".join(f"[{c}]" for c in self._group_cols)
+        min_abs_filter = (
+            f"AND ABS(prev_val) >= {self._min_abs_value}"
+            if self._min_abs_value > 0 else ""
+        )
         sql = f"""
             WITH with_prev AS (
                 SELECT [{self._ts_col}], {select_cols},
@@ -790,6 +802,7 @@ class PercentageChangeCheck(QualityCheck):
             FROM with_prev
             WHERE prev_val IS NOT NULL
               AND prev_val != 0
+              {min_abs_filter}
               AND ABS(([{self._value_col}] - prev_val) / ABS(prev_val) * 100.0)
                   > {self._threshold}
             ORDER BY ABS(([{self._value_col}] - prev_val) / ABS(prev_val) * 100.0) DESC

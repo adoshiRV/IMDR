@@ -34,22 +34,20 @@ from imdr.healthchecks.reporter import HealthReporter
 from imdr.notifications.email import send_outlook_email
 from imdr.notifications.formatters.weekly_dashboard import WeeklyDashboardFormatter
 
-# Domain builders — single source of truth
-from scripts.fx.health.fx_ohlc_report import (
+# Domain builders — single source of truth (all from cleaning CLIs)
+from scripts.fx.clean.clean_fx_fact_ohlc import (
     build_health_checks as ohlc_health_checks,
     build_quality_checks as ohlc_quality_checks,
+    build_cleaning_rules as ohlc_cleaning_rules,
 )
-from scripts.fx.clean.clean_fx_fact_ohlc import build_cleaning_rules as ohlc_cleaning_rules
-from scripts.fx.health.fx_vol_report import (
+from scripts.fx.clean.clean_fx_fact_vol import (
     build_health_checks as vol_health_checks,
     build_quality_checks as vol_quality_checks,
-)
-from scripts.fx.clean.clean_fx_fact_vol import build_cleaning_rules as vol_cleaning_rules
-from scripts.rates.health.rates_fact_observation_report import (
-    build_health_checks as rates_health_checks,
-    build_quality_checks as rates_quality_checks,
+    build_cleaning_rules as vol_cleaning_rules,
 )
 from scripts.rates.clean.clean_rates_fact_observation import (
+    build_health_checks as rates_health_checks,
+    build_quality_checks as rates_quality_checks,
     build_cleaning_rules as rates_cleaning_rules,
 )
 

@@ -60,6 +60,7 @@ pipelines:
       n_mad: 6.0
       trailing_months: 3
       pct_threshold: 5.0
+      min_obs: 100
     sources:
       bidfx:
         type: rest
@@ -94,6 +95,7 @@ pipelines:
       n_mad: 4.0
       trailing_months: 12
       pct_threshold: 30.0
+      min_obs: 30
     sources:
       citivelocity:
         type: rest
@@ -129,6 +131,7 @@ pipelines:
       n_mad: 4.0
       trailing_months: 12
       pct_threshold: 30.0
+      min_obs: 30
     sources:
       citivelocity:
         type: rest

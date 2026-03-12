@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "imdr-db": {
+      "command": "C:/Users/adoshi/.conda/envs/imdr/python.exe",
+      "args": ["mcp/server.py"]
+    }
+  }
+}

@@ -117,22 +117,22 @@ python -m scripts.fx.clean.clean_fx_fact_ohlc --emit-gaps data/gaps/cleaning_gap
 | `--batch-size` | 500 | UPDATE batch size |
 | `--emit-gaps` | off | Write flagged timestamps to file for re-pull |
 
-### Diagnostics Report — `scripts/fx/health/fx_ohlc_report.py`
+### Diagnostics — via Cleaning CLI
 
-Comprehensive health/quality report.
+The cleaning script doubles as the single diagnostic tool. Use `--section` to run health, coverage, or quality checks without applying any corrections.
 
 ```bash
-python -m scripts.fx.health.fx_ohlc_report                   # full report
-python -m scripts.fx.health.fx_ohlc_report --year 2026       # filter by year
-python -m scripts.fx.health.fx_ohlc_report --section health  # single section
-python -m scripts.fx.health.fx_ohlc_report --section missing
-python -m scripts.fx.health.fx_ohlc_report --section quality --sigma 3
-python -m scripts.fx.health.fx_ohlc_report --basis-threshold 5.0
+python -m scripts.fx.clean.clean_fx_fact_ohlc --section all                         # full report (all sections)
+python -m scripts.fx.clean.clean_fx_fact_ohlc --section all --year 2026             # filter by year
+python -m scripts.fx.clean.clean_fx_fact_ohlc --section health                      # health checks only
+python -m scripts.fx.clean.clean_fx_fact_ohlc --section coverage                    # coverage gaps
+python -m scripts.fx.clean.clean_fx_fact_ohlc --section quality                     # quality checks
+python -m scripts.fx.clean.clean_fx_fact_ohlc --section quality --basis-threshold 5.0
 ```
 
-**Sections:**
+**Sections (`--section clean|health|coverage|quality|all`, default: clean):**
 1. **Health** — per-year row counts, null checks, duplicates, freshness
-2. **Missing** — per-symbol coverage gaps, market-hours-aware analysis
+2. **Coverage** — per-symbol coverage gaps, market-hours-aware analysis
 3. **Quality** — positive values, bid/ask order, symbol ranges, distribution stats, statistical + robust outliers
 
 ---
@@ -159,7 +159,7 @@ Implementation: `_build_quality_checks()` in `src/imdr/domains/fx/ingest.py`, us
 
 Used by both post-ingest checks and batch cleaning. Operates **per (symbol, series)** — e.g. USDTHB SPOT and USDTHB NDF_1M are evaluated independently.
 
-**Parameters:** 4 MAD threshold, 12-month trailing window, minimum 100 observations.
+**Parameters:** 4 MAD threshold, 12-month trailing window, `min_obs: 100` (configurable via `pipelines.yml`).
 
 **Algorithm:**
 
@@ -317,25 +317,26 @@ Higher-priority currency is the base. Example: `EURUSD` (not USDEUR), `USDJPY` (
 |---|---|
 | `scripts/fx/citi/fx_vol_citi_live.py` | Daily EOD vol ingest + email report |
 | `scripts/fx/citi/fx_vol_citi_historical.py` | Historical backfill of vol data |
-| `scripts/fx/health/fx_vol_report.py` | Diagnostic report (health, coverage, quality) |
-| `scripts/fx/clean/clean_fx_fact_vol.py` | Batch cleaning CLI (dry-run default) |
+| `scripts/fx/clean/clean_fx_fact_vol.py` | Cleaning + diagnostics CLI (`--section clean|health|coverage|quality|all`) |
 
-### FX Vol Diagnostics — `scripts/fx/health/fx_vol_report.py`
+### FX Vol Diagnostics & Cleaning — `scripts/fx/clean/clean_fx_fact_vol.py`
+
+The cleaning script is the single diagnostic tool for FX vol. Use `--section` to run specific checks.
 
 ```bash
-python -m scripts.fx.health.fx_vol_report                    # full report
-python -m scripts.fx.health.fx_vol_report --year 2026        # filter by year
-python -m scripts.fx.health.fx_vol_report --section health   # single section
-python -m scripts.fx.health.fx_vol_report --section coverage
-python -m scripts.fx.health.fx_vol_report --section quality --sigma 4
+python -m scripts.fx.clean.clean_fx_fact_vol --section all                          # full report (all sections)
+python -m scripts.fx.clean.clean_fx_fact_vol --section all --year 2026              # filter by year
+python -m scripts.fx.clean.clean_fx_fact_vol --section health                       # health checks only
+python -m scripts.fx.clean.clean_fx_fact_vol --section coverage                     # coverage analysis
+python -m scripts.fx.clean.clean_fx_fact_vol --section quality                      # quality checks
 ```
 
-**Sections:**
+**Sections (`--section clean|health|coverage|quality|all`, default: clean):**
 1. **Health** — per-year row counts, null checks, duplicates, freshness, value ranges
 2. **Coverage** — per-pair date coverage, strike×tenor grid completeness, row counts
 3. **Quality** — composite range checks (strike+vol_type bounds), robust outliers, percentage change, distribution
 
-### FX Vol Cleaning — `scripts/fx/clean/clean_fx_fact_vol.py`
+### FX Vol Cleaning
 
 ```bash
 python -m scripts.fx.clean.clean_fx_fact_vol                           # dry-run, full table
@@ -349,8 +350,8 @@ python -m scripts.fx.clean.clean_fx_fact_vol --n-mad 5.0               # MAD mul
 | Rule | Detection | Correction |
 |---|---|---|
 | **Hard bound violation** | `value` outside per-(strike, vol_type) bounds from `fx.yml` | NULL value |
-| **Robust outlier** | z > N MAD (12-month rolling, group by pair_id+strike+tenor) | NULL value |
-| **Percentage change** | Day-over-day > threshold (group by pair_id+strike+tenor) | NULL value |
+| **Robust outlier** | z > N MAD (12-month rolling, group by pair_id+strike+tenor+vol_type) | NULL value |
+| **Percentage change** | 3-tier day-over-day: (1) absolute vol-point thresholds for signed/small strikes, (2) class×tenor pct matrix from `fx.yml`, (3) fallback 30%. `min_abs_prev=0.5` | NULL value |
 
 ### FX Vol Quality Ranges
 

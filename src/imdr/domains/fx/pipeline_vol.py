@@ -171,6 +171,7 @@ class FXVolPipeline(BasePipeline[pd.DataFrame, list[FXVolCreate], int]):
         )
 
         vol_quality = self._universe.vol_quality_config()
+        cleaning = self._config.cleaning
         reader = AnalyticalReader(self._connector)
         table = self._config.fully_qualified_table
         where = (
@@ -186,20 +187,23 @@ class FXVolPipeline(BasePipeline[pd.DataFrame, list[FXVolCreate], int]):
                 value_column="value",
             ),
             # 2. Day-over-day % change — flag unusual vol moves
+            #    min_abs_value=0.5 skips near-zero prev values (RR/STR)
+            #    where pct change is meaningless
             PercentageChangeCheck(
                 value_column="value",
-                symbol_column="pair_id",
-                series_column="strike",
+                group_columns=["pair_id", "strike", "tenor", "vol_type"],
                 ts_column=self._config.date_column,
-                threshold_pct=vol_quality.pct_change_threshold,
+                threshold_pct=cleaning.pct_threshold,
+                min_abs_value=0.5,
             ),
             # 3. Robust outlier detection — MAD-based (fat-tail resistant)
             RobustStatisticalOutlierCheck(
                 value_column="value",
-                group_columns=["pair_id", "strike", "tenor"],
-                n_mad=vol_quality.outlier_n_mad,
-                trailing_months=vol_quality.outlier_trailing_months,
+                group_columns=["pair_id", "strike", "tenor", "vol_type"],
+                n_mad=cleaning.n_mad,
+                trailing_months=cleaning.trailing_months,
                 ts_column=self._config.date_column,
+                min_obs=cleaning.min_obs,
             ),
         ]
 
