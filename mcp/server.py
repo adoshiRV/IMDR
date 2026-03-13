@@ -14,23 +14,54 @@ import os
 import re
 import sys
 import time
+import traceback
 from pathlib import Path
 
 # Add src/ so imdr.* imports work when run as a standalone script.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from mcp.server.fastmcp import FastMCP
-from sqlalchemy import text
+# ── Diagnostic: log every unhandled exception to stderr ───────
+# MCP clients (Claude Desktop, etc.) capture stderr in their log
+# files, so this ensures you can see the real traceback.
 
-from imdr.config.settings import Settings
-from imdr.connectors.mssql import MSSQLConnector
-from imdr.connectors.reader import _validate_column
+print("[imdr-mcp] server.py loading…", file=sys.stderr)
+
+try:
+    from mcp.server.fastmcp import FastMCP
+    from sqlalchemy import text
+    from imdr.config.settings import Settings
+    from imdr.connectors.mssql import MSSQLConnector
+    from imdr.connectors.reader import _validate_column
+    print("[imdr-mcp] imports OK", file=sys.stderr)
+except Exception:
+    traceback.print_exc(file=sys.stderr)
+    sys.exit(1)
 
 # ── Singleton infrastructure ──────────────────────────────────
 
-_settings = Settings()
-_connector = MSSQLConnector(_settings)
-_MCP_USER = os.getlogin()
+try:
+    _settings = Settings()
+    print(f"[imdr-mcp] Settings loaded: db_host={getattr(_settings, 'db_host', '?')}", file=sys.stderr)
+except Exception:
+    print("[imdr-mcp] FATAL: Settings() failed", file=sys.stderr)
+    traceback.print_exc(file=sys.stderr)
+    sys.exit(1)
+
+try:
+    _connector = MSSQLConnector(_settings)
+    print("[imdr-mcp] MSSQLConnector created", file=sys.stderr)
+except Exception:
+    print("[imdr-mcp] FATAL: MSSQLConnector() failed", file=sys.stderr)
+    traceback.print_exc(file=sys.stderr)
+    sys.exit(1)
+
+try:
+    _MCP_USER = os.getlogin()
+except OSError:
+    _MCP_USER = os.environ.get("USERNAME", os.environ.get("USER", "unknown"))
+    print(f"[imdr-mcp] os.getlogin() failed, using fallback: {_MCP_USER}", file=sys.stderr)
+
+print(f"[imdr-mcp] startup complete — user={_MCP_USER}", file=sys.stderr)
 
 # ── SQL safety ────────────────────────────────────────────────
 
@@ -151,9 +182,18 @@ def describe_table(schema: str, table: str) -> str:
         if not cols:
             return f"Table {schema}.{table} not found."
 
+        # SUM(rows) from sys.partitions is instant vs COUNT(*) full scan,
+        # and avoids f-string identifier interpolation entirely.
         count = conn.execute(
-            text(f"SELECT COUNT(*) FROM [{schema}].[{table}]")
-        ).scalar()
+            text(
+                "SELECT SUM(p.rows) "
+                "FROM sys.partitions p "
+                "JOIN sys.tables t ON p.object_id = t.object_id "
+                "JOIN sys.schemas s ON t.schema_id = s.schema_id "
+                "WHERE s.name = :s AND t.name = :t AND p.index_id IN (0, 1)"
+            ),
+            {"s": schema, "t": table},
+        ).scalar() or 0
 
     lines = [f"{schema}.{table}  ({count:,} rows)", ""]
     for r in cols:
@@ -168,6 +208,26 @@ def describe_table(schema: str, table: str) -> str:
     return "\n".join(lines)
 
 
+_QUERY_TIMEOUT_S = 30  # hard cap on MCP query execution time
+
+
+def _inject_top(sql: str, max_rows: int) -> str:
+    """Inject TOP(N) into SELECT to limit work at the SQL Server level.
+
+    Handles plain SELECT and WITH ... SELECT (injects into final SELECT).
+    If TOP is already present, returns sql unchanged.
+    """
+    if re.search(r"\bTOP\s*\(?\s*\d+", sql, re.IGNORECASE):
+        return sql  # user already specified TOP
+
+    # Find the last SELECT (covers WITH ... AS (...) SELECT ...)
+    parts = list(re.finditer(r"\bSELECT\b(?:\s+DISTINCT)?", sql, re.IGNORECASE))
+    if not parts:
+        return sql
+    last = parts[-1]
+    return sql[: last.end()] + f" TOP({max_rows})" + sql[last.end() :]
+
+
 @mcp.tool()
 def query(sql: str, max_rows: int = 500) -> str:
     """Execute a read-only SELECT query against IMDR.
@@ -176,10 +236,14 @@ def query(sql: str, max_rows: int = 500) -> str:
     max_rows defaults to 500. Only SELECT / WITH queries are permitted.
     """
     _assert_readonly(sql)
+    sql = _inject_top(sql, max_rows)
 
     start = time.perf_counter()
     try:
         with _connector.read_engine.connect() as conn:
+            # Set ODBC-level command timeout (seconds) to prevent runaway queries
+            raw_conn = conn.connection.dbapi_connection
+            raw_conn.timeout = _QUERY_TIMEOUT_S
             result = conn.execute(text(sql))
             cols = [d[0] for d in result.cursor.description]
             rows = result.fetchmany(max_rows)
@@ -217,4 +281,5 @@ def query(sql: str, max_rows: int = 500) -> str:
 
 
 if __name__ == "__main__":
+    print("[imdr-mcp] calling mcp.run()", file=sys.stderr)
     mcp.run()

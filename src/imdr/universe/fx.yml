@@ -135,9 +135,15 @@ vol:
     - 10STR
     - STRIKE_C25
     - STRIKE_P25
+    - STRIKE_C10
+    - STRIKE_P10
+    - STRIKE_C35
+    - STRIKE_P35
 
   tenors:
+    - "ON"
     - 1W
+    - 2W
     - 1M
     - 2M
     - 3M
@@ -145,7 +151,9 @@ vol:
     - 9M
     - 1Y
     - 2Y
+    - 3Y
     - 5Y
+    - 7Y
     - 10Y
 
   # ATM has 3 leaf types; all others have only IMPLIED
@@ -175,6 +183,14 @@ vol:
         IMPLIED: { min: 0.5, max: 80.0 }
       STRIKE_P25:
         IMPLIED: { min: 0.5, max: 80.0 }
+      STRIKE_C10:
+        IMPLIED: { min: 0.5, max: 80.0 }
+      STRIKE_P10:
+        IMPLIED: { min: 0.5, max: 80.0 }
+      STRIKE_C35:
+        IMPLIED: { min: 0.5, max: 80.0 }
+      STRIKE_P35:
+        IMPLIED: { min: 0.5, max: 80.0 }
     # Absolute change thresholds for signed/small-magnitude strikes.
     # Percentage change is meaningless when values cross zero (RR) or are
     # near-zero (STR short tenors).  These strikes use absolute vol-point
@@ -194,7 +210,9 @@ vol:
     # Falls back to pipelines.yml pct_threshold (30.0) for unmapped combos.
     pct_thresholds:
       g10:
+        "ON": 90.0
         1W: 75.0
+        2W: 65.0
         1M: 60.0
         2M: 50.0
         3M: 45.0
@@ -202,10 +220,14 @@ vol:
         9M: 30.0
         1Y: 25.0
         2Y: 20.0
+        3Y: 19.0
         5Y: 18.0
+        7Y: 16.0
         10Y: 15.0
       em_ndf:
+        "ON": 120.0
         1W: 100.0
+        2W: 85.0
         1M: 80.0
         2M: 65.0
         3M: 55.0
@@ -213,10 +235,14 @@ vol:
         9M: 40.0
         1Y: 35.0
         2Y: 30.0
+        3Y: 27.0
         5Y: 25.0
+        7Y: 22.0
         10Y: 20.0
       em_deliverable:
+        "ON": 100.0
         1W: 85.0
+        2W: 75.0
         1M: 70.0
         2M: 55.0
         3M: 50.0
@@ -224,7 +250,9 @@ vol:
         9M: 35.0
         1Y: 30.0
         2Y: 25.0
+        3Y: 22.0
         5Y: 20.0
+        7Y: 19.0
         10Y: 18.0
     # Statistical params (n_mad, trailing_months, pct_threshold) are in
     # pipelines.yml under fx.vol.cleaning — single source of truth for
