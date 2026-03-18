@@ -14,7 +14,7 @@ Connect Claude Desktop to the IMDR database so you can query market data directl
 Open a terminal and run:
 
 ```bash
-cd Z:\Business\Personnel\Arjun\claude_set_up_user
+cd Z:\Business\Personnel\Arjun\GitHub\IMDR\docs\claude_desktop
 conda env create -f environment.yml
 ```
 
