@@ -110,6 +110,22 @@ Claude cannot modify data — all INSERT, UPDATE, DELETE, and DDL operations are
 - Make sure the `command` path points to your actual Python executable
 - Fully quit and restart Claude Desktop (not just close the window)
 
+### "Server disconnected" / server crashes on startup
+
+Check the MCP log file at `C:\Users\<YourUsername>\AppData\Roaming\Claude\logs\mcp-server-imdr-db.log` for details.
+
+**Common causes:**
+
+1. **Wrong Python path (ENOENT error)** — The `command` path in your config must point to **your own** Python executable, not someone else's. Run `conda activate imdr-mcp && where python` and use that exact path with forward slashes (e.g., `C:/Users/yourname/.conda/envs/imdr-mcp/python.exe`).
+
+2. **Server times out during startup** — Claude Desktop gives the MCP server ~5 seconds to respond to the `initialize` handshake. If the server is loading Python modules from the `Z:\` network share, this can be too slow. The server (`mcp/server.py`) is intentionally self-contained to avoid this — it does not import from the `imdr` package (which would pull in `pandas`, `structlog`, etc.). If you see `server.py loading` in the log but no `imports OK`, a required package is missing from the `imdr-mcp` conda env.
+
+3. **Missing packages** — The server needs: `mcp`, `sqlalchemy`, `pyodbc`, `pydantic-settings`, `python-dotenv`. If any are missing, you'll see `server.py loading` in the log then a disconnect. Fix with:
+   ```bash
+   conda activate imdr-mcp
+   pip install mcp sqlalchemy pydantic-settings python-dotenv pyodbc
+   ```
+
 ### Connection error
 - Verify you're on the office network or VPN
 - Check that your Windows account has access to the IMDR database
@@ -127,3 +143,14 @@ Claude cannot modify data — all INSERT, UPDATE, DELETE, and DDL operations are
 ### Environment issues
 - If `conda env create` fails, make sure you can reach `Z:\` drive
 - If packages fail to install, try: `conda activate imdr-mcp && pip install mcp sqlalchemy pydantic-settings python-dotenv pyodbc`
+
+### Debugging the server manually
+
+To see the exact error the server produces, run it from a terminal:
+
+```bash
+conda activate imdr-mcp
+python Z:/Business/Personnel/Arjun/GitHub/IMDR/mcp/server.py
+```
+
+You should see all startup messages up to `calling mcp.run()`. If it stops earlier, the last message tells you what failed. You can also check the log at the path above for the stderr output Claude Desktop captures.

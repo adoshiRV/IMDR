@@ -6,6 +6,11 @@ Exposes three tools:
   - query:          execute read-only SELECT queries
 
 All queries via the `query` tool are audit-logged to [admin].[mcp_query_log].
+
+NOTE: This file is intentionally self-contained.  It does NOT import from
+the imdr package (which pulls in pandas, structlog, etc.) so that startup
+stays fast enough for Claude Desktop's ~5-second init timeout — especially
+when the repo lives on a network share (Z:\).
 """
 
 from __future__ import annotations
@@ -15,43 +20,69 @@ import re
 import sys
 import time
 import traceback
-from pathlib import Path
-
-# Add src/ so imdr.* imports work when run as a standalone script.
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-
-# ── Diagnostic: log every unhandled exception to stderr ───────
-# MCP clients (Claude Desktop, etc.) capture stderr in their log
-# files, so this ensures you can see the real traceback.
 
 print("[imdr-mcp] server.py loading…", file=sys.stderr)
 
 try:
     from mcp.server.fastmcp import FastMCP
-    from sqlalchemy import text
-    from imdr.config.settings import Settings
-    from imdr.connectors.mssql import MSSQLConnector
-    from imdr.connectors.reader import _validate_column
+    from sqlalchemy import create_engine, text
+    from sqlalchemy.engine import Engine
+    from sqlalchemy.orm import Session, sessionmaker
     print("[imdr-mcp] imports OK", file=sys.stderr)
 except Exception:
     traceback.print_exc(file=sys.stderr)
     sys.exit(1)
 
-# ── Singleton infrastructure ──────────────────────────────────
+
+# ── Settings (inline — avoids importing imdr.config.settings) ────
+
+def _load_env_file() -> None:
+    """Best-effort load of .env from the project root into os.environ."""
+    from pathlib import Path
+    env_path = Path(__file__).resolve().parent.parent / ".env"
+    if not env_path.exists():
+        return
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        os.environ.setdefault(key.strip(), value.strip())
+
 
 try:
-    _settings = Settings()
-    print(f"[imdr-mcp] Settings loaded: db_host={getattr(_settings, 'db_host', '?')}", file=sys.stderr)
+    _load_env_file()
+    _DB_HOST = os.environ.get("IMDR_MSSQL_HOST", "localhost")
+    _DB_PORT = os.environ.get("IMDR_MSSQL_PORT", "1433")
+    _DB_NAME = os.environ.get("IMDR_MSSQL_DATABASE", "IMDR")
+    _DB_DRIVER = os.environ.get("IMDR_MSSQL_DRIVER", "ODBC+Driver+17+for+SQL+Server")
+    _CONN_URL = (
+        f"mssql+pyodbc://@{_DB_HOST}:{_DB_PORT}/{_DB_NAME}"
+        f"?driver={_DB_DRIVER}&Trusted_Connection=yes"
+    )
+    print(f"[imdr-mcp] Settings loaded: host={_DB_HOST}", file=sys.stderr)
 except Exception:
-    print("[imdr-mcp] FATAL: Settings() failed", file=sys.stderr)
+    print("[imdr-mcp] FATAL: Settings load failed", file=sys.stderr)
     traceback.print_exc(file=sys.stderr)
     sys.exit(1)
 
+
+# ── Database engine (inline — avoids importing imdr.connectors) ──
+
 try:
-    _connector = MSSQLConnector(_settings)
-    print("[imdr-mcp] MSSQLConnector created", file=sys.stderr)
+    _engine: Engine = create_engine(
+        _CONN_URL,
+        pool_size=5,
+        max_overflow=10,
+        pool_timeout=30,
+        pool_pre_ping=True,
+        echo=False,
+        use_setinputsizes=False,
+    )
+    _session_factory = sessionmaker(bind=_engine, expire_on_commit=False)
+    print("[imdr-mcp] Engine created", file=sys.stderr)
 except Exception:
-    print("[imdr-mcp] FATAL: MSSQLConnector() failed", file=sys.stderr)
+    print("[imdr-mcp] FATAL: Engine creation failed", file=sys.stderr)
     traceback.print_exc(file=sys.stderr)
     sys.exit(1)
 
@@ -63,7 +94,10 @@ except OSError:
 
 print(f"[imdr-mcp] startup complete — user={_MCP_USER}", file=sys.stderr)
 
+
 # ── SQL safety ────────────────────────────────────────────────
+
+_COLUMN_RE = re.compile(r"^[\w]+$")
 
 _DML_DDL_RE = re.compile(
     r"\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|"
@@ -71,6 +105,12 @@ _DML_DDL_RE = re.compile(
     re.IGNORECASE,
 )
 _DANGEROUS_RE = re.compile(r"(--|/\*|\bxp_|\bsp_)")
+
+
+def _validate_column(value: str, label: str) -> None:
+    """Ensure a column/schema/table name is a simple word."""
+    if not _COLUMN_RE.match(value):
+        raise ValueError(f"Invalid {label}: {value!r}. Expected alphanumeric name.")
 
 
 def _assert_readonly(sql: str) -> None:
@@ -94,7 +134,8 @@ def _log_query(
 ) -> None:
     """Best-effort INSERT into [admin].[mcp_query_log]. Never raises."""
     try:
-        with _connector.session() as session:
+        session = _session_factory()
+        try:
             session.execute(
                 text(
                     "INSERT INTO [admin].[mcp_query_log] "
@@ -109,6 +150,11 @@ def _log_query(
                     "err": str(error)[:2000] if error else None,
                 },
             )
+            session.commit()
+        except Exception:
+            session.rollback()
+        finally:
+            session.close()
     except Exception:
         pass  # audit logging must never break a query
 
@@ -134,7 +180,7 @@ mcp = FastMCP("imdr-db", instructions=INSTRUCTIONS)
 @mcp.tool()
 def list_tables(schema: str = "") -> str:
     """List all tables in IMDR, optionally filtered by schema name."""
-    with _connector.read_engine.connect() as conn:
+    with _engine.connect() as conn:
         if schema:
             _validate_column(schema, "schema")
             rows = conn.execute(
@@ -167,7 +213,7 @@ def describe_table(schema: str, table: str) -> str:
     _validate_column(schema, "schema")
     _validate_column(table, "table")
 
-    with _connector.read_engine.connect() as conn:
+    with _engine.connect() as conn:
         cols = conn.execute(
             text(
                 "SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, "
@@ -182,8 +228,6 @@ def describe_table(schema: str, table: str) -> str:
         if not cols:
             return f"Table {schema}.{table} not found."
 
-        # SUM(rows) from sys.partitions is instant vs COUNT(*) full scan,
-        # and avoids f-string identifier interpolation entirely.
         count = conn.execute(
             text(
                 "SELECT SUM(p.rows) "
@@ -212,15 +256,9 @@ _QUERY_TIMEOUT_S = 30  # hard cap on MCP query execution time
 
 
 def _inject_top(sql: str, max_rows: int) -> str:
-    """Inject TOP(N) into SELECT to limit work at the SQL Server level.
-
-    Handles plain SELECT and WITH ... SELECT (injects into final SELECT).
-    If TOP is already present, returns sql unchanged.
-    """
+    """Inject TOP(N) into SELECT to limit work at the SQL Server level."""
     if re.search(r"\bTOP\s*\(?\s*\d+", sql, re.IGNORECASE):
-        return sql  # user already specified TOP
-
-    # Find the last SELECT (covers WITH ... AS (...) SELECT ...)
+        return sql
     parts = list(re.finditer(r"\bSELECT\b(?:\s+DISTINCT)?", sql, re.IGNORECASE))
     if not parts:
         return sql
@@ -240,8 +278,7 @@ def query(sql: str, max_rows: int = 500) -> str:
 
     start = time.perf_counter()
     try:
-        with _connector.read_engine.connect() as conn:
-            # Set ODBC-level command timeout (seconds) to prevent runaway queries
+        with _engine.connect() as conn:
             raw_conn = conn.connection.dbapi_connection
             raw_conn.timeout = _QUERY_TIMEOUT_S
             result = conn.execute(text(sql))
@@ -254,12 +291,10 @@ def query(sql: str, max_rows: int = 500) -> str:
         if not rows:
             return "Query returned no rows."
 
-        # Format as aligned text table
         col_widths = [
             max(len(c), max(len(str(r[i])) for r in rows))
             for i, c in enumerate(cols)
         ]
-        # Cap column widths to keep output readable
         col_widths = [min(w, 60) for w in col_widths]
 
         header = " | ".join(c.ljust(col_widths[i]) for i, c in enumerate(cols))
@@ -273,7 +308,7 @@ def query(sql: str, max_rows: int = 500) -> str:
         return "\n".join([header, divider] + data) + f"\n\n{len(rows)} row(s) returned.{truncated}"
 
     except ValueError:
-        raise  # re-raise safety rejections
+        raise
     except Exception as e:
         elapsed_ms = int((time.perf_counter() - start) * 1000)
         _log_query(sql, 0, elapsed_ms, str(e))
@@ -282,4 +317,8 @@ def query(sql: str, max_rows: int = 500) -> str:
 
 if __name__ == "__main__":
     print("[imdr-mcp] calling mcp.run()", file=sys.stderr)
-    mcp.run()
+    try:
+        mcp.run()
+    except Exception:
+        traceback.print_exc(file=sys.stderr)
+        sys.exit(1)
