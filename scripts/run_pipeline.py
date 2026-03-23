@@ -159,6 +159,44 @@ def _build_fx_vol_pipeline(
     )
 
 
+def _build_rates_vol_pipeline(
+    connector: MSSQLConnector, args: argparse.Namespace
+) -> BasePipeline[Any, Any, Any]:
+    """Build a Rates Swaption Vol pipeline based on CLI args."""
+    from datetime import datetime, timezone
+
+    from imdr.domains.rates.pipeline_vol import RatesVolPipeline
+    from imdr.universe.rates import get_rates_universe
+
+    settings = get_settings()
+    universe = get_rates_universe()
+
+    if not hasattr(args, "start") or not args.start:
+        print("ERROR: --start is required for rates.vol")
+        sys.exit(1)
+    if not hasattr(args, "end") or not args.end:
+        print("ERROR: --end is required for rates.vol")
+        sys.exit(1)
+
+    start = datetime.strptime(args.start, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    end = datetime.strptime(args.end, "%Y-%m-%d").replace(
+        hour=23, minute=59, tzinfo=timezone.utc
+    )
+
+    currencies = None
+    if hasattr(args, "currencies") and args.currencies:
+        currencies = [c.strip().upper() for c in args.currencies.split(",")]
+
+    return RatesVolPipeline(
+        connector=connector,
+        settings=settings,
+        universe=universe,
+        start=start,
+        end=end,
+        currencies=currencies,
+    )
+
+
 # Registry maps pipeline names to their factory functions.
 # Add new pipelines here — no if-chain needed in main().
 PIPELINE_REGISTRY: dict[str, PipelineFactory] = {
@@ -166,6 +204,7 @@ PIPELINE_REGISTRY: dict[str, PipelineFactory] = {
     "fx.ohlc": _build_fx_ohlc_pipeline,
     "fx.vol": _build_fx_vol_pipeline,
     "rates.historical": _build_rates_historical_pipeline,
+    "rates.vol": _build_rates_vol_pipeline,
 }
 
 
@@ -180,6 +219,7 @@ def main() -> int:
     parser.add_argument("--quotes", type=str, help="Comma-separated quote types for rates.historical (par,spread,fwd)")
     parser.add_argument("--pairs", type=str, help="Comma-separated pairs for fx.vol (EUR/USD,GBP/USD)")
     parser.add_argument("--frequency", type=str, help="Data frequency (DAILY, HOURLY)")
+    parser.add_argument("--currencies", type=str, help="Comma-separated currencies for rates.vol (USD,EUR,JPY)")
     args = parser.parse_args()
 
     settings = get_settings()

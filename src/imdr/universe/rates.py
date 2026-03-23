@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -60,6 +61,29 @@ class CurveEntry(BaseModel):
     notes: str | None = None
 
 
+class VolQualityConfig(BaseModel):
+    ranges: dict[str, ExpectedRange] = {}
+    pct_change_threshold: float = 50.0
+    n_mad: float = 4.0
+    trailing_months: int = 12
+    min_obs: int = 30
+
+
+class VolConfig(BaseModel):
+    currencies: list[str] = []
+    rfr_currencies: list[str] = []
+    option_expiries: list[str] = []
+    swap_tenors: list[str] = []
+    atm_quote_types: list[str] = []
+    atm_rfr_quote_types_default: list[str] = []
+    atm_rfr_quote_types_usd: list[str] = []
+    realized_windows: list[str] = []
+    realized_freqs: list[str] = []
+    vol_ratio_windows: list[str] = []
+    tag_cache: str = "data/cache/rates/rates_vol_tree.json"
+    quality: VolQualityConfig = VolQualityConfig()
+
+
 class RatesUniverseConfig(BaseModel):
     currencies: CurrenciesConfig
     classifications: dict[str, str]
@@ -69,6 +93,7 @@ class RatesUniverseConfig(BaseModel):
     curves: list[CurveEntry]
     providers: dict[str, ProviderConfig]
     expected_ranges: dict[str, ExpectedRange] = {}
+    vol: VolConfig = VolConfig()
 
 
 # ── Universe class ───────────────────────────────────────────────
@@ -243,6 +268,87 @@ class RatesUniverse(BaseUniverse):
             target = set(self.target_currencies())
             return [c for c in swap_cfg.currencies if c in target]
         return swap_cfg.currencies
+
+    # ── Swaption Vol helpers ──────────────────────────────────────
+
+    @property
+    def vol(self) -> VolConfig:
+        return self._config.vol
+
+    def vol_currencies(self) -> list[str]:
+        return self._config.vol.currencies
+
+    def _load_vol_tag_cache(self) -> dict[str, list[str]]:
+        """Load the authoritative tag listing from the exploration cache.
+
+        Returns {ccy: [tag, tag, ...]} mapping.
+        """
+        if not hasattr(self, "_vol_tag_cache"):
+            cache_path = Path(self._config.vol.tag_cache)
+            if cache_path.exists():
+                raw = json.loads(cache_path.read_text(encoding="utf-8"))
+                self._vol_tag_cache: dict[str, list[str]] = raw.get("_tag_listings", {})
+            else:
+                self._vol_tag_cache = {}
+        return self._vol_tag_cache
+
+    def build_vol_tags(self, ccy: str) -> list[str]:
+        """Return exact Citi tags for a currency from the exploration cache.
+
+        The cache (data/cache/rates/rates_vol_tree.json) is the source of truth.
+        The API has per-data_type grid variations that a cartesian product cannot
+        model accurately (ATM.NORMAL uses ANNUAL/DAILY, RFR types have extra
+        expiries, some ccys have non-standard swap grids).
+        """
+        cache = self._load_vol_tag_cache()
+        return cache.get(ccy, [])
+
+    def vol_surface_create_entries(self) -> list[dict[str, Any]]:
+        """Derive dimension-seed entries from the actual tag cache.
+
+        Parses every cached tag to extract unique surface identifiers.
+        Returns list of dicts matching RatesVolSurfaceCreate fields.
+        """
+        from imdr.domains.rates.vol_translate import citi_rates_vol_tag_to_internal
+
+        rfr_set = set(self._config.vol.rfr_currencies)
+        seen: set[tuple[str, str, str, str, str]] = set()
+        entries: list[dict[str, Any]] = []
+
+        for ccy in self._config.vol.currencies:
+            for tag in self.build_vol_tags(ccy):
+                parsed = citi_rates_vol_tag_to_internal(tag)
+                if parsed is None:
+                    continue
+                key = (parsed["ccy"], parsed["data_type"], parsed["quote_type"],
+                       parsed["vol_window"], parsed["freq"])
+                if key in seen:
+                    continue
+                seen.add(key)
+                entries.append({
+                    "ccy": parsed["ccy"],
+                    "data_type": parsed["data_type"],
+                    "quote_type": parsed["quote_type"],
+                    "vol_window": parsed["vol_window"],
+                    "freq": parsed["freq"],
+                    "is_rfr": parsed["ccy"] in rfr_set and "_RFR" in parsed["data_type"],
+                })
+
+        return entries
+
+    def vol_quality_ranges(self) -> dict[tuple[str, str], tuple[float, float]]:
+        """Parse vol quality ranges into a flat dict for CompositeRangeCheck.
+
+        Returns {(data_type, quote_type): (min, max)} mapping.
+        For REALIZED/VOL_RATIO, key is (data_type, '').
+        """
+        result: dict[tuple[str, str], tuple[float, float]] = {}
+        for key, rng in self._config.vol.quality.ranges.items():
+            parts = key.split(".", 1)
+            dt = parts[0]
+            qt = parts[1] if len(parts) > 1 else ""
+            result[(dt, qt)] = (rng.min, rng.max)
+        return result
 
 
 @lru_cache(maxsize=1)

@@ -17,7 +17,7 @@ Each step references existing patterns from FX OHLC, FX Vol, and Rates.
  7. Health              Post-append checks (row count, nulls, dupes, freshness, range)
  8. Clean               Cleaning rules (hard bounds, outliers, pct change) + CLI script
  9. Quality             Quality checks (distribution, statistical, range) — in cleaning CLI
-10. Emailers            Formatter + Jinja2 template + dashboard integration
+10. Emailers (ESSENTIAL) Formatter + Jinja2 template + wire into live script + dashboard
 ```
 
 ---
@@ -545,9 +545,9 @@ def get_my_coverage(reader, table, years) -> CoverageData:
 
 ---
 
-## Step 10: Emailers
+## Step 10: Emailers (ESSENTIAL)
 
-**Goal**: Automated notifications for ingest results and weekly dashboard.
+**Goal**: Automated notifications for ingest results and weekly dashboard. This step is **not optional** — every pipeline must send post-ingest email reports. Without email notifications, silent failures go undetected until downstream consumers notice stale data.
 
 ### 10a. Ingest Formatter
 
@@ -630,8 +630,8 @@ Complete list of files to create/modify when adding a new product:
 | 12 | `scripts/{domain}/{provider}/{product}_live.py` | Live ingest CLI |
 | 13 | `scripts/{domain}/{provider}/{product}_historical.py` | Historical backfill CLI |
 | 14 | `scripts/{domain}/clean/clean_{table}.py` | Cleaning CLI (exports `build_cleaning_rules()`, `build_health_checks()`, `build_quality_checks()`) |
-| 15 | `src/imdr/notifications/formatters/{product}_ingest.py` | Email formatter |
-| 16 | `src/imdr/notifications/templates/{product}_ingest.html` | Email template |
+| 15 | `src/imdr/notifications/formatters/{product}_ingest.py` | Email formatter (ESSENTIAL) |
+| 16 | `src/imdr/notifications/templates/{product}_ingest.html` | Email template (ESSENTIAL) |
 | 17 | `tests/unit/test_{domain}_*.py` | Unit tests |
 
 ### Modified Files

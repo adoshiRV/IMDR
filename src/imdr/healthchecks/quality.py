@@ -271,7 +271,7 @@ class SymbolRangeCheck(QualityCheck):
             if detail_whens:
                 detail_filter = " OR ".join(detail_whens)
                 detail_sql = f"""
-                    SELECT TOP 20 ts, [{self._symbol_col}], series, [{self._value_col}], bid, ask
+                    SELECT TOP 20 ts, [{self._symbol_col}], [{self._value_col}]
                     FROM {table}
                     WHERE ({detail_filter}) {where}
                     ORDER BY ts

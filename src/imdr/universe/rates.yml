@@ -632,6 +632,47 @@ providers:
       max_daily_calls: 10000
     token_expiry_seconds: 3600
 
+# ── Swaption Vol Configuration ───────────────────────────────────
+# Full RATES.VOL cube: 38,056 tags across 11 currencies.
+# Tag formats:
+#   ATM/ATM_RFR:       RATES.VOL.{CCY}.{DT}.{QUOTE}.{EXPIRY}.{SWAP}
+#   REALIZED/REAL_RFR: RATES.VOL.{CCY}.{DT}.{WINDOW}.{FREQ}.{EXPIRY}.{SWAP}
+#   VOL_RATIO/VR_RFR:  RATES.VOL.{CCY}.{DT}.{WINDOW}.{EXPIRY}.{SWAP}
+
+vol:
+  currencies: [AUD, CHF, DKK, EUR, GBP, JPY, KRW, NOK, NZD, SEK, USD]
+  rfr_currencies: [CHF, EUR, GBP, JPY, USD]
+
+  option_expiries: [1M, 2M, 3M, 6M, 9M, 18M, 1Y, 2Y, 3Y, 4Y, 5Y, 7Y, 10Y, 12Y, 15Y, 20Y, 30Y]
+  swap_tenors: [3M, 1Y, 2Y, 3Y, 5Y, 7Y, 10Y, 15Y, 20Y, 30Y]
+
+  atm_quote_types: [BLACK, NORMAL, FWDPREMIUM, PREMIUM]
+  atm_rfr_quote_types_default: [FWDPREMIUM, NORMAL, PREMIUM]
+  atm_rfr_quote_types_usd: [BLACK, FWDPREMIUM, NORMAL, PREMIUM]
+
+  realized_windows: [1M, 3M, 6M, 1Y]
+  realized_freqs: [ANNUAL, DAILY]
+  vol_ratio_windows: [1M, 3M, 6M, 1Y]
+
+  # Authoritative tag listing from API exploration (DO NOT re-run).
+  # build_vol_tags() reads directly from this cache instead of
+  # generating a cartesian product — the API has per-data_type grid
+  # variations that a simple cross-join cannot model.
+  tag_cache: data/cache/rates/rates_vol_tree.json
+
+  quality:
+    ranges:
+      ATM.BLACK: { min: 0.1, max: 200.0 }
+      ATM.NORMAL: { min: 1.0, max: 500.0 }
+      ATM.PREMIUM: { min: 0.0, max: 50.0 }
+      ATM.FWDPREMIUM: { min: 0.0, max: 50.0 }
+      REALIZED: { min: 0.0, max: 200.0 }
+      VOL_RATIO: { min: 0.0, max: 5.0 }
+    pct_change_threshold: 50.0
+    n_mad: 4.0
+    trailing_months: 12
+    min_obs: 30
+
 # ── Expected value ranges per quote type ─────────────────────────
 # Used by SymbolRangeCheck quality check to flag corrupt observations.
 # Keyed by quote type (matches 'quote' column in fact_observation).

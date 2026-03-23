@@ -226,6 +226,58 @@ These use the shared `ExpectedRange` model (`src/imdr/universe/base.py`), matchi
 
 ---
 
+## Swaption Vol Tables
+
+### `[rates].[dim_vol_surface]` - Vol Surface Dimension
+
+One row per unique vol surface: (ccy, data_type, qualifier). Auto-seeded from `universe/rates.yml` vol section during pipeline runs.
+
+| Column | Type | Nullable | Description |
+|---|---|---|---|
+| `id` | `INT IDENTITY` | NO | Auto-increment primary key |
+| `ccy` | `VARCHAR(3)` | NO | ISO currency code |
+| `data_type` | `VARCHAR(15)` | NO | `ATM`, `ATM_RFR`, `REALIZED`, `REALIZED_RFR`, `VOL_RATIO`, `VOL_RATIO_RFR` |
+| `quote_type` | `VARCHAR(12)` | NO | `BLACK`, `NORMAL`, `FWDPREMIUM`, `PREMIUM` for ATM/ATM_RFR; `''` otherwise |
+| `vol_window` | `VARCHAR(3)` | NO | `1M`, `3M`, `6M`, `1Y` for REALIZED/VOL_RATIO; `''` otherwise |
+| `freq` | `VARCHAR(6)` | NO | `ANNUAL`, `DAILY` for REALIZED; `''` otherwise |
+| `is_rfr` | `BIT` | NO | 1 if RFR variant, 0 otherwise |
+| `created_at` | `DATETIMEOFFSET` | NO | Row insertion timestamp |
+| `updated_at` | `DATETIMEOFFSET` | NO | Last update timestamp |
+
+**Constraints:**
+- `PK` on `id`
+- `UNIQUE (ccy, data_type, quote_type, vol_window, freq)` as `uq_rates_dim_vol_surface`
+
+**Estimated rows**: ~190
+
+---
+
+### `[rates].[fact_swaption_vol]` - Swaption Vol Observations
+
+Daily swaption vol surface observations on the option_expiry x swap_tenor grid. ~38,000 rows/day (all 11 currencies).
+
+| Column | Type | Nullable | Description |
+|---|---|---|---|
+| `id` | `INT IDENTITY` | NO | Auto-increment primary key |
+| `surface_id` | `INT` | NO | FK to `[rates].[dim_vol_surface](id)` |
+| `obs_date` | `DATE` | NO | Observation date |
+| `option_expiry` | `VARCHAR(4)` | NO | Option expiry tenor: `1M`, `3M`, ..., `30Y` |
+| `swap_tenor` | `VARCHAR(4)` | NO | Underlying swap tenor: `3M`, `1Y`, ..., `30Y` |
+| `value` | `FLOAT` | NO | Vol value (units depend on data_type/quote_type) |
+| `created_at` | `DATETIMEOFFSET` | NO | Row insertion timestamp |
+| `updated_at` | `DATETIMEOFFSET` | NO | Last update timestamp |
+
+**Constraints:**
+- `PK` on `id`
+- `UNIQUE (surface_id, obs_date, option_expiry, swap_tenor)` as `uq_rates_fact_swaption_vol`
+- `FK surface_id -> [rates].[dim_vol_surface](id)`
+
+**Indexes:**
+- `ix_rates_fact_swaption_vol_date` on `(obs_date)`
+- `ix_rates_fact_swaption_vol_surface_date` on `(surface_id, obs_date)`
+
+---
+
 ## Cache Files
 
 | File | Purpose |

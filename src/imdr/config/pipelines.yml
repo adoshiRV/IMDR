@@ -101,6 +101,35 @@ pipelines:
         type: rest
         auth_type: bearer
 
+  rates.vol:
+    domain: rates
+    target_schema: rates
+    target_table: fact_swaption_vol
+    date_column: obs_date
+    unique_columns:
+      - surface_id
+      - obs_date
+      - option_expiry
+      - swap_tenor
+    required_columns:
+      - surface_id
+      - obs_date
+      - option_expiry
+      - swap_tenor
+      - value
+    health_checks:
+      row_count_min: 50
+      max_staleness_hours: 48
+    cleaning:
+      n_mad: 4.0
+      trailing_months: 12
+      pct_threshold: 50.0
+      min_obs: 30
+    sources:
+      citivelocity:
+        type: rest
+        auth_type: bearer
+
   rates.historical:
     domain: rates
     target_schema: rates

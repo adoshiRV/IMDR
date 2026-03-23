@@ -22,6 +22,7 @@ import time
 
 PIPELINES: list[list[str]] = [
     ["python", "-m", "scripts.rates.citi.rates_citi_live"],
+    ["python", "-m", "scripts.rates.citi.rates_vol_citi_live"],
     ["python", "-m", "scripts.fx.citi.fx_vol_citi_live"],
 ]
 

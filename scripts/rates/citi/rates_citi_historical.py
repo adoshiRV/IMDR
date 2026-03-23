@@ -17,6 +17,7 @@ from pathlib import Path
 
 import structlog
 
+from imdr.config.pipeline_config import get_pipeline_config
 from imdr.config.settings import get_settings
 from imdr.connectors.mssql import MSSQLConnector
 from imdr.domains.rates.pipeline import RatesHistoricalPipeline
@@ -33,8 +34,8 @@ log = structlog.get_logger(__name__)
 MODE = "range"  # "range" | "catchup" | "gaps"
 
 # range: start and end dates (YYYY-MM-DD)
-START = "2024-01-01"
-END = "2024-01-31"
+START = "2023-06-01"
+END = "2024-06-01"
 
 # catchup: how many calendar days back from today
 LOOKBACK_DAYS = 30
@@ -45,8 +46,8 @@ GAPS_FILE = "data/gaps/rates_gaps.txt"
 # 0 = unlimited (for gaps mode, limits number of dates processed)
 MAX_DAYS = 0
 
-# Quote types (comma-separated)
-QUOTES = "par"
+# Quote types (None = read from pipelines.yml default_quotes; or comma-separated override)
+QUOTES: str | None = None
 
 # Data frequency
 FREQUENCY = "DAILY"
@@ -108,7 +109,11 @@ def main() -> int:
     universe = get_rates_universe()
     connector = MSSQLConnector(settings)
     report = RunReport(pipeline_name="rates.citi_historical")
-    quotes = [q.strip() for q in QUOTES.split(",")]
+    if QUOTES is not None:
+        quotes = [q.strip() for q in QUOTES.split(",")]
+    else:
+        pipeline_config = get_pipeline_config("rates.historical")
+        quotes = pipeline_config.default_quotes or ["par"]
 
     log.info("historical_start", mode=MODE, quotes=quotes, frequency=FREQUENCY)
 
