@@ -8,11 +8,57 @@ from __future__ import annotations
 import time
 from collections.abc import Callable
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 
 import pandas as pd
 import structlog
 
+if TYPE_CHECKING:
+    from imdr.connectors.citi_quota import TagQuotaTracker
+
 _log = structlog.get_logger("citi_helpers")
+
+
+class TagQuotaExceeded(RuntimeError):
+    """Raised when the Citi API cumulative tag quota is exhausted."""
+
+    def __init__(self, message: str, current_usage: int | None = None, available: int | None = None) -> None:
+        super().__init__(message)
+        self.current_usage = current_usage
+        self.available = available
+
+
+class TagQuotaBudgetExceeded(TagQuotaExceeded):
+    """Raised BEFORE API call when pre-flight budget check fails.
+
+    Subclass of TagQuotaExceeded so existing handlers catch both.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        needed: int,
+        remaining: int,
+        current_usage: int | None = None,
+    ) -> None:
+        super().__init__(message, current_usage=current_usage, available=remaining)
+        self.needed = needed
+        self.remaining_budget = remaining
+
+
+def _parse_quota_error(resp: dict) -> TagQuotaExceeded | None:
+    """If resp is a tag-quota error, return a TagQuotaExceeded; else None."""
+    msg = resp.get("message", "")
+    if "Exceeded max tag count" not in msg and "max tag count" not in msg.lower():
+        return None
+    import re
+    usage_match = re.search(r"Current usage:\s*(\d+)", msg)
+    avail_match = re.search(r"Available usage:\s*(\d+)", msg)
+    return TagQuotaExceeded(
+        msg,
+        current_usage=int(usage_match.group(1)) if usage_match else None,
+        available=int(avail_match.group(1)) if avail_match else None,
+    )
 
 
 # ── 1. Timestamp parser (moved from domains/rates/utils.py) ──────
@@ -66,6 +112,9 @@ def citi_response_to_rows(
     Returns list of dicts, each: {ts, **tag_fields, value}
     """
     if resp.get("status") != "OK":
+        quota_err = _parse_quota_error(resp)
+        if quota_err:
+            raise quota_err
         raise RuntimeError(f"API status not OK: {resp}")
 
     rows: list[dict] = []
@@ -94,16 +143,25 @@ def fetch_and_parse_batched(
     batch_size: int,
     rate_limit: float,
     response_parser: Callable[[dict], pd.DataFrame],
+    quota_tracker: TagQuotaTracker | None = None,
+    pipeline_name: str = "",
 ) -> pd.DataFrame:
     """Fetch tags in batches, respecting rate limits, concat results.
 
     response_parser converts a single API response dict → DataFrame.
     Each domain provides its own parser.
+
+    If ``quota_tracker`` is provided, each batch records its tag count
+    to the shared quota file for cross-process visibility.
     """
     frames: list[pd.DataFrame] = []
+    total_batches = (len(tags) + batch_size - 1) // batch_size
+    cumulative_tags = 0
 
     for i in range(0, len(tags), batch_size):
         batch = tags[i : i + batch_size]
+        batch_num = i // batch_size + 1
+        cumulative_tags += len(batch)
 
         resp = client.fetch_historical(  # type: ignore[attr-defined]
             tags=batch,
@@ -111,6 +169,23 @@ def fetch_and_parse_batched(
             end=end,
             frequency=frequency,
         )
+
+        # Record tag usage to shared quota tracker
+        if quota_tracker is not None:
+            quota_tracker.record_usage(pipeline_name, len(batch))
+
+        # Log rate limit info from client if available
+        rl_remaining = getattr(client, "rate_limit_remaining", None)
+        _log.info(
+            "batch_complete",
+            batch=f"{batch_num}/{total_batches}",
+            tags_this_batch=len(batch),
+            cumulative_tags=cumulative_tags,
+            total_tags=len(tags),
+            ratelimit_remaining=rl_remaining,
+            quota_remaining=quota_tracker.remaining() if quota_tracker else None,
+        )
+
         df = response_parser(resp)
 
         if not df.empty:

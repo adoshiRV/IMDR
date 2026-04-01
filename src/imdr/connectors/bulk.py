@@ -22,15 +22,19 @@ Usage:
 """
 from __future__ import annotations
 
+import math
 import re
 from collections.abc import Sequence
 from datetime import date, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import structlog
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+
+if TYPE_CHECKING:
+    from imdr.connectors.mssql import MSSQLConnector
 
 _log = structlog.get_logger("bulk_merge")
 
@@ -88,6 +92,7 @@ class MergeSpec:
         natural_key: list[str],
         value_columns: list[str],
         batch_size: int = _DEFAULT_BATCH_SIZE,
+        audit_columns: dict[str, str] | None = None,
     ) -> None:
         _validate_identifier(target_table, "target_table")
         _validate_staging(staging_name, "staging_name")
@@ -111,10 +116,26 @@ class MergeSpec:
         self.value_columns = value_columns
         self.batch_size = batch_size
 
+        # Audit timestamp columns injected into MERGE SQL.
+        # None = default (created_at + updated_at); pass {} to omit entirely.
+        if audit_columns is None:
+            self.audit_columns: dict[str, str] = {
+                "created_at": "SYSDATETIMEOFFSET()",
+                "updated_at": "SYSDATETIMEOFFSET()",
+            }
+        else:
+            self.audit_columns = audit_columns
+
         # Pre-compute which columns need date→string serialization
         self._date_columns = frozenset(
             col for col, sql_type in columns.items()
             if sql_type.upper() in _DATE_TYPES
+        )
+
+        # Pre-compute which columns need Decimal→float conversion
+        self._float_columns = frozenset(
+            col for col, sql_type in columns.items()
+            if sql_type.upper() == "FLOAT"
         )
 
         # Staging types: swap DATE → VARCHAR(10) for legacy driver compat
@@ -148,15 +169,19 @@ class MergeSpec:
         on_clause = " AND ".join(
             f"tgt.{col} = src.{col}" for col in self.natural_key
         )
-        update_set = ",\n                    ".join(
-            [f"tgt.{col} = src.{col}" for col in self.value_columns]
-            + ["tgt.updated_at = SYSDATETIMEOFFSET()"]
-        )
+        # UPDATE SET: value columns + any audit columns that should update on match
+        update_parts = [f"tgt.{col} = src.{col}" for col in self.value_columns]
+        if "updated_at" in self.audit_columns:
+            update_parts.append(f"tgt.updated_at = {self.audit_columns['updated_at']}")
+        update_set = ",\n                    ".join(update_parts)
+
+        # INSERT: all data columns + all audit columns
         all_cols = list(self.columns)
-        insert_cols = ", ".join(all_cols + ["created_at", "updated_at"])
+        audit_keys = list(self.audit_columns.keys())
+        insert_cols = ", ".join(all_cols + audit_keys)
         insert_vals = ", ".join(
             [f"src.{col}" for col in all_cols]
-            + ["SYSDATETIMEOFFSET()", "SYSDATETIMEOFFSET()"]
+            + [self.audit_columns[k] for k in audit_keys]
         )
         return f"""
             MERGE {self.target_table} AS tgt
@@ -171,12 +196,19 @@ class MergeSpec:
         """
 
     def serialize_row(self, item: BaseModel) -> dict[str, Any]:
-        """Convert a Pydantic model to a parameter dict, handling date→string."""
+        """Convert a Pydantic model to a parameter dict.
+
+        Handles date→string (legacy ODBC compat) and Decimal→float conversions.
+        """
         d = item.model_dump()
         for col in self._date_columns:
             val = d.get(col)
             if isinstance(val, (date, datetime)):
                 d[col] = val.isoformat()
+        for col in self._float_columns:
+            val = d.get(col)
+            if val is not None and not isinstance(val, float):
+                d[col] = float(val)
         return d
 
 
@@ -218,3 +250,49 @@ def bulk_merge(
     conn.execute(text(f"DROP TABLE IF EXISTS {spec.staging_name};"))
 
     return len(items)
+
+
+def chunked_bulk_merge(
+    connector: MSSQLConnector,
+    spec: MergeSpec,
+    items: Sequence[BaseModel],
+    chunk_size: int = 5000,
+) -> int:
+    """Execute bulk merge in chunks with intermediate commits.
+
+    Unlike bulk_merge() which operates within an existing session/transaction,
+    this function manages its own sessions and commits per chunk.  Designed for
+    large historical backfills where a single giant MERGE would hold locks too
+    long and stress tempdb.
+
+    For small loads (<= chunk_size) this is a single chunk — minimal overhead.
+    MERGE is idempotent so partial completion on crash is safe to re-run.
+    """
+    if not items:
+        return 0
+
+    n_chunks = math.ceil(len(items) / chunk_size)
+    total = 0
+
+    for i in range(0, len(items), chunk_size):
+        chunk = items[i : i + chunk_size]
+        with connector.session() as session:
+            bulk_merge(session, spec, chunk)
+        total += len(chunk)
+        _log.info(
+            "chunked_merge_progress",
+            target=spec.target_table,
+            chunk=i // chunk_size + 1,
+            n_chunks=n_chunks,
+            chunk_rows=len(chunk),
+            total_so_far=total,
+            total_items=len(items),
+        )
+
+    _log.info(
+        "chunked_merge_complete",
+        target=spec.target_table,
+        total_items=total,
+        chunks=n_chunks,
+    )
+    return total

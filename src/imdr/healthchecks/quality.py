@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any, Callable
 
 import pandas as pd
@@ -28,6 +28,21 @@ from imdr.connectors.reader import AnalyticalReader
 from imdr.healthchecks.base import CheckResult, CheckStatus
 
 log = structlog.get_logger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Calendar-aware helpers
+# ---------------------------------------------------------------------------
+
+def should_relax_checks(run_date: date, market_code: str = "US") -> bool:
+    """Return True if health checks should use relaxed thresholds.
+
+    On non-trading days (weekends, holidays), row-count and freshness checks
+    should expect no new data rather than flagging missing data as failures.
+    """
+    from imdr.market_calendar.calendar import is_trading_day
+
+    return not is_trading_day(market_code, run_date)
 
 
 # ---------------------------------------------------------------------------

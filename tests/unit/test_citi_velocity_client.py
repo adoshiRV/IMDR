@@ -36,6 +36,12 @@ def _mock_response(status_code=200, json_data=None, text=""):
     resp.status_code = status_code
     resp.text = text or ""
     resp.json.return_value = json_data or {}
+    resp.headers = {
+        "x-ratelimit-limit": "400",
+        "x-ratelimit-remaining": "399",
+        "x-ratelimit-timeunit": "400/minute",
+        "x-burstlimit-limit": "20ps",
+    }
     return resp
 
 

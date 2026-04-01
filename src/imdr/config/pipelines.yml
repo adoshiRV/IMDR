@@ -165,3 +165,76 @@ pipelines:
       citivelocity:
         type: rest
         auth: bearer
+
+  commodities.spot:
+    domain: commodities
+    target_schema: commodities
+    target_table: fact_spot
+    date_column: obs_date
+    unique_columns:
+      - commodity_id
+      - obs_date
+    required_columns:
+      - commodity_id
+      - obs_date
+      - price
+    health_checks:
+      row_count_min: 1
+      max_staleness_hours: 48
+      value_ranges:
+        price:
+          min: 0.01
+          max: 100000.0
+    sources:
+      citivelocity:
+        type: rest
+        auth_type: bearer
+
+  commodities.eia:
+    domain: commodities
+    target_schema: commodities
+    target_table: fact_eia
+    date_column: obs_date
+    unique_columns:
+      - eia_series_id
+      - obs_date
+    required_columns:
+      - eia_series_id
+      - obs_date
+      - stat_value
+    health_checks:
+      row_count_min: 10
+      max_staleness_hours: 192
+    sources:
+      citivelocity:
+        type: rest
+        auth_type: bearer
+
+  commodities.vol:
+    domain: commodities
+    target_schema: commodities
+    target_table: fact_implied_vol
+    date_column: obs_date
+    unique_columns:
+      - commodity_id
+      - obs_date
+      - strike
+      - tenor
+    required_columns:
+      - commodity_id
+      - obs_date
+      - strike
+      - tenor
+      - vol
+    health_checks:
+      row_count_min: 50
+      max_staleness_hours: 48
+    cleaning:
+      n_mad: 4.0
+      trailing_months: 12
+      pct_threshold: 40.0
+      min_obs: 30
+    sources:
+      citivelocity:
+        type: rest
+        auth_type: bearer

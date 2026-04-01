@@ -20,6 +20,7 @@ CLEANING_SCRIPTS = [
     ("FX OHLC", "scripts.fx.clean.clean_fx_fact_ohlc"),
     ("FX Vol", "scripts.fx.clean.clean_fx_fact_vol"),
     ("Rates", "scripts.rates.clean.clean_rates_fact_observation"),
+    ("Commodities Implied Vol", "scripts.commodities.clean.clean_cmdty_fact_implied_vol"),
 ]
 
 

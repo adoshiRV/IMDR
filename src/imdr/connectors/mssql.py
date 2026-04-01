@@ -25,6 +25,9 @@ class MSSQLConnector:
             # Legacy 'SQL Server' ODBC driver can't handle setinputsizes
             # for DATETIMEOFFSET columns — let pyodbc infer types instead.
             use_setinputsizes=False,
+            # Batch parameter arrays in a single ODBC round-trip instead of
+            # one execute per row — critical for bulk insert performance.
+            fast_executemany=True,
         )
         self._read_engine: Engine | None = None
         self._session_factory: sessionmaker[Session] = sessionmaker(

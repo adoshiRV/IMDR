@@ -14,13 +14,16 @@ import structlog
 
 from imdr.config.pipeline_config import get_pipeline_config
 from imdr.config.settings import Settings
+from imdr.connectors.citi_quota import TagQuotaTracker
 from imdr.connectors.citi_velocity import CitiVelocityClient
 from imdr.connectors.mssql import MSSQLConnector
 from imdr.connectors.reader import AnalyticalReader
 from imdr.domains.rates.extractors_vol import CitiVelocityRatesVolExtractor
+from imdr.connectors.bulk import chunked_bulk_merge
 from imdr.domains.rates.repository_vol import (
     RatesSwaptionVolRepository,
     RatesVolSurfaceRepository,
+    _SWAPTION_VOL_SPEC,
 )
 from imdr.domains.rates.store_vol import write as parquet_write
 from imdr.healthchecks.base import HealthCheck
@@ -52,6 +55,7 @@ class RatesVolPipeline(BasePipeline[pd.DataFrame, list[RatesSwaptionVolCreate], 
         start: datetime,
         end: datetime,
         currencies: list[str] | None = None,
+        chunk_size: int | None = None,
     ) -> None:
         super().__init__(connector)
         self._settings = settings
@@ -60,20 +64,34 @@ class RatesVolPipeline(BasePipeline[pd.DataFrame, list[RatesSwaptionVolCreate], 
         self._start = start
         self._end = end
         self._currencies = currencies
+        self._chunk_size = chunk_size
         self._raw_df: pd.DataFrame | None = None
         self._quality_results: list[dict[str, Any]] = []
+        self._extraction_errors: list[dict] = []
+        self._quota_usage: int | None = None
 
     def extract(self) -> pd.DataFrame:
         """Fetch vol surfaces from Citi Velocity Historical API."""
+        tracker = TagQuotaTracker(
+            quota_limit=self._settings.citi_tag_quota_limit,
+            tracker_path=self._settings.citi_tag_quota_file or None,
+        )
+
         with CitiVelocityClient(self._settings) as client:
             extractor = CitiVelocityRatesVolExtractor(
                 client=client,
                 settings=self._settings,
                 universe=self._universe,
+                quota_tracker=tracker,
             )
             df = extractor.extract(self._start, self._end, self._currencies)
+
+        self._extraction_errors = extractor._errors
+        self._quota_usage = tracker.current_usage()
         self._raw_df = df
-        _log.info("extract_complete", rows=len(df))
+        _log.info("extract_complete", rows=len(df),
+                   extraction_errors=len(self._extraction_errors),
+                   quota_used=self._quota_usage)
         return df
 
     def transform(self, raw: pd.DataFrame) -> list[RatesSwaptionVolCreate]:
@@ -125,9 +143,14 @@ class RatesVolPipeline(BasePipeline[pd.DataFrame, list[RatesSwaptionVolCreate], 
         if not data:
             return 0
 
-        with self._connector.session() as session:
-            repo = RatesSwaptionVolRepository(session)
-            count = repo.bulk_upsert(data)
+        if self._chunk_size:
+            count = chunked_bulk_merge(
+                self._connector, _SWAPTION_VOL_SPEC, data, self._chunk_size,
+            )
+        else:
+            with self._connector.session() as session:
+                repo = RatesSwaptionVolRepository(session)
+                count = repo.bulk_upsert(data)
 
         _log.info("load_complete", rows_loaded=count)
         return count
@@ -179,32 +202,57 @@ class RatesVolPipeline(BasePipeline[pd.DataFrame, list[RatesSwaptionVolCreate], 
             f"AND [{self._config.date_column}] <= '{self._end:%Y-%m-%d}'"
         )
 
-        checks = [
-            CompositeRangeCheck(
-                range_map=vol_ranges,
-                key_columns=["data_type", "quote_type"],
-                value_column="value",
+        # CompositeRangeCheck needs data_type/quote_type from dim_vol_surface,
+        # but the fact table only has surface_id.  Use a joined source.
+        range_table = (
+            "(SELECT f.*, d.data_type, d.quote_type "
+            "FROM [rates].[fact_swaption_vol] f "
+            "JOIN [rates].[dim_vol_surface] d ON f.surface_id = d.id) AS fv"
+        )
+        range_where = (
+            f"AND [{self._config.date_column}] >= '{self._start:%Y-%m-%d}' "
+            f"AND [{self._config.date_column}] <= '{self._end:%Y-%m-%d}'"
+        )
+
+        # Each tuple: (check, source_table, where_clause)
+        checks: list[tuple] = [
+            (
+                CompositeRangeCheck(
+                    range_map=vol_ranges,
+                    key_columns=["data_type", "quote_type"],
+                    value_column="value",
+                ),
+                range_table,  # joined source with dim columns
+                range_where,
             ),
-            PercentageChangeCheck(
-                value_column="value",
-                group_columns=["surface_id", "option_expiry", "swap_tenor"],
-                ts_column=self._config.date_column,
-                threshold_pct=cleaning.pct_threshold,
-                min_abs_value=0.5,
+            (
+                PercentageChangeCheck(
+                    value_column="value",
+                    group_columns=["surface_id", "option_expiry", "swap_tenor"],
+                    ts_column=self._config.date_column,
+                    threshold_pct=cleaning.pct_threshold,
+                    min_abs_value=0.5,
+                ),
+                table,
+                where,
             ),
-            RobustStatisticalOutlierCheck(
-                value_column="value",
-                group_columns=["surface_id", "option_expiry", "swap_tenor"],
-                n_mad=cleaning.n_mad,
-                trailing_months=cleaning.trailing_months,
-                ts_column=self._config.date_column,
-                min_obs=cleaning.min_obs,
+            (
+                RobustStatisticalOutlierCheck(
+                    value_column="value",
+                    group_columns=["surface_id", "option_expiry", "swap_tenor"],
+                    n_mad=cleaning.n_mad,
+                    trailing_months=cleaning.trailing_months,
+                    ts_column=self._config.date_column,
+                    min_obs=cleaning.min_obs,
+                ),
+                table,
+                where,
             ),
         ]
 
-        for check in checks:
+        for check, src_table, src_where in checks:
             try:
-                qr = check.run(reader, table, where=where)
+                qr = check.run(reader, src_table, where=src_where)
                 self._quality_results.append({
                     "check": qr.check_name,
                     "status": qr.status.value,

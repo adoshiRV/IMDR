@@ -21,8 +21,10 @@ from pathlib import Path
 import structlog
 
 from imdr.config.settings import get_settings
+from imdr.connectors.citi_helpers import TagQuotaExceeded
 from imdr.connectors.mssql import MSSQLConnector
 from imdr.domains.fx.pipeline_vol import FXVolPipeline
+from imdr.market_calendar.calendar import last_business_day
 from imdr.market_calendar.holidays import holiday_hits_for_timestamp
 from imdr.notifications.email import send_outlook_email
 from imdr.notifications.formatters.fx_vol_ingest import FXVolIngestFormatter
@@ -31,15 +33,6 @@ from imdr.universe.fx import get_fx_universe
 from imdr.utils.logging import configure_logging
 
 log = structlog.get_logger(__name__)
-
-
-def _last_business_day() -> datetime:
-    """Return the most recent completed business day (Mon-Fri) in UTC."""
-    today = datetime.now(timezone.utc).date()
-    yesterday = today - timedelta(days=1)
-    while yesterday.weekday() >= 5:  # 5=Sat, 6=Sun
-        yesterday -= timedelta(days=1)
-    return datetime(yesterday.year, yesterday.month, yesterday.day, tzinfo=timezone.utc)
 
 
 def parse_args() -> argparse.Namespace:
@@ -71,14 +64,7 @@ def main() -> int:
     if args.date:
         target = datetime.strptime(args.date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
     else:
-        target = _last_business_day()
-
-    # Weekend check
-    if target.weekday() >= 5:
-        log.info("fx_vol_weekend_skip", date=str(target.date()), day=target.strftime("%A"))
-        report.info("market", f"Weekend date {target.date()} — skipping")
-        report.finish()
-        return 0
+        target = last_business_day("US")
 
     start = target
     end = target.replace(hour=23, minute=59)
@@ -100,6 +86,7 @@ def main() -> int:
             start=start,
             end=end,
             pairs=pairs,
+            chunk_size=settings.bulk_batch_size,
         )
         result = pipeline.run()
         elapsed = time.perf_counter() - t0
@@ -136,7 +123,16 @@ def main() -> int:
             "n_pairs": len(all_vol_pairs),
             "rows_loaded": result,
             "elapsed_secs": round(elapsed, 1),
+            "quota_usage": pipeline._quota_usage,
         })
+
+        # Surface extraction errors (non-quota API failures)
+        if pipeline._extraction_errors:
+            report.warning(
+                "extraction_errors",
+                f"{len(pipeline._extraction_errors)} pair(s) failed during extraction",
+                details={"errors": pipeline._extraction_errors},
+            )
 
         # Holiday check for all vol currencies
         vol_ccys = list({ccy for pair in all_vol_pairs for ccy in pair})
@@ -178,6 +174,25 @@ def main() -> int:
         log.info("fx_vol_citi_live_complete", date=str(target.date()), rows=result, elapsed=f"{elapsed:.1f}s")
         return 0
 
+    except TagQuotaExceeded as e:
+        log.error("fx_vol_citi_live_tag_quota_exceeded",
+                  current_usage=getattr(e, "current_usage", None),
+                  available=getattr(e, "available", None))
+        report.error("tag_quota", f"Tag quota exceeded: {e}",
+                     details={"current_usage": getattr(e, "current_usage", None),
+                              "available": getattr(e, "available", None)})
+        report.finish()
+
+        if settings.run_log_dir:
+            log_path = (
+                Path(settings.run_log_dir)
+                / "fx"
+                / "fact_vol"
+                / f"fx_vol_citi_live_{target:%Y%m%d}.jsonl"
+            )
+            report.flush_jsonl(log_path)
+
+        return 1
     except Exception:
         log.exception("fx_vol_citi_live_failed")
         report.error("pipeline", "Daily FX vol ingest failed")

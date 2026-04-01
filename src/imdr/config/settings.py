@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     mssql_read_pool_size: int = 10
     mssql_read_max_overflow: int = 20
 
+    # Bulk ingestion
+    bulk_batch_size: int = 5000
+
     # HTTP
     http_timeout: int = 30
     http_retries: int = 3
@@ -60,6 +63,8 @@ class Settings(BaseSettings):
     citi_batch_size: int = 100
     citi_token_ttl: int = 3600
     citi_timeout: int = 60
+    citi_tag_quota_limit: int = 95_000  # 5K safety margin below Citi's 100K hard limit
+    citi_tag_quota_file: str = ""       # empty = data/cache/citi_tag_quota.json
 
     # Email
     email_enabled: bool = False

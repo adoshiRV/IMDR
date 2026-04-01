@@ -1,0 +1,176 @@
+# Commodities Universe Configuration
+#
+# Covers three sub-products from Citi Velocity:
+#   - SPOT: 3 tags (Gold, Silver, WTI)
+#   - EIA: 67 tags (US petroleum status report)
+#   - IMPLIED_VOL: 1,011 tags (precious metals + oil vol surfaces)
+
+# ── Shared commodity dimension ───────────────────────────────────────
+
+commodities:
+  - symbol: XAU
+    display_name: Gold
+    commodity_class: precious_metal
+    spot_tag: COMMODITIES.SPOT.SPOT_GOLD
+  - symbol: XAG
+    display_name: Silver
+    commodity_class: precious_metal
+    spot_tag: COMMODITIES.SPOT.SPOT_SILVER
+  - symbol: XPT
+    display_name: Platinum
+    commodity_class: precious_metal
+    spot_tag: null
+  - symbol: CR_NYM_CL
+    display_name: WTI Crude
+    commodity_class: energy
+    spot_tag: COMMODITIES.SPOT.OIL_PRICE_NYMEX
+  - symbol: CR_IPE_BRENT
+    display_name: ICE Brent
+    commodity_class: energy
+    spot_tag: null
+
+# ── SPOT ─────────────────────────────────────────────────────────────
+# tag → commodity symbol mapping (only commodities with spot_tag)
+
+spot:
+  tags:
+    COMMODITIES.SPOT.SPOT_GOLD: XAU
+    COMMODITIES.SPOT.SPOT_SILVER: XAG
+    COMMODITIES.SPOT.OIL_PRICE_NYMEX: CR_NYM_CL
+
+# ── EIA ──────────────────────────────────────────────────────────────
+# US Energy Information Administration weekly petroleum status report.
+# Published every Wednesday at 10:30 AM ET.
+
+eia:
+  tag_template: "COMMODITIES.EIA.EIA_{series}.EIA_{region}"
+  series:
+    - name: CRUDE_STOCKS
+      regions: [TOTAL_US, PADD_I, PADD_II, PADD_III, PADD_IV, PADD_V, CUSHING_OK]
+      units: thousands_barrels
+    - name: CRUDE_IMPORTS
+      regions: [TOTAL_US, PADD_I, PADD_III, PADD_V]
+      units: thousands_barrels_day
+    - name: CRUDE_EXPORTS
+      regions: [TOTAL_US]
+      units: thousands_barrels_day
+    - name: CRUDE_RUNS
+      regions: [TOTAL_US, PADD_I, PADD_II, PADD_III, PADD_IV, PADD_V]
+      units: thousands_barrels_day
+    - name: DISTILLATE_STOCKS
+      regions: [TOTAL_US, PADD_I, PADD_II, PADD_III, PADD_IV, PADD_V]
+      units: thousands_barrels
+    - name: DISTILLATE_IMPORTS
+      regions: [TOTAL_US, PADD_I, PADD_III]
+      units: thousands_barrels_day
+    - name: DISTILLATE_PRODUCTION
+      regions: [TOTAL_US, PADD_I, PADD_II, PADD_III, PADD_IV, PADD_V]
+      units: thousands_barrels_day
+    - name: DISTILLATES_EXPORT
+      regions: [TOTAL_US]
+      units: thousands_barrels_day
+    - name: GASOLINE_STOCKS
+      regions: [TOTAL_US, PADD_I, PADD_II, PADD_III, PADD_IV, PADD_V]
+      units: thousands_barrels
+    - name: GASOLINE_IMPORTS
+      regions: [TOTAL_US, PADD_I, PADD_III]
+      units: thousands_barrels_day
+    - name: GASOLINE_PRODUCTION
+      regions: [TOTAL_US, PADD_I, PADD_II, PADD_III, PADD_IV, PADD_V]
+      units: thousands_barrels_day
+    - name: GASOLINE_EXPORT
+      regions: [TOTAL_US]
+      units: thousands_barrels_day
+    - name: JET_STOCKS
+      regions: [TOTAL_US, PADD_I, PADD_II, PADD_III, PADD_IV, PADD_V]
+      units: thousands_barrels
+    - name: JET_PRODUCTION
+      regions: [TOTAL_US, PADD_I, PADD_II, PADD_III, PADD_IV, PADD_V]
+      units: thousands_barrels_day
+    - name: HEATING_OIL_STOCKS
+      regions: [TOTAL_US, PADD_I]
+      units: thousands_barrels
+    - name: ULSD_STOCKS
+      regions: [TOTAL_US, PADD_I, PADD_II]
+      units: thousands_barrels
+
+# ── IMPLIED_VOL ──────────────────────────────────────────────────────
+# Commodity option implied vol surfaces from Citi Velocity.
+
+vol:
+  precious_metals:
+    products: [XAU, XAG, XPT]
+    tag_template: "COMMODITIES.IMPLIED_VOL.{product}.USD.{strike}.{tenor}"
+    strikes:
+      standard: [ATM, 10RR, 25RR, 35RR, 10STR, 25STR, 35STR, C10, C25, C35, P10, P25, P35]
+      exotic: [SVVSTAR, SVXI, XI]
+      xpt_only: [BID, ASK, ATMF]
+    tenors:
+      XAU: ["ON", 1W, 2W, 1M, 2M, 3M, 6M, 9M, 1Y, 2Y, 3Y, 5Y, 7Y, 10Y]
+      XAG: ["ON", 1W, 2W, 1M, 2M, 3M, 6M, 9M, 1Y, 2Y, 3Y, 5Y, 7Y, 10Y]
+      XPT: ["ON", 2D, 4D, 10D, 11D, 12D, 13D, 1W, 2W, 1M, 2M, 3M, 6M, 9M, 18M, 1Y, 2Y, 3Y, 4Y, 5Y, 6Y, 7Y, 8Y, 9Y, 10Y, 15Y, 30Y]
+
+  oil:
+    products: [CR_IPE_BRENT, CR_NYM_CL]
+    tag_template: "COMMODITIES.IMPLIED_VOL.{product}.ATM.NEARBY{nn}_M"
+    contracts: 12  # NEARBY01_M through NEARBY12_M
+
+  quality:
+    ranges:
+      ATM:
+        min: 0.5
+        max: 200.0
+      10RR:
+        min: -50.0
+        max: 50.0
+      25RR:
+        min: -50.0
+        max: 50.0
+      35RR:
+        min: -50.0
+        max: 50.0
+      10STR:
+        min: 0.0
+        max: 100.0
+      25STR:
+        min: 0.0
+        max: 100.0
+      35STR:
+        min: 0.0
+        max: 100.0
+      C10:
+        min: 0.5
+        max: 250.0
+      C25:
+        min: 0.5
+        max: 250.0
+      C35:
+        min: 0.5
+        max: 250.0
+      P10:
+        min: 0.5
+        max: 250.0
+      P25:
+        min: 0.5
+        max: 250.0
+      P35:
+        min: 0.5
+        max: 250.0
+      SVVSTAR:
+        min: -100.0
+        max: 100.0
+      SVXI:
+        min: -100.0
+        max: 100.0
+      XI:
+        min: -100.0
+        max: 100.0
+      BID:
+        min: 0.5
+        max: 250.0
+      ASK:
+        min: 0.5
+        max: 250.0
+      ATMF:
+        min: 0.5
+        max: 250.0

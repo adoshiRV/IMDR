@@ -17,6 +17,13 @@ class TestMSSQLConnector:
         assert "testdb" in call_args.args[0]
 
     @patch("imdr.connectors.mssql.create_engine")
+    def test_engine_created_with_fast_executemany(self, mock_create_engine: MagicMock) -> None:
+        settings = Settings(mssql_host="testhost", mssql_database="testdb")
+        MSSQLConnector(settings)
+        call_kwargs = mock_create_engine.call_args.kwargs
+        assert call_kwargs["fast_executemany"] is True
+
+    @patch("imdr.connectors.mssql.create_engine")
     def test_session_commits_on_success(self, mock_create_engine: MagicMock) -> None:
         settings = Settings(mssql_host="testhost", mssql_database="testdb")
         connector = MSSQLConnector(settings)

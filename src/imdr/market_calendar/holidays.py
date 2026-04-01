@@ -65,6 +65,32 @@ def _target2_holidays(year: int) -> dict[date, str]:
     return fixed
 
 
+def isda_holidays(center_code: str, year: int) -> dict[date, str]:
+    """Get holidays for an ISDA financial center using the holidays library.
+
+    Supported centers (holidays>=0.40): NYSE, XNYS, ECB, TAR, XECB,
+    B3, BVMF, BSE, NSE, XBOM, XNSE, IFEU.
+    Returns empty dict for unsupported centers.
+    """
+    if not _HAS_HOLIDAYS:
+        return {}
+    try:
+        return holidays_lib.financial_holidays(center_code, years=year)
+    except NotImplementedError:
+        log.debug("isda_center_not_available", center=center_code)
+        return {}
+
+
+def is_settlement_holiday(market_code: str, d: date) -> bool:
+    """Check if date is a settlement holiday for any of the market's ISDA centers."""
+    market = get_market(market_code)
+    for center in market.isda_centers:
+        hols = isda_holidays(center, d.year)
+        if d in hols:
+            return True
+    return False
+
+
 def holiday_hits_for_date(currencies: list[str], check_date: date) -> list[HolidayHit]:
     """Check which currencies have a holiday on the given date."""
     hits: list[HolidayHit] = []

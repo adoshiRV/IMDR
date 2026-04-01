@@ -24,7 +24,9 @@ import time
 # ============================================================================
 
 PIPELINES: list[list[str]] = [
+    ["python", "-m", "scripts.commodities.citi.cmdty_eia_citi_live"],
     ["python", "-m", "scripts.imdr_health_dashboard"],
+    ["python", "-m", "scripts.cleanup_old_data", "--execute"],
 ]
 
 # ============================================================================

@@ -43,6 +43,10 @@ class CitiVelocityClient:
         self._token: str | None = None
         self._token_expiry: float = 0.0
 
+        # Rate limit tracking
+        self._rate_limit_remaining: int | None = None
+        self._rate_limit_info: dict[str, str] = {}
+
     # ── 1. Authentication ────────────────────────────────────────
 
     def get_token(self) -> str:
@@ -167,6 +171,18 @@ class CitiVelocityClient:
         self._log.info("citi_fetch_tagbrowsing", prefix=prefix)
         return self._post_json(self._settings.citi_tagbrowsing_path, payload)
 
+    # ── Rate limit info ──────────────────────────────────────────
+
+    @property
+    def rate_limit_remaining(self) -> int | None:
+        """Remaining requests from the last API call (per-minute quota)."""
+        return self._rate_limit_remaining
+
+    @property
+    def rate_limit_info(self) -> dict[str, str]:
+        """Last observed rate limit headers."""
+        return dict(self._rate_limit_info)
+
     # ── Shared HTTP helper ───────────────────────────────────────
 
     def _post_json(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -177,6 +193,14 @@ class CitiVelocityClient:
         url = f"{path}?client_id={urllib.parse.quote(self._settings.citi_client_id)}"
 
         resp = self._client.post(url, json=payload, headers=self._auth_headers())
+
+        # Capture rate limit headers
+        self._rate_limit_info = {
+            k: v for k, v in resp.headers.items()
+            if k.lower().startswith(("x-ratelimit", "x-burstlimit"))
+        }
+        raw_remaining = resp.headers.get("x-ratelimit-remaining")
+        self._rate_limit_remaining = int(raw_remaining) if raw_remaining else None
 
         if resp.status_code >= 400:
             raise RuntimeError(

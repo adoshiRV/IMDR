@@ -14,11 +14,17 @@ import structlog
 
 from imdr.config.pipeline_config import get_pipeline_config
 from imdr.config.settings import Settings
+from imdr.connectors.citi_quota import TagQuotaTracker
 from imdr.connectors.citi_velocity import CitiVelocityClient
 from imdr.connectors.mssql import MSSQLConnector
 from imdr.connectors.reader import AnalyticalReader
 from imdr.domains.fx.extractors_vol import CitiVelocityFXVolExtractor
-from imdr.domains.fx.repository_vol import FXCurrencyPairRepository, FXVolRepository
+from imdr.connectors.bulk import chunked_bulk_merge
+from imdr.domains.fx.repository_vol import (
+    FXCurrencyPairRepository,
+    FXVolRepository,
+    _FX_VOL_SPEC,
+)
 from imdr.domains.fx.store_vol import write as parquet_write
 from imdr.healthchecks.base import HealthCheck
 from imdr.healthchecks.checks import (
@@ -50,6 +56,7 @@ class FXVolPipeline(BasePipeline[pd.DataFrame, list[FXVolCreate], int]):
         start: datetime,
         end: datetime,
         pairs: list[tuple[str, str]] | None = None,
+        chunk_size: int | None = None,
     ) -> None:
         super().__init__(connector)
         self._settings = settings
@@ -58,20 +65,34 @@ class FXVolPipeline(BasePipeline[pd.DataFrame, list[FXVolCreate], int]):
         self._start = start
         self._end = end
         self._pairs = pairs
+        self._chunk_size = chunk_size
         self._raw_df: pd.DataFrame | None = None
         self._quality_results: list[dict[str, Any]] = []
+        self._extraction_errors: list[dict] = []
+        self._quota_usage: int | None = None
 
     def extract(self) -> pd.DataFrame:
         """Fetch vol surfaces from Citi Velocity Historical API."""
+        tracker = TagQuotaTracker(
+            quota_limit=self._settings.citi_tag_quota_limit,
+            tracker_path=self._settings.citi_tag_quota_file or None,
+        )
+
         with CitiVelocityClient(self._settings) as client:
             extractor = CitiVelocityFXVolExtractor(
                 client=client,
                 settings=self._settings,
                 universe=self._universe,
+                quota_tracker=tracker,
             )
             df = extractor.extract(self._start, self._end, self._pairs)
+
+        self._extraction_errors = extractor._errors
+        self._quota_usage = tracker.current_usage()
         self._raw_df = df
-        _log.info("extract_complete", rows=len(df))
+        _log.info("extract_complete", rows=len(df),
+                   extraction_errors=len(self._extraction_errors),
+                   quota_used=self._quota_usage)
         return df
 
     def transform(self, raw: pd.DataFrame) -> list[FXVolCreate]:
@@ -119,9 +140,14 @@ class FXVolPipeline(BasePipeline[pd.DataFrame, list[FXVolCreate], int]):
         if not data:
             return 0
 
-        with self._connector.session() as session:
-            repo = FXVolRepository(session)
-            count = repo.bulk_upsert(data)
+        if self._chunk_size:
+            count = chunked_bulk_merge(
+                self._connector, _FX_VOL_SPEC, data, self._chunk_size,
+            )
+        else:
+            with self._connector.session() as session:
+                repo = FXVolRepository(session)
+                count = repo.bulk_upsert(data)
 
         _log.info("load_complete", rows_loaded=count)
         return count

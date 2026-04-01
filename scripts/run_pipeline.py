@@ -197,6 +197,101 @@ def _build_rates_vol_pipeline(
     )
 
 
+def _build_cmdty_spot_pipeline(
+    connector: MSSQLConnector, args: argparse.Namespace
+) -> BasePipeline[Any, Any, Any]:
+    """Build a Commodities SPOT pipeline based on CLI args."""
+    from datetime import datetime, timezone
+
+    from imdr.domains.commodities.pipeline_spot import CmdtySpotPipeline
+    from imdr.universe.commodities import get_commodities_universe
+
+    settings = get_settings()
+    universe = get_commodities_universe()
+
+    if not hasattr(args, "start") or not args.start:
+        print("ERROR: --start is required for commodities.spot")
+        sys.exit(1)
+    if not hasattr(args, "end") or not args.end:
+        print("ERROR: --end is required for commodities.spot")
+        sys.exit(1)
+
+    start = datetime.strptime(args.start, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    end = datetime.strptime(args.end, "%Y-%m-%d").replace(
+        hour=23, minute=59, tzinfo=timezone.utc
+    )
+
+    return CmdtySpotPipeline(
+        connector=connector, settings=settings,
+        universe=universe, start=start, end=end,
+    )
+
+
+def _build_cmdty_eia_pipeline(
+    connector: MSSQLConnector, args: argparse.Namespace
+) -> BasePipeline[Any, Any, Any]:
+    """Build a Commodities EIA pipeline based on CLI args."""
+    from datetime import datetime, timezone
+
+    from imdr.domains.commodities.pipeline_eia import CmdtyEIAPipeline
+    from imdr.universe.commodities import get_commodities_universe
+
+    settings = get_settings()
+    universe = get_commodities_universe()
+
+    if not hasattr(args, "start") or not args.start:
+        print("ERROR: --start is required for commodities.eia")
+        sys.exit(1)
+    if not hasattr(args, "end") or not args.end:
+        print("ERROR: --end is required for commodities.eia")
+        sys.exit(1)
+
+    start = datetime.strptime(args.start, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    end = datetime.strptime(args.end, "%Y-%m-%d").replace(
+        hour=23, minute=59, tzinfo=timezone.utc
+    )
+
+    return CmdtyEIAPipeline(
+        connector=connector, settings=settings,
+        universe=universe, start=start, end=end,
+    )
+
+
+def _build_cmdty_vol_pipeline(
+    connector: MSSQLConnector, args: argparse.Namespace
+) -> BasePipeline[Any, Any, Any]:
+    """Build a Commodities Implied Vol pipeline based on CLI args."""
+    from datetime import datetime, timezone
+
+    from imdr.domains.commodities.pipeline_vol import CmdtyImpliedVolPipeline
+    from imdr.universe.commodities import get_commodities_universe
+
+    settings = get_settings()
+    universe = get_commodities_universe()
+
+    if not hasattr(args, "start") or not args.start:
+        print("ERROR: --start is required for commodities.vol")
+        sys.exit(1)
+    if not hasattr(args, "end") or not args.end:
+        print("ERROR: --end is required for commodities.vol")
+        sys.exit(1)
+
+    start = datetime.strptime(args.start, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    end = datetime.strptime(args.end, "%Y-%m-%d").replace(
+        hour=23, minute=59, tzinfo=timezone.utc
+    )
+
+    products = None
+    if hasattr(args, "products") and args.products:
+        products = [p.strip().upper() for p in args.products.split(",")]
+
+    return CmdtyImpliedVolPipeline(
+        connector=connector, settings=settings,
+        universe=universe, start=start, end=end,
+        products=products,
+    )
+
+
 # Registry maps pipeline names to their factory functions.
 # Add new pipelines here — no if-chain needed in main().
 PIPELINE_REGISTRY: dict[str, PipelineFactory] = {
@@ -205,6 +300,9 @@ PIPELINE_REGISTRY: dict[str, PipelineFactory] = {
     "fx.vol": _build_fx_vol_pipeline,
     "rates.historical": _build_rates_historical_pipeline,
     "rates.vol": _build_rates_vol_pipeline,
+    "commodities.spot": _build_cmdty_spot_pipeline,
+    "commodities.eia": _build_cmdty_eia_pipeline,
+    "commodities.vol": _build_cmdty_vol_pipeline,
 }
 
 
@@ -220,6 +318,7 @@ def main() -> int:
     parser.add_argument("--pairs", type=str, help="Comma-separated pairs for fx.vol (EUR/USD,GBP/USD)")
     parser.add_argument("--frequency", type=str, help="Data frequency (DAILY, HOURLY)")
     parser.add_argument("--currencies", type=str, help="Comma-separated currencies for rates.vol (USD,EUR,JPY)")
+    parser.add_argument("--products", type=str, help="Comma-separated products for commodities.vol (XAU,XAG)")
     args = parser.parse_args()
 
     settings = get_settings()

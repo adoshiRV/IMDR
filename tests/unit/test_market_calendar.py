@@ -57,3 +57,48 @@ def test_events_for_date():
 def test_events_filter_by_market():
     events = market_events_for_date(date(2026, 1, 29), market="US")
     assert all(e.market == "US" for e in events)
+
+
+# ── New model fields tests ──────────────────────────────────────
+
+def test_market_weekend_days_default():
+    market = get_market("US")
+    assert market.weekend_days == [5, 6]
+
+
+def test_market_weekend_days_israel():
+    market = get_market("IL")
+    assert market.weekend_days == [4, 5]
+
+
+def test_market_isda_centers():
+    market = get_market("US")
+    assert "NYSE" in market.isda_centers
+
+
+def test_market_trading_hours():
+    market = get_market("US")
+    assert market.trading_hours is not None
+    assert market.trading_hours.open == "09:30"
+    assert market.trading_hours.close == "16:00"
+
+
+def test_market_trading_hours_lunch():
+    market = get_market("JP")
+    assert market.trading_hours is not None
+    assert market.trading_hours.lunch_start == "11:30"
+    assert market.trading_hours.lunch_end == "12:30"
+
+
+def test_new_markets_exist():
+    """Verify new markets added for rates coverage are loadable."""
+    for code in ["DK", "VN", "SA", "AE", "AR", "EG", "NG", "RO", "KZ", "BD", "LK"]:
+        market = get_market(code)
+        assert market.country_code is not None
+
+
+def test_cn_covers_cnh():
+    """CN market should list both CNY and CNH."""
+    market = get_market("CN")
+    assert "CNY" in market.currencies
+    assert "CNH" in market.currencies

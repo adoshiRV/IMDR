@@ -13,12 +13,24 @@ from pydantic import BaseModel
 _MARKETS_PATH = Path(__file__).parent / "markets.yml"
 
 
+class TradingHoursConfig(BaseModel):
+    """Equity-style trading hours in local market time."""
+
+    open: str       # "HH:MM" local time
+    close: str      # "HH:MM" local time
+    lunch_start: str | None = None
+    lunch_end: str | None = None
+
+
 class MarketConfig(BaseModel):
     timezone: str
     currencies: list[str]
     exchanges: list[str]
     calendar_type: str
     country_code: str
+    weekend_days: list[int] = [5, 6]                    # Python weekday: 5=Sat, 6=Sun
+    isda_centers: list[str] = []                         # ISDA financial center codes
+    trading_hours: TradingHoursConfig | None = None      # None = 24h / OTC market
 
 
 class MarketsConfig(BaseModel):
@@ -28,7 +40,7 @@ class MarketsConfig(BaseModel):
 @lru_cache(maxsize=1)
 def load_markets(config_path: Path = _MARKETS_PATH) -> MarketsConfig:
     """Load and cache market definitions from YAML."""
-    with open(config_path) as f:
+    with open(config_path, encoding="utf-8") as f:
         raw = yaml.safe_load(f)
     return MarketsConfig.model_validate(raw)
 

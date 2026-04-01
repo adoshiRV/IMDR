@@ -21,6 +21,7 @@ from imdr.config.pipeline_config import get_pipeline_config
 from imdr.config.settings import get_settings
 from imdr.connectors.mssql import MSSQLConnector
 from imdr.domains.rates.pipeline import RatesHistoricalPipeline
+from imdr.market_calendar.calendar import last_business_day
 from imdr.reporting.run_report import RunReport
 from imdr.universe.rates import get_rates_universe
 from imdr.utils.logging import configure_logging
@@ -34,8 +35,8 @@ log = structlog.get_logger(__name__)
 MODE = "range"  # "range" | "catchup" | "gaps"
 
 # range: start and end dates (YYYY-MM-DD)
-START = "2023-06-01"
-END = "2024-06-01"
+START = "2015-06-01"
+END = "2020-06-01"
 
 # catchup: how many calendar days back from today
 LOOKBACK_DAYS = 30
@@ -86,6 +87,7 @@ def _run_pipeline(
     quotes: list[str],
     frequency: str,
     label: str,
+    chunk_size: int | None = None,
 ) -> int:
     """Run a single pipeline call and return rows loaded."""
     log.info("processing", label=label, start=str(start.date()), end=str(end.date()))
@@ -98,6 +100,7 @@ def _run_pipeline(
         quotes=quotes,
         frequency=frequency,
         use_cache=False,
+        chunk_size=chunk_size,
     )
     return pipeline.run()
 
@@ -130,20 +133,21 @@ def main() -> int:
             total_rows = _run_pipeline(
                 connector, settings, universe, start, end, quotes, FREQUENCY,
                 label=f"range {START}→{END}",
+                chunk_size=settings.bulk_batch_size,
             )
 
         elif MODE == "catchup":
-            now = datetime.now(timezone.utc)
-            end = (now - timedelta(days=1)).replace(
+            end = last_business_day("US").replace(
                 hour=23, minute=59, second=0, microsecond=0,
             )
-            start = (now - timedelta(days=LOOKBACK_DAYS)).replace(
+            start = (end - timedelta(days=LOOKBACK_DAYS)).replace(
                 hour=0, minute=0, second=0, microsecond=0,
             )
             start, end = _skip_weekends(start, end)
             total_rows = _run_pipeline(
                 connector, settings, universe, start, end, quotes, FREQUENCY,
                 label=f"catchup {LOOKBACK_DAYS}d",
+                chunk_size=settings.bulk_batch_size,
             )
 
         elif MODE == "gaps":
@@ -167,6 +171,7 @@ def main() -> int:
                         quotes=quotes,
                         frequency=FREQUENCY,
                         label=f"gap {i + 1}/{len(dates)} ({dt.date()})",
+                        chunk_size=settings.bulk_batch_size,
                     )
                     total_rows += rows
                 except Exception:

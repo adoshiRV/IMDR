@@ -37,7 +37,7 @@ except Exception:
 # ── Settings (inline — avoids importing imdr.config.settings) ────
 
 def _load_env_file() -> None:
-    """Best-effort load of .env from the project root into os.environ."""
+    """Best-effort load of DB-related .env vars into os.environ."""
     from pathlib import Path
     env_path = Path(__file__).resolve().parent.parent / ".env"
     if not env_path.exists():
@@ -47,7 +47,9 @@ def _load_env_file() -> None:
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, _, value = line.partition("=")
-        os.environ.setdefault(key.strip(), value.strip())
+        key = key.strip()
+        if key.startswith("IMDR_MSSQL_") or key.startswith("IMDR_POOL_"):
+            os.environ.setdefault(key, value.strip())
 
 
 try:
@@ -101,10 +103,12 @@ _COLUMN_RE = re.compile(r"^[\w]+$")
 
 _DML_DDL_RE = re.compile(
     r"\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|"
-    r"EXEC|EXECUTE|GRANT|REVOKE|MERGE)\b",
+    r"EXEC|EXECUTE|GRANT|REVOKE|MERGE|WAITFOR|DBCC|"
+    r"BACKUP|RESTORE|SHUTDOWN|OPENROWSET|OPENDATASOURCE|"
+    r"BULK\s+INSERT)\b",
     re.IGNORECASE,
 )
-_DANGEROUS_RE = re.compile(r"(--|/\*|\bxp_|\bsp_)")
+_DANGEROUS_RE = re.compile(r"(--|/\*|\bxp_|\bsp_|;)")
 
 
 def _validate_column(value: str, label: str) -> None:
@@ -121,7 +125,9 @@ def _assert_readonly(sql: str) -> None:
     if _DML_DDL_RE.search(sql):
         raise ValueError("DML/DDL keywords detected — query rejected.")
     if _DANGEROUS_RE.search(sql):
-        raise ValueError("Dangerous pattern detected (comment / xp_ / sp_).")
+        raise ValueError("Dangerous pattern detected (comment / xp_ / sp_ / semicolon).")
+    if re.search(r"\bINTO\b", sql, re.IGNORECASE):
+        raise ValueError("INTO keyword detected — query rejected.")
 
 
 # ── Audit logging ─────────────────────────────────────────────
@@ -151,12 +157,13 @@ def _log_query(
                 },
             )
             session.commit()
-        except Exception:
+        except Exception as audit_err:
+            print(f"[imdr-mcp] audit-log failed: {audit_err}", file=sys.stderr)
             session.rollback()
         finally:
             session.close()
-    except Exception:
-        pass  # audit logging must never break a query
+    except Exception as audit_err:
+        print(f"[imdr-mcp] audit-log session failed: {audit_err}", file=sys.stderr)
 
 
 # ── MCP server ────────────────────────────────────────────────
@@ -253,6 +260,7 @@ def describe_table(schema: str, table: str) -> str:
 
 
 _QUERY_TIMEOUT_S = 30  # hard cap on MCP query execution time
+_MAX_QUERY_LENGTH = 4000  # matches audit log sql_text column width
 
 
 def _inject_top(sql: str, max_rows: int) -> str:
@@ -273,6 +281,8 @@ def query(sql: str, max_rows: int = 500) -> str:
     Use list_tables and describe_table first to understand the schema.
     max_rows defaults to 500. Only SELECT / WITH queries are permitted.
     """
+    if len(sql) > _MAX_QUERY_LENGTH:
+        raise ValueError(f"Query too long ({len(sql)} chars). Maximum is {_MAX_QUERY_LENGTH}.")
     _assert_readonly(sql)
     sql = _inject_top(sql, max_rows)
 
@@ -312,7 +322,7 @@ def query(sql: str, max_rows: int = 500) -> str:
     except Exception as e:
         elapsed_ms = int((time.perf_counter() - start) * 1000)
         _log_query(sql, 0, elapsed_ms, str(e))
-        return f"Error: {e}"
+        return f"Error: query failed ({type(e).__name__}). Details logged to audit."
 
 
 if __name__ == "__main__":

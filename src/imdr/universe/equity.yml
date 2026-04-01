@@ -1,0 +1,89 @@
+# Equity Universe Configuration
+#
+# Equity index levels from Citi Velocity.
+# Tag format: EQUITY.EQUITY_INDEX..{TICKER}.LEVEL.REUTERS
+# (double-dot is intentional — empty issuer segment)
+#
+# Only LEVEL.REUTERS qualifier works; no OHLCV, no CITI source.
+# ETFs are not available via this namespace.
+
+indices:
+  us:
+    - ticker: SPX
+      display_name: S&P 500
+      currency: USD
+    - ticker: NDX
+      display_name: Nasdaq 100
+      currency: USD
+    - ticker: RUT
+      display_name: Russell 2000
+      currency: USD
+    - ticker: MID
+      display_name: S&P MidCap 400
+      currency: USD
+    - ticker: OEX
+      display_name: S&P 100
+      currency: USD
+    - ticker: VIX
+      display_name: CBOE Volatility Index
+      currency: USD
+
+  europe:
+    - ticker: STOXX50E
+      display_name: Euro Stoxx 50
+      currency: EUR
+    - ticker: SX7E
+      display_name: Euro Stoxx Banks
+      currency: EUR
+    - ticker: FTSE
+      display_name: FTSE 100
+      currency: GBP
+    - ticker: FCHI
+      display_name: CAC 40
+      currency: EUR
+    - ticker: OMXS30
+      display_name: OMX Stockholm 30
+      currency: SEK
+    - ticker: WIG20
+      display_name: Warsaw WIG 20
+      currency: PLN
+
+  asia_pacific:
+    - ticker: N225
+      display_name: Nikkei 225
+      currency: JPY
+    - ticker: TOPX
+      display_name: TOPIX
+      currency: JPY
+    - ticker: HSI
+      display_name: Hang Seng
+      currency: HKD
+    - ticker: HSCE
+      display_name: Hang Seng China Enterprises
+      currency: HKD
+    - ticker: HSTECH
+      display_name: Hang Seng Tech
+      currency: HKD
+    - ticker: TWII
+      display_name: Taiwan Weighted
+      currency: TWD
+    - ticker: TAMSCI
+      display_name: MSCI Taiwan
+      currency: TWD
+    - ticker: AXJO
+      display_name: ASX 200
+      currency: AUD
+    - ticker: KS200
+      display_name: KOSPI 200
+      currency: KRW
+    - ticker: NSEI
+      display_name: Nifty 50
+      currency: INR
+    - ticker: SIMSCI
+      display_name: MSCI Singapore
+      currency: SGD
+    - ticker: SET
+      display_name: SET Index
+      currency: THB
+
+tag_template: "EQUITY.EQUITY_INDEX..{ticker}.LEVEL.REUTERS"

@@ -6,10 +6,41 @@ from datetime import date, datetime
 from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
+from imdr.connectors.bulk import MergeSpec, bulk_merge
 from imdr.models.fx import FXSpotRate
 from imdr.models.fx_ohlc import FXFactOHLC
 from imdr.schemas.fx import FXSpotRateCreate
 from imdr.schemas.fx_ohlc import FXFactOHLCCreate
+
+_FX_OHLC_SPEC = MergeSpec(
+    target_table="[fx].[fact_ohlc]",
+    staging_name="#fx_ohlc_staging",
+    columns={
+        "ts": "DATETIMEOFFSET",
+        "symbol": "NVARCHAR(10)",
+        "series": "NVARCHAR(30)",
+        "tenor": "NVARCHAR(10)",
+        "deal_type": "NVARCHAR(20)",
+        "pair_used": "NVARCHAR(20)",
+        "open_px": "FLOAT",
+        "high_px": "FLOAT",
+        "low_px": "FLOAT",
+        "close_px": "FLOAT",
+        "mid_px": "FLOAT",
+        "mid_mean_px": "FLOAT",
+        "mid_median_px": "FLOAT",
+        "bid": "FLOAT",
+        "ask": "FLOAT",
+        "n_ticks": "INT",
+    },
+    natural_key=["ts", "symbol", "series", "tenor"],
+    value_columns=[
+        "deal_type", "pair_used",
+        "open_px", "high_px", "low_px", "close_px", "mid_px",
+        "mid_mean_px", "mid_median_px", "bid", "ask", "n_ticks",
+    ],
+    audit_columns={"created_at": "SYSDATETIMEOFFSET()"},
+)
 
 
 class FXRepository:
@@ -99,29 +130,9 @@ class FXOHLCRepository:
         self._session.flush()
         return bars
 
-    def upsert(self, data: FXFactOHLCCreate) -> None:
-        """Insert or update based on (ts, symbol, series, tenor)."""
-        existing = self._session.execute(
-            select(FXFactOHLC).where(
-                FXFactOHLC.ts == data.ts,
-                FXFactOHLC.symbol == data.symbol,
-                FXFactOHLC.series == data.series,
-                FXFactOHLC.tenor == data.tenor,
-            )
-        ).scalar_one_or_none()
-
-        if existing:
-            for key, value in data.model_dump(exclude_unset=True).items():
-                setattr(existing, key, value)
-        else:
-            self._session.add(FXFactOHLC(**data.model_dump()))
-        self._session.flush()
-
     def bulk_upsert(self, items: list[FXFactOHLCCreate]) -> int:
-        """Upsert a batch of bars. Returns count of items processed."""
-        for item in items:
-            self.upsert(item)
-        return len(items)
+        """Upsert a batch of bars via temp-table MERGE."""
+        return bulk_merge(self._session, _FX_OHLC_SPEC, items)
 
     def count_by_hour(self, ts: datetime) -> int:
         """Count bars for a given hour — used for completeness checks."""

@@ -20,6 +20,7 @@ import structlog
 from imdr.config.settings import get_settings
 from imdr.connectors.mssql import MSSQLConnector
 from imdr.domains.fx.pipeline_vol import FXVolPipeline
+from imdr.market_calendar.calendar import last_business_day
 from imdr.notifications.email import send_outlook_email
 from imdr.notifications.formatters.fx_vol_ingest import FXVolIngestFormatter
 from imdr.reporting.run_report import RunReport
@@ -35,8 +36,8 @@ log = structlog.get_logger(__name__)
 MODE = "range"  # "range" | "catchup" | "gaps"
 
 # range: start and end dates (YYYY-MM-DD)
-START = "2025-09-01"
-END = "2026-01-01"
+START = "2026-03-24"
+END = "2026-03-24"
 
 # catchup: how many calendar days back from today
 LOOKBACK_DAYS = 30
@@ -79,6 +80,7 @@ def _run_pipeline(
     start: datetime,
     end: datetime,
     label: str,
+    chunk_size: int | None = None,
 ) -> tuple[int, list[dict]]:
     """Run a single pipeline call and return (rows_loaded, quality_results)."""
     log.info("processing", label=label, start=str(start.date()), end=str(end.date()))
@@ -88,6 +90,7 @@ def _run_pipeline(
         universe=universe,
         start=start,
         end=end,
+        chunk_size=chunk_size,
     )
     rows = pipeline.run()
     return rows, pipeline._quality_results
@@ -119,20 +122,21 @@ def main() -> int:
             total_rows, all_quality = _run_pipeline(
                 connector, settings, universe, start, end,
                 label=f"range {START}\u2192{END}",
+                chunk_size=settings.bulk_batch_size,
             )
 
         elif MODE == "catchup":
-            now = datetime.now(timezone.utc)
-            end = (now - timedelta(days=1)).replace(
+            end = last_business_day("US").replace(
                 hour=23, minute=59, second=0, microsecond=0,
             )
-            start = (now - timedelta(days=LOOKBACK_DAYS)).replace(
+            start = (end - timedelta(days=LOOKBACK_DAYS)).replace(
                 hour=0, minute=0, second=0, microsecond=0,
             )
             start, end = _skip_weekends(start, end)
             total_rows, all_quality = _run_pipeline(
                 connector, settings, universe, start, end,
                 label=f"catchup {LOOKBACK_DAYS}d",
+                chunk_size=settings.bulk_batch_size,
             )
 
         elif MODE == "gaps":
@@ -156,6 +160,7 @@ def main() -> int:
                         start=dt,
                         end=dt.replace(hour=23, minute=59),
                         label=f"gap {i + 1}/{len(dates)} ({dt.date()})",
+                        chunk_size=settings.bulk_batch_size,
                     )
                     total_rows += rows
                     all_quality.extend(qr)

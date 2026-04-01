@@ -1,55 +1,25 @@
 # Market definitions — globally extensible across domains.
-# Each market has a timezone, associated currencies, exchanges, and holiday calendar type.
+# Each market has a timezone, associated currencies, exchanges, holiday calendar type,
+# weekend days, ISDA financial center codes, and optional equity-style trading hours.
+#
+# weekend_days: Python weekday integers (0=Mon, 4=Fri, 5=Sat, 6=Sun). Default [5, 6].
+# isda_centers: ISDA financial center codes supported by the holidays library.
+# trading_hours: Equity-style open/close in local time. Omit for 24h/OTC markets.
 
 markets:
+  # ═══ Americas ═══════════════════════════════════════════════════════
+
   US:
     timezone: America/New_York
     currencies: [USD]
     exchanges: [NYSE, NASDAQ, CME]
     calendar_type: us_federal
     country_code: US
-
-  UK:
-    timezone: Europe/London
-    currencies: [GBP]
-    exchanges: [LSE]
-    calendar_type: uk_bank
-    country_code: GB
-
-  EU:
-    timezone: Europe/Berlin
-    currencies: [EUR]
-    exchanges: [EUREX, EURONEXT]
-    calendar_type: target2
-    country_code: DE
-
-  JP:
-    timezone: Asia/Tokyo
-    currencies: [JPY]
-    exchanges: [TSE, JPX]
-    calendar_type: japan_bank
-    country_code: JP
-
-  CH:
-    timezone: Europe/Zurich
-    currencies: [CHF]
-    exchanges: [SIX]
-    calendar_type: swiss
-    country_code: CH
-
-  AU:
-    timezone: Australia/Sydney
-    currencies: [AUD]
-    exchanges: [ASX]
-    calendar_type: australia
-    country_code: AU
-
-  NZ:
-    timezone: Pacific/Auckland
-    currencies: [NZD]
-    exchanges: [NZX]
-    calendar_type: new_zealand
-    country_code: NZ
+    weekend_days: [5, 6]
+    isda_centers: [NYSE, XNYS]
+    trading_hours:
+      open: "09:30"
+      close: "16:00"
 
   CA:
     timezone: America/Toronto
@@ -57,41 +27,11 @@ markets:
     exchanges: [TSX]
     calendar_type: canada
     country_code: CA
-
-  "NO":
-    timezone: Europe/Oslo
-    currencies: [NOK]
-    exchanges: [OSE]
-    calendar_type: norway
-    country_code: "NO"
-
-  SE:
-    timezone: Europe/Stockholm
-    currencies: [SEK]
-    exchanges: [NASDAQ_STOCKHOLM]
-    calendar_type: sweden
-    country_code: SE
-
-  CN:
-    timezone: Asia/Shanghai
-    currencies: [CNY]
-    exchanges: [SSE, SZSE]
-    calendar_type: china
-    country_code: CN
-
-  IN:
-    timezone: Asia/Kolkata
-    currencies: [INR]
-    exchanges: [NSE, BSE]
-    calendar_type: india
-    country_code: IN
-
-  KR:
-    timezone: Asia/Seoul
-    currencies: [KRW]
-    exchanges: [KRX]
-    calendar_type: south_korea
-    country_code: KR
+    weekend_days: [5, 6]
+    isda_centers: []
+    trading_hours:
+      open: "09:30"
+      close: "16:00"
 
   BR:
     timezone: America/Sao_Paulo
@@ -99,6 +39,11 @@ markets:
     exchanges: [B3]
     calendar_type: brazil
     country_code: BR
+    weekend_days: [5, 6]
+    isda_centers: [B3, BVMF]
+    trading_hours:
+      open: "10:00"
+      close: "17:00"
 
   MX:
     timezone: America/Mexico_City
@@ -106,97 +51,23 @@ markets:
     exchanges: [BMV]
     calendar_type: mexico
     country_code: MX
+    weekend_days: [5, 6]
+    isda_centers: []
+    trading_hours:
+      open: "08:30"
+      close: "15:00"
 
-  ZA:
-    timezone: Africa/Johannesburg
-    currencies: [ZAR]
-    exchanges: [JSE]
-    calendar_type: south_africa
-    country_code: ZA
-
-  TR:
-    timezone: Europe/Istanbul
-    currencies: [TRY]
-    exchanges: [BIST]
-    calendar_type: turkey
-    country_code: TR
-
-  SG:
-    timezone: Asia/Singapore
-    currencies: [SGD]
-    exchanges: [SGX]
-    calendar_type: singapore
-    country_code: SG
-
-  HK:
-    timezone: Asia/Hong_Kong
-    currencies: [HKD]
-    exchanges: [HKEX]
-    calendar_type: hong_kong
-    country_code: HK
-
-  PL:
-    timezone: Europe/Warsaw
-    currencies: [PLN]
-    exchanges: [WSE]
-    calendar_type: poland
-    country_code: PL
-
-  CZ:
-    timezone: Europe/Prague
-    currencies: [CZK]
-    exchanges: [PSE]
-    calendar_type: czech_republic
-    country_code: CZ
-
-  HU:
-    timezone: Europe/Budapest
-    currencies: [HUF]
-    exchanges: [BSE_HU]
-    calendar_type: hungary
-    country_code: HU
-
-  IL:
-    timezone: Asia/Jerusalem
-    currencies: [ILS]
-    exchanges: [TASE]
-    calendar_type: israel
-    country_code: IL
-
-  TW:
-    timezone: Asia/Taipei
-    currencies: [TWD]
-    exchanges: [TWSE]
-    calendar_type: taiwan
-    country_code: TW
-
-  PH:
-    timezone: Asia/Manila
-    currencies: [PHP]
-    exchanges: [PSE_PH]
-    calendar_type: philippines
-    country_code: PH
-
-  ID:
-    timezone: Asia/Jakarta
-    currencies: [IDR]
-    exchanges: [IDX]
-    calendar_type: indonesia
-    country_code: ID
-
-  MY:
-    timezone: Asia/Kuala_Lumpur
-    currencies: [MYR]
-    exchanges: [BURSA]
-    calendar_type: malaysia
-    country_code: MY
-
-  TH:
-    timezone: Asia/Bangkok
-    currencies: [THB]
-    exchanges: [SET]
-    calendar_type: thailand
-    country_code: TH
+  AR:
+    timezone: America/Argentina/Buenos_Aires
+    currencies: [ARS]
+    exchanges: [BYMA]
+    calendar_type: argentina
+    country_code: AR
+    weekend_days: [5, 6]
+    isda_centers: []
+    trading_hours:
+      open: "11:00"
+      close: "17:00"
 
   CL:
     timezone: America/Santiago
@@ -204,6 +75,11 @@ markets:
     exchanges: [BCS]
     calendar_type: chile
     country_code: CL
+    weekend_days: [5, 6]
+    isda_centers: []
+    trading_hours:
+      open: "09:30"
+      close: "16:00"
 
   CO:
     timezone: America/Bogota
@@ -211,6 +87,11 @@ markets:
     exchanges: [BVC]
     calendar_type: colombia
     country_code: CO
+    weekend_days: [5, 6]
+    isda_centers: []
+    trading_hours:
+      open: "09:30"
+      close: "16:00"
 
   PE:
     timezone: America/Lima
@@ -218,3 +99,534 @@ markets:
     exchanges: [BVL]
     calendar_type: peru
     country_code: PE
+    weekend_days: [5, 6]
+    isda_centers: []
+    trading_hours:
+      open: "09:00"
+      close: "15:30"
+
+  # ═══ Europe ═════════════════════════════════════════════════════════
+
+  UK:
+    timezone: Europe/London
+    currencies: [GBP]
+    exchanges: [LSE]
+    calendar_type: uk_bank
+    country_code: GB
+    weekend_days: [5, 6]
+    isda_centers: [IFEU]
+    trading_hours:
+      open: "08:00"
+      close: "16:30"
+
+  EU:
+    timezone: Europe/Berlin
+    currencies: [EUR]
+    exchanges: [EUREX, EURONEXT]
+    calendar_type: target2
+    country_code: DE
+    weekend_days: [5, 6]
+    isda_centers: [ECB, TAR, XECB]
+    trading_hours:
+      open: "09:00"
+      close: "17:30"
+
+  CH:
+    timezone: Europe/Zurich
+    currencies: [CHF]
+    exchanges: [SIX]
+    calendar_type: swiss
+    country_code: CH
+    weekend_days: [5, 6]
+    isda_centers: []
+    trading_hours:
+      open: "09:00"
+      close: "17:30"
+
+  "NO":
+    timezone: Europe/Oslo
+    currencies: [NOK]
+    exchanges: [OSE]
+    calendar_type: norway
+    country_code: "NO"
+    weekend_days: [5, 6]
+    isda_centers: []
+    trading_hours:
+      open: "09:00"
+      close: "16:20"
+
+  SE:
+    timezone: Europe/Stockholm
+    currencies: [SEK]
+    exchanges: [NASDAQ_STOCKHOLM]
+    calendar_type: sweden
+    country_code: SE
+    weekend_days: [5, 6]
+    isda_centers: []
+    trading_hours:
+      open: "09:00"
+      close: "17:30"
+
+  DK:
+    timezone: Europe/Copenhagen
+    currencies: [DKK]
+    exchanges: [NASDAQ_COPENHAGEN]
+    calendar_type: denmark
+    country_code: DK
+    weekend_days: [5, 6]
+    isda_centers: []
+    trading_hours:
+      open: "09:00"
+      close: "17:00"
+
+  PL:
+    timezone: Europe/Warsaw
+    currencies: [PLN]
+    exchanges: [WSE]
+    calendar_type: poland
+    country_code: PL
+    weekend_days: [5, 6]
+    isda_centers: []
+    trading_hours:
+      open: "09:00"
+      close: "17:00"
+
+  CZ:
+    timezone: Europe/Prague
+    currencies: [CZK]
+    exchanges: [PSE]
+    calendar_type: czech_republic
+    country_code: CZ
+    weekend_days: [5, 6]
+    isda_centers: []
+    trading_hours:
+      open: "09:00"
+      close: "16:30"
+
+  HU:
+    timezone: Europe/Budapest
+    currencies: [HUF]
+    exchanges: [BSE_HU]
+    calendar_type: hungary
+    country_code: HU
+    weekend_days: [5, 6]
+    isda_centers: []
+    trading_hours:
+      open: "09:00"
+      close: "17:00"
+
+  RO:
+    timezone: Europe/Bucharest
+    currencies: [RON]
+    exchanges: [BVB]
+    calendar_type: romania
+    country_code: RO
+    weekend_days: [5, 6]
+    isda_centers: []
+    trading_hours:
+      open: "10:00"
+      close: "17:45"
+
+  TR:
+    timezone: Europe/Istanbul
+    currencies: [TRY]
+    exchanges: [BIST]
+    calendar_type: turkey
+    country_code: TR
+    weekend_days: [5, 6]
+    isda_centers: []
+    trading_hours:
+      open: "10:00"
+      close: "18:00"
+
+  # ═══ Middle East & Africa ═══════════════════════════════════════════
+
+  IL:
+    timezone: Asia/Jerusalem
+    currencies: [ILS]
+    exchanges: [TASE]
+    calendar_type: israel
+    country_code: IL
+    weekend_days: [4, 5]   # Friday + Saturday
+    isda_centers: []
+    trading_hours:
+      open: "09:59"
+      close: "17:15"
+
+  SA:
+    timezone: Asia/Riyadh
+    currencies: [SAR]
+    exchanges: [TADAWUL]
+    calendar_type: saudi_arabia
+    country_code: SA
+    weekend_days: [4, 5]   # Friday + Saturday
+    isda_centers: []
+    trading_hours:
+      open: "10:00"
+      close: "15:00"
+
+  AE:
+    timezone: Asia/Dubai
+    currencies: [AED]
+    exchanges: [ADX, DFM]
+    calendar_type: uae
+    country_code: AE
+    weekend_days: [5, 6]   # Saturday + Sunday (changed 2022)
+    isda_centers: []
+    trading_hours:
+      open: "10:00"
+      close: "14:00"
+
+  ZA:
+    timezone: Africa/Johannesburg
+    currencies: [ZAR]
+    exchanges: [JSE]
+    calendar_type: south_africa
+    country_code: ZA
+    weekend_days: [5, 6]
+    isda_centers: []
+    trading_hours:
+      open: "09:00"
+      close: "17:00"
+
+  EG:
+    timezone: Africa/Cairo
+    currencies: [EGP]
+    exchanges: [EGX]
+    calendar_type: egypt
+    country_code: EG
+    weekend_days: [4, 5]   # Friday + Saturday
+    isda_centers: []
+    trading_hours:
+      open: "10:00"
+      close: "14:30"
+
+  NG:
+    timezone: Africa/Lagos
+    currencies: [NGN]
+    exchanges: [NGX]
+    calendar_type: nigeria
+    country_code: NG
+    weekend_days: [5, 6]
+    isda_centers: []
+    trading_hours:
+      open: "09:30"
+      close: "14:30"
+
+  # ═══ Asia-Pacific ═══════════════════════════════════════════════════
+
+  JP:
+    timezone: Asia/Tokyo
+    currencies: [JPY]
+    exchanges: [TSE, JPX]
+    calendar_type: japan_bank
+    country_code: JP
+    weekend_days: [5, 6]
+    isda_centers: []
+    trading_hours:
+      open: "09:00"
+      close: "15:30"
+      lunch_start: "11:30"
+      lunch_end: "12:30"
+
+  CN:
+    timezone: Asia/Shanghai
+    currencies: [CNY, CNH]
+    exchanges: [SSE, SZSE]
+    calendar_type: china
+    country_code: CN
+    weekend_days: [5, 6]
+    isda_centers: []
+    trading_hours:
+      open: "09:30"
+      close: "15:00"
+      lunch_start: "11:30"
+      lunch_end: "13:00"
+
+  HK:
+    timezone: Asia/Hong_Kong
+    currencies: [HKD]
+    exchanges: [HKEX]
+    calendar_type: hong_kong
+    country_code: HK
+    weekend_days: [5, 6]
+    isda_centers: []
+    trading_hours:
+      open: "09:30"
+      close: "16:00"
+      lunch_start: "12:00"
+      lunch_end: "13:00"
+
+  KR:
+    timezone: Asia/Seoul
+    currencies: [KRW]
+    exchanges: [KRX]
+    calendar_type: south_korea
+    country_code: KR
+    weekend_days: [5, 6]
+    isda_centers: []
+    trading_hours:
+      open: "09:00"
+      close: "15:30"
+
+  AU:
+    timezone: Australia/Sydney
+    currencies: [AUD]
+    exchanges: [ASX]
+    calendar_type: australia
+    country_code: AU
+    weekend_days: [5, 6]
+    isda_centers: []
+    trading_hours:
+      open: "10:00"
+      close: "16:00"
+
+  NZ:
+    timezone: Pacific/Auckland
+    currencies: [NZD]
+    exchanges: [NZX]
+    calendar_type: new_zealand
+    country_code: NZ
+    weekend_days: [5, 6]
+    isda_centers: []
+    trading_hours:
+      open: "10:00"
+      close: "16:45"
+
+  IN:
+    timezone: Asia/Kolkata
+    currencies: [INR]
+    exchanges: [NSE, BSE]
+    calendar_type: india
+    country_code: IN
+    weekend_days: [5, 6]
+    isda_centers: [BSE, NSE, XBOM, XNSE]
+    trading_hours:
+      open: "09:15"
+      close: "15:30"
+
+  SG:
+    timezone: Asia/Singapore
+    currencies: [SGD]
+    exchanges: [SGX]
+    calendar_type: singapore
+    country_code: SG
+    weekend_days: [5, 6]
+    isda_centers: []
+    trading_hours:
+      open: "09:00"
+      close: "17:00"
+
+  TW:
+    timezone: Asia/Taipei
+    currencies: [TWD]
+    exchanges: [TWSE]
+    calendar_type: taiwan
+    country_code: TW
+    weekend_days: [5, 6]
+    isda_centers: []
+    trading_hours:
+      open: "09:00"
+      close: "13:30"
+
+  TH:
+    timezone: Asia/Bangkok
+    currencies: [THB]
+    exchanges: [SET]
+    calendar_type: thailand
+    country_code: TH
+    weekend_days: [5, 6]
+    isda_centers: []
+    trading_hours:
+      open: "10:00"
+      close: "16:30"
+      lunch_start: "12:30"
+      lunch_end: "14:30"
+
+  ID:
+    timezone: Asia/Jakarta
+    currencies: [IDR]
+    exchanges: [IDX]
+    calendar_type: indonesia
+    country_code: ID
+    weekend_days: [5, 6]
+    isda_centers: []
+    trading_hours:
+      open: "09:00"
+      close: "16:15"
+      lunch_start: "11:30"
+      lunch_end: "13:30"
+
+  MY:
+    timezone: Asia/Kuala_Lumpur
+    currencies: [MYR]
+    exchanges: [BURSA]
+    calendar_type: malaysia
+    country_code: MY
+    weekend_days: [5, 6]
+    isda_centers: []
+    trading_hours:
+      open: "09:00"
+      close: "17:00"
+      lunch_start: "12:30"
+      lunch_end: "14:30"
+
+  PH:
+    timezone: Asia/Manila
+    currencies: [PHP]
+    exchanges: [PSE_PH]
+    calendar_type: philippines
+    country_code: PH
+    weekend_days: [5, 6]
+    isda_centers: []
+    trading_hours:
+      open: "09:30"
+      close: "15:30"
+
+  VN:
+    timezone: Asia/Ho_Chi_Minh
+    currencies: [VND]
+    exchanges: [HOSE]
+    calendar_type: vietnam
+    country_code: VN
+    weekend_days: [5, 6]
+    isda_centers: []
+    trading_hours:
+      open: "09:00"
+      close: "15:00"
+      lunch_start: "11:30"
+      lunch_end: "13:00"
+
+  # ═══ Central/South Asia & Other ════════════════════════════════════
+
+  KZ:
+    timezone: Asia/Almaty
+    currencies: [KZT]
+    exchanges: [KASE]
+    calendar_type: kazakhstan
+    country_code: KZ
+    weekend_days: [5, 6]
+    isda_centers: []
+    trading_hours:
+      open: "11:00"
+      close: "17:00"
+
+  BD:
+    timezone: Asia/Dhaka
+    currencies: [BDT]
+    exchanges: [DSE]
+    calendar_type: bangladesh
+    country_code: BD
+    weekend_days: [4, 5]   # Friday + Saturday
+    isda_centers: []
+    trading_hours:
+      open: "10:00"
+      close: "14:30"
+
+  LK:
+    timezone: Asia/Colombo
+    currencies: [LKR]
+    exchanges: [CSE]
+    calendar_type: sri_lanka
+    country_code: LK
+    weekend_days: [5, 6]
+    isda_centers: []
+    trading_hours:
+      open: "09:30"
+      close: "14:30"
+
+  # ═══ EU Member States (for CB event granularity) ═══════════════════
+  # These use the EU/TARGET2 calendar but are separate entries to preserve
+  # country-level granularity in CB events.
+
+  DE:
+    timezone: Europe/Berlin
+    currencies: []
+    exchanges: [XETRA]
+    calendar_type: target2
+    country_code: DE
+    weekend_days: [5, 6]
+    isda_centers: [ECB, TAR, XECB]
+    trading_hours:
+      open: "09:00"
+      close: "17:30"
+
+  FR:
+    timezone: Europe/Paris
+    currencies: []
+    exchanges: [EURONEXT_PARIS]
+    calendar_type: target2
+    country_code: FR
+    weekend_days: [5, 6]
+    isda_centers: [ECB, TAR, XECB]
+    trading_hours:
+      open: "09:00"
+      close: "17:30"
+
+  IT:
+    timezone: Europe/Rome
+    currencies: []
+    exchanges: [BORSA_ITALIANA]
+    calendar_type: target2
+    country_code: IT
+    weekend_days: [5, 6]
+    isda_centers: [ECB, TAR, XECB]
+    trading_hours:
+      open: "09:00"
+      close: "17:30"
+
+  ES:
+    timezone: Europe/Madrid
+    currencies: []
+    exchanges: [BME]
+    calendar_type: target2
+    country_code: ES
+    weekend_days: [5, 6]
+    isda_centers: [ECB, TAR, XECB]
+    trading_hours:
+      open: "09:00"
+      close: "17:30"
+
+  NL:
+    timezone: Europe/Amsterdam
+    currencies: []
+    exchanges: [EURONEXT_AMS]
+    calendar_type: target2
+    country_code: NL
+    weekend_days: [5, 6]
+    isda_centers: [ECB, TAR, XECB]
+    trading_hours:
+      open: "09:00"
+      close: "17:30"
+
+  FI:
+    timezone: Europe/Helsinki
+    currencies: []
+    exchanges: [NASDAQ_HELSINKI]
+    calendar_type: target2
+    country_code: FI
+    weekend_days: [5, 6]
+    isda_centers: [ECB, TAR, XECB]
+    trading_hours:
+      open: "10:00"
+      close: "18:30"
+
+  # ═══ Other (CB event support) ══════════════════════════════════════
+
+  BM:
+    timezone: America/New_York
+    currencies: []
+    exchanges: [BSX]
+    calendar_type: bermuda
+    country_code: BM
+    weekend_days: [5, 6]
+    isda_centers: []
+
+  WW:
+    timezone: UTC
+    currencies: []
+    exchanges: []
+    calendar_type: global
+    country_code: WW
+    weekend_days: [5, 6]
+    isda_centers: []

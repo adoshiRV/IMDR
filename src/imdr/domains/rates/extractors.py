@@ -13,7 +13,12 @@ import pandas as pd
 import structlog
 
 from imdr.config.settings import Settings
-from imdr.connectors.citi_helpers import fetch_and_parse_batched, parse_x_to_ts_utc
+from imdr.connectors.citi_helpers import (
+    TagQuotaExceeded,
+    fetch_and_parse_batched,
+    parse_x_to_ts_utc,
+)
+from imdr.connectors.citi_quota import TagQuotaTracker
 from imdr.connectors.citi_velocity import CitiVelocityClient
 from imdr.domains.rates.cache import CurveQuoteCache
 from imdr.domains.rates.schema import COLUMNS, QUOTE_TO_CITI
@@ -35,12 +40,15 @@ class CitiVelocityRatesExtractor:
         settings: Settings,
         universe: RatesUniverse | None = None,
         cache: CurveQuoteCache | None = None,
+        quota_tracker: TagQuotaTracker | None = None,
     ) -> None:
         self._client = client
         self._batch_size = settings.citi_batch_size
         self._rate_limit = settings.citi_rate_limit_sec
         self._universe = universe or get_rates_universe()
         self._cache = cache
+        self._quota_tracker = quota_tracker
+        self._errors: list[dict] = []
 
     def extract(
         self,
@@ -72,6 +80,15 @@ class CitiVelocityRatesExtractor:
         total = len(curves) * len(quotes)
         _log.info("extract_start", n_curves=len(curves), n_quotes=len(quotes), total_jobs=total)
 
+        # Pre-flight budget check — estimate total tags and verify quota
+        if self._quota_tracker is not None:
+            estimated_tags = sum(
+                len(self._universe.build_tags(ccy, curve, QUOTE_TO_CITI[q.lower()]))
+                for ccy, curve in curves
+                for q in quotes
+            )
+            self._quota_tracker.check_budget(estimated_tags, "rates.citi_live")
+
         frames: list[pd.DataFrame] = []
         done = 0
         skipped = 0
@@ -99,7 +116,14 @@ class CitiVelocityRatesExtractor:
                         ccy=ccy, curve=curve, quote=quote,
                         rows=len(df),
                     )
-                except Exception:
+                except TagQuotaExceeded:
+                    _log.error("tag_quota_exceeded", ccy=ccy, curve=curve, quote=quote,
+                               progress=f"{done}/{total}")
+                    raise
+                except Exception as e:
+                    self._errors.append({
+                        "ccy": ccy, "curve": curve, "quote": quote, "error": str(e),
+                    })
                     _log.exception("curve_fetch_failed", ccy=ccy, curve=curve, quote=quote)
 
         if self._cache:
@@ -149,6 +173,8 @@ class CitiVelocityRatesExtractor:
             self._client, tags, start, end, frequency,
             self._batch_size, self._rate_limit,
             response_parser=_parse_response,
+            quota_tracker=self._quota_tracker,
+            pipeline_name="rates.citi_live",
         )
         if df.empty:
             return pd.DataFrame(columns=COLUMNS)

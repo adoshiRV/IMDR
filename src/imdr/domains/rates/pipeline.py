@@ -14,12 +14,18 @@ import structlog
 
 from imdr.config.pipeline_config import get_pipeline_config
 from imdr.config.settings import Settings
+from imdr.connectors.citi_quota import TagQuotaTracker
 from imdr.connectors.citi_velocity import CitiVelocityClient
 from imdr.connectors.mssql import MSSQLConnector
 from imdr.connectors.reader import AnalyticalReader
 from imdr.domains.rates.cache import CurveQuoteCache
 from imdr.domains.rates.extractors import CitiVelocityRatesExtractor
-from imdr.domains.rates.repository import RatesCurveRepository, RatesObservationRepository
+from imdr.connectors.bulk import chunked_bulk_merge
+from imdr.domains.rates.repository import (
+    RatesCurveRepository,
+    RatesObservationRepository,
+    _RATES_OBS_SPEC,
+)
 from imdr.domains.rates.store import write as parquet_write
 from imdr.domains.rates.utils import curve_entry_to_create
 from imdr.healthchecks.base import HealthCheck
@@ -63,6 +69,7 @@ class RatesHistoricalPipeline(BasePipeline[pd.DataFrame, list[RatesObservationCr
         frequency: str = "DAILY",
         curves: list[tuple[str, str]] | None = None,
         use_cache: bool = True,
+        chunk_size: int | None = None,
     ) -> None:
         super().__init__(connector)
         self._settings = settings
@@ -74,8 +81,11 @@ class RatesHistoricalPipeline(BasePipeline[pd.DataFrame, list[RatesObservationCr
         self._frequency = frequency
         self._curves = curves
         self._use_cache = use_cache
+        self._chunk_size = chunk_size
         self._raw_df: pd.DataFrame | None = None
         self._metadata_freshness: dict[str, Any] | None = None
+        self._extraction_errors: list[dict] = []
+        self._quota_usage: int | None = None
 
     def _check_metadata_freshness(self, client: CitiVelocityClient) -> dict[str, Any]:
         """Query Citi Metadata API to check when sample tags were last updated.
@@ -114,6 +124,11 @@ class RatesHistoricalPipeline(BasePipeline[pd.DataFrame, list[RatesObservationCr
             cache = CurveQuoteCache(cache_dir)
             cache.load()
 
+        tracker = TagQuotaTracker(
+            quota_limit=self._settings.citi_tag_quota_limit,
+            tracker_path=self._settings.citi_tag_quota_file or None,
+        )
+
         with CitiVelocityClient(self._settings) as client:
             # Freshness check — sample metadata before pulling data
             self._metadata_freshness = self._check_metadata_freshness(client)
@@ -123,6 +138,7 @@ class RatesHistoricalPipeline(BasePipeline[pd.DataFrame, list[RatesObservationCr
                 settings=self._settings,
                 universe=self._universe,
                 cache=cache,
+                quota_tracker=tracker,
             )
             df = extractor.extract(
                 start=self._start,
@@ -131,8 +147,13 @@ class RatesHistoricalPipeline(BasePipeline[pd.DataFrame, list[RatesObservationCr
                 frequency=self._frequency,
                 curves=self._curves,
             )
+
+        self._extraction_errors = extractor._errors
+        self._quota_usage = tracker.current_usage()
         self._raw_df = df
-        _log.info("extract_complete", rows=len(df))
+        _log.info("extract_complete", rows=len(df),
+                   extraction_errors=len(self._extraction_errors),
+                   quota_used=self._quota_usage)
         return df
 
     def transform(self, raw: pd.DataFrame) -> list[RatesObservationCreate]:
@@ -182,9 +203,14 @@ class RatesHistoricalPipeline(BasePipeline[pd.DataFrame, list[RatesObservationCr
         if not data:
             return 0
 
-        with self._connector.session() as session:
-            repo = RatesObservationRepository(session)
-            count = repo.bulk_upsert(data)
+        if self._chunk_size:
+            count = chunked_bulk_merge(
+                self._connector, _RATES_OBS_SPEC, data, self._chunk_size,
+            )
+        else:
+            with self._connector.session() as session:
+                repo = RatesObservationRepository(session)
+                count = repo.bulk_upsert(data)
 
         _log.info("load_complete", rows_loaded=count)
         return count
