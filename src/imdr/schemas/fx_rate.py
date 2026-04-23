@@ -17,6 +17,7 @@ class FXRateCreate(BaseModel):
     pair_id: int = Field(..., gt=0)
     vendor_id: int = Field(..., gt=0)
     frequency_id: int = Field(..., gt=0)
+    obs_ts: datetime
     obs_date: date
     tenor: str = Field(..., min_length=2, max_length=5)
     mid_rate: Decimal = Field(..., gt=0)

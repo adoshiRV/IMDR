@@ -7,6 +7,7 @@ Operational guide for the `fx.citi_rate` pipeline. Target table: [fx.fact_fx_rat
 ## Schedule
 
 - **Daily 08:00 SGT** — via Windows Task Scheduler, orchestrated by [scripts/imdr_daily.py](../../scripts/imdr_daily.py) alongside all other Citi daily pipelines. Registered with `estimated_tags=800`. Rationale for 08:00 vs 07:00 SGT: see [citi_tag_quota.md — Daily Batch Timing](../admin/citi_tag_quota.md#daily-batch-timing).
+- **Hourly** — `fx.citi_rate_live_hourly` registered in [scripts/imdr_hourly.py](../../scripts/imdr_hourly.py). 24 runs/day on trading days; uses the dedicated `IMDR_CITI_HOURLY_CLIENT_*` OAuth client (FX + rates entitled, separate 100K/24h rolling bucket) and `data/cache/citi_tag_quota_hourly.json` tracker file. Weekend skip via `FXUniverse.is_fx_open()` — catches Sun 22:00+ UTC Asia opens, skips Sat through Sun 21:59 UTC.
 - **Retry cron** — `fx.citi_rate_live` is also registered in [scripts/imdr_retry.py](../../scripts/imdr_retry.py); runs at 12:00 and 18:00 SGT if the earlier run hit the tag quota or returned a partial row count.
 
 ---
@@ -28,6 +29,20 @@ C:/Users/adoshi/.conda/envs/imdr/python.exe -m scripts.fx.citi.fx_rate_citi_live
 
 Expected output: 209 rows upserted (19 pairs × 11 tenors).
 
+### Hourly (intraday)
+
+```bash
+# Default: today UTC, all 19 pairs
+C:/Users/adoshi/.conda/envs/imdr/python.exe -m scripts.fx.citi.fx_rate_citi_live_hourly
+
+# Override date (UTC)
+C:/Users/adoshi/.conda/envs/imdr/python.exe -m scripts.fx.citi.fx_rate_citi_live_hourly --date 2026-04-23
+```
+
+Budget: 399 tags/call × 24 runs/day = **~9,576 tags/day** on the hourly OAuth client (~10% of its 95K bucket). Each run pulls the full current-UTC-day window at HOURLY frequency; MERGE upsert (natural key now includes `obs_ts` — see [migration 027](../../migrations/027_add_obs_ts_to_fx_fact_fx_rate.sql)) makes re-fetches idempotent and fills in late-arriving hours.
+
+Expected steady-state row count after a full UTC day: 19 pairs × 11 tenors × 24 hours ≈ **5,016 rows/day** with `frequency_id=4` (HOURLY). Early-morning UTC runs return partial coverage until each home market opens (see citi_velocity_fx.md for publish windows).
+
 ### Historical backfill
 
 Edit `MODE`, `START`, `END`, and `LOOKBACK_DAYS` in [scripts/fx/citi/fx_rate_citi_historical.py](../../scripts/fx/citi/fx_rate_citi_historical.py), then:
@@ -41,7 +56,7 @@ C:/Users/adoshi/.conda/envs/imdr/python.exe -m scripts.fx.citi.fx_rate_citi_hist
 - `catchup` — last `LOOKBACK_DAYS` business days
 - `gaps` — read dates from `data/gaps/fx_rate_gaps.txt` (one YYYY-MM-DD per line)
 
-Re-running is idempotent — MERGE upserts on `(pair_id, vendor_id, frequency_id, obs_date, tenor)`.
+Re-running is idempotent — MERGE upserts on `(pair_id, vendor_id, frequency_id, obs_ts, tenor)` (post-migration 027; prior to that the UQ used `obs_date`).
 
 ### Ad-hoc via generic runner
 

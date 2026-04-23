@@ -1,6 +1,6 @@
 """Tests for schemas/fx_rate.py Pydantic validation."""
 
-from datetime import date
+from datetime import date, datetime, timezone
 from decimal import Decimal
 
 import pytest
@@ -14,6 +14,7 @@ class TestFXRateCreate:
             "pair_id": 1,
             "vendor_id": 1,
             "frequency_id": 5,  # DAILY
+            "obs_ts": datetime(2026, 4, 21, 0, 0, tzinfo=timezone.utc),
             "obs_date": date(2026, 4, 21),
             "tenor": "1M",
             "mid_rate": Decimal("1.17887"),

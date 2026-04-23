@@ -99,6 +99,7 @@ def main() -> int:
             end=end,
             pairs=pairs,
             chunk_size=settings.bulk_batch_size,
+            frequency="DAILY",
         )
         result = pipeline.run()
         elapsed = time.perf_counter() - t0

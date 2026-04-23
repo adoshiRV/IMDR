@@ -2,6 +2,12 @@
 
 End-to-end architecture of the `fx.citi_rate` pipeline (Citi Velocity → [fx.fact_fx_rate](fx_rate_schema.md)). Operational runbook: [fx_rate_operations.md](fx_rate_operations.md).
 
+Two cadences share this pipeline and target table, differentiated by `frequency_id`:
+- **Daily (`fx.citi_rate_live`)** — 08:00 SGT via [imdr_daily.py](../../scripts/imdr_daily.py), uses the primary OAuth client. Writes rows with `obs_ts = obs_date at 00:00 UTC`, `frequency_id=5` (DAILY).
+- **Hourly (`fx.citi_rate_live_hourly`)** — every hour via [imdr_hourly.py](../../scripts/imdr_hourly.py), uses the dedicated `IMDR_CITI_HOURLY_CLIENT_*` OAuth client + `data/cache/citi_tag_quota_hourly.json`. Writes rows with actual hour-bucket `obs_ts`, `frequency_id=4` (HOURLY). FX-open gated via `FXUniverse.is_fx_open()`.
+
+The hourly runner reuses `FXRatePipeline` end-to-end — only the constructor kwargs differ (`frequency="HOURLY"`, `client_id`, `client_secret`, `quota_tracker_path`). See [migration 027](../../migrations/027_add_obs_ts_to_fx_fact_fx_rate.sql) for the additive schema change that enabled intraday writes to the same fact table.
+
 ---
 
 ## Data flow
@@ -34,7 +40,7 @@ End-to-end architecture of the `fx.citi_rate` pipeline (Citi Velocity → [fx.fa
                         ▼
            ┌─────────────────────────┐
            │ bulk_merge(_FX_RATE_SPEC│   temp-table MERGE on
-           │   chunked_bulk_merge()  │   (pair_id, vendor_id, frequency_id, obs_date, tenor)
+           │   chunked_bulk_merge()  │   (pair_id, vendor_id, frequency_id, obs_ts, tenor)
            └────────────┬────────────┘
                         │
                         ▼

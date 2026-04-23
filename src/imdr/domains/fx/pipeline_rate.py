@@ -43,7 +43,6 @@ from imdr.universe.fx import FXUniverse
 _log = structlog.get_logger("FXRatePipeline")
 
 VENDOR_CODE = "citi_velocity"
-FREQUENCY_CODE = "DAILY"
 
 
 class FXRatePipeline(BasePipeline[pd.DataFrame, list[FXRateCreate], int]):
@@ -61,6 +60,10 @@ class FXRatePipeline(BasePipeline[pd.DataFrame, list[FXRateCreate], int]):
         end: datetime,
         pairs: list[tuple[str, str]] | None = None,
         chunk_size: int | None = None,
+        frequency: str = "DAILY",
+        client_id: str | None = None,
+        client_secret: str | None = None,
+        quota_tracker_path: str | None = None,
     ) -> None:
         super().__init__(connector)
         self._settings = settings
@@ -70,6 +73,10 @@ class FXRatePipeline(BasePipeline[pd.DataFrame, list[FXRateCreate], int]):
         self._end = end
         self._pairs = pairs
         self._chunk_size = chunk_size
+        self._frequency = frequency
+        self._client_id = client_id
+        self._client_secret = client_secret
+        self._quota_tracker_path = quota_tracker_path
         self._raw_df: pd.DataFrame | None = None
         self._quality_results: list[dict[str, Any]] = []
         self._extraction_errors: list[dict] = []
@@ -79,17 +86,25 @@ class FXRatePipeline(BasePipeline[pd.DataFrame, list[FXRateCreate], int]):
         """Fetch spot + forward rates from Citi Velocity Historical API."""
         tracker = TagQuotaTracker(
             quota_limit=self._settings.citi_tag_quota_limit,
-            tracker_path=self._settings.citi_tag_quota_file or None,
+            tracker_path=self._quota_tracker_path
+            or self._settings.citi_tag_quota_file
+            or None,
         )
 
-        with CitiVelocityClient(self._settings) as client:
+        with CitiVelocityClient(
+            self._settings,
+            client_id=self._client_id,
+            client_secret=self._client_secret,
+        ) as client:
             extractor = CitiVelocityFXRateExtractor(
                 client=client,
                 settings=self._settings,
                 universe=self._universe,
                 quota_tracker=tracker,
             )
-            df = extractor.extract(self._start, self._end, self._pairs)
+            df = extractor.extract(
+                self._start, self._end, self._pairs, frequency=self._frequency,
+            )
 
         self._extraction_errors = extractor._errors
         self._quota_usage = tracker.current_usage()
@@ -99,6 +114,7 @@ class FXRatePipeline(BasePipeline[pd.DataFrame, list[FXRateCreate], int]):
             rows=len(df),
             extraction_errors=len(self._extraction_errors),
             quota_used=self._quota_usage,
+            frequency=self._frequency,
         )
         return df
 
@@ -125,12 +141,13 @@ class FXRatePipeline(BasePipeline[pd.DataFrame, list[FXRateCreate], int]):
                 raise RuntimeError(
                     f"Vendor '{VENDOR_CODE}' missing from dbo.dim_vendor — cannot load fx_rate"
                 )
+            freq_code = self._frequency.upper()
             frequency = session.execute(
-                select(DimFrequency).where(DimFrequency.frequency_code == FREQUENCY_CODE)
+                select(DimFrequency).where(DimFrequency.frequency_code == freq_code)
             ).scalar_one_or_none()
             if frequency is None:
                 raise RuntimeError(
-                    f"Frequency '{FREQUENCY_CODE}' missing from dbo.dim_frequency — "
+                    f"Frequency '{freq_code}' missing from dbo.dim_frequency — "
                     "run migration 023_create_dim_frequency.sql"
                 )
             vendor_id = vendor.id
@@ -162,13 +179,15 @@ class FXRatePipeline(BasePipeline[pd.DataFrame, list[FXRateCreate], int]):
                 None if pd.isna(fwd_points_raw) else Decimal(str(fwd_points_raw))
             )
 
-            obs_date = row["ts"].date() if hasattr(row["ts"], "date") else row["ts"]
+            obs_ts = row["ts"]
+            obs_date = obs_ts.date() if hasattr(obs_ts, "date") else obs_ts
 
             observations.append(
                 FXRateCreate(
                     pair_id=pair_id,
                     vendor_id=vendor_id,
                     frequency_id=frequency_id,
+                    obs_ts=obs_ts,
                     obs_date=obs_date,
                     tenor=row["tenor"],
                     mid_rate=Decimal(str(mid_rate_raw)),
@@ -208,6 +227,7 @@ class FXRatePipeline(BasePipeline[pd.DataFrame, list[FXRateCreate], int]):
         manifest: dict[str, Any] = {
             "source": "citi_velocity_historical",
             "range": [str(self._start.date()), str(self._end.date())],
+            "frequency": self._frequency,
             "rows_loaded": result,
         }
         written = parquet_write(self._raw_df, manifest=manifest)

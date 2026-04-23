@@ -27,7 +27,19 @@ All daily Citi pipelines run together in the 08:00 SGT batch orchestrated by [im
 | `equity.index_citi_live` | ~24 | Daily 08:00 SGT | 24 index tickers |
 | `equity.vix_citi_live` | ~5 | Daily 08:00 SGT | VIX + variants |
 | `rates.bench_citi_live` | ~10 | Daily 08:00 SGT | 10 CB policy rates |
-| **Daily total** | **~56–61K** | | Leaves ~40K headroom for manual/backfill runs |
+| **Daily total (primary OAuth client)** | **~56–61K** | | Leaves ~40K headroom for manual/backfill runs |
+
+### Hourly tag budget — dedicated OAuth client
+
+The hourly intraday pipelines (`rates.citi_live_hourly`, `fx.citi_rate_live_hourly`) run under a **separate OAuth client** (`IMDR_CITI_HOURLY_CLIENT_ID`/`_SECRET`) with its own Citi-side 100K/24h rolling bucket. Tracker file: [data/cache/citi_tag_quota_hourly.json](../../data/cache/citi_tag_quota_hourly.json).
+
+| Pipeline | Tags/Run | Runs/Day (trading) | Tags/Day | Notes |
+|---|---|---|---|---|
+| `rates.citi_live_hourly` | 864 | 24 | ~20,736 | 12 RFR curves × (44 par + 28 fwd) |
+| `fx.citi_rate_live_hourly` | 399 | 24 | ~9,576 | 19 pairs × (1 spot + 2 × 10 fwd tenors) |
+| **Hourly total** | | | **~30.3K/day (~32% of 95K)** | Leaves ~65K headroom on the hourly client |
+
+Weekend/holiday gates (`all_anchor_markets_closed_skip` for rates, `is_fx_open` for FX) set the usage to **0 tags/day** on Sat + most of Sun + universal holidays (New Year's, etc.).
 
 ## Daily Batch Timing
 

@@ -60,9 +60,11 @@ class FXRateIngestFormatter:
         n_pairs: int = 0,
         has_errors: bool = False,
         is_historical: bool = False,
+        mode: str | None = None,
         **kwargs: Any,
     ) -> str:
-        mode = "Historical" if is_historical else "Live"
+        if mode is None:
+            mode = "Historical" if is_historical else "Live"
         status = "ERROR" if has_errors else "OK"
         date_str = run_date.strftime("%Y-%m-%d") if run_date else "N/A"
         return (
@@ -85,6 +87,7 @@ class FXRateIngestFormatter:
         health_details: list[dict[str, Any]] | None = None,
         elapsed_secs: float = 0.0,
         is_historical: bool = False,
+        mode: str | None = None,
         has_errors: bool = False,
         **kwargs: Any,
     ) -> str:
@@ -110,7 +113,7 @@ class FXRateIngestFormatter:
         pair_groups = _prepare_pair_groups(pair_data)
 
         ctx = {
-            "mode": "Historical" if is_historical else "Live",
+            "mode": mode if mode is not None else ("Historical" if is_historical else "Live"),
             "has_errors": has_errors,
             "pipeline_name": pipeline_name,
             "date_str": date_str,

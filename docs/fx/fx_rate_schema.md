@@ -1,6 +1,6 @@
 # FX Rate Schema — `fx.fact_fx_rate`
 
-Daily EOD spot + forward outright + forward points for FX pairs, sourced from Citi Velocity. Created 2026-04-22 via migration [024_create_fx_fact_fx_rate.sql](../../migrations/024_create_fx_fact_fx_rate.sql).
+Spot + forward outright + forward points for FX pairs, sourced from Citi Velocity. Created 2026-04-22 via migration [024_create_fx_fact_fx_rate.sql](../../migrations/024_create_fx_fact_fx_rate.sql); retrofitted for hourly intraday support on 2026-04-23 via migration [027_add_obs_ts_to_fx_fact_fx_rate.sql](../../migrations/027_add_obs_ts_to_fx_fact_fx_rate.sql).
 
 Full column-level semantics, FK relationships, and index design.
 
@@ -13,8 +13,9 @@ Full column-level semantics, FK relationships, and index design.
 | `id` | INT IDENTITY | NO | PK (NONCLUSTERED) |
 | `pair_id` | INT | NO | FK → [fx.dim_currency_pair(id)](../../migrations/004_create_fx_dim_currency_pair.sql) |
 | `vendor_id` | INT | NO | FK → [dbo.dim_vendor(id)](../../migrations/018_create_dim_vendor.sql) — typically `citi_velocity` |
-| `frequency_id` | TINYINT | NO | FK → [dbo.dim_frequency(id)](../../migrations/023_create_dim_frequency.sql) — `DAILY` for Citi EOD |
-| `obs_date` | DATE | NO | Observation date (UTC day) |
+| `frequency_id` | TINYINT | NO | FK → [dbo.dim_frequency(id)](../../migrations/023_create_dim_frequency.sql) — `DAILY` for Citi EOD, `HOURLY` for intraday runner |
+| `obs_ts` | DATETIMEOFFSET(7) | NO | Observation timestamp (UTC). For DAILY rows this is the UTC day at 00:00; for HOURLY rows this is the actual hour bucket from Citi (10-digit YYYYMMDDHH format via `parse_x_to_ts_utc`). Added by migration 027. |
+| `obs_date` | DATE | NO | UTC day component of `obs_ts`. Retained post-migration-027 for backwards-compat reads; populated by the pipeline as `obs_ts.date()`. |
 | `tenor` | VARCHAR(5) | NO | One of `SPOT, ON, 1W, 1M, 3M, 6M, 9M, 1Y, 2Y, 5Y, 10Y` |
 | `mid_rate` | DECIMAL(18, 8) | NO | Spot mid (tenor=SPOT) or forward outright mid; CHECK `> 0` |
 | `fwd_points` | DECIMAL(18, 10) | YES | Forward points for non-SPOT tenors; NULL for `SPOT` rows |
@@ -26,7 +27,7 @@ Full column-level semantics, FK relationships, and index design.
 ## Constraints
 
 - **Primary key**: `pk_fx_fact_fx_rate` on `id` — NONCLUSTERED per [schema_conventions.md §5.1](../admin/schema_conventions.md) (clustered index is on the natural time-series access path, not the surrogate).
-- **Unique / natural key**: `uq_fx_fact_fx_rate` on `(pair_id, vendor_id, frequency_id, obs_date, tenor)`. Allows coexistence of DAILY + future HOURLY rows per pair.
+- **Unique / natural key**: `uq_fx_fact_fx_rate` on `(pair_id, vendor_id, frequency_id, obs_ts, tenor)` — `obs_ts` replaced `obs_date` in the key position via migration 027 so HOURLY rows can coexist with DAILY rows (previously they would have collapsed onto a single obs_date row).
 - **Foreign keys**:
   - `FK_fx_fact_fx_rate_pair` → `fx.dim_currency_pair(id)`
   - `FK_fx_fact_fx_rate_vendor` → `dbo.dim_vendor(id)`
@@ -42,6 +43,7 @@ Full column-level semantics, FK relationships, and index design.
 | Index | Columns | Purpose |
 |---|---|---|
 | `ix_fx_fact_fx_rate_cluster` (clustered) | `(obs_date, pair_id, tenor)` | Time-series range scan is the dominant access pattern |
+| `ix_fx_fact_fx_rate_obs_ts` | `(obs_ts)` | Added by migration 027 — supports hour-level range scans without falling back to the `obs_date`-keyed cluster |
 | `ix_fx_fact_fx_rate_pair` | `(pair_id)` | FK index (§5.4) |
 | `ix_fx_fact_fx_rate_vendor` | `(vendor_id)` | FK index |
 | `ix_fx_fact_fx_rate_frequency` | `(frequency_id)` | FK index |

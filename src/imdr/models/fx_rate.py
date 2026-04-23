@@ -8,7 +8,7 @@ See docs/fx/fx_rate_schema.md for column semantics and the tenor enum.
 """
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import (
@@ -21,13 +21,19 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
 )
+from sqlalchemy.dialects.mssql import DATETIMEOFFSET
 from sqlalchemy.orm import Mapped, mapped_column
 
 from imdr.models.base import Base
 
 
 class FXFactFXRate(Base):
-    """Daily FX rate observation — spot or forward outright mid, plus optional fwd points."""
+    """FX rate observation — spot or forward outright mid, plus optional fwd points.
+
+    Post-migration 027 the natural key is (pair_id, vendor_id, frequency_id,
+    obs_ts, tenor). obs_date is retained for backwards-compat reads and is
+    populated by the pipeline as obs_ts.date().
+    """
 
     __tablename__ = "fact_fx_rate"
     __table_args__ = (
@@ -35,7 +41,7 @@ class FXFactFXRate(Base):
             "pair_id",
             "vendor_id",
             "frequency_id",
-            "obs_date",
+            "obs_ts",
             "tenor",
             name="uq_fx_fact_fx_rate",
         ),
@@ -56,6 +62,7 @@ class FXFactFXRate(Base):
     frequency_id: Mapped[int] = mapped_column(
         SmallInteger, ForeignKey("dbo.dim_frequency.id"), nullable=False, index=True
     )
+    obs_ts: Mapped[datetime] = mapped_column(DATETIMEOFFSET, nullable=False, index=True)
     obs_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     tenor: Mapped[str] = mapped_column(String(5), nullable=False)
     mid_rate: Mapped[Decimal] = mapped_column(Numeric(18, 8), nullable=False)
@@ -63,6 +70,6 @@ class FXFactFXRate(Base):
 
     def __repr__(self) -> str:
         return (
-            f"<FXFactFXRate pair_id={self.pair_id} {self.obs_date} "
+            f"<FXFactFXRate pair_id={self.pair_id} {self.obs_ts} "
             f"{self.tenor} mid={self.mid_rate} pts={self.fwd_points}>"
         )

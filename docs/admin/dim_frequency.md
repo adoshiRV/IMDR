@@ -104,3 +104,12 @@ SELECT id, frequency_code FROM dbo.dim_frequency ORDER BY id;
 | [src/imdr/schemas/frequency.py](../../src/imdr/schemas/frequency.py) | Pydantic read schema |
 
 First consumer: [fx.fact_fx_rate](../fx/fx_rate_schema.md).
+
+## Current `HOURLY` writers
+
+| Fact table | Runner | Migration that added hourly support |
+|---|---|---|
+| `rates.fact_observation` | [scripts/rates/citi/rates_citi_live_hourly.py](../../scripts/rates/citi/rates_citi_live_hourly.py) | [025_add_frequency_id_to_rates_fact_observation.sql](../../migrations/025_add_frequency_id_to_rates_fact_observation.sql) |
+| `fx.fact_fx_rate` | [scripts/fx/citi/fx_rate_citi_live_hourly.py](../../scripts/fx/citi/fx_rate_citi_live_hourly.py) | [027_add_obs_ts_to_fx_fact_fx_rate.sql](../../migrations/027_add_obs_ts_to_fx_fact_fx_rate.sql) |
+
+Both runners share the dedicated hourly Citi OAuth client (`IMDR_CITI_HOURLY_CLIENT_*`) and the `data/cache/citi_tag_quota_hourly.json` tracker — the single rolling bucket gives a truthful view of remaining budget across both pipelines.
