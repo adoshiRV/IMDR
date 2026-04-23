@@ -23,6 +23,9 @@ from imdr.connectors.citi_helpers import TagQuotaExceeded
 from imdr.connectors.mssql import MSSQLConnector
 from imdr.domains.commodities.pipeline_spot import CmdtySpotPipeline
 from imdr.market_calendar.calendar import last_business_day
+from imdr.market_calendar.holidays import holiday_hits_for_timestamp
+from imdr.notifications.email import send_outlook_email
+from imdr.notifications.formatters.cmdty_ingest import CmdtyIngestFormatter
 from imdr.reporting.run_report import RunReport
 from imdr.universe.commodities import get_commodities_universe
 from imdr.utils.logging import configure_logging
@@ -75,6 +78,27 @@ def main() -> int:
                 f"{len(pipeline._extraction_errors)} error(s)",
                 details={"errors": pipeline._extraction_errors})
 
+        # Holiday detection
+        holiday_hits = holiday_hits_for_timestamp(["USD"], target)
+        if holiday_hits:
+            report.info("holidays", f"Holiday hits: {len(holiday_hits)}", details={
+                "hits": [{"currency": h.currency, "market_code": h.market_code,
+                          "name": h.name} for h in holiday_hits],
+            })
+
+        # Send email notification
+        if settings.email_enabled and settings.email_to:
+            _send_report_email(
+                settings=settings,
+                report=report,
+                target=target,
+                result=result,
+                holiday_hits=holiday_hits,
+                elapsed_secs=elapsed,
+                pipeline_name="commodities.spot_citi_live",
+                rows_extracted=len(pipeline._raw_df) if pipeline._raw_df is not None else 0,
+            )
+
         report.finish()
         if settings.run_log_dir:
             log_path = (
@@ -111,6 +135,48 @@ def main() -> int:
         return 1
     finally:
         connector.dispose()
+
+
+def _send_report_email(
+    settings: object,
+    report: RunReport,
+    target: datetime,
+    result: int,
+    holiday_hits: list,
+    elapsed_secs: float,
+    pipeline_name: str,
+    rows_extracted: int,
+) -> None:
+    """Build and send the commodity spot ingest report email."""
+    formatter = CmdtyIngestFormatter()
+    has_errors = report.has_errors
+
+    subject = formatter.format_subject(
+        pipeline_name=pipeline_name,
+        run_date=target,
+        rows_loaded=result,
+        n_products=1,
+        has_errors=has_errors,
+    )
+    body = formatter.format_body(
+        pipeline_name=pipeline_name,
+        run_date=target,
+        rows_extracted=rows_extracted,
+        rows_loaded=result,
+        n_products=1,
+        holiday_hits=[
+            {"currency": h.currency, "market_code": h.market_code, "name": h.name}
+            for h in holiday_hits
+        ],
+        has_errors=has_errors,
+        elapsed_secs=elapsed_secs,
+    )
+    send_outlook_email(
+        to=settings.email_to,  # type: ignore[attr-defined]
+        subject=subject,
+        html_body=body,
+        importance=2 if has_errors else 1,
+    )
 
 
 if __name__ == "__main__":

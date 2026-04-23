@@ -83,6 +83,22 @@ class VolConfig(BaseModel):
     quality: VolQualityConfig = VolQualityConfig()
 
 
+class FXRateConfig(BaseModel):
+    """Config block for the Citi Velocity FX rate pipeline.
+
+    Spot + forward outrights + forward points over a curated tenor grid.
+    See docs/fx/fx_rate_schema.md for per-column semantics.
+    """
+
+    pairs: list[list[str]]                       # [[base, quote], ...] in Citi ordering
+    spot_only_pairs: list[list[str]] = []        # excluded from forward fetch
+    tenors: list[str]                            # SPOT first, then forward tenors
+    spot_tag_template: str
+    outright_tag_template: str
+    points_tag_template: str
+    expected_ranges: dict[str, ExpectedRange] = {}
+
+
 class FXUniverseConfig(BaseModel):
     currencies: CurrenciesConfig
     classifications: dict[str, str]
@@ -92,6 +108,7 @@ class FXUniverseConfig(BaseModel):
     providers: dict[str, ProviderConfig]
     expected_ranges: dict[str, ExpectedRange] = {}
     vol: VolConfig | None = None
+    fx_rate: FXRateConfig | None = None
 
 
 class FXUniverse(BaseUniverse):
@@ -286,6 +303,74 @@ class FXUniverse(BaseUniverse):
         entries: list[FXCurrencyPairCreate] = []
         for ccy1, ccy2 in self.vol_pairs():
             # Determine ccy_class from the non-USD currency
+            non_usd = ccy1 if ccy1 != "USD" else ccy2
+            ccy_class = self._config.classifications.get(non_usd, "g10")
+            entries.append(FXCurrencyPairCreate(
+                base_ccy=ccy1, quote_ccy=ccy2, ccy_class=ccy_class,
+            ))
+        return entries
+
+    # ── FX rate (spot + forward) methods ───────────────────────
+
+    def _fx_rate_config(self) -> FXRateConfig:
+        if self._config.fx_rate is None:
+            raise RuntimeError("fx_rate config not present in fx.yml")
+        return self._config.fx_rate
+
+    def fx_rate_pairs(self) -> list[tuple[str, str]]:
+        """All (ccy1, ccy2) pairs in Citi ordering."""
+        return [tuple(p) for p in self._fx_rate_config().pairs]
+
+    def fx_rate_tenors(self) -> list[str]:
+        return list(self._fx_rate_config().tenors)
+
+    def fx_rate_forward_tenors(self) -> list[str]:
+        """Tenors excluding SPOT — used for forward outright + forward point fetches."""
+        return [t for t in self.fx_rate_tenors() if t != "SPOT"]
+
+    def fx_rate_spot_only_pairs(self) -> set[tuple[str, str]]:
+        return {tuple(p) for p in self._fx_rate_config().spot_only_pairs}
+
+    def build_fx_rate_spot_tag(self, ccy1: str, ccy2: str) -> str:
+        return self._fx_rate_config().spot_tag_template.format(ccy1=ccy1, ccy2=ccy2)
+
+    def build_fx_rate_outright_tags(self, ccy1: str, ccy2: str) -> list[str]:
+        tmpl = self._fx_rate_config().outright_tag_template
+        return [tmpl.format(ccy1=ccy1, ccy2=ccy2, tenor=t) for t in self.fx_rate_forward_tenors()]
+
+    def build_fx_rate_point_tags(self, ccy1: str, ccy2: str) -> list[str]:
+        tmpl = self._fx_rate_config().points_tag_template
+        return [tmpl.format(ccy1=ccy1, ccy2=ccy2, tenor=t) for t in self.fx_rate_forward_tenors()]
+
+    def build_all_fx_rate_tags(self) -> list[str]:
+        """All Citi tags needed for an fx_rate daily ingest."""
+        tags: list[str] = []
+        spot_only = self.fx_rate_spot_only_pairs()
+        for ccy1, ccy2 in self.fx_rate_pairs():
+            tags.append(self.build_fx_rate_spot_tag(ccy1, ccy2))
+            if (ccy1, ccy2) in spot_only:
+                continue
+            tags.extend(self.build_fx_rate_outright_tags(ccy1, ccy2))
+            tags.extend(self.build_fx_rate_point_tags(ccy1, ccy2))
+        return tags
+
+    def fx_rate_pair_code(self, ccy1: str, ccy2: str) -> str:
+        """Compact pair code used as a key in expected_ranges (e.g. EURUSD)."""
+        return f"{ccy1}{ccy2}".upper()
+
+    def fx_rate_expected_range(self, ccy1: str, ccy2: str) -> ExpectedRange | None:
+        return self._fx_rate_config().expected_ranges.get(self.fx_rate_pair_code(ccy1, ccy2))
+
+    def fx_rate_expected_ranges(self) -> dict[str, ExpectedRange]:
+        """All per-pair expected ranges, keyed by compact pair_code."""
+        return dict(self._fx_rate_config().expected_ranges)
+
+    def fx_rate_pair_create_entries(self) -> list[FXCurrencyPairCreate]:
+        """Build FXCurrencyPairCreate entries for dim seeding (fx_rate universe)."""
+        from imdr.schemas.fx_vol import FXCurrencyPairCreate
+
+        entries: list[FXCurrencyPairCreate] = []
+        for ccy1, ccy2 in self.fx_rate_pairs():
             non_usd = ccy1 if ccy1 != "USD" else ccy2
             ccy_class = self._config.classifications.get(non_usd, "g10")
             entries.append(FXCurrencyPairCreate(

@@ -5,20 +5,26 @@ from __future__ import annotations
 from datetime import date, datetime
 
 from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, String
+from sqlalchemy.dialects.mssql import TINYINT
 from sqlalchemy.orm import Mapped, mapped_column
 
 from imdr.models.base import Base
 
 
 class DimMarket(Base):
-    """Shared market dimension — the central hub linking all domains."""
+    """Shared market dimension — the central hub linking all domains.
+
+    Post migration 026: market_code remains the PK (original, to preserve
+    existing FK compat); `id TINYINT IDENTITY UNIQUE` is the new surrogate
+    target for domain-dim FKs per schema_conventions.md §3.5.
+    """
 
     __tablename__ = "dim_market"
     __table_args__ = {"schema": "calendar"}
 
-    # Override Base auto-increment PK — use market_code as PK instead
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    market_code: Mapped[str] = mapped_column(String(5), unique=True, nullable=False)
+    market_code: Mapped[str] = mapped_column(String(5), primary_key=True)
+    # Surrogate id added by migration 026 — TINYINT IDENTITY + UNIQUE (not PK).
+    id: Mapped[int] = mapped_column(TINYINT, unique=True, nullable=False, autoincrement=True)
     market_name: Mapped[str] = mapped_column(String(100), nullable=False)
     timezone: Mapped[str] = mapped_column(String(50), nullable=False)
     country_code_iso: Mapped[str] = mapped_column(String(2), nullable=False)

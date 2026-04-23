@@ -48,6 +48,12 @@ PIPELINE_REGISTRY: dict[str, dict] = {
         "log_dir": "fx/fact_vol",
         "log_prefix": "fx_vol_citi_live",
     },
+    "fx.citi_rate_live": {
+        "cmd": ["python", "-m", "scripts.fx.citi.fx_rate_citi_live"],
+        "estimated_tags": 800,
+        "log_dir": "fx/fact_fx_rate",
+        "log_prefix": "fx_rate_citi_live",
+    },
     "commodities.spot_citi_live": {
         "cmd": ["python", "-m", "scripts.commodities.citi.cmdty_spot_citi_live"],
         "estimated_tags": 5,

@@ -4,6 +4,7 @@ from __future__ import annotations
 from datetime import date
 
 from sqlalchemy import Date, Float, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy.dialects.mssql import TINYINT
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from imdr.models.base import Base
@@ -21,6 +22,12 @@ class FXCurrencyPair(Base):
     base_ccy: Mapped[str] = mapped_column(String(3), nullable=False)
     quote_ccy: Mapped[str] = mapped_column(String(3), nullable=False)
     ccy_class: Mapped[str] = mapped_column(String(20), nullable=False)
+    # Legacy market_code VARCHAR (migration 010) still in DB; new code uses market_id FK.
+    market_code: Mapped[str | None] = mapped_column(String(5), nullable=True)
+    # Added by migration 026 — FK to calendar.dim_market(id). Canonical market reference.
+    market_id: Mapped[int | None] = mapped_column(
+        TINYINT, ForeignKey("calendar.dim_market.id"), nullable=True
+    )
 
     vol_observations: Mapped[list[FXFactVol]] = relationship(back_populates="pair")
 

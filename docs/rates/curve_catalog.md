@@ -123,12 +123,12 @@ Not all curves support all quote types. Citi only publishes the full 6 for G10 O
 
 | Instrument | Region | par | ssw | spread | fwd | bfly | rc |
 |------------|--------|-----|-----|--------|-----|------|----|
-| OIS | G10 | Yes | Yes | — | — | — | — |
-| OIS | Asia | Yes | Yes | — | — | — | — |
-| SWAP_LIBOR | G10 | Yes | Yes | — | — | — | — |
+| OIS | G10 | Yes | Yes | Yes | Yes | Yes | — |
+| OIS | Asia | Yes | Yes | Yes | Yes | Yes | — |
+| SWAP_LIBOR | G10 | Yes | Yes | Yes | Yes | Yes | — |
 | SWAP_LIBOR | Asia/EM | Yes | No | No | No | No | No |
 
-> **Note**: spread/fwd/bfly/rc are requested for all curves but consistently return 0 rows from the Citi API. The pipeline handles this gracefully — empty responses are simply skipped.
+> **Note**: Multi-tenor quotes (spread/fwd/bfly) use pre-defined combo grids from `multi_tenor_combos` in `rates.yml` — e.g., FWD uses 17 standard forward combos (1Y1Y through 10Y20Y), CURVES uses 7 curve spreads, BFLY uses 3 butterflies. The API has ~1,156 FWD / ~1,936 CURVES / ~2,600 BFLY tags per OIS curve; our combos cover the most liquid market-standard points. RC still returns 0 rows (single-tenor tag format may differ from PAR).
 
 ---
 

@@ -66,6 +66,15 @@ class Settings(BaseSettings):
     citi_tag_quota_limit: int = 95_000  # 5K safety margin below Citi's 100K hard limit
     citi_tag_quota_file: str = ""       # empty = data/cache/citi_tag_quota.json
 
+    # Barclays Live (SKEW report downloads)
+    barclays_url: str = "https://live.barcap.com"
+    barclays_username: str = ""
+    barclays_password: str = ""
+
+    # Vendors framework
+    browser_profile_root: Path = _PROJECT_ROOT / "data" / "browser_profiles"
+    vendor_drop_root: Path = _PROJECT_ROOT / "data"
+
     # Email
     email_enabled: bool = False
     email_to: str = ""

@@ -103,6 +103,89 @@ class TestTagGeneration:
         assert len(tags) == 44
 
 
+class TestMultiTenorTagGeneration:
+    """Tests for FWD / CURVES / BFLY multi-tenor tag generation."""
+
+    def test_fwd_tags_use_combos(self, universe):
+        """FWD tags should use multi_tenor_combos, not single maturities."""
+        tags = universe.build_tags("USD", "SOFR", "FWD")
+        # Should produce 6-part tags like RATES.OIS.USD_SOFR.FWD.5Y.5Y
+        assert len(tags) > 0
+        for tag in tags:
+            parts = tag.split(".")
+            assert len(parts) == 6, f"FWD tag should have 6 parts: {tag}"
+            assert parts[3] == "FWD"
+
+    def test_curves_tags_use_combos(self, universe):
+        """CURVES tags should use multi_tenor_combos, not single maturities."""
+        tags = universe.build_tags("USD", "SOFR", "CURVES")
+        assert len(tags) > 0
+        for tag in tags:
+            parts = tag.split(".")
+            assert len(parts) == 6, f"CURVES tag should have 6 parts: {tag}"
+            assert parts[3] == "CURVES"
+
+    def test_bfly_tags_use_combos(self, universe):
+        """BFLY tags should use multi_tenor_combos with 3 legs."""
+        tags = universe.build_tags("USD", "SOFR", "BFLY")
+        assert len(tags) > 0
+        for tag in tags:
+            parts = tag.split(".")
+            assert len(parts) == 7, f"BFLY tag should have 7 parts: {tag}"
+            assert parts[3] == "BFLY"
+
+    def test_fwd_specific_combos(self, universe):
+        """Verify specific key forward combos are generated."""
+        tags = universe.build_tags("USD", "SOFR", "FWD")
+        assert "RATES.OIS.USD_SOFR.FWD.5Y.5Y" in tags
+        assert "RATES.OIS.USD_SOFR.FWD.2Y.10Y" in tags
+        assert "RATES.OIS.USD_SOFR.FWD.10Y.10Y" in tags
+        assert "RATES.OIS.USD_SOFR.FWD.3Y.3Y" in tags
+        assert "RATES.OIS.USD_SOFR.FWD.7Y.3Y" in tags
+
+    def test_curves_specific_combos(self, universe):
+        """Verify standard curve spreads are generated."""
+        tags = universe.build_tags("USD", "SOFR", "CURVES")
+        assert "RATES.OIS.USD_SOFR.CURVES.2Y.10Y" in tags
+        assert "RATES.OIS.USD_SOFR.CURVES.5Y.30Y" in tags
+        assert "RATES.OIS.USD_SOFR.CURVES.7Y.10Y" in tags
+        assert "RATES.OIS.USD_SOFR.CURVES.10Y.20Y" in tags
+
+    def test_bfly_specific_combos(self, universe):
+        """Verify standard butterflies are generated."""
+        tags = universe.build_tags("USD", "SOFR", "BFLY")
+        assert "RATES.OIS.USD_SOFR.BFLY.2Y.5Y.10Y" in tags
+        assert "RATES.OIS.USD_SOFR.BFLY.5Y.7Y.10Y" in tags
+        assert "RATES.OIS.USD_SOFR.BFLY.3Y.5Y.10Y" in tags
+
+    def test_fwd_swap_libor(self, universe):
+        """FWD combos work for SWAP_LIBOR curves too."""
+        tags = universe.build_tags("EUR", "EURIBOR", "FWD")
+        assert len(tags) > 0
+        assert "RATES.SWAP_LIBOR.EUR.FWD.5Y.5Y" in tags
+
+    def test_par_unaffected(self, universe):
+        """PAR tags should still use single maturities (no regression)."""
+        tags = universe.build_tags("USD", "SOFR", "PAR")
+        assert len(tags) == 44
+        assert "RATES.OIS.USD_SOFR.PAR.5Y" in tags
+
+    def test_fwd_with_explicit_tenors_override(self, universe):
+        """Explicit tenors override multi-tenor combos."""
+        tags = universe.build_tags("USD", "SOFR", "FWD", ["5Y"])
+        assert tags == ["RATES.OIS.USD_SOFR.FWD.5Y"]
+
+    def test_multi_tenor_combos_for(self, universe):
+        """Helper method returns configured combos."""
+        combos = universe.multi_tenor_combos_for("fwd")
+        assert len(combos) > 0
+        assert ["5Y", "5Y"] in combos
+
+    def test_multi_tenor_combos_for_unknown(self, universe):
+        """Unknown quote returns empty list."""
+        assert universe.multi_tenor_combos_for("unknown") == []
+
+
 class TestProviderLookups:
     def test_citi_prefix_ois(self, universe):
         assert universe.citi_prefix("USD", "SOFR") == "RATES.OIS.USD_SOFR"

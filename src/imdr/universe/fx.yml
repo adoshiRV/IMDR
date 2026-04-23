@@ -22,9 +22,11 @@ currencies:
     - THB
     - IDR
     - PHP
+    - MYR
 
   em_deliverable:
     - SGD
+    - HKD
 
 classifications:
   # Maps each currency to its classification
@@ -45,7 +47,9 @@ classifications:
   THB: em_ndf
   IDR: em_ndf
   PHP: em_ndf
+  MYR: em_ndf
   SGD: em_deliverable
+  HKD: em_deliverable
 
 # Pair convention priority (higher = base currency in standard quoting)
 pair_priority:
@@ -257,6 +261,83 @@ vol:
     # Statistical params (n_mad, trailing_months, pct_threshold) are in
     # pipelines.yml under fx.vol.cleaning — single source of truth for
     # both quality checks and cleaning rules.
+
+# ─────────────────────────────────────────────────────────────────────────
+# FX Rate pipeline — Citi Velocity daily EOD spot + forward outrights + points
+# See docs/fx/fx_rate_schema.md and docs/fx/fx_rate_operations.md
+# ─────────────────────────────────────────────────────────────────────────
+fx_rate:
+  # Pair ordering follows Citi's convention:
+  # - EUR, GBP, AUD, NZD are non-USD base on Citi
+  # - Everything else is USD-base
+  pairs:
+    # G10 non-USD base
+    - [EUR, USD]
+    - [GBP, USD]
+    - [AUD, USD]
+    - [NZD, USD]
+    # G10 USD base
+    - [USD, JPY]
+    - [USD, CHF]
+    - [USD, CAD]
+    - [USD, NOK]
+    - [USD, SEK]
+    - [USD, CNH]
+    # EM deliverable / pegged
+    - [USD, HKD]
+    - [USD, SGD]
+    # Asia EM
+    - [USD, KRW]
+    - [USD, TWD]
+    - [USD, THB]
+    - [USD, IDR]
+    - [USD, PHP]
+    - [USD, INR]
+    - [USD, MYR]
+
+  # Pairs without forward outrights on Citi — ingest SPOT only
+  spot_only_pairs: []
+
+  # Curated tenor grid: spot + 10 forward curve points
+  tenors:
+    - SPOT
+    - "ON"     # quoted to prevent YAML 1.1 from parsing as boolean True
+    - 1W
+    - 1M
+    - 3M
+    - 6M
+    - 9M
+    - 1Y
+    - 2Y
+    - 5Y
+    - 10Y
+
+  spot_tag_template:     "FX.SPOT.{ccy1}.{ccy2}.CITI"
+  outright_tag_template: "FX.FORWARD.FWD_OUTRIGHT.{ccy1}.{ccy2}.{tenor}.CITI"
+  points_tag_template:   "FX.FORWARD.FWD_POINT.{ccy1}.{ccy2}.{tenor}.CITI"
+
+  # Per-pair hard bounds (pair_code = BASE + QUOTE, compact).
+  # Rates should NEVER fall outside these; used by quality checks.
+  expected_ranges:
+    EURUSD: {min: 0.5,   max: 2.0}
+    GBPUSD: {min: 0.5,   max: 2.5}
+    AUDUSD: {min: 0.3,   max: 1.5}
+    NZDUSD: {min: 0.3,   max: 1.5}
+    USDJPY: {min: 60,    max: 250}
+    USDCHF: {min: 0.5,   max: 2.0}
+    USDCAD: {min: 0.8,   max: 2.0}
+    USDNOK: {min: 3.0,   max: 15.0}
+    USDSEK: {min: 3.0,   max: 15.0}
+    USDCNH: {min: 5.0,   max: 10.0}
+    USDHKD: {min: 7.70,  max: 7.90}
+    USDSGD: {min: 0.8,   max: 2.0}
+    USDKRW: {min: 800,   max: 2000}
+    USDTWD: {min: 20,    max: 45}
+    USDTHB: {min: 20,    max: 60}
+    USDIDR: {min: 5000,  max: 25000}
+    USDPHP: {min: 30,    max: 80}
+    USDINR: {min: 40,    max: 120}
+    USDMYR: {min: 2.5,   max: 6.0}
 
 # Per-symbol hard bounds — prices should NEVER fall outside these ranges.
 # Used by quality checks and ingest validation to flag corrupt data.

@@ -36,14 +36,29 @@ For API endpoints, authentication, and rate limits, see `docs/rates/citi_velocit
 | **XCCY_SWAP** | 20 ccys | FX cross-currency swaps | `FX.XCCY_SWAP.{CCY}.USD.{TENOR}` |
 | **CARRY** | 31 ccys | FX carry (rate differentials) | `FX.CARRY.{CCY1}.{CCY2}` |
 
-#### FORWARD Sub-types
+#### FORWARD Sub-types (expanded 2026-04-21)
 
-| Type | Description | Coverage |
-|---|---|---|
-| `FWD_OUTRIGHT` | Forward outright rates | 20+ ccys |
-| `FWD_POINT` | Forward points (raw) | 20+ ccys |
-| `FWD_POINT_PIP` | Forward points (pips) | 20+ ccys |
-| `FWD_IMM` | IMM-dated forwards | AUD, BWP, EUR, GBP, NZD, USD, XAG, XAU, XPD, XPT |
+Full tag: `FX.FORWARD.{TYPE}.{C1}.{C2}.{TENOR}.CITI` — see [docs/fx/citi_velocity_fx.md](../fx/citi_velocity_fx.md) for complete coverage.
+
+| Type | Description | Base ccys | USD-base quotes |
+|---|---|---|---|
+| `FWD_OUTRIGHT` | Forward outright rates | **35 bases** | **56 quotes** |
+| `FWD_POINT` | Forward points (raw) | 35 bases | 56 quotes |
+| `FWD_POINT_PIP` | Forward points (pips) | 35 bases | 56 quotes |
+| `FWD_IMM` | IMM-dated forwards | 10 ccys only (AUD, BWP, EUR, GBP, NZD, USD, XAG, XAU, XPD, XPT) | — |
+
+**Base ccys (35):** AED, ARS, AUD, BRL, CAD, CHF, CNH, CNY, CZK, DKK, EUR, GBP, HKD, HRK, ILS, INR, JPY, KWD, MXN, NOK, NZD, PEN, PLN, RON, RUB, SEK, SGD, THB, TRY, USD, XAG, XAU, XPD, XPT, ZAR.
+
+**NDF currencies (KRW, IDR, PHP, TWD, etc.) are not forward bases** — they exist only as quotes under USD. Pattern `FX.FORWARD.FWD_OUTRIGHT.USD.KRW.1M.CITI` returns data; reverse direction `KRW.USD` errors.
+
+**Tenor grid (29 tenors)** — confirmed identical on EUR.USD and USD.JPY:
+`ON, SN, TN, 1W, 2W, 3W, 1M, 2M, 3M, 4M, 5M, 6M, 7M, 8M, 9M, 10M, 11M, 1Y, 15M, 18M, 2Y, 3Y, 4Y, 5Y, 6Y, 7Y, 8Y, 9Y, 10Y`.
+
+#### SPOT
+
+Tag: `FX.SPOT.{C1}.{C2}.CITI` (mid). Optional side variants: `.BID.CITI`, `.ASK.CITI`, `.MID.CITI`.
+
+**USD-base quotes: 68 ccys** — much broader than forwards (includes KRW, IDR, PHP, TWD, VND, NGN, PKR, ZMW, etc., which have no forward tags).
 
 ### FX VOL Deep Dive
 

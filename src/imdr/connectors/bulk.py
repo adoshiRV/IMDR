@@ -93,6 +93,7 @@ class MergeSpec:
         value_columns: list[str],
         batch_size: int = _DEFAULT_BATCH_SIZE,
         audit_columns: dict[str, str] | None = None,
+        nullable_columns: list[str] | None = None,
     ) -> None:
         _validate_identifier(target_table, "target_table")
         _validate_staging(staging_name, "staging_name")
@@ -102,12 +103,18 @@ class MergeSpec:
             _validate_column(col, "natural_key column")
         for col in value_columns:
             _validate_column(col, "value_column")
+        for col in (nullable_columns or []):
+            _validate_column(col, "nullable_column")
 
         all_cols = set(columns)
         if not set(natural_key).issubset(all_cols):
             raise ValueError(f"natural_key columns not in columns: {set(natural_key) - all_cols}")
         if not set(value_columns).issubset(all_cols):
             raise ValueError(f"value_columns not in columns: {set(value_columns) - all_cols}")
+        if nullable_columns and not set(nullable_columns).issubset(all_cols):
+            raise ValueError(
+                f"nullable_columns not in columns: {set(nullable_columns) - all_cols}"
+            )
 
         self.target_table = target_table
         self.staging_name = staging_name
@@ -115,6 +122,7 @@ class MergeSpec:
         self.natural_key = natural_key
         self.value_columns = value_columns
         self.batch_size = batch_size
+        self.nullable_columns: frozenset[str] = frozenset(nullable_columns or [])
 
         # Audit timestamp columns injected into MERGE SQL.
         # None = default (created_at + updated_at); pass {} to omit entirely.
@@ -146,7 +154,8 @@ class MergeSpec:
 
     def _create_staging_sql(self) -> str:
         col_defs = ",\n                ".join(
-            f"{col}  {self._staging_types[col]}  NOT NULL"
+            f"{col}  {self._staging_types[col]}  "
+            f"{'NULL' if col in self.nullable_columns else 'NOT NULL'}"
             for col in self.columns
         )
         return f"""

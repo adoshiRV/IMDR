@@ -6,7 +6,14 @@ Each pipeline is isolated — one failure does not block others.
 Reads the shared tag quota tracker before each pipeline to log
 remaining budget. Skips pipelines that can't fit within remaining quota.
 
-Schedule: Daily EOD (via Windows Task Scheduler or cron)
+Schedule: 08:00 SGT daily (via Windows Task Scheduler).
+  - Summer (EDT): 08:00 SGT = 20:00 previous-day NY — 4h after market close,
+    2h after Citi EOD publish.
+  - Winter (EST): 08:00 SGT = 19:00 previous-day NY — 3h after close, ~1h
+    after Citi publishes. Chosen over 07:00 SGT to eliminate the winter
+    edge case where Citi occasionally hadn't finished publishing at 18:00 NY.
+  - Retry cron (imdr_retry.py) runs 12:00 / 18:00 SGT to catch tag-quota
+    or transient failures.
 
 Usage:
     python -m scripts.imdr_daily
@@ -31,8 +38,14 @@ PIPELINES: list[dict] = [
     {"cmd": ["python", "-m", "scripts.rates.citi.rates_citi_live"], "estimated_tags": 20_000},
     {"cmd": ["python", "-m", "scripts.rates.citi.rates_vol_citi_live"], "estimated_tags": 40_000},
     {"cmd": ["python", "-m", "scripts.fx.citi.fx_vol_citi_live"], "estimated_tags": 2_000},
+    {"cmd": ["python", "-m", "scripts.fx.citi.fx_rate_citi_live"], "estimated_tags": 800},
     {"cmd": ["python", "-m", "scripts.commodities.citi.cmdty_spot_citi_live"], "estimated_tags": 5},
     {"cmd": ["python", "-m", "scripts.commodities.citi.cmdty_vol_citi_live"], "estimated_tags": 1_200},
+    {"cmd": ["python", "-m", "scripts.equity.citi.equity_index_citi_live"], "estimated_tags": 24},
+    {"cmd": ["python", "-m", "scripts.equity.citi.equity_vix_citi_live"], "estimated_tags": 5},
+    {"cmd": ["python", "-m", "scripts.rates.citi.rates_bench_citi_live"], "estimated_tags": 10},
+    # Non-Citi vendor feed (no tag quota).
+    {"cmd": ["python", "-m", "scripts.run_vendor_feed", "barclays_skew"], "estimated_tags": 0},
 ]
 
 # ============================================================================
@@ -83,8 +96,15 @@ def main() -> int:
         print(f"\n{len(skipped)} pipeline(s) skipped (quota): {', '.join(skipped)}")
     if failed:
         print(f"{len(failed)} pipeline(s) failed: {', '.join(failed)}")
-        return 1
-    if skipped:
+
+    # ── Post-batch staleness check ─────────────────────────────────
+    # Runs after all pipelines complete to catch silent upstream drops.
+    print("\n── Staleness check ──")
+    staleness_result = subprocess.run(["python", "-m", "scripts.imdr_staleness_check"])
+    if staleness_result.returncode != 0:
+        print("WARN  staleness check found stale keys (see email)")
+
+    if failed or skipped:
         return 1
     return 0
 

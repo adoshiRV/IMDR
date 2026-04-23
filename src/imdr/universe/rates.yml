@@ -673,6 +673,135 @@ vol:
     trailing_months: 12
     min_obs: 30
 
+# ── Multi-tenor combos for FWD / CURVES / BFLY ──────────────────
+# build_tags() uses these instead of single maturities for multi-leg quote types.
+# Each entry is [leg1, leg2, ...] matching the Citi tag structure:
+#   FWD:    RATES.OIS.{PREFIX}.FWD.{START}.{END}       (6 parts)
+#   CURVES: RATES.OIS.{PREFIX}.CURVES.{SHORT}.{LONG}   (6 parts)
+#   BFLY:   RATES.OIS.{PREFIX}.BFLY.{S}.{M}.{L}        (7 parts)
+
+multi_tenor_combos:
+  fwd:
+    # Forward-starting swaps: {start}x{end}
+    # Short-end forwards
+    - ["6M", "6M"]
+    - ["6M", "1Y"]
+    - ["6M", "2Y"]
+    - ["1Y", "1Y"]
+    - ["1Y", "2Y"]
+    - ["1Y", "5Y"]
+    - ["1Y", "10Y"]
+    # 2Y start
+    - ["2Y", "1Y"]
+    - ["2Y", "2Y"]
+    - ["2Y", "3Y"]
+    - ["2Y", "5Y"]
+    - ["2Y", "10Y"]
+    # 3Y start
+    - ["3Y", "2Y"]
+    - ["3Y", "3Y"]
+    - ["3Y", "5Y"]
+    - ["3Y", "7Y"]
+    # 5Y start
+    - ["5Y", "2Y"]
+    - ["5Y", "3Y"]
+    - ["5Y", "5Y"]
+    - ["5Y", "10Y"]
+    - ["5Y", "25Y"]
+    # 7Y start
+    - ["7Y", "3Y"]
+    - ["7Y", "5Y"]
+    # 10Y+ start
+    - ["10Y", "5Y"]
+    - ["10Y", "10Y"]
+    - ["10Y", "20Y"]
+    - ["15Y", "15Y"]
+    - ["20Y", "10Y"]
+  spread:
+    # Curve spreads (short vs long)
+    - ["2Y", "3Y"]
+    - ["2Y", "5Y"]
+    - ["2Y", "7Y"]
+    - ["2Y", "10Y"]
+    - ["2Y", "30Y"]
+    - ["3Y", "5Y"]
+    - ["3Y", "10Y"]
+    - ["3Y", "30Y"]
+    - ["5Y", "7Y"]
+    - ["5Y", "10Y"]
+    - ["5Y", "20Y"]
+    - ["5Y", "30Y"]
+    - ["7Y", "10Y"]
+    - ["10Y", "20Y"]
+    - ["10Y", "30Y"]
+  bfly:
+    # Butterflies (short, belly, long)
+    - ["2Y", "3Y", "5Y"]
+    - ["2Y", "5Y", "10Y"]
+    - ["2Y", "10Y", "30Y"]
+    - ["3Y", "5Y", "7Y"]
+    - ["3Y", "5Y", "10Y"]
+    - ["3Y", "7Y", "10Y"]
+    - ["5Y", "7Y", "10Y"]
+    - ["5Y", "10Y", "30Y"]
+    - ["7Y", "10Y", "30Y"]
+
+# ── Central Bank Policy Rates (BENCH_RATES) ──────────────────────
+# Flat leaf tags from RATES.BENCH_RATES.{NAME} — no tenor/curve structure.
+# Auto-seeded into rates.dim_central_bank by the pipeline.
+
+bench_rates:
+  - cb_code: ECB
+    display_name: "ECB Deposit Facility"
+    currency: EUR
+    market_code: EU
+    citi_tag: "RATES.BENCH_RATES.ECB"
+  - cb_code: FED_FUNDS
+    display_name: "Fed Effective Rate"
+    currency: USD
+    market_code: US
+    citi_tag: "RATES.BENCH_RATES.FED_FUNDS"
+  - cb_code: US_FED_FUNDS_TARGET
+    display_name: "Fed Target Rate"
+    currency: USD
+    market_code: US
+    citi_tag: "RATES.BENCH_RATES.US_FED_FUNDS_TARGET"
+  - cb_code: UK_BASE
+    display_name: "BoE Bank Rate"
+    currency: GBP
+    market_code: UK
+    citi_tag: "RATES.BENCH_RATES.UK_BASE"
+  - cb_code: US_FED_PRIME
+    display_name: "US Prime Rate"
+    currency: USD
+    market_code: US
+    citi_tag: "RATES.BENCH_RATES.US_FED_PRIME"
+  - cb_code: US_FED_CP_1M
+    display_name: "Fed Commercial Paper 1M"
+    currency: USD
+    market_code: US
+    citi_tag: "RATES.BENCH_RATES.US_FED_CP_1M"
+  - cb_code: US_FED_CP_2M
+    display_name: "Fed Commercial Paper 2M"
+    currency: USD
+    market_code: US
+    citi_tag: "RATES.BENCH_RATES.US_FED_CP_2M"
+  - cb_code: US_FED_CP_3M
+    display_name: "Fed Commercial Paper 3M"
+    currency: USD
+    market_code: US
+    citi_tag: "RATES.BENCH_RATES.US_FED_CP_3M"
+  - cb_code: JPY_DISCOUNT
+    display_name: "BoJ Discount Rate"
+    currency: JPY
+    market_code: JP
+    citi_tag: "RATES.BENCH_RATES.JPY_DISCOUNT"
+  - cb_code: JPY_TARGET
+    display_name: "BoJ Target Rate"
+    currency: JPY
+    market_code: JP
+    citi_tag: "RATES.BENCH_RATES.JPY_TARGET"
+
 # ── Expected value ranges per quote type ─────────────────────────
 # Used by SymbolRangeCheck quality check to flag corrupt observations.
 # Keyed by quote type (matches 'quote' column in fact_observation).

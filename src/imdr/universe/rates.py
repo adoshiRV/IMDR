@@ -10,6 +10,7 @@ from typing import Any
 import yaml
 from pydantic import BaseModel
 
+from imdr.domains.rates.schema import CITI_TO_QUOTE, MULTI_TENOR_QUOTES
 from imdr.universe.base import BaseUniverse, ExpectedRange
 
 _UNIVERSE_PATH = Path(__file__).parent / "rates.yml"
@@ -84,6 +85,14 @@ class VolConfig(BaseModel):
     quality: VolQualityConfig = VolQualityConfig()
 
 
+class BenchRateEntry(BaseModel):
+    cb_code: str
+    display_name: str
+    currency: str
+    market_code: str
+    citi_tag: str
+
+
 class RatesUniverseConfig(BaseModel):
     currencies: CurrenciesConfig
     classifications: dict[str, str]
@@ -93,6 +102,8 @@ class RatesUniverseConfig(BaseModel):
     curves: list[CurveEntry]
     providers: dict[str, ProviderConfig]
     expected_ranges: dict[str, ExpectedRange] = {}
+    multi_tenor_combos: dict[str, list[list[str]]] = {}
+    bench_rates: list[BenchRateEntry] = []
     vol: VolConfig = VolConfig()
 
 
@@ -219,12 +230,27 @@ class RatesUniverse(BaseUniverse):
     ) -> list[str]:
         """Build Citi tags for a curve + quote type.
 
-        Absorbs logic from RATES_data ois.py / swaps.py tag generators.
+        For single-tenor quotes (PAR, SWAP_SPREAD, ROLL_CARRY) uses the
+        maturity list.  For multi-tenor quotes (FWD, CURVES, BFLY) uses
+        the ``multi_tenor_combos`` config to build multi-part tags, e.g.
+        ``RATES.OIS.USD_SOFR.FWD.5Y.5Y``.
         """
         prefix = self.citi_prefix(ccy, curve)
+
+        # Multi-tenor quote types need combo-based tag generation
+        internal_qt = CITI_TO_QUOTE.get(quote, quote.lower())
+        if internal_qt in MULTI_TENOR_QUOTES and tenors is None:
+            combos = self._config.multi_tenor_combos.get(internal_qt, [])
+            return [f"{prefix}.{quote}.{'.'.join(legs)}" for legs in combos]
+
+        # Single-tenor (existing behavior)
         if tenors is None:
             tenors = self.maturities_for_curve(ccy, curve)
         return [f"{prefix}.{quote}.{t}" for t in tenors]
+
+    def multi_tenor_combos_for(self, quote: str) -> list[list[str]]:
+        """Return the configured multi-tenor combos for a quote type (e.g. 'fwd')."""
+        return self._config.multi_tenor_combos.get(quote.lower(), [])
 
     def build_all_tags(
         self,
@@ -349,6 +375,20 @@ class RatesUniverse(BaseUniverse):
             qt = parts[1] if len(parts) > 1 else ""
             result[(dt, qt)] = (rng.min, rng.max)
         return result
+
+    # ── Bench Rates helpers ──────────────────────────────────────
+
+    def bench_rates_tags(self) -> list[str]:
+        """Return all Citi tags for central bank policy rates."""
+        return [e.citi_tag for e in self._config.bench_rates]
+
+    def bench_rates_entries(self) -> list[BenchRateEntry]:
+        """Return all bench rate entries from config."""
+        return self._config.bench_rates
+
+    def bench_rates_tag_to_cb_code(self) -> dict[str, str]:
+        """Return {citi_tag: cb_code} mapping for tag resolution."""
+        return {e.citi_tag: e.cb_code for e in self._config.bench_rates}
 
 
 @lru_cache(maxsize=1)

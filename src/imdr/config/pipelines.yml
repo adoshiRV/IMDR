@@ -69,6 +69,41 @@ pipelines:
         type: rest
         auth: bearer
 
+  fx.citi_rate:
+    domain: fx
+    target_schema: fx
+    target_table: fact_fx_rate
+    date_column: obs_date
+    unique_columns:
+      - pair_id
+      - vendor_id
+      - frequency_id
+      - obs_date
+      - tenor
+    required_columns:
+      - pair_id
+      - vendor_id
+      - frequency_id
+      - obs_date
+      - tenor
+      - mid_rate
+    health_checks:
+      row_count_min: 180           # 19 pairs × 11 tenors = 209; allow margin for holidays
+      max_staleness_hours: 48
+      value_ranges:
+        mid_rate:
+          min: 0.00001
+          max: 100000.0
+    cleaning:
+      n_mad: 5.0
+      trailing_months: 6
+      pct_threshold: 10.0          # daily EOD — looser than hourly
+      min_obs: 30
+    sources:
+      citivelocity:
+        type: rest
+        auth_type: bearer
+
   fx.vol:
     domain: fx
     target_schema: fx
@@ -130,6 +165,35 @@ pipelines:
         type: rest
         auth_type: bearer
 
+  rates.skew:
+    domain: rates
+    target_schema: rates
+    target_table: fact_swaption_skew
+    date_column: obs_date
+    unique_columns:
+      - surface_id
+      - obs_date
+      - swap_tenor
+      - strike_offset
+    required_columns:
+      - surface_id
+      - vendor_id
+      - obs_date
+      - swap_tenor
+      - strike_offset
+      - vol
+    health_checks:
+      row_count_min: 50
+      max_staleness_hours: 720   # manual Excel import, not daily automated
+    cleaning:
+      n_mad: 4.0
+      trailing_months: 12
+      pct_threshold: 50.0
+      min_obs: 30
+    sources:
+      barclays_excel:
+        type: file
+
   rates.historical:
     domain: rates
     target_schema: rates
@@ -161,6 +225,31 @@ pipelines:
       trailing_months: 12
       pct_threshold: 30.0
       min_obs: 30
+    sources:
+      citivelocity:
+        type: rest
+        auth: bearer
+
+  rates.bench_rates:
+    domain: rates
+    target_schema: rates
+    target_table: fact_bench_rates
+    date_column: obs_date
+    unique_columns:
+      - cb_id
+      - obs_date
+    required_columns:
+      - cb_id
+      - vendor_id
+      - obs_date
+      - rate
+    health_checks:
+      row_count_min: 5
+      max_staleness_hours: 48
+      value_ranges:
+        rate:
+          min: -2.0
+          max: 20.0
     sources:
       citivelocity:
         type: rest
@@ -234,6 +323,56 @@ pipelines:
       trailing_months: 12
       pct_threshold: 40.0
       min_obs: 30
+    sources:
+      citivelocity:
+        type: rest
+        auth_type: bearer
+
+  # ── Equity domain ──────────────────────────────────────────────────
+
+  equity.index:
+    domain: equities
+    target_schema: equities
+    target_table: fact_index_level
+    date_column: obs_date
+    unique_columns:
+      - index_id
+      - obs_date
+    required_columns:
+      - index_id
+      - obs_date
+      - close_level
+    health_checks:
+      row_count_min: 5
+      max_staleness_hours: 48
+      value_ranges:
+        close_level:
+          min: 1.0
+          max: 100000.0
+    sources:
+      citivelocity:
+        type: rest
+        auth_type: bearer
+
+  equity.vix:
+    domain: equities
+    target_schema: equities
+    target_table: fact_vix
+    date_column: obs_date
+    unique_columns:
+      - ticker
+      - obs_date
+    required_columns:
+      - ticker
+      - obs_date
+      - close_level
+    health_checks:
+      row_count_min: 3
+      max_staleness_hours: 48
+      value_ranges:
+        close_level:
+          min: 1.0
+          max: 150.0
     sources:
       citivelocity:
         type: rest

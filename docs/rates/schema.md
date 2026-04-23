@@ -99,6 +99,18 @@ All rates data flows through a 6-column model:
 | fwd | Lowercase + `s` separator | Concatenated | `5ys5ys` → `5y5y` |
 | bfly | Lowercase + `s` separator | Numeric + `s` | `2ys5ys10ys` → `2s5s10s` |
 
+### Multi-Tenor Tag Construction
+
+Multi-tenor quotes (fwd, spread, bfly) use pre-defined combos from `multi_tenor_combos` in `rates.yml` rather than single maturities. The Citi API tag format appends all legs:
+
+| Quote | Citi Tag Example | DB Tenor |
+|---|---|---|
+| fwd | `RATES.OIS.USD_SOFR.FWD.5Y.5Y` | `5ys5ys` |
+| spread | `RATES.OIS.USD_SOFR.CURVES.2Y.10Y` | `2ys10ys` |
+| bfly | `RATES.OIS.USD_SOFR.BFLY.2Y.5Y.10Y` | `2ys5ys10ys` |
+
+Standard combos: 17 FWD (1Y1Y through 10Y20Y), 7 CURVES (2s5s through 10s30s), 3 BFLY (2-5-10, 2-10-30, 5-10-30).
+
 ---
 
 ## Universe Coverage
@@ -275,6 +287,54 @@ Daily swaption vol surface observations on the option_expiry x swap_tenor grid. 
 **Indexes:**
 - `ix_rates_fact_swaption_vol_date` on `(obs_date)`
 - `ix_rates_fact_swaption_vol_surface_date` on `(surface_id, obs_date)`
+
+---
+
+### `[rates].[dim_central_bank]` - Central Bank Dimension
+
+Stores the central bank entries tracked by IMDR for policy rate ingestion. One row per central bank/rate series. Auto-seeded from `universe/rates.yml` (`bench_rates` section) by the pipeline on first run.
+
+| Column | Type | Nullable | Description |
+|---|---|---|---|
+| `id` | `INT IDENTITY` | NO | Auto-increment primary key |
+| `cb_code` | `VARCHAR(30)` | NO | Unique code, e.g. `ECB`, `FED_FUNDS`, `UK_BASE` |
+| `display_name` | `VARCHAR(60)` | NO | Human-readable name, e.g. `ECB Deposit Facility` |
+| `currency` | `VARCHAR(3)` | NO | ISO currency code, e.g. `EUR`, `USD`, `GBP` |
+| `market_code` | `VARCHAR(5)` | NO | Market code referencing `market_calendar/markets.yml` |
+| `citi_tag` | `VARCHAR(60)` | NO | Citi Velocity tag, e.g. `RATES.BENCH_RATES.ECB` |
+| `created_at` | `DATETIMEOFFSET` | NO | Row insertion timestamp |
+| `updated_at` | `DATETIMEOFFSET` | NO | Last update timestamp |
+
+**Constraints:**
+- `PK` on `id`
+- `UNIQUE (cb_code)` as `uq_rates_dim_central_bank`
+
+---
+
+### `[rates].[fact_bench_rates]` - Central Bank Policy Rate Observations
+
+Daily central bank policy rate observations from Citi Velocity `RATES.BENCH_RATES.*` tags. ~8 rows/day (10 tags configured, 2 JPY tags return no data).
+
+| Column | Type | Nullable | Description |
+|---|---|---|---|
+| `id` | `INT IDENTITY` | NO | Auto-increment primary key |
+| `cb_id` | `INT` | NO | FK to `[rates].[dim_central_bank](id)` |
+| `vendor_id` | `INT` | NO | FK to `[dbo].[dim_vendor](id)` |
+| `obs_date` | `DATE` | NO | Observation date |
+| `rate` | `FLOAT` | NO | Policy rate value (validated: finite, range [-2.0, 20.0]) |
+| `created_at` | `DATETIMEOFFSET` | NO | Row insertion timestamp |
+| `updated_at` | `DATETIMEOFFSET` | NO | Last update timestamp |
+
+**Constraints:**
+- `PK` on `id`
+- `UNIQUE (cb_id, obs_date)` as `uq_rates_fact_bench_rates`
+- `FK cb_id -> [rates].[dim_central_bank](id)`
+- `FK vendor_id -> [dbo].[dim_vendor](id)`
+
+**Indexes:**
+- `ix_rates_fact_bench_rates_obs_date` on `(obs_date)`
+
+**Migration:** `migrations/020_create_rates_bench_rates.sql`
 
 ---
 

@@ -24,6 +24,7 @@ from imdr.config.settings import get_settings
 from imdr.connectors.citi_helpers import TagQuotaExceeded
 from imdr.connectors.mssql import MSSQLConnector
 from imdr.market_calendar.calendar import last_business_day
+from imdr.market_calendar.holidays import holiday_hits_for_timestamp
 from imdr.domains.rates.pipeline_vol import RatesVolPipeline
 from imdr.notifications.email import send_outlook_email
 from imdr.notifications.formatters.rates_vol_ingest import RatesVolIngestFormatter
@@ -129,6 +130,14 @@ def main() -> int:
                 details={"errors": pipeline._extraction_errors},
             )
 
+        # Holiday detection
+        holiday_hits = holiday_hits_for_timestamp(vol_ccys, target)
+        if holiday_hits:
+            report.info("holidays", f"Holiday hits: {len(holiday_hits)}", details={
+                "hits": [{"currency": h.currency, "market_code": h.market_code,
+                          "name": h.name} for h in holiday_hits],
+            })
+
         # Send email notification
         if settings.email_enabled and settings.email_to:
             _send_report_email(
@@ -139,6 +148,7 @@ def main() -> int:
                 result=result,
                 ccy_data=ccy_data,
                 missing_ccys=missing_ccys,
+                holiday_hits=holiday_hits,
                 elapsed_secs=elapsed,
                 n_currencies=len(vol_ccys),
                 rows_extracted=len(pipeline._raw_df) if pipeline._raw_df is not None else 0,
@@ -200,6 +210,7 @@ def _send_report_email(
     result: int,
     ccy_data: list[dict],
     missing_ccys: list[str],
+    holiday_hits: list,
     elapsed_secs: float,
     n_currencies: int,
     rows_extracted: int,
@@ -223,6 +234,10 @@ def _send_report_email(
         n_currencies=n_currencies,
         ccy_data=ccy_data,
         missing_ccys=missing_ccys,
+        holiday_hits=[
+            {"currency": h.currency, "market_code": h.market_code, "name": h.name}
+            for h in holiday_hits
+        ],
         quality_flags=pipeline._quality_results,
         has_errors=has_errors,
         elapsed_secs=elapsed_secs,

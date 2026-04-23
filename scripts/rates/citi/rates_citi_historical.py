@@ -35,8 +35,8 @@ log = structlog.get_logger(__name__)
 MODE = "range"  # "range" | "catchup" | "gaps"
 
 # range: start and end dates (YYYY-MM-DD)
-START = "2015-06-01"
-END = "2020-06-01"
+START = "2020-01-01"
+END = "2025-01-01"
 
 # catchup: how many calendar days back from today
 LOOKBACK_DAYS = 30
@@ -48,7 +48,9 @@ GAPS_FILE = "data/gaps/rates_gaps.txt"
 MAX_DAYS = 0
 
 # Quote types (None = read from pipelines.yml default_quotes; or comma-separated override)
-QUOTES: str | None = None
+# QUOTES: str | None = None
+
+QUOTES = "fwd"
 
 # Data frequency
 FREQUENCY = "DAILY"

@@ -61,6 +61,7 @@ class CmdtyIngestFormatter:
         quality_flags: list[dict[str, Any]] | None = None,
         health_passed: bool | None = None,
         health_details: list[dict[str, Any]] | None = None,
+        holiday_hits: list[dict[str, str]] | None = None,
         elapsed_secs: float = 0.0,
         is_historical: bool = False,
         has_errors: bool = False,
@@ -70,6 +71,7 @@ class CmdtyIngestFormatter:
         missing_products = missing_products or []
         quality_flags = quality_flags or []
         health_details = health_details or []
+        holiday_hits = holiday_hits or []
 
         now_utc = datetime.now(timezone.utc)
 
@@ -113,5 +115,7 @@ class CmdtyIngestFormatter:
             "product_groups": product_groups,
             "quality_flags": quality_flags,
             "missing_products": missing_products,
+            "n_holidays": len(holiday_hits),
+            "holiday_hits": holiday_hits,
         }
         return self._template.render(**ctx)

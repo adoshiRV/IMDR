@@ -12,78 +12,136 @@ indices:
     - ticker: SPX
       display_name: S&P 500
       currency: USD
+      market_code: US
     - ticker: NDX
       display_name: Nasdaq 100
       currency: USD
+      market_code: US
     - ticker: RUT
       display_name: Russell 2000
       currency: USD
+      market_code: US
     - ticker: MID
       display_name: S&P MidCap 400
       currency: USD
+      market_code: US
     - ticker: OEX
       display_name: S&P 100
       currency: USD
+      market_code: US
     - ticker: VIX
       display_name: CBOE Volatility Index
       currency: USD
+      market_code: US
 
   europe:
     - ticker: STOXX50E
       display_name: Euro Stoxx 50
       currency: EUR
+      market_code: EU
     - ticker: SX7E
       display_name: Euro Stoxx Banks
       currency: EUR
+      market_code: EU
     - ticker: FTSE
       display_name: FTSE 100
       currency: GBP
+      market_code: UK
     - ticker: FCHI
       display_name: CAC 40
       currency: EUR
+      market_code: FR
     - ticker: OMXS30
       display_name: OMX Stockholm 30
       currency: SEK
+      market_code: SE
     - ticker: WIG20
       display_name: Warsaw WIG 20
       currency: PLN
+      market_code: PL
 
   asia_pacific:
     - ticker: N225
       display_name: Nikkei 225
       currency: JPY
+      market_code: JP
     - ticker: TOPX
       display_name: TOPIX
       currency: JPY
+      market_code: JP
     - ticker: HSI
       display_name: Hang Seng
       currency: HKD
+      market_code: HK
     - ticker: HSCE
       display_name: Hang Seng China Enterprises
       currency: HKD
+      market_code: HK
     - ticker: HSTECH
       display_name: Hang Seng Tech
       currency: HKD
+      market_code: HK
     - ticker: TWII
       display_name: Taiwan Weighted
       currency: TWD
+      market_code: TW
     - ticker: TAMSCI
       display_name: MSCI Taiwan
       currency: TWD
+      market_code: TW
     - ticker: AXJO
       display_name: ASX 200
       currency: AUD
+      market_code: AU
     - ticker: KS200
       display_name: KOSPI 200
       currency: KRW
+      market_code: KR
     - ticker: NSEI
       display_name: Nifty 50
       currency: INR
+      market_code: IN
     - ticker: SIMSCI
       display_name: MSCI Singapore
       currency: SGD
+      market_code: SG
     - ticker: SET
       display_name: SET Index
       currency: THB
+      market_code: TH
+
+# VIX family — separate from main indices (different table, different health profile)
+vix_family:
+  - ticker: VIX
+    display_name: CBOE Volatility Index
+    currency: USD
+    market_code: US
+  - ticker: VIX3M
+    display_name: CBOE 3-Month Volatility Index
+    currency: USD
+    market_code: US
+  - ticker: VIX9D
+    display_name: CBOE 9-Day Volatility Index
+    currency: USD
+    market_code: US
+  - ticker: VVIX
+    display_name: CBOE VIX of VIX
+    currency: USD
+    market_code: US
+  - ticker: VXN
+    display_name: CBOE Nasdaq Volatility Index
+    currency: USD
+    market_code: US
 
 tag_template: "EQUITY.EQUITY_INDEX..{ticker}.LEVEL.REUTERS"
+
+# Expected ranges for health checks
+expected_ranges:
+  # Equity indices — broad range covering historical extremes
+  index_level:
+    min: 1.0
+    max: 100000.0
+  # VIX family — vol indices typically 5-90
+  vix_level:
+    min: 1.0
+    max: 150.0

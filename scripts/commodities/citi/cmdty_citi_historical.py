@@ -29,11 +29,11 @@ log = structlog.get_logger(__name__)
 # ============================================================================
 
 MODE = "range"  # "range" | "catchup" | "gaps"
-PRODUCT = "eia"  # "spot" | "eia" | "vol"
+PRODUCT = "vol"  # "spot" | "eia" | "vol"
 
 # range: start and end dates (YYYY-MM-DD)
-START = "2026-01-01"
-END = "2026-03-31"
+START = "2026-04-01"
+END = "2026-04-13"
 
 # catchup: how many calendar days back from today
 LOOKBACK_DAYS = 30

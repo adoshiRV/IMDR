@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;font-family:Calibri,Arial,sans-serif;font-size:14px;color:#222;">
+
+<!-- Header -->
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#1a1a2e;">
+  <tr>
+    <td style="padding:18px 24px;">
+      <span style="color:#ffffff;font-size:20px;font-weight:bold;">IMDR &mdash; FX Rate Ingest Report</span>
+      {% if has_errors %}
+      <span style="background:#e74c3c;color:#fff;padding:4px 12px;border-radius:4px;font-size:13px;font-weight:bold;margin-left:16px;">ERROR</span>
+      {% else %}
+      <span style="background:#27ae60;color:#fff;padding:4px 12px;border-radius:4px;font-size:13px;font-weight:bold;margin-left:16px;">OK</span>
+      {% endif %}
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:0 24px 14px 24px;">
+      <span style="color:#a0a0c0;font-size:14px;">{{ mode }} | {{ date_str }} {{ day_name }}</span>
+    </td>
+  </tr>
+</table>
+
+<!-- Execution Details -->
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;">
+  <tr><td style="padding:0 24px;"><span style="font-size:16px;font-weight:bold;color:#1a1a2e;">EXECUTION</span></td></tr>
+</table>
+<table width="96%" cellpadding="6" cellspacing="0" style="margin:8px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;">
+  <tr style="background:#f5f5f5;"><td style="border:1px solid #ddd;font-weight:bold;width:200px;">Pipeline</td><td style="border:1px solid #ddd;">{{ pipeline_name }}</td></tr>
+  <tr><td style="border:1px solid #ddd;font-weight:bold;">Run Time</td><td style="border:1px solid #ddd;">{{ run_time_utc }} / {{ run_time_sgt }}</td></tr>
+  <tr style="background:#f5f5f5;"><td style="border:1px solid #ddd;font-weight:bold;">Date</td><td style="border:1px solid #ddd;">{{ date_str }} ({{ day_name }})</td></tr>
+  <tr><td style="border:1px solid #ddd;font-weight:bold;">Elapsed</td><td style="border:1px solid #ddd;">{{ elapsed }}</td></tr>
+  <tr style="background:#f5f5f5;"><td style="border:1px solid #ddd;font-weight:bold;">Provider</td><td style="border:1px solid #ddd;">Citi Velocity (bearer auth)</td></tr>
+  <tr><td style="border:1px solid #ddd;font-weight:bold;">Target Table</td><td style="border:1px solid #ddd;">[fx].[fact_fx_rate]</td></tr>
+  <tr style="background:#f5f5f5;"><td style="border:1px solid #ddd;font-weight:bold;">DB Write</td>
+    <td style="border:1px solid #ddd;">
+      {% if rows_loaded > 0 %}
+      <span style="color:#27ae60;font-weight:bold;">SUCCESS</span> &mdash; {{ rows_loaded }} rows upserted
+      {% else %}
+      <span style="color:#e74c3c;font-weight:bold;">NO ROWS WRITTEN</span>
+      {% endif %}
+    </td>
+  </tr>
+</table>
+
+<!-- Summary -->
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;">
+  <tr><td style="padding:0 24px;"><span style="font-size:16px;font-weight:bold;color:#1a1a2e;">SUMMARY</span></td></tr>
+</table>
+<table width="96%" cellpadding="6" cellspacing="0" style="margin:8px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;">
+  <tr style="background:#f5f5f5;"><td style="border:1px solid #ddd;font-weight:bold;width:200px;">Pairs</td><td style="border:1px solid #ddd;">{{ n_pairs }}</td></tr>
+  <tr><td style="border:1px solid #ddd;font-weight:bold;">Obs Extracted</td><td style="border:1px solid #ddd;">{{ rows_extracted }}</td></tr>
+  <tr style="background:#f5f5f5;"><td style="border:1px solid #ddd;font-weight:bold;">Obs Loaded to DB</td><td style="border:1px solid #ddd;">{{ rows_loaded }}</td></tr>
+  <tr><td style="border:1px solid #ddd;font-weight:bold;">Missing Pairs</td><td style="border:1px solid #ddd;">{{ n_missing }}</td></tr>
+  <tr style="background:#f5f5f5;"><td style="border:1px solid #ddd;font-weight:bold;">Holidays Affecting</td><td style="border:1px solid #ddd;">{{ n_holidays }}</td></tr>
+  <tr><td style="border:1px solid #ddd;font-weight:bold;">Quality Flags</td>
+    <td style="border:1px solid #ddd;">
+      {% if n_quality_flags > 0 %}
+      <span style="color:#e74c3c;font-weight:bold;">{{ n_quality_flags }}</span>
+      {% else %}
+      <span style="color:#27ae60;">0</span>
+      {% endif %}
+    </td>
+  </tr>
+  <tr style="background:#f5f5f5;"><td style="border:1px solid #ddd;font-weight:bold;">Health Checks</td>
+    <td style="border:1px solid #ddd;">
+      {% if health_passed is none %}
+      <span style="color:#888;">N/A</span>
+      {% elif health_passed %}
+      <span style="color:#27ae60;font-weight:bold;">PASSED</span>
+      {% else %}
+      <span style="color:#e74c3c;font-weight:bold;">FAILED</span>
+      {% endif %}
+    </td>
+  </tr>
+</table>
+
+<!-- Health Check Details -->
+{% if health_details %}
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;">
+  <tr><td style="padding:0 24px;"><span style="font-size:16px;font-weight:bold;color:#1a1a2e;">HEALTH CHECKS ({{ health_details|length }})</span></td></tr>
+</table>
+<table width="96%" cellpadding="5" cellspacing="0" style="margin:8px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;font-size:13px;">
+  <tr style="background:#1a1a2e;color:#fff;">
+    <th style="border:1px solid #555;padding:6px;text-align:left;">Check</th>
+    <th style="border:1px solid #555;padding:6px;text-align:left;">Status</th>
+    <th style="border:1px solid #555;padding:6px;text-align:left;">Message</th>
+  </tr>
+  {% for h in health_details %}
+  <tr style="background:{{ '#f9f9f9' if loop.index is odd else '#ffffff' }};">
+    <td style="border:1px solid #ddd;padding:5px;font-weight:bold;">{{ h.check_name }}</td>
+    <td style="border:1px solid #ddd;padding:5px;">
+      {% if h.status == 'passed' %}
+      <span style="color:#27ae60;font-weight:bold;">PASSED</span>
+      {% elif h.status == 'warning' %}
+      <span style="color:#e67e22;font-weight:bold;">WARNING</span>
+      {% else %}
+      <span style="color:#e74c3c;font-weight:bold;">FAILED</span>
+      {% endif %}
+    </td>
+    <td style="border:1px solid #ddd;padding:5px;">{{ h.message }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+<!-- Quality Flags -->
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;">
+  <tr><td style="padding:0 24px;"><span style="font-size:16px;font-weight:bold;color:#1a1a2e;">QUALITY FLAGS ({{ n_quality_flags }})</span></td></tr>
+</table>
+{% if quality_flags and n_quality_flags > 0 %}
+<table width="96%" cellpadding="5" cellspacing="0" style="margin:8px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;font-size:13px;">
+  <tr style="background:#c0392b;color:#fff;">
+    <th style="border:1px solid #922b21;padding:6px;text-align:left;">Check</th>
+    <th style="border:1px solid #922b21;padding:6px;text-align:left;">Status</th>
+    <th style="border:1px solid #922b21;padding:6px;text-align:left;">Message</th>
+    <th style="border:1px solid #922b21;padding:6px;text-align:right;">Flagged</th>
+  </tr>
+  {% for q in quality_flags %}
+  {% if q.status != 'passed' %}
+  <tr style="background:#fdecea;">
+    <td style="border:1px solid #ddd;padding:5px;font-weight:bold;">{{ q.check }}</td>
+    <td style="border:1px solid #ddd;padding:5px;">{{ q.status }}</td>
+    <td style="border:1px solid #ddd;padding:5px;">{{ q.message }}</td>
+    <td style="border:1px solid #ddd;padding:5px;text-align:right;">{{ q.flagged_count|default('—') }}</td>
+  </tr>
+  {% endif %}
+  {% endfor %}
+</table>
+{% else %}
+<table width="96%" cellpadding="0" cellspacing="0" style="margin:8px auto 0 auto;">
+  <tr><td style="padding:8px;color:#27ae60;">All quality checks passed.</td></tr>
+</table>
+{% endif %}
+
+<!-- Per-Classification Pair Breakdown -->
+{% for class_name, class_pairs in pair_groups %}
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;">
+  <tr><td style="padding:0 24px;"><span style="font-size:16px;font-weight:bold;color:#1a1a2e;">{{ class_name }} PAIRS ({{ class_pairs|length }})</span></td></tr>
+</table>
+<table width="96%" cellpadding="5" cellspacing="0" style="margin:8px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;font-size:12px;">
+  <tr style="background:#1a1a2e;color:#fff;">
+    <th style="border:1px solid #555;padding:6px;text-align:center;">#</th>
+    <th style="border:1px solid #555;padding:6px;text-align:left;">Pair</th>
+    <th style="border:1px solid #555;padding:6px;text-align:right;">Observations</th>
+  </tr>
+  {% for p in class_pairs %}
+  <tr style="background:{{ '#f9f9f9' if loop.index is odd else '#ffffff' }};">
+    <td style="border:1px solid #ddd;padding:5px;text-align:center;">{{ loop.index }}</td>
+    <td style="border:1px solid #ddd;padding:5px;font-weight:bold;">{{ p.pair }}</td>
+    <td style="border:1px solid #ddd;padding:5px;text-align:right;font-family:Consolas,monospace;">{{ p.n_obs }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endfor %}
+
+<!-- Missing Pairs -->
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;">
+  <tr><td style="padding:0 24px;"><span style="font-size:16px;font-weight:bold;color:#1a1a2e;">MISSING PAIRS ({{ n_missing }})</span></td></tr>
+</table>
+{% if missing_pairs %}
+<table width="96%" cellpadding="0" cellspacing="0" style="margin:8px auto 0 auto;">
+  <tr><td style="padding:8px;color:#e74c3c;font-weight:bold;">{{ missing_pairs | join(', ') }}</td></tr>
+</table>
+{% else %}
+<table width="96%" cellpadding="0" cellspacing="0" style="margin:8px auto 0 auto;">
+  <tr><td style="padding:8px;color:#27ae60;">All {{ n_pairs }} pairs produced data.</td></tr>
+</table>
+{% endif %}
+
+<!-- Holiday Hits -->
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;">
+  <tr><td style="padding:0 24px;"><span style="font-size:16px;font-weight:bold;color:#1a1a2e;">HOLIDAY HITS ({{ n_holidays }})</span></td></tr>
+</table>
+{% if holiday_hits %}
+<table width="96%" cellpadding="5" cellspacing="0" style="margin:8px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;font-size:13px;">
+  <tr style="background:#8e44ad;color:#fff;">
+    <th style="border:1px solid #7d3c98;padding:6px;text-align:left;">Currency</th>
+    <th style="border:1px solid #7d3c98;padding:6px;text-align:left;">Market</th>
+    <th style="border:1px solid #7d3c98;padding:6px;text-align:left;">Holiday</th>
+  </tr>
+  {% for h in holiday_hits %}
+  <tr style="background:{{ '#f5eef8' if loop.index is odd else '#ebdef0' }};">
+    <td style="border:1px solid #ddd;padding:5px;">{{ h.currency }}</td>
+    <td style="border:1px solid #ddd;padding:5px;">{{ h.market_code }}</td>
+    <td style="border:1px solid #ddd;padding:5px;">{{ h.name }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<table width="96%" cellpadding="0" cellspacing="0" style="margin:8px auto 0 auto;">
+  <tr><td style="padding:8px;color:#27ae60;">No holidays affecting this date.</td></tr>
+</table>
+{% endif %}
+
+<!-- Footer -->
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:24px;background-color:#f0f0f0;border-top:2px solid #ddd;">
+  <tr>
+    <td style="padding:12px 24px;color:#888;font-size:12px;">
+      Generated by IMDR | {{ pipeline_name }} | {{ run_time_utc }}
+    </td>
+  </tr>
+</table>
+
+</body>
+</html>

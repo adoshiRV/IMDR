@@ -12,7 +12,7 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
 )
-from sqlalchemy.dialects.mssql import DATETIMEOFFSET
+from sqlalchemy.dialects.mssql import DATETIMEOFFSET, TINYINT
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from imdr.models.base import Base
@@ -38,6 +38,12 @@ class RatesCurve(Base):
     supersedes: Mapped[str | None] = mapped_column(String(30), nullable=True)
     superseded_by: Mapped[str | None] = mapped_column(String(30), nullable=True)
     notes: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # Legacy market_code VARCHAR (migration 010) still in DB; new code uses market_id FK.
+    market_code: Mapped[str | None] = mapped_column(String(5), nullable=True)
+    # Added by migration 026 — FK to calendar.dim_market(id).
+    market_id: Mapped[int | None] = mapped_column(
+        TINYINT, ForeignKey("calendar.dim_market.id"), nullable=True
+    )
 
     observations: Mapped[list[RatesObservation]] = relationship(back_populates="curve")
 

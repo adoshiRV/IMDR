@@ -1,4 +1,4 @@
-"""Equity Universe — index levels from Citi Velocity."""
+"""Equity Universe — index levels and VIX family from Citi Velocity."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from pathlib import Path
 
 import yaml
 
+from imdr.schemas.equity import IndexCreate, VIX_TICKERS
 from imdr.universe.base import BaseUniverse
 
 _UNIVERSE_PATH = Path(__file__).parent / "equity.yml"
@@ -25,9 +26,10 @@ class EquityUniverse(BaseUniverse):
         return [e["ticker"] for e in self._all_entries()]
 
     def api_symbols(self) -> list[str]:
-        """All Citi Velocity tags."""
+        """All Citi Velocity tags (indices + VIX family)."""
         tpl = self._raw["tag_template"]
-        return [tpl.format(ticker=t) for t in self.instruments()]
+        all_tickers = self.instruments() + self.vix_tickers()
+        return [tpl.format(ticker=t) for t in all_tickers]
 
     # ── Index helpers ──────────────────────────────────────────
 
@@ -59,10 +61,52 @@ class EquityUniverse(BaseUniverse):
         return {e["ticker"]: e["currency"] for e in self._all_entries()}
 
     def tag_to_ticker(self) -> dict[str, str]:
-        """Return {citi_tag: ticker} reverse mapping."""
+        """Return {citi_tag: ticker} reverse mapping (indices + VIX family)."""
         tpl = self._raw["tag_template"]
+        all_entries = self._all_entries() + self._vix_entries()
         return {tpl.format(ticker=e["ticker"]): e["ticker"]
-                for e in self._all_entries()}
+                for e in all_entries}
+
+    # ── VIX family helpers ──────────────────────────────────────
+
+    def _vix_entries(self) -> list[dict]:
+        """VIX family entries from YAML."""
+        return self._raw.get("vix_family", [])
+
+    def vix_tickers(self) -> list[str]:
+        """Return VIX family tickers."""
+        return [e["ticker"] for e in self._vix_entries()]
+
+    def vix_api_symbols(self) -> list[str]:
+        """Citi tags for VIX family only."""
+        tpl = self._raw["tag_template"]
+        return [tpl.format(ticker=t) for t in self.vix_tickers()]
+
+    # ── Dimension seeding ───────────────────────────────────────
+
+    def index_create_entries(self) -> list[IndexCreate]:
+        """Build IndexCreate objects for dim_index seeding (non-VIX indices only)."""
+        entries: list[IndexCreate] = []
+        tpl = self._raw["tag_template"]
+        for region, region_entries in self._raw["indices"].items():
+            for e in region_entries:
+                if e["ticker"] in VIX_TICKERS:
+                    continue
+                entries.append(IndexCreate(
+                    ticker=e["ticker"],
+                    display_name=e["display_name"],
+                    currency=e["currency"],
+                    region=region,
+                    citi_tag=tpl.format(ticker=e["ticker"]),
+                    market_code=e.get("market_code"),
+                ))
+        return entries
+
+    def target_currencies(self) -> list[str]:
+        """Unique currencies across all indices (for holiday detection)."""
+        return sorted(set(
+            e["currency"] for e in self._all_entries() + self._vix_entries()
+        ))
 
 
 @lru_cache(maxsize=1)

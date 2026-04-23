@@ -28,7 +28,7 @@ The most basic question. Every morning starts here.
 | Curve butterflies (2s5s10s, 5s10s30s) | `fact_butterfly` | rates | READY — 5 countries, both wings | Citi Velocity |
 | TIPS real yields + breakevens + carry | `fact_real_yield` | rates | READY — 24/26 tags confirmed | Citi Velocity |
 
-**Gap**: Forward yields only work for USA, JPN, AUS, DEU, GBR, NZL. No KOR, CHN, IND — derive from SOV_CMT. Curve spreads (2s10s) NOT returning from Citi — only butterflies work.
+**Gap (RESOLVED 2026-04-16)**: Forward swap rates and curve spreads now work for all OIS/SWAP_LIBOR curves. Root cause was `build_tags()` generating single-tenor tags for multi-tenor quote types (FWD, CURVES, BFLY). Fix: `multi_tenor_combos` config in `rates.yml` + combo-aware `build_tags()`. API probe confirmed 1,156 FWD / 1,936 CURVES / 2,600 BFLY tags per curve, all returning data for G10 OIS. Sovereign forward yields (RATES.FORWARD) are a separate dataset covering 24 countries — not yet ingested.
 
 ---
 
@@ -59,7 +59,7 @@ Before sizing any trade, the desk needs to know the vol regime.
 |---|---|---|---|---|
 | FX vol surface (17 pairs, full strike/tenor) | `fact_vol_surface` | fx | BUILT | Citi Velocity |
 | Swaption vol cube (11 ccys, 3D surface) | `fact_swaption_vol` | rates | BUILT | Citi Velocity |
-| VIX, VIX3M, VIX9D, VVIX, VXN | `fact_vix` | equities | READY — all 5 confirmed | Citi Velocity |
+| VIX, VIX3M, VIX9D, VVIX, VXN | `fact_vix` | equities | **BUILT** — pipeline + market_code FK | Citi Velocity |
 | MOVE index (rates vol) | `fact_move` | equities | **NOT ON CITI** — ICE/BofA proprietary | Bloomberg |
 | Equity vol swaps (197 tickers × 13 tenors) | `fact_equity_vol` | equities | READY — VOLSWAP confirmed | Citi Velocity |
 | Variance swaps (SPX, NDX, N225 etc.) | `fact_equity_vol` | equities | READY — VARSWAP confirmed | Citi Velocity |
@@ -137,9 +137,9 @@ For a rates desk, equities are regime inputs, not a book.
 
 | What the desk needs | Table | Schema | Status | Source |
 |---|---|---|---|---|
-| Global index levels (24 tickers) | `fact_index_futures` | equities | READY — SPX through SET | Citi Velocity |
+| Global index levels (24 tickers) | `fact_index_level` | equities | **BUILT** — 24 indices, dim_index + market_code FK | Citi Velocity |
 | Equity vol (VOLSWAP, VARSWAP) | `fact_equity_vol` | equities | READY | Citi Velocity |
-| VIX family | `fact_vix` | equities | READY | Citi Velocity |
+| VIX family | `fact_vix` | equities | **BUILT** — VIX, VIX3M, VIX9D, VVIX, VXN | Citi Velocity |
 | Sector rotation (cyclicals vs defensives) | `fact_sector_rotation` | equities | NOT BUILT | Bloomberg |
 | Energy + metals spot | `fact_energy_spot` / `fact_metals_spot` | commodities | BUILT | Citi Velocity |
 
@@ -181,8 +181,8 @@ Data lives where the **user expects to find it**, not where the API serves it fr
 | Inflation breakevens (5Y5Y) | RATES.INFLATION.SWAP | — | **`macro.fact_inflation_expectations`** | "What's the market pricing for inflation?" = macro |
 | Inflation swap full surface | RATES.INFLATION.SWAP | `rates.fact_real_yield` | **`rates.fact_inflation_swap`** | Forward inflation = macro signal. Full swap surface may also serve rates. |
 | TIPS real yields | RATES.TIPS | `rates.fact_real_yield` | **`rates.fact_real_yield`** | Bond yield — rates correct |
-| VIX / VVIX | EQUITY.EQUITY_INDEX | `equities.fact_vix` | **`equities.fact_vix`** | Correct |
-| Equity index levels | EQUITY.EQUITY_INDEX | `equities.fact_index_futures` | **`equities.fact_index_futures`** | Correct |
+| VIX / VVIX | EQUITY.EQUITY_INDEX | `equities.fact_vix` | **`equities.fact_vix`** | BUILT |
+| Equity index levels | EQUITY.EQUITY_INDEX | `equities.fact_index_level` | **`equities.fact_index_level`** | BUILT — renamed from `fact_index_futures` (these are index levels, not futures) |
 | SOV butterflies | RATES.SOV | `rates.fact_butterfly` | **`rates.fact_butterfly`** | Correct |
 | XCCY basis | RATES.XCCY_OIS_SWAP | `rates.fact_xccy_basis` | **`rates.fact_xccy_basis`** | Correct |
 | FX carry | FX.CARRY | — | **`fx.fact_carry`** | FX rate differential data, lives with FX |
@@ -210,9 +210,9 @@ Ordered by **"what unblocks the most desk workflows"**, not by data source conve
 
 1. **SOV_CMT** → `rates.fact_govtbond` — 15 core countries × 13 tenors (195 tags/day)
 2. **CB Meeting OIS** → `macro.fact_cb_meeting_ois` — 10 CBs, ~70 meetings (70 tags/day)
-3. **Equity indices** → `equities.fact_index_futures` — 24 global indices (24 tags/day)
+3. **Equity indices** → `equities.fact_index_level` — 24 global indices (24 tags/day) ✓ BUILT
 4. **BENCH_RATES** → `macro.fact_policy_rates` — current CB rates (10 tags/day)
-5. **VIX family** → `equities.fact_vix` — risk-off signal (5 tags/day)
+5. **VIX family** → `equities.fact_vix` — risk-off signal (5 tags/day) ✓ BUILT
 
 **304 tags/day. Unblocks: morning brief, risk dashboard, CB pricing monitor.**
 
@@ -286,7 +286,7 @@ Exhaustively probed 2026-03-26. These are dead ends on the Citi Velocity chartin
 | Credit/CDS (CDX, iTraxx, sovereign) | CREDIT, CDS, CDX, ITRAXX, FI, BOND, SPREAD + 6 more | Not on charting API |
 | MOVE index | Multiple RATES.* prefixes | ICE/BofA proprietary, Bloomberg only |
 | FX deposit rates | FX.DEPOSIT — 50 ccys browsable | Tag tree exists, zero data returns |
-| FX NDF points vs USD | FX.FORWARD.FWD_POINT.{CCY}.USD | No USD-quote tags; cross-pairs only (vs JPY) |
+| FX NDF points vs USD (wrong direction) | FX.FORWARD.FWD_POINT.{NDF_CCY}.USD | NDF ccys are not forward bases — use `USD.{NDF_CCY}` instead (see [docs/fx/citi_velocity_fx.md](../../fx/citi_velocity_fx.md), verified 2026-04-21) |
 | JPY money markets (TONAR) | RATES.MONEY_MARKETS.JPY | Tags exist, all empty |
 | European vol indices (V2X, VSTOXX, VDAX) | EQUITY.EQUITY_INDEX | No data |
 | China/EM macro data | Various root prefixes | Not on any Citi API |

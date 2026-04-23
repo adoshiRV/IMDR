@@ -77,6 +77,11 @@ class CitiVelocityRatesExtractor:
         if curves is None:
             curves = [(c.ccy, c.curve) for c in self._universe.all_curves()]
 
+        # Build status lookup for cache awareness
+        status_lookup: dict[tuple[str, str], str] = {
+            (c.ccy, c.curve): c.status for c in self._universe.all_curves()
+        }
+
         total = len(curves) * len(quotes)
         _log.info("extract_start", n_curves=len(curves), n_quotes=len(quotes), total_jobs=total)
 
@@ -92,20 +97,23 @@ class CitiVelocityRatesExtractor:
         frames: list[pd.DataFrame] = []
         done = 0
         skipped = 0
+        skipped_combos: list[str] = []
 
         for ccy, curve in curves:
+            curve_status = status_lookup.get((ccy, curve), "active")
             for quote in quotes:
                 done += 1
 
-                if self._cache and self._cache.should_skip(ccy, curve, quote):
+                if self._cache and self._cache.should_skip(ccy, curve, quote, curve_status):
                     skipped += 1
+                    skipped_combos.append(f"{ccy}|{curve}|{quote}")
                     continue
 
                 try:
                     df = self._fetch_curve(ccy, curve, quote, start, end, frequency)
                     if self._cache:
                         if df.empty:
-                            self._cache.mark_empty(ccy, curve, quote)
+                            self._cache.mark_empty(ccy, curve, quote, curve_status)
                         else:
                             self._cache.mark_active(ccy, curve, quote)
                     if not df.empty:
@@ -129,7 +137,12 @@ class CitiVelocityRatesExtractor:
         if self._cache:
             self._cache.save()
             if skipped:
-                _log.info("cache_skipped", count=skipped, fetched=done - skipped)
+                _log.warning(
+                    "cache_skipped",
+                    count=skipped,
+                    fetched=done - skipped,
+                    combos=skipped_combos[:20],
+                )
 
         if not frames:
             return pd.DataFrame(columns=COLUMNS)

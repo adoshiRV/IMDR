@@ -223,6 +223,7 @@ class MyFactRepository:
 |--------|------|---------|
 | FX Vol | `src/imdr/domains/fx/repository_vol.py` | `FXCurrencyPairRepository`, `FXVolRepository` |
 | Rates | `src/imdr/domains/rates/repository.py` | `RatesCurveRepository`, `RatesObservationRepository` |
+| Rates Bench | `src/imdr/domains/rates/pipeline_bench.py` | `CentralBankRepository`, `BenchRatesRepository` (inline, auto-seeds `dim_central_bank`) |
 
 ---
 
@@ -577,6 +578,7 @@ PIPELINE_REGISTRY["domain.product"] = _build_my_pipeline
 | FX OHLC | `scripts/fx/bidfx/fx_bidfx_live.py` | `scripts/fx/bidfx/fx_bidfx_historical.py` |
 | FX Vol | `scripts/fx/citi/fx_vol_citi_live.py` | `scripts/fx/citi/fx_vol_citi_historical.py` |
 | Rates | `scripts/rates/citi/rates_citi_live.py` | `scripts/rates/citi/rates_citi_historical.py` |
+| Rates Bench | `scripts/rates/citi/rates_bench_citi_live.py` | `scripts/rates/citi/rates_bench_citi_historical.py` |
 
 ### 5e. Calendar Integration
 
@@ -1101,6 +1103,58 @@ Complete list of files to create/modify when adding a new product:
 | 4 | `scripts/imdr_retry.py` | Add to `PIPELINE_REGISTRY` dict (cmd, estimated_tags, log_dir, log_prefix) |
 | 5 | `scripts/imdr_clean.py` | Add to `CLEANING_SCRIPTS` |
 | 6 | `scripts/imdr_health_dashboard.py` | Add domain collector + imports |
+
+### Worked Example: FX Rate (Spot + Forward Curve + Points, 2026-04-22)
+
+Citi Velocity daily EOD spot + 10-tenor forward curve + forward points across 31 FX pairs (G10 + Asia + EM).
+
+| Checklist # | FX Rate file |
+|---|---|
+| 1 | `src/imdr/universe/fx.yml` (`fx_rate:` block — 31 pairs, 11 tenors, 3 tag templates, 31 expected_ranges) |
+| 2 | `src/imdr/universe/fx.py` (`FXRateConfig`, `fx_rate_pairs()`, `build_fx_rate_spot_tag/outright/point_tags()`, `fx_rate_pair_create_entries()`) |
+| 3 | `src/imdr/models/fx_rate.py` (`FXFactFXRate` — 3 FKs to pair, vendor, frequency) + `src/imdr/models/frequency.py` (new cross-domain dim) |
+| 4 | `src/imdr/schemas/fx_rate.py` (`FXRateCreate` with tenor enum validation + spot/fwd_points constraint) |
+| 5 | `migrations/023_create_dim_frequency.sql` + `migrations/024_create_fx_fact_fx_rate.sql` (PAGE-compressed, NONCLUSTERED PK, clustered on `(obs_date, pair_id, tenor)`) |
+| 6 | `src/imdr/domains/fx/extractors_rate.py` (`CitiVelocityFXRateExtractor`) |
+| 7 | `src/imdr/domains/fx/rate_translate.py` (3-family tag parser + long→wide pivot) |
+| 8 | `src/imdr/domains/fx/repository_rate.py` (`_FX_RATE_SPEC` MergeSpec; reuses `FXCurrencyPairRepository`) |
+| 9 | `src/imdr/domains/fx/pipeline_rate.py` (`FXRatePipeline` — resolves pair_id + vendor_id + frequency_id in transform) |
+| 10 | `src/imdr/domains/fx/store_rate.py` (month-partitioned parquet) |
+| 11 | `src/imdr/domains/fx/coverage.py::get_fx_rate_coverage()` |
+| 12 | `src/imdr/domains/fx/clean_fx_fact_fx_rate.py` (HardBound = DELETE per CHECK constraint, Outlier + PctChange = flag only) |
+| 13 | `scripts/fx/citi/fx_rate_citi_live.py` |
+| 14 | `scripts/fx/citi/fx_rate_citi_historical.py` (range / catchup / gaps modes) |
+| 15 | `scripts/fx/clean/clean_fx_fact_fx_rate.py` |
+| 16 | `src/imdr/notifications/formatters/fx_rate_ingest.py` |
+| 17 | `src/imdr/notifications/templates/fx_rate_ingest.html` |
+| 18 | `tests/unit/test_fx_rate_{translate,universe,schema}.py` (43 tests) |
+
+**Cross-domain dim pattern**: This product introduced `dbo.dim_frequency` — the cadence enum reusable across all future fact tables. See [dim_frequency.md](dim_frequency.md) and [schema_conventions.md §3.7](schema_conventions.md).
+
+**Docs**: [fx_rate_schema.md](../fx/fx_rate_schema.md), [fx_rate_pipeline.md](../fx/fx_rate_pipeline.md), [fx_rate_operations.md](../fx/fx_rate_operations.md).
+
+### Worked Example: Bench Rates (Flat Leaf Tags)
+
+Bench rates is a simple flat-tag product (10 tags, no tenor/curve structure). Useful as a reference for products that don't need multi-tenor combos, complex partitioning, or separate extractor modules.
+
+| Checklist # | Bench Rates File |
+|---|---|
+| 1 | `src/imdr/universe/rates.yml` (`bench_rates:` section) |
+| 2 | `src/imdr/universe/rates.py` (`BenchRateEntry`, `bench_rates_tags()`) |
+| 3 | `src/imdr/models/rates_bench.py` (`RatesDimCentralBank`, `RatesFactBenchRates`) |
+| 4 | `src/imdr/schemas/rates_bench.py` (`CentralBankCreate`, `BenchRateCreate`) |
+| 5 | `migrations/020_create_rates_bench_rates.sql` |
+| 6-8 | Inline in `src/imdr/domains/rates/pipeline_bench.py` (tag parser, repos, pipeline — consolidated for simple products) |
+| 10 | Inline in `pipeline_bench.py` (`parquet_write()` — month-partitioned) |
+| 13 | `scripts/rates/citi/rates_bench_citi_live.py` |
+| 14 | `scripts/rates/citi/rates_bench_citi_historical.py` |
+| 16 | `src/imdr/notifications/formatters/rates_bench_ingest.py` |
+| 17 | `src/imdr/notifications/templates/rates_bench_ingest.html` |
+| 18 | `tests/unit/test_rates_bench.py` (33 tests) |
+
+**Vendor linking:** `fact_bench_rates.vendor_id` FK → `dbo.dim_vendor.id`, resolved at transform time via `DimVendor.vendor_code == "citi_velocity"`.
+
+**Market code:** `dim_central_bank.market_code` is a VARCHAR referencing market calendar config (`src/imdr/market_calendar/markets.yml`) — not a FK to `dim_market`. Used for holiday detection in the live script.
 
 ---
 

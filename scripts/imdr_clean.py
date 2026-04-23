@@ -19,8 +19,10 @@ import time
 CLEANING_SCRIPTS = [
     ("FX OHLC", "scripts.fx.clean.clean_fx_fact_ohlc"),
     ("FX Vol", "scripts.fx.clean.clean_fx_fact_vol"),
+    ("FX Rate", "scripts.fx.clean.clean_fx_fact_fx_rate"),
     ("Rates", "scripts.rates.clean.clean_rates_fact_observation"),
     ("Commodities Implied Vol", "scripts.commodities.clean.clean_cmdty_fact_implied_vol"),
+    ("Equity Index Level", "scripts.equity.clean.clean_equity_fact_index_level"),
 ]
 
 

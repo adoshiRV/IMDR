@@ -83,6 +83,7 @@ class RatesVolIngestFormatter:
         quality_flags: list[dict[str, Any]] | None = None,
         health_passed: bool | None = None,
         health_details: list[dict[str, Any]] | None = None,
+        holiday_hits: list[dict[str, str]] | None = None,
         elapsed_secs: float = 0.0,
         is_historical: bool = False,
         has_errors: bool = False,
@@ -92,6 +93,7 @@ class RatesVolIngestFormatter:
         missing_ccys = missing_ccys or []
         quality_flags = quality_flags or []
         health_details = health_details or []
+        holiday_hits = holiday_hits or []
 
         now_utc = datetime.now(timezone.utc)
 
@@ -129,5 +131,7 @@ class RatesVolIngestFormatter:
             "ccy_groups": ccy_groups,
             "quality_flags": quality_flags,
             "missing_ccys": missing_ccys,
+            "n_holidays": len(holiday_hits),
+            "holiday_hits": holiday_hits,
         }
         return self._template.render(**ctx)

@@ -292,17 +292,192 @@ def _build_cmdty_vol_pipeline(
     )
 
 
+def _build_equity_index_pipeline(
+    connector: MSSQLConnector, args: argparse.Namespace
+) -> BasePipeline[Any, Any, Any]:
+    """Build an Equity Index pipeline based on CLI args."""
+    from datetime import datetime, timezone
+
+    from imdr.domains.equity.pipeline_index import EquityIndexPipeline
+    from imdr.universe.equity import get_equity_universe
+
+    settings = get_settings()
+    universe = get_equity_universe()
+
+    if not hasattr(args, "start") or not args.start:
+        print("ERROR: --start is required for equity.index")
+        sys.exit(1)
+    if not hasattr(args, "end") or not args.end:
+        print("ERROR: --end is required for equity.index")
+        sys.exit(1)
+
+    start = datetime.strptime(args.start, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    end = datetime.strptime(args.end, "%Y-%m-%d").replace(
+        hour=23, minute=59, tzinfo=timezone.utc
+    )
+    return EquityIndexPipeline(
+        connector=connector, settings=settings,
+        universe=universe, start=start, end=end,
+    )
+
+
+def _build_equity_vix_pipeline(
+    connector: MSSQLConnector, args: argparse.Namespace
+) -> BasePipeline[Any, Any, Any]:
+    """Build an Equity VIX pipeline based on CLI args."""
+    from datetime import datetime, timezone
+
+    from imdr.domains.equity.pipeline_vix import EquityVixPipeline
+    from imdr.universe.equity import get_equity_universe
+
+    settings = get_settings()
+    universe = get_equity_universe()
+
+    if not hasattr(args, "start") or not args.start:
+        print("ERROR: --start is required for equity.vix")
+        sys.exit(1)
+    if not hasattr(args, "end") or not args.end:
+        print("ERROR: --end is required for equity.vix")
+        sys.exit(1)
+
+    start = datetime.strptime(args.start, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    end = datetime.strptime(args.end, "%Y-%m-%d").replace(
+        hour=23, minute=59, tzinfo=timezone.utc
+    )
+    return EquityVixPipeline(
+        connector=connector, settings=settings,
+        universe=universe, start=start, end=end,
+    )
+
+
 # Registry maps pipeline names to their factory functions.
 # Add new pipelines here — no if-chain needed in main().
+def _build_rates_skew_pipeline(
+    connector: MSSQLConnector, args: argparse.Namespace
+) -> BasePipeline[Any, Any, Any]:
+    """Build a Rates Swaption Skew pipeline based on CLI args."""
+    from datetime import datetime
+
+    from imdr.domains.rates.pipeline_skew import RatesSkewPipeline
+
+    settings = get_settings()
+
+    # Resolve files
+    if hasattr(args, "files") and args.files:
+        file_paths = [Path(f) for f in args.files]
+    else:
+        skew_dir = Path(getattr(args, "skew_dir", "data/skew"))
+        file_paths = sorted(skew_dir.glob("*.xlsx"))
+        file_paths = [f for f in file_paths if not f.name.startswith("~$")]
+
+    if not file_paths:
+        print("ERROR: No .xlsx files found. Use --files or place files in data/skew/")
+        sys.exit(1)
+
+    start = datetime.strptime(args.start, "%Y-%m-%d").date() if args.start else None
+    end = datetime.strptime(args.end, "%Y-%m-%d").date() if args.end else None
+
+    # Resolve vendor_id
+    from sqlalchemy import text
+    with connector.session() as session:
+        vendor_id = session.execute(
+            text("SELECT id FROM [dbo].[dim_vendor] WHERE vendor_code = 'barclays'")
+        ).scalar_one()
+
+    return RatesSkewPipeline(
+        connector=connector,
+        settings=settings,
+        file_paths=file_paths,
+        vendor_id=vendor_id,
+        start=start,
+        end=end,
+        chunk_size=settings.bulk_batch_size,
+    )
+
+
+def _build_rates_bench_pipeline(
+    connector: MSSQLConnector, args: argparse.Namespace
+) -> BasePipeline[Any, Any, Any]:
+    """Build a Rates Bench Rates pipeline based on CLI args."""
+    from datetime import datetime, timezone
+
+    from imdr.domains.rates.pipeline_bench import BenchRatesPipeline
+    from imdr.universe.rates import get_rates_universe
+
+    settings = get_settings()
+    universe = get_rates_universe()
+
+    if not hasattr(args, "start") or not args.start:
+        print("ERROR: --start is required for rates.bench_rates")
+        sys.exit(1)
+    if not hasattr(args, "end") or not args.end:
+        print("ERROR: --end is required for rates.bench_rates")
+        sys.exit(1)
+
+    start = datetime.strptime(args.start, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    end = datetime.strptime(args.end, "%Y-%m-%d").replace(
+        hour=23, minute=59, tzinfo=timezone.utc
+    )
+
+    return BenchRatesPipeline(
+        connector=connector, settings=settings,
+        universe=universe, start=start, end=end,
+    )
+
+
+def _build_fx_rate_pipeline(
+    connector: MSSQLConnector, args: argparse.Namespace
+) -> BasePipeline[Any, Any, Any]:
+    """Build an FX Citi rate pipeline based on CLI args."""
+    from datetime import datetime, timezone
+
+    from imdr.domains.fx.pipeline_rate import FXRatePipeline
+    from imdr.universe.fx import get_fx_universe
+
+    settings = get_settings()
+    universe = get_fx_universe()
+
+    if not hasattr(args, "start") or not args.start:
+        print("ERROR: --start is required for fx.citi_rate")
+        sys.exit(1)
+    if not hasattr(args, "end") or not args.end:
+        print("ERROR: --end is required for fx.citi_rate")
+        sys.exit(1)
+
+    start = datetime.strptime(args.start, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    end = datetime.strptime(args.end, "%Y-%m-%d").replace(
+        hour=23, minute=59, tzinfo=timezone.utc
+    )
+
+    pairs = None
+    if hasattr(args, "pairs") and args.pairs:
+        pairs = [tuple(p.strip().split("/")) for p in args.pairs.split(",")]
+
+    return FXRatePipeline(
+        connector=connector,
+        settings=settings,
+        universe=universe,
+        start=start,
+        end=end,
+        pairs=pairs,
+        chunk_size=settings.bulk_batch_size,
+    )
+
+
 PIPELINE_REGISTRY: dict[str, PipelineFactory] = {
     "fx.spot_rates": _build_fx_pipeline,
     "fx.ohlc": _build_fx_ohlc_pipeline,
     "fx.vol": _build_fx_vol_pipeline,
+    "fx.citi_rate": _build_fx_rate_pipeline,
     "rates.historical": _build_rates_historical_pipeline,
     "rates.vol": _build_rates_vol_pipeline,
+    "rates.skew": _build_rates_skew_pipeline,
+    "rates.bench_rates": _build_rates_bench_pipeline,
     "commodities.spot": _build_cmdty_spot_pipeline,
     "commodities.eia": _build_cmdty_eia_pipeline,
     "commodities.vol": _build_cmdty_vol_pipeline,
+    "equity.index": _build_equity_index_pipeline,
+    "equity.vix": _build_equity_vix_pipeline,
 }
 
 
@@ -319,6 +494,8 @@ def main() -> int:
     parser.add_argument("--frequency", type=str, help="Data frequency (DAILY, HOURLY)")
     parser.add_argument("--currencies", type=str, help="Comma-separated currencies for rates.vol (USD,EUR,JPY)")
     parser.add_argument("--products", type=str, help="Comma-separated products for commodities.vol (XAU,XAG)")
+    parser.add_argument("--files", nargs="+", type=str, help="Excel file paths for rates.skew")
+    parser.add_argument("--skew-dir", type=str, default="data/skew", dest="skew_dir", help="Directory for rates.skew Excel files")
     args = parser.parse_args()
 
     settings = get_settings()

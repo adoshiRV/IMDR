@@ -38,8 +38,8 @@ log = structlog.get_logger(__name__)
 MODE = "range"  # "range" | "catchup" | "gaps"
 
 # range: start and end dates (YYYY-MM-DD)
-START = "2025-06-01"
-END = "2026-01-01"
+START = "2026-04-01"
+END = "2026-04-13"
 
 # catchup: how many calendar days back from today
 LOOKBACK_DAYS = 30
@@ -51,7 +51,8 @@ GAPS_FILE = "data/gaps/rates_vol_gaps.txt"
 MAX_DAYS = 0
 
 # Optional: limit to specific currencies (None = all 11)
-CURRENCIES: list[str] | None = None
+# CURRENCIES: list[str] | None = None
+CURRENCIES = ["USD"]
 
 # ============================================================================
 

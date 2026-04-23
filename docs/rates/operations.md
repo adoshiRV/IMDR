@@ -129,9 +129,10 @@ With 6 quote types, the extractor makes 39 × 6 = 234 API calls per run. ~78% re
 
 **Cache file:** `data/cache/rates/empty_combos.json`
 
-- First run: all 234 calls, cache populated with ~183 empties
-- Subsequent runs: ~51 actual API calls (~4x faster)
-- Entries auto-retry after 30 days
+- First run: all curve×quote calls, cache populated with empties (ceased curves, EM-only quotes)
+- Subsequent runs: only active combos re-fetched (~4x faster)
+- Active/reformed curves: stale after 2 days. Ceased curves: stale after 30 days
+- Protected quotes (`par`, `ssw`) for active curves are never cached as empty
 - Use `--no-cache` to bypass, or delete the JSON file to force a full refresh
 
 ---
@@ -246,6 +247,53 @@ WHERE quote = 'par'
 GROUP BY CAST(ts AS DATE)
 ORDER BY obs_date DESC;
 ```
+
+---
+
+## Bench Rates (Central Bank Policy Rates)
+
+### Overview
+
+Flat leaf tags from `RATES.BENCH_RATES.*` — 10 configured central banks, ~8 return data daily (JPY_DISCOUNT and JPY_TARGET are known empty). Auto-seeds `rates.dim_central_bank` from `universe/rates.yml` on first run.
+
+### Daily Live Ingest
+
+```bash
+# Default: last business day (US calendar)
+python -m scripts.rates.citi.rates_bench_citi_live
+
+# Specific date override
+python -m scripts.rates.citi.rates_bench_citi_live --date 2026-04-15
+```
+
+Registered in `scripts/imdr_daily.py` (10 estimated tags). Sends email notification on completion.
+
+### Historical Backfill
+
+Edit config at top of `scripts/rates/citi/rates_bench_citi_historical.py`:
+
+```bash
+# Edit MODE, START, END, then run:
+python -m scripts.rates.citi.rates_bench_citi_historical
+```
+
+Three modes: `range` (date range), `catchup` (N days back), `gaps` (file of dates).
+
+### Generic Runner
+
+```bash
+python -m scripts.run_pipeline rates.bench_rates --start 2026-04-01 --end 2026-04-15
+```
+
+### Health Checks
+
+| Check | Threshold |
+|---|---|
+| Row count | min 5 |
+| Null check | cb_id, vendor_id, obs_date, rate |
+| Duplicate check | cb_id + obs_date unique |
+| Freshness | max 48h staleness |
+| Value range | rate: [-2.0, 20.0] |
 
 ---
 

@@ -26,7 +26,7 @@ from imdr.config.settings import get_settings
 from imdr.connectors.mssql import MSSQLConnector
 from imdr.connectors.reader import AnalyticalReader
 from imdr.domains.commodities.coverage import get_cmdty_vol_coverage
-from imdr.domains.fx.coverage import get_ohlc_coverage, get_vol_coverage
+from imdr.domains.fx.coverage import get_fx_rate_coverage, get_ohlc_coverage, get_vol_coverage
 from imdr.domains.rates.coverage import get_rates_coverage
 from imdr.healthchecks.clean_cli import compute_overlap_stats
 from imdr.healthchecks.cleaning import CleaningRunner
@@ -45,6 +45,11 @@ from scripts.fx.clean.clean_fx_fact_vol import (
     build_health_checks as vol_health_checks,
     build_quality_checks as vol_quality_checks,
     build_cleaning_rules as vol_cleaning_rules,
+)
+from scripts.fx.clean.clean_fx_fact_fx_rate import (
+    build_health_checks as fx_rate_health_checks,
+    build_quality_checks as fx_rate_quality_checks,
+    build_cleaning_rules as fx_rate_cleaning_rules,
 )
 from scripts.rates.clean.clean_rates_fact_observation import (
     build_health_checks as rates_health_checks,
@@ -130,6 +135,44 @@ def _collect_fx_vol(
     return DomainReport(
         domain_name="FX Vol",
         table_name="[fx].[fact_vol]",
+        years=years,
+        health_reports=[health_report],
+        coverage=coverage,
+        quality_results=quality,
+        cleaning_results=cleaning,
+    )
+
+
+# ---------------------------------------------------------------------------
+# FX Rate (Citi spot + forward curve)
+# ---------------------------------------------------------------------------
+
+def _collect_fx_rate(
+    connector: MSSQLConnector,
+    reader: AnalyticalReader,
+    years: list[int] | None = None,
+) -> DomainReport:
+    log.info("dashboard_collect", domain="FX Rate")
+    reporter = HealthReporter(connector, "fx.citi_rate")
+    years = years or reporter.discover_years()
+
+    health_report = reporter.run_health_window(
+        fx_rate_health_checks(), lookback_days=30, quiet=True,
+    )
+    coverage = get_fx_rate_coverage(reader, "[fx].[fact_fx_rate]", years)
+    quality = reporter.run_quality_section(
+        fx_rate_quality_checks(), years, quiet=True,
+    )
+    runner = CleaningRunner(
+        connector=connector, reader=reader,
+        rules=fx_rate_cleaning_rules(), table="[fx].[fact_fx_rate]",
+        dry_run=True,
+    )
+    cleaning = runner.run()
+
+    return DomainReport(
+        domain_name="FX Rate",
+        table_name="[fx].[fact_fx_rate]",
         years=years,
         health_reports=[health_report],
         coverage=coverage,
@@ -348,25 +391,29 @@ def main() -> None:
     print("  WEEKLY HEALTH DASHBOARD — collecting data")
     print(f"{'=' * 70}")
 
-    print(f"\n  [1/4] FX OHLC ...")
+    print(f"\n  [1/5] FX OHLC ...")
     ohlc = _collect_fx_ohlc(connector, reader, years)
     print(f"         done.")
 
-    print(f"  [2/4] FX Vol ...")
+    print(f"  [2/5] FX Vol ...")
     vol = _collect_fx_vol(connector, reader, years)
     print(f"         done.")
 
-    print(f"  [3/4] Rates ...")
+    print(f"  [3/5] FX Rate ...")
+    fx_rate = _collect_fx_rate(connector, reader, years)
+    print(f"         done.")
+
+    print(f"  [4/5] Rates ...")
     rates = _collect_rates(connector, reader, years)
     print(f"         done.")
 
-    print(f"  [4/4] Commodities Vol ...")
+    print(f"  [5/5] Commodities Vol ...")
     cmdty_vol = _collect_cmdty_vol(connector, reader, years)
     print(f"         done.")
 
     dashboard = WeeklyDashboard(
         generated_at=datetime.now(timezone.utc),
-        domains=[ohlc, vol, rates, cmdty_vol],
+        domains=[ohlc, vol, fx_rate, rates, cmdty_vol],
     )
 
     elapsed = time.perf_counter() - t0

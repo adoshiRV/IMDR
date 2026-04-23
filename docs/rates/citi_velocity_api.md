@@ -117,6 +117,8 @@ Multi-tenor tags:
 - **FWD:** `RATES.OIS.USD_SOFR.FWD.5Y.5Y` (6 parts)
 - **BFLY:** `RATES.OIS.USD_SOFR.BFLY.2Y.5Y.10Y` (7 parts)
 
+Multi-tenor combos are defined in `multi_tenor_combos` in `rates.yml` and used by `build_tags()` (API probe: ~1,156 FWD / ~1,936 CURVES / ~2,600 BFLY tags per OIS curve).
+
 ### SWAP_LIBOR Tags
 ```
 RATES.SWAP_LIBOR.{CCY}.{QUOTE_TYPE}.{MATURITY}

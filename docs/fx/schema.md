@@ -8,6 +8,13 @@
 
 ## Tables
 
+| Table | Purpose | Primary source | Doc |
+|---|---|---|---|
+| [fx.dim_currency_pair](../../migrations/004_create_fx_dim_currency_pair.sql) | Currency-pair dimension (base/quote/ccy_class) | universe YAML | below |
+| [fx.fact_ohlc](../../migrations/) | Hourly OHLC bars — **legacy (BidFX)** | BidFX | below |
+| [fx.fact_vol](../../migrations/005_create_fx_fact_vol.sql) | Daily vol surface (strikes × tenors × types) | Citi Velocity | [vol_pipeline_plan.md](vol_pipeline_plan.md) |
+| [fx.fact_fx_rate](../../migrations/024_create_fx_fact_fx_rate.sql) | Daily EOD spot + forward curve + points | Citi Velocity | [fx_rate_schema.md](fx_rate_schema.md) |
+
 ### `[fx].[fact_ohlc]` - Hourly OHLC Bars
 
 The primary fact table for FX data. Stores hourly OHLC (Open/High/Low/Close) bars built from tick data sourced from BidFX and CitiVelocity. Each row represents one hour of price action for a single currency pair + series combination.

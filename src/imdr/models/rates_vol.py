@@ -4,6 +4,7 @@ from __future__ import annotations
 from datetime import date
 
 from sqlalchemy import Boolean, Date, Float, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy.dialects.mssql import TINYINT
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from imdr.models.base import Base
@@ -27,6 +28,12 @@ class RatesVolSurface(Base):
     vol_window: Mapped[str] = mapped_column(String(3), nullable=False, default="")
     freq: Mapped[str] = mapped_column(String(6), nullable=False, default="")
     is_rfr: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # Legacy market_code VARCHAR (migration 010) still in DB; new code uses market_id FK.
+    market_code: Mapped[str | None] = mapped_column(String(5), nullable=True)
+    # Added by migration 026 — FK to calendar.dim_market(id).
+    market_id: Mapped[int | None] = mapped_column(
+        TINYINT, ForeignKey("calendar.dim_market.id"), nullable=True
+    )
 
     observations: Mapped[list[RatesFactSwaptionVol]] = relationship(
         back_populates="surface"

@@ -14,12 +14,29 @@ Key characteristics:
 
 ## Daily Tag Budget
 
+All daily Citi pipelines run together in the 08:00 SGT batch orchestrated by [imdr_daily.py](../../scripts/imdr_daily.py). See [Daily Batch Timing](#daily-batch-timing) below for the rationale behind 08:00 SGT.
+
 | Pipeline | Tags/Run | Schedule | Notes |
 |----------|----------|----------|-------|
-| `rates.citi_live` | ~15–20K | Daily 7am SGT | 33 curves x 6 quotes x ~15 tenors |
-| `rates_vol.citi_live` | ~38K | Daily 7am SGT | 11 ccys x 6 data types x 17 expiries x 10 tenors |
-| `fx_vol.citi_live` | ~1.5K | Daily 7am SGT | 17 pairs x 90 tags |
-| **Daily total** | **~55–60K** | | Leaves ~40K headroom for manual/backfill runs |
+| `rates.citi_live` | ~15–20K | Daily 08:00 SGT | 33 curves x 6 quotes x ~15 tenors |
+| `rates_vol.citi_live` | ~38K | Daily 08:00 SGT | 11 ccys x 6 data types x 17 expiries x 10 tenors |
+| `fx_vol.citi_live` | ~1.5K | Daily 08:00 SGT | 17 pairs x 90 tags |
+| `fx.citi_rate_live` | ~400 | Daily 08:00 SGT | 19 pairs x (1 spot + 20 fwd tags) |
+| `commodities.spot_citi_live` | ~5 | Daily 08:00 SGT | Brent/WTI/XAU/XAG/XPT |
+| `commodities.vol_citi_live` | ~1.2K | Daily 08:00 SGT | 5 products x vol surface |
+| `equity.index_citi_live` | ~24 | Daily 08:00 SGT | 24 index tickers |
+| `equity.vix_citi_live` | ~5 | Daily 08:00 SGT | VIX + variants |
+| `rates.bench_citi_live` | ~10 | Daily 08:00 SGT | 10 CB policy rates |
+| **Daily total** | **~56–61K** | | Leaves ~40K headroom for manual/backfill runs |
+
+## Daily Batch Timing
+
+**Run time: 08:00 SGT** via Windows Task Scheduler (moved from 07:00 SGT on 2026-04-23).
+
+- **Summer (EDT, ~Mar–Nov)**: 08:00 SGT = 20:00 previous-day NY — 4h after NY close (16:00), 2h after Citi EOD publish (~18:00 NY). Comfortable margin.
+- **Winter (EST, ~Nov–Mar)**: 08:00 SGT = 19:00 previous-day NY — 3h after close, ~1h after Citi publish. Chosen over 07:00 SGT to eliminate the edge case where Citi occasionally hadn't finished publishing at 18:00 NY, causing partial-row runs.
+- **SG desk impact**: zero — traders are at their desks 08:30–09:00; data still lands before market-open consumption.
+- **Retry cron** ([imdr_retry.py](../../scripts/imdr_retry.py)) runs 12:00 + 18:00 SGT to catch any residual tag-quota or transient failures.
 
 Other consumers of the same quota pool:
 - **Historical backfill scripts** (`*_historical.py`) — can easily consume 50K+ tags for multi-month ranges
@@ -122,8 +139,8 @@ A separate cron job runs after the daily ingest to automatically retry pipelines
 
 | Task | Time | Notes |
 |------|------|-------|
-| `imdr_retry` | 12:00 SGT | First retry (~5h after daily run) |
-| `imdr_retry` | 18:00 SGT | Second retry (~11h after daily run) |
+| `imdr_retry` | 12:00 SGT | First retry (~4h after daily run) |
+| `imdr_retry` | 18:00 SGT | Second retry (~10h after daily run) |
 
 ### Usage
 
