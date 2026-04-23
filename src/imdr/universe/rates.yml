@@ -791,16 +791,10 @@ bench_rates:
     currency: USD
     market_code: US
     citi_tag: "RATES.BENCH_RATES.US_FED_CP_3M"
-  - cb_code: JPY_DISCOUNT
-    display_name: "BoJ Discount Rate"
-    currency: JPY
-    market_code: JP
-    citi_tag: "RATES.BENCH_RATES.JPY_DISCOUNT"
-  - cb_code: JPY_TARGET
-    display_name: "BoJ Target Rate"
-    currency: JPY
-    market_code: JP
-    citi_tag: "RATES.BENCH_RATES.JPY_TARGET"
+  # Removed 2026-04-23: Citi's JPY_DISCOUNT stopped updating 2020-11-18
+  # (stuck at 0.3% for 5yr — BoJ's Official Discount Rate is a legacy
+  # policy tool), and JPY_TARGET has never returned data. For BoJ policy
+  # signal, use JPY TONAR via rates.historical pipeline instead.
 
 # ── Expected value ranges per quote type ─────────────────────────
 # Used by SymbolRangeCheck quality check to flag corrupt observations.
