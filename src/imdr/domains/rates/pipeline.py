@@ -37,10 +37,12 @@ from imdr.healthchecks.checks import (
 )
 from imdr.healthchecks.base import CheckStatus
 from imdr.healthchecks.quality import SymbolRangeCheck
+from imdr.models.frequency import DimFrequency
 from imdr.models.rates import RatesObservation
 from imdr.pipelines.base import BasePipeline
 from imdr.schemas.rates import RatesObservationCreate
 from imdr.universe.rates import RatesUniverse, get_rates_universe
+from sqlalchemy import select
 
 _log = structlog.get_logger("RatesHistoricalPipeline")
 
@@ -70,6 +72,9 @@ class RatesHistoricalPipeline(BasePipeline[pd.DataFrame, list[RatesObservationCr
         curves: list[tuple[str, str]] | None = None,
         use_cache: bool = True,
         chunk_size: int | None = None,
+        client_id: str | None = None,
+        client_secret: str | None = None,
+        quota_tracker_path: str | None = None,
     ) -> None:
         super().__init__(connector)
         self._settings = settings
@@ -82,6 +87,9 @@ class RatesHistoricalPipeline(BasePipeline[pd.DataFrame, list[RatesObservationCr
         self._curves = curves
         self._use_cache = use_cache
         self._chunk_size = chunk_size
+        self._client_id = client_id
+        self._client_secret = client_secret
+        self._quota_tracker_path = quota_tracker_path
         self._raw_df: pd.DataFrame | None = None
         self._metadata_freshness: dict[str, Any] | None = None
         self._extraction_errors: list[dict] = []
@@ -126,10 +134,16 @@ class RatesHistoricalPipeline(BasePipeline[pd.DataFrame, list[RatesObservationCr
 
         tracker = TagQuotaTracker(
             quota_limit=self._settings.citi_tag_quota_limit,
-            tracker_path=self._settings.citi_tag_quota_file or None,
+            tracker_path=self._quota_tracker_path
+            or self._settings.citi_tag_quota_file
+            or None,
         )
 
-        with CitiVelocityClient(self._settings) as client:
+        with CitiVelocityClient(
+            self._settings,
+            client_id=self._client_id,
+            client_secret=self._client_secret,
+        ) as client:
             # Freshness check — sample metadata before pulling data
             self._metadata_freshness = self._check_metadata_freshness(client)
 
@@ -171,6 +185,18 @@ class RatesHistoricalPipeline(BasePipeline[pd.DataFrame, list[RatesObservationCr
             for curve_entry in curve_repo.all():
                 curve_id_cache[(curve_entry.ccy, curve_entry.curve)] = curve_entry.id
 
+            # Resolve frequency_id once (FK to dbo.dim_frequency; NOT NULL in fact_observation)
+            freq_code = self._frequency.upper()
+            frequency = session.execute(
+                select(DimFrequency).where(DimFrequency.frequency_code == freq_code)
+            ).scalar_one_or_none()
+            if frequency is None:
+                raise RuntimeError(
+                    f"Frequency '{freq_code}' missing from dbo.dim_frequency — "
+                    "run migration 023_create_dim_frequency.sql"
+                )
+            frequency_id = frequency.id
+
         if raw.empty:
             return []
 
@@ -190,12 +216,14 @@ class RatesHistoricalPipeline(BasePipeline[pd.DataFrame, list[RatesObservationCr
                 quote=row["quote"],
                 tenor=row["tenor"],
                 value=row["value"],
+                frequency_id=frequency_id,
             )
             observations.append(obs)
 
         if skipped:
             _log.warning("transform_skipped_unmapped_curves", count=skipped)
-        _log.info("transform_complete", observations=len(observations))
+        _log.info("transform_complete", observations=len(observations),
+                  frequency=freq_code, frequency_id=frequency_id)
         return observations
 
     def load(self, data: list[RatesObservationCreate]) -> int:

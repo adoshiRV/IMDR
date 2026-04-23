@@ -28,8 +28,16 @@ def _hhmm(dt: datetime) -> int:
 class CitiVelocityClient:
     """Full Citi Velocity API client with auto-refreshing OAuth2 token."""
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        client_id: str | None = None,
+        client_secret: str | None = None,
+    ) -> None:
         self._settings = settings
+        # Optional credential overrides (intraday pulls use a different OAuth app).
+        self._client_id = client_id or settings.citi_client_id
+        self._client_secret = client_secret or settings.citi_client_secret
         self._log = structlog.get_logger("CitiVelocityClient")
 
         transport = httpx.HTTPTransport(retries=3)
@@ -59,8 +67,8 @@ class CitiVelocityClient:
         self._log.info("citi_token_refresh")
         payload = urllib.parse.urlencode({
             "grant_type": "client_credentials",
-            "client_id": self._settings.citi_client_id,
-            "client_secret": self._settings.citi_client_secret,
+            "client_id": self._client_id,
+            "client_secret": self._client_secret,
             "scope": self._settings.citi_scope,
         })
 
@@ -190,7 +198,7 @@ class CitiVelocityClient:
 
         Appends ?client_id= to path for all non-token endpoints.
         """
-        url = f"{path}?client_id={urllib.parse.quote(self._settings.citi_client_id)}"
+        url = f"{path}?client_id={urllib.parse.quote(self._client_id)}"
 
         resp = self._client.post(url, json=payload, headers=self._auth_headers())
 

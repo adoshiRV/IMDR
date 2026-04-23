@@ -58,6 +58,7 @@ class RatesObservationCreate(BaseModel):
     quote: str = Field(..., min_length=1, max_length=10)
     tenor: str = Field(..., min_length=1, max_length=30)
     value: float
+    frequency_id: int = Field(..., gt=0)
 
     @field_validator("quote")
     @classmethod

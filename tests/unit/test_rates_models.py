@@ -74,9 +74,11 @@ class TestRatesObservationCreate:
             quote="par",
             tenor="5Y",
             value=3.85,
+            frequency_id=5,
         )
         assert o.quote == "par"
         assert o.value == 3.85
+        assert o.frequency_id == 5
 
     def test_invalid_quote(self):
         with pytest.raises(ValidationError):
@@ -86,6 +88,7 @@ class TestRatesObservationCreate:
                 quote="invalid",
                 tenor="5Y",
                 value=3.85,
+                frequency_id=5,
             )
 
     def test_all_allowed_quotes(self):
@@ -96,6 +99,7 @@ class TestRatesObservationCreate:
                 quote=q,
                 tenor="5Y",
                 value=1.0,
+                frequency_id=5,
             )
             assert o.quote == q
 
@@ -106,5 +110,6 @@ class TestRatesObservationCreate:
             quote="PAR",
             tenor="5Y",
             value=3.85,
+            frequency_id=5,
         )
         assert o.quote == "par"

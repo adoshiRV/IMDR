@@ -54,6 +54,10 @@ class Settings(BaseSettings):
     citi_host: str = "api.citivelocity.com"
     citi_client_id: str = ""
     citi_client_secret: str = ""
+    # Separate credential pair for intraday/hourly pulls (separate quota bucket).
+    # Fall back to primary creds if not set.
+    citi_hourly_client_id: str = ""
+    citi_hourly_client_secret: str = ""
     citi_scope: str = "/api"
     citi_token_path: str = "/markets/cv/api/oauth2/token"
     citi_data_path: str = "/markets/analytics/chartingbe/rest/external/authed/data"

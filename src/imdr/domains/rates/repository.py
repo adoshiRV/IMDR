@@ -23,8 +23,9 @@ _RATES_OBS_SPEC = MergeSpec(
         "quote": "VARCHAR(10)",
         "tenor": "VARCHAR(30)",
         "value": "FLOAT",
+        "frequency_id": "TINYINT",
     },
-    natural_key=["curve_id", "ts", "quote", "tenor"],
+    natural_key=["curve_id", "ts", "quote", "tenor", "frequency_id"],
     value_columns=["value"],
 )
 
