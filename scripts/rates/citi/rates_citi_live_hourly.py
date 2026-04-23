@@ -56,6 +56,7 @@ from imdr.config.settings import get_settings
 from imdr.connectors.citi_helpers import TagQuotaExceeded
 from imdr.connectors.mssql import MSSQLConnector
 from imdr.domains.rates.pipeline import RatesHistoricalPipeline
+from imdr.market_calendar.calendar import is_trading_day
 from imdr.universe.rates import get_rates_universe
 from imdr.utils.logging import configure_logging
 
@@ -84,6 +85,12 @@ DEFAULT_QUOTES = ["par", "fwd"]
 # Separate quota file from the daily pipeline — different OAuth client =
 # different Citi-side rolling 24h bucket.
 HOURLY_QUOTA_FILE = "data/cache/citi_tag_quota_hourly.json"
+
+# Anchor market codes (from src/imdr/market_calendar/markets.yml) checked for
+# "all closed" skip — weekends + universal holidays (New Year's, Christmas).
+# If all four are non-trading, no meaningful rates data will publish that day.
+# Good Friday only closes US/UK/EU (JP still trades), so the run still fires.
+_ANCHOR_MARKETS = ["US", "EU", "UK", "JP"]
 
 
 def parse_args() -> argparse.Namespace:
@@ -136,6 +143,18 @@ def main() -> int:
         return 2
 
     start, end = _target_window(args.date)
+
+    # Skip if every anchor rates market is non-trading (weekend or holiday).
+    # Uses the project's canonical calendar — weekends from markets.yml +
+    # holidays via the `holidays` library, same source as dim_trading_day.
+    day = start.date()
+    closed = [m for m in _ANCHOR_MARKETS if not is_trading_day(m, day)]
+    if len(closed) == len(_ANCHOR_MARKETS):
+        log.info("all_anchor_markets_closed_skip",
+                 date=day.isoformat(),
+                 weekday=start.strftime("%A"),
+                 closed_markets=closed)
+        return 0
 
     if args.quotes is not None:
         quotes = [q.strip() for q in args.quotes.split(",")]
