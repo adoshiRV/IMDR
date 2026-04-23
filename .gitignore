@@ -28,3 +28,7 @@ htmlcov/
 data/parquet/
 data/logs/
 data/cache/
+data/browser_profiles/
+data/skew/
+data/gaps/*
+!data/gaps/.gitkeep
