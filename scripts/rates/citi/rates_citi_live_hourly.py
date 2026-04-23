@@ -99,9 +99,12 @@ def parse_args() -> argparse.Namespace:
         help="Comma-separated quote types. Default: par.",
     )
     p.add_argument(
-        "--no-cache",
+        "--use-cache",
         action="store_true",
-        help="Disable empty-combo cache (retry all API calls).",
+        help="Enable empty-combo cache (disabled by default for hourly — "
+             "2-day stale window is too long for 24-runs-per-day cadence, "
+             "and the hourly runner would pollute the shared cache used "
+             "by the daily pipeline).",
     )
     return p.parse_args()
 
@@ -159,7 +162,7 @@ def main() -> int:
             quotes=quotes,
             frequency="HOURLY",
             curves=DEFAULT_CURVES,
-            use_cache=not args.no_cache,
+            use_cache=args.use_cache,
             chunk_size=settings.bulk_batch_size,
             client_id=settings.citi_hourly_client_id,
             client_secret=settings.citi_hourly_client_secret,
