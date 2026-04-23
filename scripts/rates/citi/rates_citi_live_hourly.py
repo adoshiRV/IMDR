@@ -4,10 +4,11 @@ Target table: [rates].[fact_observation]  (frequency_id = HOURLY)
 Schedule:     Hourly (via scripts.imdr_hourly)
 Source:       Citi Velocity Historical Data API, HOURLY frequency
 
-Uses the PRIMARY Citi OAuth credentials — the secondary `hourly` key is
-FX-entitlement-only and returns "User is not entitled to this data" for
-RATES.* tags. Budget impact against the shared 95K bucket: G4 RFR par =
-176 tags/call × 24 runs/day = ~4,224 tags/day (~4.5% of the daily budget).
+Uses the dedicated hourly Citi OAuth credentials (IMDR_CITI_HOURLY_CLIENT_*)
+and a separate tag-quota file so intraday pulls don't eat into the daily
+pipelines' shared 95K budget on the primary key. Each OAuth client has its
+own Citi-side 100K/24h rolling bucket; G4 RFR par = 176 tags/call × 24
+runs/day = ~4,224 tags/day — well under the hourly key's limit.
 
 Window strategy: each run pulls the full current-day window (00:00 → 23:59 UTC)
 at HOURLY frequency. Citi's API returns empty bodies for narrow sub-hour
@@ -58,6 +59,10 @@ DEFAULT_CURVES: list[tuple[str, str]] = [
 
 DEFAULT_QUOTES = ["par"]
 
+# Separate quota file from the daily pipeline — different OAuth client =
+# different Citi-side rolling 24h bucket.
+HOURLY_QUOTA_FILE = "data/cache/citi_tag_quota_hourly.json"
+
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Rates Citi Velocity Hourly Intraday Ingest")
@@ -100,6 +105,11 @@ def main() -> int:
     settings = get_settings()
     configure_logging(settings)
 
+    if not settings.citi_hourly_client_id or not settings.citi_hourly_client_secret:
+        log.error("hourly_creds_missing",
+                  msg="IMDR_CITI_HOURLY_CLIENT_ID/SECRET not set in .env")
+        return 2
+
     start, end = _target_window(args.date)
 
     if args.quotes is not None:
@@ -129,6 +139,9 @@ def main() -> int:
             curves=DEFAULT_CURVES,
             use_cache=not args.no_cache,
             chunk_size=settings.bulk_batch_size,
+            client_id=settings.citi_hourly_client_id,
+            client_secret=settings.citi_hourly_client_secret,
+            quota_tracker_path=HOURLY_QUOTA_FILE,
         )
         rows = pipeline.run()
         elapsed = time.perf_counter() - t0
