@@ -15,7 +15,7 @@ from __future__ import annotations
 import argparse
 import sys
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 
 import structlog
@@ -23,7 +23,7 @@ import structlog
 from imdr.config.settings import get_settings
 from imdr.connectors.citi_helpers import TagQuotaExceeded
 from imdr.connectors.mssql import MSSQLConnector
-from imdr.market_calendar.calendar import last_business_day
+from imdr.market_calendar.calendar import last_business_day, last_trading_day
 from imdr.market_calendar.holidays import holiday_hits_for_timestamp
 from imdr.domains.rates.pipeline_vol import RatesVolPipeline
 from imdr.notifications.email import send_outlook_email
@@ -33,6 +33,9 @@ from imdr.universe.rates import get_rates_universe
 from imdr.utils.logging import configure_logging
 
 log = structlog.get_logger(__name__)
+
+
+LOOKBACK_DAYS = 5
 
 
 def parse_args() -> argparse.Namespace:
@@ -45,7 +48,19 @@ def parse_args() -> argparse.Namespace:
         "--currencies", type=str, default=None,
         help="Comma-separated currencies (e.g. USD,EUR,JPY). Default: all from universe.",
     )
+    parser.add_argument(
+        "--lookback", type=int, default=LOOKBACK_DAYS,
+        help="Trading days to look back (default: 5) — absorbs vendor publish lag",
+    )
     return parser.parse_args()
+
+
+def _start_of_window(target: datetime, n_trading_days: int, market: str = "US") -> datetime:
+    """Walk back `n_trading_days` trading days from target (exclusive of target)."""
+    d = target.date()
+    for _ in range(n_trading_days):
+        d = last_trading_day(market, before=d)
+    return datetime(d.year, d.month, d.day, tzinfo=timezone.utc)
 
 
 def main() -> int:
@@ -62,7 +77,7 @@ def main() -> int:
     else:
         target = last_business_day("US")
 
-    start = target
+    start = _start_of_window(target, args.lookback)
     end = target.replace(hour=23, minute=59)
 
     # Parse currencies override
@@ -128,6 +143,17 @@ def main() -> int:
                 "extraction_errors",
                 f"{len(pipeline._extraction_errors)} currency(s) failed during extraction",
                 details={"errors": pipeline._extraction_errors},
+            )
+
+        if missing_ccys:
+            report.error(
+                "coverage",
+                f"{len(missing_ccys)} currency(s) returned zero rows across {args.lookback}-day window",
+                details={
+                    "missing_ccys": missing_ccys,
+                    "window_start": str(start.date()),
+                    "window_end": str(target.date()),
+                },
             )
 
         # Holiday detection

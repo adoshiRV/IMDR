@@ -15,7 +15,7 @@ from __future__ import annotations
 import argparse
 import sys
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 
 import structlog
@@ -25,7 +25,7 @@ from imdr.config.settings import get_settings
 from imdr.connectors.citi_helpers import TagQuotaExceeded
 from imdr.connectors.mssql import MSSQLConnector
 from imdr.domains.rates.pipeline import RatesHistoricalPipeline
-from imdr.market_calendar.calendar import last_business_day
+from imdr.market_calendar.calendar import last_business_day, last_trading_day
 from imdr.market_calendar.holidays import holiday_hits_for_timestamp
 from imdr.notifications.email import send_outlook_email
 from imdr.notifications.formatters.rates_ingest import RatesIngestFormatter
@@ -34,6 +34,17 @@ from imdr.universe.rates import get_rates_universe
 from imdr.utils.logging import configure_logging
 
 log = structlog.get_logger(__name__)
+
+
+LOOKBACK_DAYS = 5
+
+
+def _start_of_window(target: datetime, n_trading_days: int, market: str = "US") -> datetime:
+    """Walk back `n_trading_days` trading days from target (exclusive of target)."""
+    d = target.date()
+    for _ in range(n_trading_days):
+        d = last_trading_day(market, before=d)
+    return datetime(d.year, d.month, d.day, tzinfo=timezone.utc)
 
 
 def parse_args() -> argparse.Namespace:
@@ -61,6 +72,10 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Disable empty combo cache (retry all API calls).",
     )
+    parser.add_argument(
+        "--lookback", type=int, default=LOOKBACK_DAYS,
+        help="Trading days to look back (default: 5) — absorbs vendor publish lag",
+    )
     return parser.parse_args()
 
 
@@ -78,7 +93,7 @@ def main() -> int:
     else:
         target = last_business_day("US")
 
-    start = target
+    start = _start_of_window(target, args.lookback)
     end = target.replace(hour=23, minute=59)
 
     # Resolve quotes: CLI override > pipelines.yml config > fallback "par"
@@ -121,6 +136,33 @@ def main() -> int:
                 "extraction_errors",
                 f"{len(pipeline._extraction_errors)} curve(s) failed during extraction",
                 details={"errors": pipeline._extraction_errors},
+            )
+
+        # Coverage check: which configured curves got zero rows across the whole window?
+        all_curves = universe.all_curves()
+        missing_curves: list[str] = []
+        if pipeline._raw_df is not None and not pipeline._raw_df.empty:
+            loaded_keys = set(zip(pipeline._raw_df["ccy"], pipeline._raw_df["curve"]))
+            for c in all_curves:
+                if getattr(c, "status", "active") != "active":
+                    continue
+                if (c.ccy, c.curve) not in loaded_keys:
+                    missing_curves.append(f"{c.ccy}.{c.curve}")
+        else:
+            missing_curves = [
+                f"{c.ccy}.{c.curve}" for c in all_curves
+                if getattr(c, "status", "active") == "active"
+            ]
+
+        if missing_curves:
+            report.error(
+                "coverage",
+                f"{len(missing_curves)} active curve(s) returned zero rows across {args.lookback}-day window",
+                details={
+                    "missing_curves": missing_curves,
+                    "window_start": str(start.date()),
+                    "window_end": str(target.date()),
+                },
             )
 
         # Holiday check for all rates currencies

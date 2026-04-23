@@ -22,7 +22,7 @@ from imdr.config.settings import get_settings
 from imdr.connectors.citi_helpers import TagQuotaExceeded
 from imdr.connectors.mssql import MSSQLConnector
 from imdr.domains.rates.pipeline_bench import BenchRatesPipeline
-from imdr.market_calendar.calendar import last_business_day
+from imdr.market_calendar.calendar import last_business_day, last_trading_day
 from imdr.market_calendar.holidays import holiday_hits_for_timestamp
 from imdr.notifications.email import send_outlook_email
 from imdr.notifications.formatters.rates_bench_ingest import RatesBenchIngestFormatter
@@ -33,10 +33,23 @@ from imdr.utils.logging import configure_logging
 log = structlog.get_logger(__name__)
 
 
+LOOKBACK_DAYS = 5
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Central Bank Policy Rates Daily EOD Ingest")
     parser.add_argument("--date", type=str, default=None, help="Override date (YYYY-MM-DD)")
+    parser.add_argument("--lookback", type=int, default=LOOKBACK_DAYS,
+                        help="Trading days to look back (default: 5) — absorbs vendor publish lag")
     return parser.parse_args()
+
+
+def _start_of_window(target: datetime, n_trading_days: int, market: str = "US") -> datetime:
+    """Walk back `n_trading_days` trading days from target (exclusive of target)."""
+    d = target.date()
+    for _ in range(n_trading_days):
+        d = last_trading_day(market, before=d)
+    return datetime(d.year, d.month, d.day, tzinfo=timezone.utc)
 
 
 def main() -> int:
@@ -51,10 +64,11 @@ def main() -> int:
     else:
         target = last_business_day("US")
 
-    start = target
+    start = _start_of_window(target, args.lookback)
     end = target.replace(hour=23, minute=59)
 
-    log.info("bench_rates_live_start", date=str(target.date()))
+    log.info("bench_rates_live_start", date=str(target.date()),
+             window_start=str(start.date()), lookback=args.lookback)
 
     connector = MSSQLConnector(settings)
     try:
@@ -107,6 +121,17 @@ def main() -> int:
                 "extraction_errors",
                 f"{len(pipeline._extraction_errors)} error(s)",
                 details={"errors": pipeline._extraction_errors},
+            )
+
+        if missing_cbs:
+            report.error(
+                "coverage",
+                f"{len(missing_cbs)} CB(s) returned zero rows across {args.lookback}-day window",
+                details={
+                    "missing_cbs": missing_cbs,
+                    "window_start": str(start.date()),
+                    "window_end": str(target.date()),
+                },
             )
 
         # Holiday detection
