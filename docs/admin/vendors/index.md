@@ -47,6 +47,12 @@ scripts/run_vendor_feed.py  python -m scripts.run_vendor_feed <feed>
 
 Use `python -m scripts.run_vendor_feed --list` to enumerate registered feeds at runtime.
 
+## External systems documented (not yet onboarded)
+
+| System | Status | Docs |
+|---|---|---|
+| **Bloomberg (BBG)** via existing R pipeline on Z:\ | Documentation-only — IMDR integration planned | [bbg/index.md](bbg/index.md) |
+
 ## Key guarantees
 
 - **Uniform error surface** — every acquirer raises `VendorError` subclasses (`NoEmailFound`, `SSOTimeout`, `ListingNotFound`, `DownloadFailed`, `LinkExtractionFailed`, `AcquirerMisconfigured`). The runner turns any of them into one failure email shape (`VendorFetchFailureFormatter`) regardless of transport.
