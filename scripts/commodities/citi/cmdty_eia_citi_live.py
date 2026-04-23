@@ -37,9 +37,14 @@ def _last_wednesday(ref: date) -> date:
     return ref - timedelta(days=days_since)
 
 
+LOOKBACK_DAYS = 35  # covers ~5 weekly publications; absorbs missed scheduler runs
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Commodities EIA Weekly Ingest")
     parser.add_argument("--date", type=str, default=None, help="Override date (YYYY-MM-DD)")
+    parser.add_argument("--lookback", type=int, default=LOOKBACK_DAYS,
+                        help="Days to look back (default: 35) — absorbs missed weekly runs")
     return parser.parse_args()
 
 
@@ -57,10 +62,8 @@ def main() -> int:
         wed = _last_wednesday(date.today())
         target = datetime(wed.year, wed.month, wed.day, tzinfo=timezone.utc)
 
-    # EIA report dates in the API don't always land on the exact Wednesday.
-    # Query a 7-day window ending on the target to catch the publication.
     end = target.replace(hour=23, minute=59)
-    start = target - timedelta(days=6)
+    start = target - timedelta(days=args.lookback)
 
     log.info("cmdty_eia_live_start", date=str(target.date()))
 
@@ -85,6 +88,26 @@ def main() -> int:
             report.warning("extraction_errors",
                 f"{len(pipeline._extraction_errors)} error(s)",
                 details={"errors": pipeline._extraction_errors})
+
+        # Coverage check: which configured EIA series got zero rows?
+        all_series = [e.series_name for e in universe.eia_series_create_entries()]
+        missing_series: list[str] = []
+        if pipeline._raw_df is not None and not pipeline._raw_df.empty:
+            loaded = set(pipeline._raw_df["series_name"].unique())
+            missing_series = [s for s in all_series if s not in loaded]
+        else:
+            missing_series = all_series[:]
+
+        if missing_series:
+            report.error(
+                "coverage",
+                f"{len(missing_series)} EIA series returned zero rows across {args.lookback}-day window",
+                details={
+                    "missing_series": missing_series,
+                    "window_start": str(start.date()),
+                    "window_end": str(target.date()),
+                },
+            )
 
         report.finish()
         if settings.run_log_dir:

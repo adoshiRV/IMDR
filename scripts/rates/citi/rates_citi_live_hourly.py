@@ -16,15 +16,27 @@ windows, and the uq_rates_fact_obs constraint (includes frequency_id) makes
 the MERGE upsert idempotent — re-fetching earlier hours is a no-op on
 already-loaded rows and catches any late-arriving datapoints.
 
-Covers G4 RFR par curves: USD SOFR, EUR EUROSTR, GBP SONIA, JPY TONAR.
+Covers all 12 active RFR curves:
+  G10:  USD SOFR, EUR EUROSTR, GBP SONIA, JPY TONAR, CHF SARON,
+        AUD AONIA, CAD CORRA, NZD NZIONA, NOK NOWA, SEK STINA
+  APAC: SGD SORA, THB THOR
+
+Two quote types per curve:
+  par: full tenor grid (44 tenors per curve)
+  fwd: forward-starting rates (28 combos per curve)
+
+Budget: 12 × (44+28) = 864 tags/call × 24 runs = ~20,736 tags/day
+(~22% of the hourly OAuth client's 95K budget).
 
 Note on publish cadence: each RFR starts showing hourly datapoints when its
-home market opens — JPY TONAR from ~00:00 UTC, EUR EUROSTR from ~06:00 UTC,
-GBP SONIA from ~07:00 UTC (BST) / ~08:00 UTC (GMT), USD SOFR from ~00:00 UTC.
-Early-morning UTC runs will return partial coverage; this is expected and
-the MERGE upsert (natural key includes frequency_id) fills in hours as the
-day progresses. PAR quotes on active curves are protected from empty-combo
-caching (see src/imdr/domains/rates/cache.py:_PROTECTED_QUOTES).
+home market opens — Asia first (JPY/SGD/THB/AUD/NZD from ~00:00 UTC),
+Europe mid-morning (EUR ~06:00 UTC, GBP ~07:00 UTC BST / ~08:00 GMT),
+Americas (USD SOFR / CAD CORRA from ~00:00 UTC via overnight trading).
+Early-morning UTC runs return partial coverage; the MERGE upsert (natural
+key includes frequency_id) fills in hours as the day progresses. PAR quotes
+on active curves are protected from empty-combo caching (see
+src/imdr/domains/rates/cache.py:_PROTECTED_QUOTES). ROLL_CARRY (`rc`) is
+not served at HOURLY frequency — Citi returns type=ERROR for it.
 
 Usage:
     python -m scripts.rates.citi.rates_citi_live_hourly
@@ -49,15 +61,25 @@ from imdr.utils.logging import configure_logging
 
 log = structlog.get_logger(__name__)
 
-# G4 RFR par curves — conservative intraday scope, ~176 tags/call.
+# All 12 active RFR curves (G10 + APAC Asia). Full tenor grid + forwards.
 DEFAULT_CURVES: list[tuple[str, str]] = [
+    # G10
     ("USD", "SOFR"),
     ("EUR", "EUROSTR"),
     ("GBP", "SONIA"),
     ("JPY", "TONAR"),
+    ("CHF", "SARON"),
+    ("AUD", "AONIA"),
+    ("CAD", "CORRA"),
+    ("NZD", "NZIONA"),
+    ("NOK", "NOWA"),
+    ("SEK", "STINA"),
+    # APAC
+    ("SGD", "SORA"),
+    ("THB", "THOR"),
 ]
 
-DEFAULT_QUOTES = ["par"]
+DEFAULT_QUOTES = ["par", "fwd"]
 
 # Separate quota file from the daily pipeline — different OAuth client =
 # different Citi-side rolling 24h bucket.
