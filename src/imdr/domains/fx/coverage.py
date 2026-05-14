@@ -26,9 +26,47 @@ def _year_filter(
     return where, params
 
 
+def _per_pair_row_counts(
+    reader: AnalyticalReader,
+    table: str,
+    fact_alias: str,
+    year_filter: str,
+    params: dict[str, Any],
+):
+    """Per-pair total / distinct-date / first-last row counts.
+
+    Shape is identical for every fact table that exposes (pair_id, obs_date),
+    so vol + fx_rate both call this with their own table + alias.
+    """
+    sql = f"""
+        SELECT p.base_ccy + p.quote_ccy AS pair,
+               COUNT(*) AS total_rows,
+               COUNT(DISTINCT {fact_alias}.obs_date) AS dates,
+               MIN({fact_alias}.obs_date) AS first_date,
+               MAX({fact_alias}.obs_date) AS last_date
+        FROM {table} {fact_alias}
+        JOIN [fx].[dim_currency_pair] p ON p.id = {fact_alias}.pair_id
+        WHERE 1=1 {year_filter}
+        GROUP BY p.base_ccy, p.quote_ccy
+        ORDER BY total_rows DESC
+    """
+    return reader.read_sql(sql, params)
+
+
+def _row_counts_summary(df_counts) -> dict[str, Any]:
+    """Summary block shared by Vol and FX-Rate coverage."""
+    if df_counts.empty:
+        return {}
+    return {
+        "grand_total_rows": int(df_counts["total_rows"].sum()),
+        "num_pairs": len(df_counts),
+    }
+
+
 # ---------------------------------------------------------------------------
-# FX OHLC coverage (market-hours aware)
+# FX OHLC coverage (market-hours aware — different shape, kept separate)
 # ---------------------------------------------------------------------------
+
 
 def get_ohlc_coverage(
     reader: AnalyticalReader,
@@ -76,6 +114,7 @@ def get_ohlc_coverage(
 # FX Vol coverage
 # ---------------------------------------------------------------------------
 
+
 def get_vol_coverage(
     reader: AnalyticalReader,
     table: str,
@@ -84,7 +123,6 @@ def get_vol_coverage(
     """Per-pair date coverage, strike×tenor grid, and row counts for FX Vol."""
     year_filter, params = _year_filter(years, "obs_date")
 
-    # Per-pair date coverage
     sql_cov = f"""
         SELECT p.base_ccy + p.quote_ccy AS pair,
                p.ccy_class,
@@ -99,7 +137,6 @@ def get_vol_coverage(
     """
     df_cov = reader.read_sql(sql_cov, params)
 
-    # Strike×tenor grid completeness (latest date)
     sql_grid = f"""
         WITH latest AS (
             SELECT pair_id, MAX(obs_date) AS max_date
@@ -119,35 +156,18 @@ def get_vol_coverage(
     """
     df_grid = reader.read_sql(sql_grid, params)
 
-    # Row count by pair
-    sql_counts = f"""
-        SELECT p.base_ccy + p.quote_ccy AS pair,
-               COUNT(*) AS total_rows,
-               COUNT(DISTINCT v.obs_date) AS dates,
-               MIN(v.obs_date) AS first,
-               MAX(v.obs_date) AS last
-        FROM {table} v
-        JOIN [fx].[dim_currency_pair] p ON p.id = v.pair_id
-        WHERE 1=1 {year_filter}
-        GROUP BY p.base_ccy, p.quote_ccy
-        ORDER BY total_rows DESC
-    """
-    df_counts = reader.read_sql(sql_counts, params)
-
-    summary: dict[str, Any] = {}
-    if not df_counts.empty:
-        summary["grand_total_rows"] = int(df_counts["total_rows"].sum())
-        summary["num_pairs"] = len(df_counts)
+    df_counts = _per_pair_row_counts(reader, table, "v", year_filter, params)
 
     return CoverageData(
         tables={"per_pair": df_cov, "grid": df_grid, "row_counts": df_counts},
-        summary=summary,
+        summary=_row_counts_summary(df_counts),
     )
 
 
 # ---------------------------------------------------------------------------
 # FX Rate coverage (Citi spot + forward curve)
 # ---------------------------------------------------------------------------
+
 
 def get_fx_rate_coverage(
     reader: AnalyticalReader,
@@ -157,7 +177,6 @@ def get_fx_rate_coverage(
     """Per-pair date coverage, tenor grid, and row counts for fx.fact_fx_rate."""
     year_filter, params = _year_filter(years, "obs_date")
 
-    # Per-pair date coverage (joined with vendor + frequency for visibility)
     sql_cov = f"""
         SELECT p.base_ccy + p.quote_ccy AS pair,
                p.ccy_class,
@@ -168,15 +187,14 @@ def get_fx_rate_coverage(
                MAX(r.obs_date) AS last_date
         FROM {table} r
         JOIN [fx].[dim_currency_pair] p ON p.id = r.pair_id
-        JOIN [dbo].[dim_vendor]       v ON v.id = r.vendor_id
-        JOIN [dbo].[dim_frequency]    f ON f.id = r.frequency_id
+        JOIN [dbo].[dim_vendor]    v ON v.id = r.vendor_id
+        JOIN [dbo].[dim_frequency] f ON f.id = r.frequency_id
         WHERE 1=1 {year_filter}
         GROUP BY p.base_ccy, p.quote_ccy, p.ccy_class, v.vendor_code, f.frequency_code
         ORDER BY actual_dates DESC
     """
     df_cov = reader.read_sql(sql_cov, params)
 
-    # Tenor grid on the latest date per pair (shows fwd_points coverage too)
     sql_grid = f"""
         WITH latest AS (
             SELECT pair_id, MAX(obs_date) AS max_date
@@ -197,27 +215,9 @@ def get_fx_rate_coverage(
     """
     df_grid = reader.read_sql(sql_grid, params)
 
-    # Row count by pair
-    sql_counts = f"""
-        SELECT p.base_ccy + p.quote_ccy AS pair,
-               COUNT(*) AS total_rows,
-               COUNT(DISTINCT r.obs_date) AS dates,
-               MIN(r.obs_date) AS first_date,
-               MAX(r.obs_date) AS last_date
-        FROM {table} r
-        JOIN [fx].[dim_currency_pair] p ON p.id = r.pair_id
-        WHERE 1=1 {year_filter}
-        GROUP BY p.base_ccy, p.quote_ccy
-        ORDER BY total_rows DESC
-    """
-    df_counts = reader.read_sql(sql_counts, params)
-
-    summary: dict[str, Any] = {}
-    if not df_counts.empty:
-        summary["grand_total_rows"] = int(df_counts["total_rows"].sum())
-        summary["num_pairs"] = len(df_counts)
+    df_counts = _per_pair_row_counts(reader, table, "r", year_filter, params)
 
     return CoverageData(
         tables={"per_pair": df_cov, "grid": df_grid, "row_counts": df_counts},
-        summary=summary,
+        summary=_row_counts_summary(df_counts),
     )
