@@ -14,7 +14,7 @@ from imdr.connectors.bulk import MergeSpec, bulk_merge
 from imdr.models.fx_vol import FXCurrencyPair, FXFactVol
 from imdr.schemas.fx_vol import FXCurrencyPairCreate, FXVolCreate
 
-_FX_VOL_SPEC = MergeSpec(
+FX_VOL_SPEC = MergeSpec(
     target_table="[fx].[fact_vol]",
     staging_name="#fx_vol_staging",
     columns={
@@ -77,7 +77,7 @@ class FXVolRepository:
 
     def bulk_upsert(self, items: list[FXVolCreate]) -> int:
         """Upsert vol observations via shared temp→MERGE utility."""
-        return bulk_merge(self._session, _FX_VOL_SPEC, items)
+        return bulk_merge(self._session, FX_VOL_SPEC, items)
 
     def count_by_date(self, obs_date: date) -> int:
         """Count observations for a given date."""

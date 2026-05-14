@@ -20,11 +20,10 @@ import structlog
 
 from imdr.config.settings import get_settings
 from imdr.connectors.mssql import MSSQLConnector
-from imdr.domains.fx.extractors import PairCache
+from imdr.domains.fx.extractors_ohlc import PairCache
 from imdr.domains.fx.ingest import HourResult, process_hour
-from imdr.domains.fx.repository import FXOHLCRepository
-from imdr.domains.fx.time_utils import HourWindow, iter_hour_windows
-from imdr.market_calendar.holidays import holiday_hits_for_timestamp
+from imdr.domains.fx.repository_ohlc import FXOHLCRepository
+from imdr.utils.time_windows import HourWindow, iter_hour_windows
 from imdr.notifications.email import send_outlook_email
 from imdr.notifications.formatters.fx_ingest import FXIngestFormatter
 from imdr.reporting.run_report import RunReport

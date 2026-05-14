@@ -13,7 +13,7 @@ from imdr.connectors.bulk import MergeSpec, bulk_merge
 from imdr.models.fx_rate import FXFactFXRate
 from imdr.schemas.fx_rate import FXRateCreate
 
-_FX_RATE_SPEC = MergeSpec(
+FX_RATE_SPEC = MergeSpec(
     target_table="[fx].[fact_fx_rate]",
     staging_name="#fx_fact_fx_rate_staging",
     columns={
@@ -40,7 +40,7 @@ class FXRateRepository:
 
     def bulk_upsert(self, items: list[FXRateCreate]) -> int:
         """Upsert rate observations via shared temp→MERGE utility."""
-        return bulk_merge(self._session, _FX_RATE_SPEC, items)
+        return bulk_merge(self._session, FX_RATE_SPEC, items)
 
     def count_by_date(self, obs_date: date) -> int:
         result = self._session.execute(

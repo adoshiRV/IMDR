@@ -1,4 +1,3 @@
-from imdr.domains.fx.pipeline import FXSpotRatePipeline
-from imdr.domains.fx.repository import FXRepository
+from imdr.domains.fx.repository_ohlc import FXOHLCRepository
 
-__all__ = ["FXRepository", "FXSpotRatePipeline"]
+__all__ = ["FXOHLCRepository"]

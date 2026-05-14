@@ -16,9 +16,9 @@ import structlog
 from imdr.config.settings import Settings
 from imdr.connectors.mssql import MSSQLConnector
 from imdr.connectors.reader import AnalyticalReader
-from imdr.domains.fx.extractors import BidFXExtractor, PairCache
-from imdr.domains.fx.repository import FXOHLCRepository
-from imdr.domains.fx.time_utils import HourWindow
+from imdr.domains.fx.extractors_ohlc import BidFXExtractor, PairCache
+from imdr.domains.fx.repository_ohlc import FXOHLCRepository
+from imdr.utils.time_windows import HourWindow
 from imdr.healthchecks.base import CheckStatus
 from imdr.healthchecks.quality import (
     ColumnOrderCheck,

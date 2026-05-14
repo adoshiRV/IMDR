@@ -12,9 +12,9 @@ from typing import Any
 from imdr.config.pipeline_config import get_pipeline_config
 from imdr.config.settings import Settings
 from imdr.connectors.mssql import MSSQLConnector
-from imdr.domains.fx.extractors import PairCache
+from imdr.domains.fx.extractors_ohlc import PairCache
 from imdr.domains.fx.ingest import HourResult, process_hour
-from imdr.domains.fx.time_utils import HourWindow
+from imdr.utils.time_windows import HourWindow
 from imdr.pipelines.base import BasePipeline
 from imdr.reporting.run_report import RunReport
 from imdr.universe.fx import FXUniverse

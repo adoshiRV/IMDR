@@ -7,8 +7,6 @@ from __future__ import annotations
 
 from typing import Any
 
-import pandas as pd
-
 from imdr.connectors.reader import AnalyticalReader
 from imdr.healthchecks.dashboard import CoverageData
 from imdr.healthchecks.quality import CoverageAnalyzer

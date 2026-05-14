@@ -21,9 +21,9 @@ import structlog
 
 from imdr.config.settings import get_settings
 from imdr.connectors.mssql import MSSQLConnector
-from imdr.domains.fx.extractors import PairCache
+from imdr.domains.fx.extractors_ohlc import PairCache
 from imdr.domains.fx.ingest import HourResult, process_hour
-from imdr.domains.fx.time_utils import HourWindow, last_full_utc_hour
+from imdr.utils.time_windows import HourWindow, last_full_utc_hour
 from imdr.market_calendar.holidays import holiday_hits_for_timestamp
 from imdr.notifications.email import send_outlook_email
 from imdr.notifications.formatters.fx_ingest import FXIngestFormatter
@@ -99,7 +99,7 @@ def main() -> int:
         )
         if holiday_hits:
             report.info("holidays", f"Holiday hits: {len(holiday_hits)}", details={
-                "hits": [{"currency": h.currency, "market_code": h.market_code, "name": h.name}
+                "hits": [{"currency": h.currency, "country_code": h.country_code, "name": h.name}
                          for h in holiday_hits],
             })
 
@@ -153,7 +153,7 @@ def _send_report_email(
         bars=result.bars,
         missing_ccy=result.missing_ccy,
         holiday_hits=[
-            {"currency": h.currency, "market_code": h.market_code, "name": h.name}
+            {"currency": h.currency, "country_code": h.country_code, "name": h.name}
             for h in holiday_hits
         ],
         anomalies=result.anomalies,

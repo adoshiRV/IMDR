@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from imdr.connectors.citi_helpers import citi_response_to_rows, parse_x_to_ts_utc
+from imdr.connectors.citi_helpers import citi_response_to_rows
 
 COLUMNS = ["ts", "base_ccy", "quote_ccy", "strike", "tenor", "vol_type", "value"]
 

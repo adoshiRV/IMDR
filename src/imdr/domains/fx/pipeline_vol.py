@@ -7,6 +7,7 @@ Usage:
 from __future__ import annotations
 
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -18,14 +19,15 @@ from imdr.connectors.citi_quota import TagQuotaTracker
 from imdr.connectors.citi_velocity import CitiVelocityClient
 from imdr.connectors.mssql import MSSQLConnector
 from imdr.connectors.reader import AnalyticalReader
-from imdr.domains.fx.extractors_vol import CitiVelocityFXVolExtractor
 from imdr.connectors.bulk import chunked_bulk_merge
+from imdr.domains.fx._parquet_store import write_partitioned_parquet
+from imdr.domains.fx.extractors_vol import CitiVelocityFXVolExtractor
 from imdr.domains.fx.repository_vol import (
     FXCurrencyPairRepository,
     FXVolRepository,
-    _FX_VOL_SPEC,
+    FX_VOL_SPEC,
 )
-from imdr.domains.fx.store_vol import write as parquet_write
+from imdr.domains.fx.vol_translate import COLUMNS as VOL_COLUMNS
 from imdr.healthchecks.base import HealthCheck
 from imdr.healthchecks.checks import (
     DuplicateCheck,
@@ -142,7 +144,7 @@ class FXVolPipeline(BasePipeline[pd.DataFrame, list[FXVolCreate], int]):
 
         if self._chunk_size:
             count = chunked_bulk_merge(
-                self._connector, _FX_VOL_SPEC, data, self._chunk_size,
+                self._connector, FX_VOL_SPEC, data, self._chunk_size,
             )
         else:
             with self._connector.session() as session:
@@ -162,7 +164,14 @@ class FXVolPipeline(BasePipeline[pd.DataFrame, list[FXVolCreate], int]):
             "range": [str(self._start.date()), str(self._end.date())],
             "rows_loaded": result,
         }
-        written = parquet_write(self._raw_df, manifest=manifest)
+        written = write_partitioned_parquet(
+            self._raw_df,
+            root=Path("data/parquet/fx/fact_vol"),
+            required_columns=VOL_COLUMNS,
+            file_columns=["obs_date", "strike", "tenor", "vol_type", "value"],
+            dedup_key=["obs_date", "strike", "tenor", "vol_type"],
+            manifest=manifest,
+        )
         _log.info("parquet_archive_complete", files_written=len(written))
 
         # Domain-specific quality checks (flag, don't block)
@@ -205,37 +214,39 @@ class FXVolPipeline(BasePipeline[pd.DataFrame, list[FXVolCreate], int]):
             f"AND [{self._config.date_column}] <= '{self._end:%Y-%m-%d}'"
         )
 
-        checks = [
+        # SPREAD = IMPLIED - REALISED crosses zero, so percent change is
+        # meaningless on that series — exclude it from pct_change only.
+        pct_where = where + " AND [vol_type] <> 'SPREAD'"
+
+        checks: list[tuple[Any, str]] = [
             # 1. Strike+vol_type composite range (includes butterfly positivity)
-            CompositeRangeCheck(
+            (CompositeRangeCheck(
                 range_map=vol_quality.ranges,
                 key_columns=["strike", "vol_type"],
                 value_column="value",
-            ),
+            ), where),
             # 2. Day-over-day % change — flag unusual vol moves
-            #    min_abs_value=0.5 skips near-zero prev values (RR/STR)
-            #    where pct change is meaningless
-            PercentageChangeCheck(
+            (PercentageChangeCheck(
                 value_column="value",
                 group_columns=["pair_id", "strike", "tenor", "vol_type"],
                 ts_column=self._config.date_column,
                 threshold_pct=cleaning.pct_threshold,
                 min_abs_value=0.5,
-            ),
+            ), pct_where),
             # 3. Robust outlier detection — MAD-based (fat-tail resistant)
-            RobustStatisticalOutlierCheck(
+            (RobustStatisticalOutlierCheck(
                 value_column="value",
                 group_columns=["pair_id", "strike", "tenor", "vol_type"],
                 n_mad=cleaning.n_mad,
                 trailing_months=cleaning.trailing_months,
                 ts_column=self._config.date_column,
                 min_obs=cleaning.min_obs,
-            ),
+            ), where),
         ]
 
-        for check in checks:
+        for check, src_where in checks:
             try:
-                qr = check.run(reader, table, where=where)
+                qr = check.run(reader, table, where=src_where)
                 self._quality_results.append({
                     "check": qr.check_name,
                     "status": qr.status.value,

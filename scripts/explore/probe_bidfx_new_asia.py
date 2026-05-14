@@ -11,8 +11,8 @@ Usage:
 from __future__ import annotations
 
 from imdr.config.settings import get_settings
-from imdr.domains.fx.extractors import BidFXExtractor
-from imdr.domains.fx.time_utils import last_full_utc_hour
+from imdr.domains.fx.extractors_ohlc import BidFXExtractor
+from imdr.utils.time_windows import last_full_utc_hour
 from imdr.universe.fx import get_fx_universe
 from imdr.utils.logging import configure_logging
 

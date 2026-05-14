@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -21,10 +22,11 @@ from imdr.connectors.citi_quota import TagQuotaTracker
 from imdr.connectors.citi_velocity import CitiVelocityClient
 from imdr.connectors.mssql import MSSQLConnector
 from imdr.connectors.reader import AnalyticalReader
+from imdr.domains.fx._parquet_store import write_partitioned_parquet
 from imdr.domains.fx.extractors_rate import CitiVelocityFXRateExtractor
-from imdr.domains.fx.repository_rate import FXRateRepository, _FX_RATE_SPEC
+from imdr.domains.fx.rate_translate import WIDE_COLUMNS
+from imdr.domains.fx.repository_rate import FXRateRepository, FX_RATE_SPEC
 from imdr.domains.fx.repository_vol import FXCurrencyPairRepository
-from imdr.domains.fx.store_rate import write as parquet_write
 from imdr.healthchecks.base import HealthCheck
 from imdr.healthchecks.checks import (
     DuplicateCheck,
@@ -80,6 +82,7 @@ class FXRatePipeline(BasePipeline[pd.DataFrame, list[FXRateCreate], int]):
         self._raw_df: pd.DataFrame | None = None
         self._quality_results: list[dict[str, Any]] = []
         self._extraction_errors: list[dict] = []
+        self._tag_errors: list[dict] = []
         self._quota_usage: int | None = None
 
     def extract(self) -> pd.DataFrame:
@@ -91,6 +94,7 @@ class FXRatePipeline(BasePipeline[pd.DataFrame, list[FXRateCreate], int]):
             or None,
         )
 
+        extractor: CitiVelocityFXRateExtractor | None = None
         with CitiVelocityClient(
             self._settings,
             client_id=self._client_id,
@@ -102,17 +106,23 @@ class FXRatePipeline(BasePipeline[pd.DataFrame, list[FXRateCreate], int]):
                 universe=self._universe,
                 quota_tracker=tracker,
             )
-            df = extractor.extract(
-                self._start, self._end, self._pairs, frequency=self._frequency,
-            )
+            # Alias the extractor's diagnostic lists so they're populated
+            # in-place even if extract() raises (e.g. TagQuotaExceeded).
+            self._extraction_errors = extractor._errors
+            self._tag_errors = extractor._tag_errors
+            try:
+                df = extractor.extract(
+                    self._start, self._end, self._pairs, frequency=self._frequency,
+                )
+            finally:
+                self._quota_usage = tracker.current_usage()
 
-        self._extraction_errors = extractor._errors
-        self._quota_usage = tracker.current_usage()
         self._raw_df = df
         _log.info(
             "extract_complete",
             rows=len(df),
             extraction_errors=len(self._extraction_errors),
+            tag_errors=len(self._tag_errors),
             quota_used=self._quota_usage,
             frequency=self._frequency,
         )
@@ -160,6 +170,7 @@ class FXRatePipeline(BasePipeline[pd.DataFrame, list[FXRateCreate], int]):
         observations: list[FXRateCreate] = []
         skipped_unmapped = 0
         skipped_nan_mid = 0
+        skipped_nonpositive = 0
         for _, row in raw.iterrows():
             key = (row["base_ccy"], row["quote_ccy"])
             pair_id = pair_id_cache.get(key)
@@ -172,6 +183,14 @@ class FXRatePipeline(BasePipeline[pd.DataFrame, list[FXRateCreate], int]):
                 # Row exists because a fwd_points tag returned data but outright
                 # didn't — safer to drop than store NULL mid_rate (schema requires NOT NULL).
                 skipped_nan_mid += 1
+                continue
+
+            mid_rate_dec = Decimal(str(mid_rate_raw))
+            if mid_rate_dec <= 0:
+                # Citi occasionally returns non-positive values for thin tenors
+                # (placeholder/error sentinels). FX outright rates must be > 0
+                # by construction; drop rather than fail the whole load.
+                skipped_nonpositive += 1
                 continue
 
             fwd_points_raw = row["fwd_points"]
@@ -190,7 +209,7 @@ class FXRatePipeline(BasePipeline[pd.DataFrame, list[FXRateCreate], int]):
                     obs_ts=obs_ts,
                     obs_date=obs_date,
                     tenor=row["tenor"],
-                    mid_rate=Decimal(str(mid_rate_raw)),
+                    mid_rate=mid_rate_dec,
                     fwd_points=fwd_points,
                 )
             )
@@ -199,6 +218,8 @@ class FXRatePipeline(BasePipeline[pd.DataFrame, list[FXRateCreate], int]):
             _log.warning("transform_skipped_unmapped_pairs", count=skipped_unmapped)
         if skipped_nan_mid:
             _log.warning("transform_skipped_nan_mid_rate", count=skipped_nan_mid)
+        if skipped_nonpositive:
+            _log.warning("transform_skipped_nonpositive_mid_rate", count=skipped_nonpositive)
         _log.info("transform_complete", observations=len(observations))
         return observations
 
@@ -209,7 +230,7 @@ class FXRatePipeline(BasePipeline[pd.DataFrame, list[FXRateCreate], int]):
 
         if self._chunk_size:
             count = chunked_bulk_merge(
-                self._connector, _FX_RATE_SPEC, data, self._chunk_size,
+                self._connector, FX_RATE_SPEC, data, self._chunk_size,
             )
         else:
             with self._connector.session() as session:
@@ -230,7 +251,14 @@ class FXRatePipeline(BasePipeline[pd.DataFrame, list[FXRateCreate], int]):
             "frequency": self._frequency,
             "rows_loaded": result,
         }
-        written = parquet_write(self._raw_df, manifest=manifest)
+        written = write_partitioned_parquet(
+            self._raw_df,
+            root=Path("data/parquet/fx/fact_fx_rate"),
+            required_columns=WIDE_COLUMNS,
+            file_columns=["obs_date", "tenor", "mid_rate", "fwd_points"],
+            dedup_key=["obs_date", "tenor"],
+            manifest=manifest,
+        )
         _log.info("parquet_archive_complete", files_written=len(written))
 
         self._run_quality_checks()
