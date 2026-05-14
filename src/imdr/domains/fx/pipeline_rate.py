@@ -108,8 +108,8 @@ class FXRatePipeline(BasePipeline[pd.DataFrame, list[FXRateCreate], int]):
             )
             # Alias the extractor's diagnostic lists so they're populated
             # in-place even if extract() raises (e.g. TagQuotaExceeded).
-            self._extraction_errors = extractor._errors
-            self._tag_errors = extractor._tag_errors
+            self._extraction_errors = extractor.errors
+            self._tag_errors = extractor.tag_errors
             try:
                 df = extractor.extract(
                     self._start, self._end, self._pairs, frequency=self._frequency,

@@ -42,7 +42,13 @@ class CitiVelocityFXRateExtractor:
         self._rate_limit = settings.citi_rate_limit_sec
         self._universe = universe
         self._quota_tracker = quota_tracker
-        self._errors: list[dict] = []
+        # Public diagnostic lists — pipeline aliases these by reference so
+        # partial state survives a mid-extract exception (TagQuotaExceeded).
+        self.errors: list[dict] = []
+        # Per-tag ERROR / EMPTY entries reported by Citi — populated by
+        # fetch_and_parse_batched. Surfaces "API returned slot but no data"
+        # cases that would otherwise be silent (e.g. per-tag 10/24h limit).
+        self.tag_errors: list[dict] = []
 
     def extract(
         self,
@@ -57,7 +63,12 @@ class CitiVelocityFXRateExtractor:
         -------
         pd.DataFrame with columns [ts, base_ccy, quote_ccy, tenor, mid_rate, fwd_points].
         """
-        rate_pairs = pairs or self._universe.fx_rate_pairs()
+        # Default to ALL fx_rate pairs minus those flagged BBG-only — Citi
+        # has no tag analog for the latter; including them would 404.
+        rate_pairs = pairs or [
+            p for p in self._universe.fx_rate_pairs()
+            if p not in self._universe.fx_rate_bbg_only_pairs()
+        ]
         spot_only = self._universe.fx_rate_spot_only_pairs()
         _log.info("extract_start", n_pairs=len(rate_pairs))
 
@@ -85,14 +96,15 @@ class CitiVelocityFXRateExtractor:
                     response_parser=citi_fx_rate_response_to_long_df,
                     quota_tracker=self._quota_tracker,
                     pipeline_name="fx.citi_rate",
+                    tag_errors=self.tag_errors,
                 )
                 if not df.empty:
                     long_frames.append(df)
             except TagQuotaExceeded:
                 _log.error("tag_quota_exceeded", pair=f"{ccy1}/{ccy2}")
                 raise
-            except Exception as e:
-                self._errors.append({"pair": f"{ccy1}/{ccy2}", "error": str(e)})
+            except Exception as exc:
+                self.errors.append({"pair": f"{ccy1}/{ccy2}", "error": str(exc)})
                 _log.exception("pair_fetch_failed", pair=f"{ccy1}/{ccy2}")
 
         if not long_frames:
