@@ -1,0 +1,52 @@
+# BBG forward-points divisor table — recovers raw forward points from the
+# outright levels stored in BBG_mirror\FX\{CCY}\FX_{CCY}.csv.
+#
+# The R pipeline upstream computes:   outright = spot + points / divisor
+# Our extractor reverses:             points   = (outright - spot) * divisor
+#
+# Source of truth: FX/bbg_refresh.R (lines 243-256). Update both this file
+# and the R script when adding a new ccy. ``null`` means "tickers are already
+# outright forwards, no points to recover" — store NULL in fwd_points.
+#
+# Grouped by convention so the rationale stays visible:
+
+# 2-dp pairs (JPY-style)
+JPY: 100.0
+THB: 100.0
+
+# G10 fwd-points-in-pips
+AUD: 10000.0
+EUR: 10000.0
+GBP: 10000.0
+NZD: 10000.0
+CAD: 10000.0
+CHF: 10000.0
+NOK: 10000.0
+SEK: 10000.0
+SGD: 10000.0
+
+# Metals
+XAU: 10000.0
+XAG: 10000.0
+
+# EM deliverable (+1 onshore variant)
+MXN: 10000.0
+PLN: 10000.0
+ILS: 10000.0
+IDO: 10000.0
+
+# NDFs and CNY family — tickers are already outright
+HKD: null
+KRW: null
+INR: null
+IDR: null
+PHP: null
+TWD: null
+MYR: null
+MYO: null
+CNH: null
+CNY: null
+CNO: null
+CNF: null
+INF: null
+THO: null
