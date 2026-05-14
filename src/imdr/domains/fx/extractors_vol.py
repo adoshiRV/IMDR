@@ -34,7 +34,13 @@ class CitiVelocityFXVolExtractor:
         self._rate_limit = settings.citi_rate_limit_sec
         self._universe = universe
         self._quota_tracker = quota_tracker
-        self._errors: list[dict] = []
+        # Public diagnostic lists — pipeline aliases these by reference so
+        # partial state survives a mid-extract exception (TagQuotaExceeded).
+        self.errors: list[dict] = []
+        # Per-tag ERROR / EMPTY entries reported by Citi (e.g. per-tag 10/24h
+        # limit). Surfaced via fetch_and_parse_batched's tag_errors=… for parity
+        # with CitiVelocityFXRateExtractor.
+        self.tag_errors: list[dict] = []
 
     def extract(
         self,
@@ -77,14 +83,15 @@ class CitiVelocityFXVolExtractor:
                     response_parser=citi_vol_response_to_df,
                     quota_tracker=self._quota_tracker,
                     pipeline_name="fx_vol.citi_live",
+                    tag_errors=self.tag_errors,
                 )
                 if not df.empty:
                     frames.append(df)
             except TagQuotaExceeded:
                 _log.error("tag_quota_exceeded", pair=f"{ccy1}/{ccy2}")
                 raise
-            except Exception as e:
-                self._errors.append({"pair": f"{ccy1}/{ccy2}", "error": str(e)})
+            except Exception as exc:
+                self.errors.append({"pair": f"{ccy1}/{ccy2}", "error": str(exc)})
                 _log.exception("pair_fetch_failed", pair=f"{ccy1}/{ccy2}")
 
         if not frames:

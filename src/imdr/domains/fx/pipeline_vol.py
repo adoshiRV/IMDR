@@ -89,7 +89,7 @@ class FXVolPipeline(BasePipeline[pd.DataFrame, list[FXVolCreate], int]):
             )
             df = extractor.extract(self._start, self._end, self._pairs)
 
-        self._extraction_errors = extractor._errors
+        self._extraction_errors = extractor.errors
         self._quota_usage = tracker.current_usage()
         self._raw_df = df
         _log.info("extract_complete", rows=len(df),
