@@ -21,7 +21,7 @@ import structlog
 from imdr.config.settings import get_settings
 from imdr.connectors.mssql import MSSQLConnector
 from imdr.domains.fx.extractors_ohlc import PairCache
-from imdr.domains.fx.ingest import HourResult, process_hour
+from imdr.domains.fx.pipeline_ohlc import HourResult, process_hour
 from imdr.domains.fx.repository_ohlc import FXOHLCRepository
 from imdr.utils.time_windows import HourWindow, iter_hour_windows
 from imdr.notifications.email import send_outlook_email

@@ -21,7 +21,7 @@ from typing import Any
 import structlog
 
 from imdr.config.settings import Settings
-from imdr.domains.fx.time_utils import HourWindow
+from imdr.utils.time_windows import HourWindow
 from imdr.pipelines.extractors import APIExtractor
 from imdr.universe.fx import FXUniverse
 

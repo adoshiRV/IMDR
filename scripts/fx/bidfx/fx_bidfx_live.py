@@ -22,7 +22,7 @@ import structlog
 from imdr.config.settings import get_settings
 from imdr.connectors.mssql import MSSQLConnector
 from imdr.domains.fx.extractors_ohlc import PairCache
-from imdr.domains.fx.ingest import HourResult, process_hour
+from imdr.domains.fx.pipeline_ohlc import HourResult, process_hour
 from imdr.utils.time_windows import HourWindow, last_full_utc_hour
 from imdr.market_calendar.holidays import holiday_hits_for_timestamp
 from imdr.notifications.email import send_outlook_email
