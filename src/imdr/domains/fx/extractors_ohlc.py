@@ -1,10 +1,8 @@
-"""FX domain extractors — BidFX tick fetching, bar building, and threading.
+"""FX OHLC extractor — BidFX tick fetching, bar building, and threading.
 
 BidFX extractor uses `requests` with thread-local sessions (HTTPAdapter pooling,
 basic auth). Other IMDR connectors use `httpx` (see connectors/http.py).
 Both are acceptable — different use cases (threaded vs single-client).
-
-CitiVelocity extractor is a stub for future implementation.
 """
 
 from __future__ import annotations
@@ -14,16 +12,18 @@ import statistics
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+import requests
 import structlog
+from requests.adapters import HTTPAdapter
 
 from imdr.config.settings import Settings
-from imdr.utils.time_windows import HourWindow
 from imdr.pipelines.extractors import APIExtractor
 from imdr.universe.fx import FXUniverse
+from imdr.utils.time_windows import HourWindow
 
 log = structlog.get_logger(__name__)
 
@@ -34,9 +34,6 @@ _thread_local = threading.local()
 def _get_session(username: str, password: str, timeout_connect: int, timeout_read: int) -> Any:
     """Get or create a thread-local requests.Session with basic auth."""
     if not hasattr(_thread_local, "session"):
-        import requests
-        from requests.adapters import HTTPAdapter
-
         session = requests.Session()
         session.auth = (username, password)
         adapter = HTTPAdapter(pool_connections=5, pool_maxsize=5, max_retries=2)
@@ -374,7 +371,6 @@ class BidFXExtractor(APIExtractor[list[dict[str, Any]]]):
 
         ticks = self._fetch_ticks(compact, series_cfg.deal_type, series_cfg.tenor)
         if ticks is None:
-            from datetime import timedelta
             self._pair_cache.mark_unavailable(
                 f"{compact}:{series_name}", self._window.start + timedelta(days=7),
             )
@@ -424,7 +420,6 @@ class BidFXExtractor(APIExtractor[list[dict[str, Any]]]):
 
         ticks = self._fetch_ticks(compact, ndf_cfg.deal_type, ndf_cfg.tenor)
         if ticks is None:
-            from datetime import timedelta
             self._pair_cache.mark_unavailable(
                 f"{compact}:NDF_1M", self._window.start + timedelta(days=7),
             )
@@ -528,31 +523,3 @@ class BidFXExtractor(APIExtractor[list[dict[str, Any]]]):
                 tenor=tenor, exc_info=True,
             )
             return None
-
-
-# ---------------------------------------------------------------------------
-# Legacy spot extractor aliases (kept for run_pipeline.py backward compat)
-# ---------------------------------------------------------------------------
-
-
-class FXSpotExtractor(APIExtractor[list[dict[str, Any]]]):
-    """Legacy spot extractor — delegates to BidFX or CitiVelocity."""
-
-    def __init__(self, provider: str, **kwargs: Any) -> None:
-        super().__init__()
-        self._provider = provider
-
-    def extract(self) -> list[dict[str, Any]]:
-        msg = f"{self._provider} spot extractor — use BidFXExtractor for OHLC"
-        raise NotImplementedError(msg)
-
-
-class CitiVelocityExtractor(APIExtractor[list[dict[str, Any]]]):
-    """CitiVelocity extractor — stub for future implementation."""
-
-    def __init__(self, **kwargs: Any) -> None:
-        super().__init__()
-
-    def extract(self) -> list[dict[str, Any]]:
-        msg = "CitiVelocity API integration not yet configured."
-        raise NotImplementedError(msg)
