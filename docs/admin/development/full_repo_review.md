@@ -1,14 +1,14 @@
 # Full Repo Review — Domain-by-Domain Lean Pass
 
 - **Filed**: 2026-05-13
-- **Status**: in progress — 4 of 21 subdirs walked + FX overhaul Phases 1-4 of 6 shipped + FX file-walk 10 of 19 files done
+- **Status**: in progress — 4 of 21 subdirs walked + FX overhaul Phases 1-4 of 6 shipped + FX file-walk 12 of 19 files done
 - **Owner**: <OWNER>
 - **Goal**: **make IMDR lean and meaningful.** Every file justifies itself or it goes. Stale exploration, half-finished refactors, dead `__init__` exports, duplicated patterns, and orphan tests get cut.
 - **Scope**: every file in the repo — **tracked, untracked, and gitignored alike** — reviewed through the lens of *the domain it serves*, not the directory it lives in. Tracked count was 432 as of 2026-05-13; an additional 47 untracked production files surfaced on 2026-05-14 (BBG core ingest, Phase D country/calendar work, polymarket prediction, research MCP). Gitignored runtime dirs (`data/`, `.venv/`, build artifacts) get a quick glance to confirm nothing important is hiding, then we move on.
 
-## Progress log (last updated 2026-05-15)
+## Progress log (last updated 2026-05-16)
 
-Tests: **1028 passing, 6 baseline failures, 2 skipped** (+50 net since walk start). Baseline failures unchanged — same `test_fx_rate_universe` + `test_cmdty_universe` known-fails.
+Tests: **1058 passing, 6 baseline failures, 2 skipped** (+80 net since walk start). Baseline failures unchanged — same `test_fx_rate_universe` + `test_cmdty_universe` known-fails.
 
 ### Subdirs walked (4 of 21)
 
@@ -46,7 +46,7 @@ Phase 4 artifacts:
 
 PM agent reviewed phases 1-2 before push (green-lit phase-by-phase commits over a single mega-PR, flagged the `pipeline.py` deletion lineage + the BBG-chain staging exclusion, confirmed `fx_dim_currency_pair_string_cleanup.md` conflict avoidance).
 
-### FX file-by-file walk (subdir 5 proper — 10 of 19 files done)
+### FX file-by-file walk (subdir 5 proper — 12 of 19 files done)
 
 Started after the FX overhaul as the formal "per-file verdict" walk over `src/imdr/domains/fx/`. Per-file decisions tracked in [`fx_walk_optimization_log.md`](fx_walk_optimization_log.md) (applied / deferred / skipped with reasons).
 
@@ -62,8 +62,10 @@ Started after the FX overhaul as the formal "per-file verdict" walk over `src/im
 | 8 | `extractors_rate.py` | Opt A (`_errors` → public), E741, **11 new tests** + filed [`citi_fetch_batch_across_pairs.md`](citi_fetch_batch_across_pairs.md) | `ef2be5c` |
 | 9 | `extractors_rate_bbg.py` | Opt A, E741, dict→yml config, collapse tenor normalization, single boolean mask, no-spot warning + 1 test | `edc6835` |
 | 10 | `extractors_vol.py` | Opt A, E741, `tag_errors` diagnostic parity, **11 new tests** + filed [`extractor_errors_rename.md`](extractor_errors_rename.md) (cross-domain) | `70eba89`, `0dbbb3d` |
+| 11 | `pipeline_ohlc.py` | **N+1 anomaly prescreen** → batched repo call (~50 RTTs/hour → 1), wire quality thresholds from `pipelines.yml`, capture parquet failures in `result.diagnostics` + **18 new tests** + filed [`single_step_pipeline_abc.md`](single_step_pipeline_abc.md) | `68e01c7` |
+| 12 | `pipeline_rate.py` | **`iterrows()` → `to_dict("records")`** (10-50× faster for backfills) + **12 new tests** including exact-message error assertions + regression guard on `.iterrows(` + extended [`extractor_errors_rename.md`](extractor_errors_rename.md) with pipeline-layer rename | `2f42fe5` |
 
-Pending files 11-19: pipelines (ohlc / rate / rate_bbg / rate_bbg_daily / vol), translate (rate / vol), repositories (ohlc / rate / vol). Several already touched in slices 7-10 via caller updates.
+Pending files 13-19: `pipeline_rate_bbg.py`, `pipeline_rate_bbg_daily.py`, `pipeline_vol.py`, `rate_translate.py`, `repository_ohlc.py`, `repository_rate.py`, `repository_vol.py`, `vol_translate.py`. Several already touched in slices 7-12 via caller updates.
 
 ### Memory notes added during the walk
 
@@ -82,21 +84,24 @@ Pending files 11-19: pipelines (ohlc / rate / rate_bbg / rate_bbg_daily / vol), 
 | [`ruff_sweep_scope.md`](ruff_sweep_scope.md) | 645 ruff findings broken into 4 tiers; 5-step execution plan |
 | [`cleaning_rules_consolidation.md`](cleaning_rules_consolidation.md) | 5-way `HardBoundViolationRule` / `RobustOutlierRule` / `PercentageChangeRule` collapse with `TableSpec` shape |
 | [`citi_fetch_batch_across_pairs.md`](citi_fetch_batch_across_pairs.md) | Cross-pair Citi batching — 19 HTTP calls → 3 for live FX rate, 18 rate-limit sleeps → 2 |
-| [`extractor_errors_rename.md`](extractor_errors_rename.md) | `_errors` → `errors` across 5 Citi extractors + optional `BatchedCitiExtractor` base |
+| [`extractor_errors_rename.md`](extractor_errors_rename.md) | Two-layer rename: extractor `_errors` → `errors` (5 Citi extractors) + pipeline `_extraction_errors` / `_quota_usage` / `_quality_results` / `_tag_errors` (8+ script callsites) + optional `BatchedCitiExtractor` base |
+| [`single_step_pipeline_abc.md`](single_step_pipeline_abc.md) | `BasePipeline[E, T, L]` ABC abuse — some pipelines (`FXOHLCPipeline`) leave extract/transform as no-ops and do all the work in `load()`. Bundle with `healthchecks/` redesign. |
 
 ### Deferred / blocked
 
 - **`healthchecks/` rework** — affects every domain's `clean_*.py` + `_run_quality_checks` + `get_health_checks` boilerplate. Wait for the redesign before further per-file cleanup there.
 - **`Settings` `extra="forbid"`** — blocked by `IMDR_RESEARCH_*` env vars consumed by separate loaders (`playground/research/`, `mcp/research_server.py`). Plan in [`settings_env_unification.md`](settings_env_unification.md).
 - **`fx_dim_currency_pair_string_cleanup`** — the 12 `base_ccy + quote_ccy` string-concat sites in `coverage.py` stay as-is until that task runs.
-- **Cross-domain `extractor._errors` rename** — 7 callsites across commodities/rates/equity. Bundle with `BatchedCitiExtractor` base extraction as one slice before Stage D per-domain trims. See [`extractor_errors_rename.md`](extractor_errors_rename.md).
+- **Cross-domain extractor + pipeline `_errors` rename** — 7 extractor callsites + 8+ pipeline-layer script callsites across commodities/rates/equity. Bundle with `BatchedCitiExtractor` base extraction as one slice before Stage D per-domain trims. See [`extractor_errors_rename.md`](extractor_errors_rename.md).
 - **5-way cleaning rules collapse** — gated on the `healthchecks/` redesign decision. See [`cleaning_rules_consolidation.md`](cleaning_rules_consolidation.md).
 - **Cross-pair Citi batching** — contract-changing, bundle with healthchecks redesign + per-domain trims. See [`citi_fetch_batch_across_pairs.md`](citi_fetch_batch_across_pairs.md).
+- **`BasePipeline` ABC shape for single-step pipelines** — `FXOHLCPipeline` leaves extract/transform as no-ops. Pinned in `test_extract_and_transform_are_noops` so the smell stays visible. See [`single_step_pipeline_abc.md`](single_step_pipeline_abc.md).
 - **Ruff 645-finding sweep** — Tier 1 (~360 true-no-op fixes) safe to run in one session; Tier 2 needs per-file eyeball. See [`ruff_sweep_scope.md`](ruff_sweep_scope.md).
 
 ### Open follow-ups still on the punch list
 
-- `for _, row in raw.iterrows():` in `pipeline_rate.py:172` + `pipeline_vol.py:119` — pending `to_dict("records")` rewrite (10-50× speedup for historical backfills). Will land when files 12 + 15 are walked.
+- ~~`for _, row in raw.iterrows():` in `pipeline_rate.py:172`~~ — **fixed in slice 12** (`2f42fe5`).
+- `for _, row in raw.iterrows():` in `pipeline_vol.py:119` — pending `to_dict("records")` rewrite, will land when file 15 is walked.
 - `BidFXExtractor` integration tests with HTTP mocking — pure-helper tests landed in slice 7; networked surface needs a mocking harness.
 - `BidFXExtractor._process_currency` reaches into `universe._order_pair` private — defer to Stage D1 (universe rewrite, not extractor edit).
 
