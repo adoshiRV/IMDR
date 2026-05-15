@@ -101,11 +101,22 @@
 | Cross-domain `_errors` → `errors` rename (7 callsites) | 📄 deferred | See [extractor_errors_rename.md](extractor_errors_rename.md). |
 | `BatchedCitiExtractor` base class | 📄 deferred | Pairs with the cross-domain rename — see [extractor_errors_rename.md](extractor_errors_rename.md). |
 
-## Files 11–19 — to be walked
+## File 11 — `pipeline_ohlc.py`
+
+| Optimization | Status | Notes |
+|---|---|---|
+| N+1 in `_anomaly_prescreen` — batch into one query | ✅ applied | New `FXOHLCRepository.get_last_closes_batch()` (single query with 7-day lookback bound). 19+ DB RTTs/hour → 1. Test pinned: `repo.get_last_close.assert_not_called()`. |
+| Wire quality thresholds from `pipelines.yml`'s `fx.ohlc.cleaning` | ✅ applied | Re-added `get_pipeline_config()` import; thresholds (`n_mad`, `trailing_months`, `pct_threshold`) flow into `_build_quality_checks`. Aligns post-ingest checks with batch cleaning. |
+| Capture `_write_parquet` failures in `result.diagnostics` | ✅ applied | Helper now returns `None` on success or a structured dict on failure; orchestrator appends to `result.diagnostics` + emits `report.warning`. Previously: silent log line. |
+| Add 18 tests covering orchestrator + helpers + pipeline class | ✅ applied | Includes assertion that the N+1 stays gone (`repo.get_last_close.assert_not_called()`). |
+| `BasePipeline` ABC abuse (extract/transform → None) | 📄 deferred | See [`single_step_pipeline_abc.md`](single_step_pipeline_abc.md). Pinned in `test_extract_and_transform_are_noops` so the deferred refactor is visible. |
+| F-string SQL in `_post_ingest_quality` (`where = f"AND [ts] = '...'"`) | ❌ skipped | Datetime comes from internal `HourWindow`, not user input; consistent with the project's existing pattern for healthcheck queries. Revisit if a wider parameterisation push happens. |
+
+## Files 12–19 — to be walked
 
 | File | Notes |
 |---|---|
-| `pipeline_ohlc.py` | Already heavily edited in Phase 4 OHLC merge. Walk re-evaluates. |
+| `pipeline_rate.py` | Has `iterrows()` perf rewrite flagged in repo-review doc. |
 | `pipeline_rate.py` | Has `iterrows()` perf rewrite flagged in repo-review doc. |
 | `pipeline_rate_bbg.py` | Already touched in file 9 (Opt A caller update). |
 | `pipeline_rate_bbg_daily.py` | Untracked. |
@@ -122,3 +133,4 @@
 - [cleaning_rules_consolidation.md](cleaning_rules_consolidation.md) — 5-way `HardBound/RobustOutlier/PercentageChange` collapse
 - [citi_fetch_batch_across_pairs.md](citi_fetch_batch_across_pairs.md) — cross-pair Citi batching
 - [extractor_errors_rename.md](extractor_errors_rename.md) — `_errors` → `errors` rename + optional `BatchedCitiExtractor` base
+- [single_step_pipeline_abc.md](single_step_pipeline_abc.md) — `BasePipeline` ABC abuse for single-step pipelines

@@ -15,6 +15,7 @@ from typing import Any
 
 import structlog
 
+from imdr.config.pipeline_config import get_pipeline_config
 from imdr.config.settings import Settings
 from imdr.connectors.mssql import MSSQLConnector
 from imdr.connectors.reader import AnalyticalReader
@@ -67,6 +68,10 @@ def process_hour(
     When *currencies* is provided, only those currencies are fetched (cleanup mode).
     """
     result = HourResult(window=window)
+    # Cleaning thresholds for post-ingest quality checks come from pipelines.yml
+    # (previously hardcoded as 5.0 / 4.0 / 12 — diverged from the configured
+    # `fx.ohlc.cleaning` section which the batch cleaner already honoured).
+    cleaning = get_pipeline_config("fx.ohlc").cleaning
 
     # 1. Extract: fetch ticks and build bars
     extractor = BidFXExtractor(
@@ -117,9 +122,11 @@ def process_hour(
             "missing": result.missing_ccy,
         })
 
-    # 4. Anomaly pre-screen (compare close_px to previous hour)
+    # 4. Anomaly pre-screen (compare close_px to previous hour, batched)
     anomalies = _anomaly_prescreen(validated, connector, settings.anomaly_pct_threshold)
     result.anomalies = anomalies
+    # (anomaly_pct_threshold is the *live* anomaly trigger; the cleaning
+    # `pct_threshold` is for the batch sweeper. They are distinct on purpose.)
     if anomalies:
         report.warning("anomaly", f"Detected {len(anomalies)} anomalies", details={
             "anomalies": anomalies,
@@ -141,13 +148,22 @@ def process_hour(
 
     # 6. Post-ingest quality check (robust outlier + invariant checks)
     if approved:
-        quality_flags = _post_ingest_quality(connector, window, universe, report)
+        quality_flags = _post_ingest_quality(connector, window, universe, cleaning, report)
         result.quality_flags = quality_flags
 
     # 7. Write Parquet archive
     if approved and settings.parquet_batch_dir:
-        _write_parquet(approved, window, settings.parquet_batch_dir)
-        report.info("parquet", f"Archived {len(approved)} bars to parquet")
+        parquet_error = _write_parquet(approved, window, settings.parquet_batch_dir)
+        if parquet_error is None:
+            report.info("parquet", f"Archived {len(approved)} bars to parquet")
+        else:
+            # Surface the failure in the run record instead of just a log line.
+            result.diagnostics.append(parquet_error)
+            report.warning(
+                "parquet",
+                f"Parquet archive failed: {parquet_error['error']}",
+                details=parquet_error,
+            )
 
     return result
 
@@ -158,14 +174,21 @@ _PRICE_COLS = [
 ]
 
 
-def _build_quality_checks(universe: FXUniverse) -> list:
-    """Build the post-ingest quality check list."""
+def _build_quality_checks(universe: FXUniverse, cleaning) -> list:
+    """Build the post-ingest quality check list.
+
+    Thresholds (``n_mad``, ``trailing_months``, ``pct_threshold``) come from
+    the ``fx.ohlc.cleaning`` section of pipelines.yml so post-ingest checks
+    and the batch cleaner stay in sync. ``pct_threshold`` falls back to 5.0
+    when omitted from config.
+    """
+    pct_threshold = cleaning.pct_threshold if cleaning.pct_threshold is not None else 5.0
     checks: list = [
         PositiveValueCheck(columns=_PRICE_COLS),
         ColumnOrderCheck(rules=[("bid", "<=", "ask")]),
         PercentageChangeCheck(
             value_column="close_px",
-            threshold_pct=5.0,
+            threshold_pct=pct_threshold,
         ),
         SymbolRangeCheck(
             ranges={
@@ -178,8 +201,8 @@ def _build_quality_checks(universe: FXUniverse) -> list:
         RobustStatisticalOutlierCheck(
             value_column="close_px",
             group_columns=["symbol", "series"],
-            n_mad=4.0,
-            trailing_months=12,
+            n_mad=cleaning.n_mad,
+            trailing_months=cleaning.trailing_months,
         ),
     ]
     return checks
@@ -189,6 +212,7 @@ def _post_ingest_quality(
     connector: MSSQLConnector,
     window: HourWindow,
     universe: FXUniverse,
+    cleaning,
     report: RunReport,
 ) -> list[dict[str, Any]]:
     """Run quality checks on the just-ingested hour and return flags."""
@@ -198,7 +222,7 @@ def _post_ingest_quality(
     # Scope checks to this hour
     where = f"AND [ts] = '{window.start:%Y-%m-%d %H:%M:%S}'"
 
-    for check in _build_quality_checks(universe):
+    for check in _build_quality_checks(universe, cleaning):
         try:
             result = check.run(reader, table, where=where)
             if result.status != CheckStatus.PASSED:
@@ -225,29 +249,41 @@ def _anomaly_prescreen(
     connector: MSSQLConnector,
     threshold_pct: float,
 ) -> list[dict[str, Any]]:
-    """Compare each bar's close_px against the previous hour's close."""
+    """Compare each bar's close_px against the previous hour's close.
+
+    Uses `get_last_closes_batch()` — one query for all (symbol, series)
+    pairs in the hour, vs the previous per-bar lookup which was N+1.
+    """
     anomalies: list[dict[str, Any]] = []
+    if not bars:
+        return anomalies
+
+    # All bars in a single hour share the same `ts`; pull one lookup for them.
+    before_ts = bars[0].ts
+    keys = list({(bar.symbol, bar.series) for bar in bars})
 
     with connector.session() as session:
         repo = FXOHLCRepository(session)
-        for bar in bars:
-            prev = repo.get_last_close(bar.symbol, bar.series, bar.ts)
-            if prev is None:
-                continue
-            prev_close = float(prev.close_px)
-            curr_close = float(bar.close_px)
-            if prev_close == 0:
-                continue
-            pct_change = abs((curr_close - prev_close) / prev_close) * 100
-            if pct_change >= threshold_pct:
-                anomalies.append({
-                    "symbol": bar.symbol,
-                    "series": bar.series,
-                    "field": "close_px",
-                    "previous": prev_close,
-                    "current": curr_close,
-                    "pct_change": pct_change,
-                })
+        prev_by_key = repo.get_last_closes_batch(keys, before_ts)
+
+    for bar in bars:
+        prev = prev_by_key.get((bar.symbol, bar.series))
+        if prev is None:
+            continue
+        prev_close = float(prev.close_px)
+        curr_close = float(bar.close_px)
+        if prev_close == 0:
+            continue
+        pct_change = abs((curr_close - prev_close) / prev_close) * 100
+        if pct_change >= threshold_pct:
+            anomalies.append({
+                "symbol": bar.symbol,
+                "series": bar.series,
+                "field": "close_px",
+                "previous": prev_close,
+                "current": curr_close,
+                "pct_change": pct_change,
+            })
 
     return anomalies
 
@@ -256,8 +292,14 @@ def _write_parquet(
     bars: list[FXFactOHLCCreate],
     window: HourWindow,
     batch_dir: str,
-) -> None:
-    """Archive approved bars to a Parquet file."""
+) -> dict[str, Any] | None:
+    """Archive approved bars to a Parquet file.
+
+    Returns ``None`` on success, or a diagnostic dict on failure so the
+    orchestrator can surface the issue in the run record. Previously the
+    `except` swallowed silently — a parquet write failure produced only a
+    log line with no fingerprint in the audit trail.
+    """
     try:
         import pandas as pd
 
@@ -266,8 +308,15 @@ def _write_parquet(
         path = Path(batch_dir) / "fx" / "fact_ohlc" / f"{window.start:%Y}" / f"{window.start:%m}" / f"{window.start:%d}" / f"fx_ohlc_{window.start:%Y%m%d_%H%M}.parquet"
         path.parent.mkdir(parents=True, exist_ok=True)
         df.to_parquet(path, index=False)
-    except Exception:
+        return None
+    except Exception as exc:
         log.exception("parquet_write_failed")
+        return {
+            "step": "parquet",
+            "error": f"{type(exc).__name__}: {exc}",
+            "batch_dir": str(batch_dir),
+            "window": str(window),
+        }
 
 
 class FXOHLCPipeline(BasePipeline[None, None, HourResult]):

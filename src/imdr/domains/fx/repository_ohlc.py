@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
@@ -91,3 +91,47 @@ class FXOHLCRepository:
             .limit(1)
         )
         return self._session.execute(stmt).scalar_one_or_none()
+
+    def get_last_closes_batch(
+        self,
+        keys: list[tuple[str, str]],
+        before_ts: datetime,
+        lookback_days: int = 7,
+    ) -> dict[tuple[str, str], FXFactOHLC]:
+        """Batched version of get_last_close — one query for many (symbol, series).
+
+        Returns a dict keyed on (symbol, series); missing pairs are absent.
+        Bounds the lookback to `lookback_days` before `before_ts` so the
+        candidate set stays small even on tables with multi-year history.
+
+        Replaces an N+1 loop of get_last_close() — see pipeline_ohlc.py
+        _anomaly_prescreen for the live caller.
+        """
+        if not keys:
+            return {}
+        lower_bound = before_ts - timedelta(days=lookback_days)
+        symbols = {s for s, _ in keys}
+        series_set = {ser for _, ser in keys}
+
+        # Cartesian filter (symbol IN × series IN) over-fetches mildly but the
+        # time window keeps the row count bounded. Python loop trims to the
+        # exact keys requested.
+        stmt = (
+            select(FXFactOHLC)
+            .where(
+                FXFactOHLC.symbol.in_(symbols),
+                FXFactOHLC.series.in_(series_set),
+                FXFactOHLC.ts < before_ts,
+                FXFactOHLC.ts >= lower_bound,
+            )
+            .order_by(FXFactOHLC.symbol, FXFactOHLC.series, FXFactOHLC.ts.desc())
+        )
+        rows = self._session.execute(stmt).scalars().all()
+
+        keys_set = set(keys)
+        out: dict[tuple[str, str], FXFactOHLC] = {}
+        for row in rows:
+            key = (row.symbol, row.series)
+            if key in keys_set and key not in out:
+                out[key] = row
+        return out
