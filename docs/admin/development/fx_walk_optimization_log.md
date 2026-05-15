@@ -112,12 +112,21 @@
 | `BasePipeline` ABC abuse (extract/transform → None) | 📄 deferred | See [`single_step_pipeline_abc.md`](single_step_pipeline_abc.md). Pinned in `test_extract_and_transform_are_noops` so the deferred refactor is visible. |
 | F-string SQL in `_post_ingest_quality` (`where = f"AND [ts] = '...'"`) | ❌ skipped | Datetime comes from internal `HourWindow`, not user input; consistent with the project's existing pattern for healthcheck queries. Revisit if a wider parameterisation push happens. |
 
-## Files 12–19 — to be walked
+## File 12 — `pipeline_rate.py`
+
+| Optimization | Status | Notes |
+|---|---|---|
+| `iterrows()` → `to_dict("records")` in `transform()` | ✅ applied | 10-50× speedup for historical-backfill case (years of daily data → hundreds of thousands of rows). Regression test pins the call form `.iterrows(` so future refactors can't silently reintroduce it. |
+| Add 12 tests covering transform happy / skip / failure paths | ✅ applied | Includes exact-message assertions on `RuntimeError` for missing vendor + missing frequency (`023_create_dim_frequency.sql` hint pinned). |
+| Pipeline-side `_extraction_errors` / `_quota_usage` / `_tag_errors` / `_quality_results` private-attr smell | 📄 deferred | Extended [`extractor_errors_rename.md`](extractor_errors_rename.md) with the pipeline-layer rename — 8+ script callsites read these as `pipeline._extraction_errors`. Bundle with the extractor-layer rename. |
+| F-string SQL in `_run_quality_checks` (`where = f"..."`) | ❌ skipped | Internal-only datetime values (`self._start`/`self._end`); same decision as file 11. |
+| Function-local imports at lines 286-291 | ❌ skipped | `from imdr.healthchecks.base import CheckStatus` etc. are inside `_run_quality_checks` — preserves laziness for the post-load hook that may not always fire. Not worth the churn. |
+| 11-param `__init__` (settings, universe, dates, pairs, chunk, frequency, creds, quota path…) | ❌ skipped | Could group into a config dataclass but every parameter is used and the call sites pass keyword args. Premature consolidation. |
+
+## Files 13–19 — to be walked
 
 | File | Notes |
 |---|---|
-| `pipeline_rate.py` | Has `iterrows()` perf rewrite flagged in repo-review doc. |
-| `pipeline_rate.py` | Has `iterrows()` perf rewrite flagged in repo-review doc. |
 | `pipeline_rate_bbg.py` | Already touched in file 9 (Opt A caller update). |
 | `pipeline_rate_bbg_daily.py` | Untracked. |
 | `pipeline_vol.py` | Already touched in file 10 (Opt A caller update). Has `iterrows()` perf flag. |

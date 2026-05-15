@@ -166,12 +166,15 @@ class FXRatePipeline(BasePipeline[pd.DataFrame, list[FXRateCreate], int]):
         if raw.empty:
             return []
 
-        # 4. Resolve pair_ids, validate via Pydantic
+        # 4. Resolve pair_ids, validate via Pydantic.
+        # `to_dict("records")` iteration is 10-50× faster than `iterrows()`
+        # for the historical-backfill case (years of daily data) where this
+        # loop runs over hundreds of thousands of rows.
         observations: list[FXRateCreate] = []
         skipped_unmapped = 0
         skipped_nan_mid = 0
         skipped_nonpositive = 0
-        for _, row in raw.iterrows():
+        for row in raw.to_dict("records"):
             key = (row["base_ccy"], row["quote_ccy"])
             pair_id = pair_id_cache.get(key)
             if pair_id is None:

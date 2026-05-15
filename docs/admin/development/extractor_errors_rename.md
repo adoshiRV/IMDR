@@ -33,7 +33,45 @@ removes the smell without changing behavior.
 ## Where the rename needs to land
 
 The three FX extractors are already done. **Seven more callsites remain**, all
-following the identical pattern:
+following the identical pattern.
+
+### Layer 2: pipeline-side `_extraction_errors` / `_quota_usage` / `_quality_results` / `_tag_errors`
+
+Same private-prefix lie, one level up. Surfaced during file 12 walk
+([pipeline_rate.py:84-86](../../../src/imdr/domains/fx/pipeline_rate.py#L84-L86)):
+
+```python
+self._extraction_errors: list[dict] = []
+self._tag_errors: list[dict] = []
+self._quota_usage: int | None = None
+```
+
+These are read as `pipeline._extraction_errors` etc. from at least **8 script
+callsites** plus the playbook example doc:
+
+| Script | Reads |
+|---|---|
+| [`scripts/fx/citi/fx_rate_citi_live.py:139-147`](../../../scripts/fx/citi/fx_rate_citi_live.py#L139-L147) | `_quota_usage`, `_extraction_errors` |
+| [`scripts/fx/citi/fx_rate_citi_historical.py`](../../../scripts/fx/citi/fx_rate_citi_historical.py) | (verify same pattern when walked) |
+| [`scripts/fx/citi/fx_rate_citi_live_hourly.py`](../../../scripts/fx/citi/fx_rate_citi_live_hourly.py) | (same) |
+| [`scripts/equity/citi/equity_vix_citi_live.py:76-101`](../../../scripts/equity/citi/equity_vix_citi_live.py#L76-L101) | `_quota_usage`, `_extraction_errors` |
+| [`scripts/equity/citi/equity_index_citi_live.py:76-101`](../../../scripts/equity/citi/equity_index_citi_live.py#L76-L101) | (same) |
+| [`scripts/fx/citi/fx_vol_citi_live.py`](../../../scripts/fx/citi/fx_vol_citi_live.py) | (verify) |
+| [`scripts/fx/citi/fx_vol_citi_historical.py`](../../../scripts/fx/citi/fx_vol_citi_historical.py) | (verify) |
+| [`scripts/rates/citi/*.py`](../../../scripts/rates/citi/) | (verify when walked) |
+| [`docs/admin/ops/new_product_playbook.md:369-495`](../ops/new_product_playbook.md#L369-L495) | playbook example mirrors the smell |
+
+Bundle the rename with the extractor-layer one — same cross-domain slice,
+same review surface. Proposed names:
+
+| Old | New |
+|---|---|
+| `pipeline._extraction_errors` | `pipeline.extraction_errors` |
+| `pipeline._tag_errors` | `pipeline.tag_errors` |
+| `pipeline._quota_usage` | `pipeline.quota_usage` |
+| `pipeline._quality_results` | `pipeline.quality_results` |
+
+### Layer 1: extractor `_errors`
 
 | Extractor module | Pipeline consumer (`extractor._errors` callsite) |
 |---|---|
