@@ -210,11 +210,25 @@ class TestAnomalyPrescreen:
 
         # Exactly one batched call — not three per-bar calls.
         assert repo.get_last_closes_batch.call_count == 1
-        repo.get_last_close.assert_not_called()
         # Verify the batched call received the right keys.
         called_keys, called_ts = repo.get_last_closes_batch.call_args.args
         assert set(called_keys) == {("EURUSD", "SPOT"), ("USDJPY", "SPOT"), ("GBPUSD", "SPOT")}
         assert called_ts == HOUR_TS
+
+    def test_no_get_last_close_method_remains(self) -> None:
+        """Source-code regression guard: the single-row ``get_last_close``
+        was removed when the batched version replaced it. A reintroduction
+        is a strong signal the N+1 is creeping back in."""
+        import inspect
+
+        from imdr.domains.fx.repository_ohlc import FXOHLCRepository
+
+        src = inspect.getsource(FXOHLCRepository)
+        assert "def get_last_close(" not in src, (
+            "FXOHLCRepository.get_last_close was removed in favor of "
+            "get_last_closes_batch (one query for many keys). Don't "
+            "reintroduce it — it leads to N+1 access patterns."
+        )
 
     def test_anomaly_flagged_when_pct_change_exceeds_threshold(self) -> None:
         from imdr.schemas.fx_ohlc import FXFactOHLCCreate

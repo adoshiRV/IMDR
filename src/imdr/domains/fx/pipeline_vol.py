@@ -115,17 +115,21 @@ class FXVolPipeline(BasePipeline[pd.DataFrame, list[FXVolCreate], int]):
         if raw.empty:
             return []
 
-        # 3. Resolve pair_ids, validate via Pydantic
+        # 3. Resolve pair_ids, validate via Pydantic.
+        # `to_dict("records")` iteration is 10-50× faster than `iterrows()`
+        # for the historical-backfill case (~1,530 rows/day × backfill years).
+        # Same shape as `FXRatePipeline.transform` / `BloombergFXRatePipeline.transform`.
         observations: list[FXVolCreate] = []
         skipped = 0
-        for _, row in raw.iterrows():
+        for row in raw.to_dict("records"):
             pair_id = pair_id_cache.get((row["base_ccy"], row["quote_ccy"]))
             if pair_id is None:
                 skipped += 1
                 continue
+            ts = row["ts"]
             observations.append(FXVolCreate(
                 pair_id=pair_id,
-                obs_date=row["ts"].date() if hasattr(row["ts"], "date") else row["ts"],
+                obs_date=ts.date() if hasattr(ts, "date") else ts,
                 strike=row["strike"],
                 tenor=row["tenor"],
                 vol_type=row["vol_type"],

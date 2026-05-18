@@ -5,13 +5,12 @@ Session is injected — the repository does NOT own its lifecycle.
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import date
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from imdr.connectors.bulk import MergeSpec, bulk_merge
-from imdr.models.fx_vol import FXCurrencyPair, FXFactVol
+from imdr.models.fx_vol import FXCurrencyPair
 from imdr.schemas.fx_vol import FXCurrencyPairCreate, FXVolCreate
 
 FX_VOL_SPEC = MergeSpec(
@@ -44,16 +43,6 @@ class FXCurrencyPairRepository:
             )
         ).scalar_one_or_none()
 
-    def get_or_create(self, data: FXCurrencyPairCreate) -> FXCurrencyPair:
-        """Get existing pair or create new one."""
-        existing = self.get_by_key(data.base_ccy, data.quote_ccy)
-        if existing:
-            return existing
-        row = FXCurrencyPair(**data.model_dump())
-        self._session.add(row)
-        self._session.flush()
-        return row
-
     def all(self) -> Sequence[FXCurrencyPair]:
         return self._session.scalars(select(FXCurrencyPair)).all()
 
@@ -78,12 +67,3 @@ class FXVolRepository:
     def bulk_upsert(self, items: list[FXVolCreate]) -> int:
         """Upsert vol observations via shared temp→MERGE utility."""
         return bulk_merge(self._session, FX_VOL_SPEC, items)
-
-    def count_by_date(self, obs_date: date) -> int:
-        """Count observations for a given date."""
-        result = self._session.execute(
-            select(func.count(FXFactVol.id)).where(
-                FXFactVol.obs_date == obs_date
-            )
-        ).scalar_one()
-        return result or 0

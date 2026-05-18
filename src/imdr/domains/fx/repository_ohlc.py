@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from imdr.connectors.bulk import MergeSpec, bulk_merge
@@ -49,48 +49,20 @@ class FXOHLCRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def bulk_create(self, items: list[FXFactOHLCCreate]) -> list[FXFactOHLC]:
-        bars = [FXFactOHLC(**d.model_dump()) for d in items]
-        self._session.add_all(bars)
-        self._session.flush()
-        return bars
-
     def bulk_upsert(self, items: list[FXFactOHLCCreate]) -> int:
         """Upsert a batch of bars via temp-table MERGE."""
         return bulk_merge(self._session, _FX_OHLC_SPEC, items)
 
-    def count_by_hour(self, ts: datetime) -> int:
-        """Count bars for a given hour — used for completeness checks."""
-        result = self._session.execute(
-            select(func.count(FXFactOHLC.id)).where(FXFactOHLC.ts == ts)
-        ).scalar_one()
-        return result or 0
-
     def delete_range(self, start: datetime, end: datetime) -> int:
         """Delete bars in a time range — used for rewrite mode."""
-        stmt = select(FXFactOHLC).where(
-            and_(FXFactOHLC.ts >= start, FXFactOHLC.ts < end)
-        )
-        bars = self._session.scalars(stmt).all()
-        count = len(bars)
-        for bar in bars:
-            self._session.delete(bar)
-        self._session.flush()
-        return count
-
-    def get_last_close(self, symbol: str, series: str, before_ts: datetime) -> FXFactOHLC | None:
-        """Get the most recent bar before a timestamp — used for anomaly pre-screen."""
-        stmt = (
-            select(FXFactOHLC)
-            .where(
-                FXFactOHLC.symbol == symbol,
-                FXFactOHLC.series == series,
-                FXFactOHLC.ts < before_ts,
+        result = self._session.execute(
+            delete(FXFactOHLC).where(
+                FXFactOHLC.ts >= start,
+                FXFactOHLC.ts < end,
             )
-            .order_by(FXFactOHLC.ts.desc())
-            .limit(1)
         )
-        return self._session.execute(stmt).scalar_one_or_none()
+        self._session.flush()
+        return result.rowcount or 0
 
     def get_last_closes_batch(
         self,

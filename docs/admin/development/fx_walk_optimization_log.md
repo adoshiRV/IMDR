@@ -123,18 +123,76 @@
 | Function-local imports at lines 286-291 | ❌ skipped | `from imdr.healthchecks.base import CheckStatus` etc. are inside `_run_quality_checks` — preserves laziness for the post-load hook that may not always fire. Not worth the churn. |
 | 11-param `__init__` (settings, universe, dates, pairs, chunk, frequency, creds, quota path…) | ❌ skipped | Could group into a config dataclass but every parameter is used and the call sites pass keyword args. Premature consolidation. |
 
-## Files 13–19 — to be walked
+## File 13 — `pipeline_rate_bbg.py`
 
-| File | Notes |
-|---|---|
-| `pipeline_rate_bbg.py` | Already touched in file 9 (Opt A caller update). |
-| `pipeline_rate_bbg_daily.py` | Untracked. |
-| `pipeline_vol.py` | Already touched in file 10 (Opt A caller update). Has `iterrows()` perf flag. |
-| `rate_translate.py` | Already touched in files 7-8 testing. |
-| `repository_ohlc.py` | — |
-| `repository_rate.py` | — |
-| `repository_vol.py` | — |
-| `vol_translate.py` | Already touched in file 10 testing. |
+| Optimization | Status | Notes |
+|---|---|---|
+| Hoist function-local imports from `extract()` to module top | ✅ applied | `BBGFXSourceFile`, `resolve_pair_orientation`, `datetime`, `timezone` were imported lazily inside the method body. No circular-import risk (parent module already imports `extractors_rate_bbg`). |
+| `iterrows()` → `to_dict("records")` in `transform()` | ✅ applied | Same 10-50× speedup as file 12. Regression guard pinned in new `TestTransformRowIteration`. |
+| Add tests: NaN mid_rate skip, frequency-missing error message, invalid-Pydantic-row skip, `get_run_context` | ✅ applied | 4 new tests covering the previously-missing transform branches. |
+| Transform duplication with `FXRatePipeline.transform` | 🚧 open | ~90% identical: dim seeding + pair_id cache + vendor/frequency FK lookup + validation loop. Differences are real (Decimal precision rounding, obs_date column source, try/except shape) — a shared `_resolve_fx_rate_fks()` helper would extract the genuinely shared bit. Bundle with the cleaning consolidation when that lands. |
+| `_extraction_errors` / `_raw_df` private-attr smell | 📄 deferred | Bundled with [`extractor_errors_rename.md`](extractor_errors_rename.md) at the pipeline layer. |
+| `timezone.utc` → `datetime.UTC` (UP017) | 📄 deferred | Part of the ruff sweep — see [ruff_sweep_scope.md](ruff_sweep_scope.md). |
+
+## File 14 — `pipeline_rate_bbg_daily.py`
+
+| Optimization | Status | Notes |
+|---|---|---|
+| Add `obs_ts` midnight-UTC override test | ✅ applied | The daily class's only novel behavior was untested — `TestDailyExtractMidnightUTC.test_obs_ts_is_midnight_utc_of_obs_date`. |
+| Add wiring tests (`pipeline_name`, `FREQUENCY_CODE` override) | ✅ applied | Tiny but locks the subclass contract; 5 tests total in new `test_bbg_fx_rate_daily_pipeline.py`. |
+| Drop `df["ts"] = df["obs_ts"]` alias | ❌ skipped | "Kept for any downstream expecting `ts`" — no current consumer reads it, but the alias is one line and removing it would require a wider audit. Defensive add, low cost. |
+| Function-local `pd.to_datetime` call vs module-level helper | ❌ skipped | One-liner, called once per extract; not worth a helper. |
+
+## File 15 — `pipeline_vol.py`
+
+| Optimization | Status | Notes |
+|---|---|---|
+| `iterrows()` → `to_dict("records")` in `transform()` | ✅ applied | Closes the punch-list item flagged at the end of file 12. Regression guard pinned. |
+| Add transform / load / get_run_context tests (no tests existed) | ✅ applied | 9 new tests in `test_fx_vol_pipeline.py`. Per `feedback_always_write_tests` — missing tests for a `src/` module is a finding to fix now. |
+| `_extraction_errors` / `_quota_usage` / `_quality_results` private-attr smell | 📄 deferred | Same pattern as file 12 — bundled with [`extractor_errors_rename.md`](extractor_errors_rename.md). |
+| Lazy imports inside `_run_quality_checks` | ❌ skipped | Same decision as file 11 — preserves laziness for an optional post-load hook. |
+
+## File 16 — `rate_translate.py`
+
+| Optimization | Status | Notes |
+|---|---|---|
+| Keep — 98 lines, well-tested (16 existing tests), no smells | ✅ applied | Pure helpers (`citi_fx_rate_tag_to_internal`, `pivot_long_to_wide`); early-return on empty; no iterrows; no private-attr leaks. Nothing to do. |
+
+## File 17 — `repository_ohlc.py`
+
+| Optimization | Status | Notes |
+|---|---|---|
+| Delete dead `bulk_create()` | ✅ applied | Zero callers in src/ or tests/. The pipeline uses `bulk_upsert` (temp-table MERGE). |
+| Delete dead `count_by_hour()` | ✅ applied | Zero callers anywhere. |
+| Delete dead `get_last_close()` (single-row) | ✅ applied | Replaced by `get_last_closes_batch()` in slice 11. The pinned regression guard in `test_fx_ohlc_pipeline.py:213` was relying on a MagicMock attribute that no longer exists in the real class — rewrote it as a source-code assertion (`def get_last_close(` must not reappear). |
+| `delete_range`: load-then-loop-delete → single bulk DELETE | ✅ applied | Old impl loaded every row into memory then called `session.delete()` per row. New impl: `session.execute(delete(FXFactOHLC).where(...))`. `FXFactOHLC` has no ORM cascades or relationships, so the bulk path is equivalent. Returns `rowcount`. |
+| Update `docs/admin/fx/fx_overview.md` module map + anomaly-prescreen description | ✅ applied | Stale references to `repository.py` / `get_last_close()` updated to `repository_ohlc.py` / `get_last_closes_batch()`. |
+| Cross-domain `count_by_date` / `count_by_hour` dead-method audit | 🚧 open | Surfaced 5 other repositories with identical dead `count_by_date()` methods (rates, equity, commodities, rates_skew, rates_vol). Skip until those domains are walked — bundle into the per-domain trim. |
+
+## File 18 — `repository_rate.py`
+
+| Optimization | Status | Notes |
+|---|---|---|
+| Delete dead `count_by_date()` | ✅ applied | Zero callers; same pattern as repository_ohlc's `count_by_hour`. |
+| Drop now-unused imports (`date`, `func`, `select`, `FXFactFXRate`) | ✅ applied | Falls out of the deletion. |
+
+## File 19 — `repository_vol.py` + `vol_translate.py`
+
+`repository_vol.py`:
+
+| Optimization | Status | Notes |
+|---|---|---|
+| Delete dead `FXCurrencyPairRepository.get_or_create()` | ✅ applied | Zero external callers; pipelines use `bulk_seed_from_universe` instead. |
+| Delete dead `FXVolRepository.count_by_date()` | ✅ applied | Zero callers. |
+| Drop now-unused imports (`date`, `func`, `FXFactVol`) | ✅ applied | Falls out of the deletions. |
+| Make `get_by_key()` private | ❌ skipped | Used only internally by `bulk_seed_from_universe`, but the [`fx_dim_currency_pair_string_cleanup.md`](fx_dim_currency_pair_string_cleanup.md) deferred work explicitly targets `get_by_key()` as the JOIN integration point. Leaving it public so the rename ripple stays small. |
+
+`vol_translate.py`:
+
+| Optimization | Status | Notes |
+|---|---|---|
+| Add tests for `citi_vol_tag_to_internal` + `citi_vol_response_to_df` | ✅ applied | 9 new tests in `test_fx_vol_translate.py` — segment count, wrong prefix, empty, sort order, unparseable tag drop, per-tag ERROR skip. Per `feedback_always_write_tests`. |
+| File kept as-is (40 lines, clean, pure helpers) | ✅ applied | Nothing else to do. |
 
 ## Pointers to deferred work docs
 

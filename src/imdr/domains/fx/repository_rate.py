@@ -4,13 +4,9 @@ Reuses FXCurrencyPairRepository for dim seeding (imported from repository_vol).
 """
 from __future__ import annotations
 
-from datetime import date
-
-from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from imdr.connectors.bulk import MergeSpec, bulk_merge
-from imdr.models.fx_rate import FXFactFXRate
 from imdr.schemas.fx_rate import FXRateCreate
 
 FX_RATE_SPEC = MergeSpec(
@@ -41,11 +37,3 @@ class FXRateRepository:
     def bulk_upsert(self, items: list[FXRateCreate]) -> int:
         """Upsert rate observations via shared temp→MERGE utility."""
         return bulk_merge(self._session, FX_RATE_SPEC, items)
-
-    def count_by_date(self, obs_date: date) -> int:
-        result = self._session.execute(
-            select(func.count(FXFactFXRate.id)).where(
-                FXFactFXRate.obs_date == obs_date
-            )
-        ).scalar_one()
-        return result or 0

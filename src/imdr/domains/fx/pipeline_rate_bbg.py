@@ -14,6 +14,7 @@ within the same BBG batch window are no-ops.
 """
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -26,7 +27,11 @@ from imdr.config.pipeline_config import get_pipeline_config
 from imdr.config.settings import Settings
 from imdr.connectors.bulk import chunked_bulk_merge
 from imdr.connectors.mssql import MSSQLConnector
-from imdr.domains.fx.extractors_rate_bbg import BloombergCSVFXRateExtractor
+from imdr.domains.fx.extractors_rate_bbg import (
+    BBGFXSourceFile,
+    BloombergCSVFXRateExtractor,
+    resolve_pair_orientation,
+)
 from imdr.domains.fx.repository_rate import FXRateRepository, FX_RATE_SPEC
 from imdr.domains.fx.repository_vol import FXCurrencyPairRepository
 from imdr.models.frequency import DimFrequency
@@ -96,11 +101,6 @@ class BloombergFXRatePipeline(BasePipeline[pd.DataFrame, list[FXRateCreate], int
         ``self._files`` comes from ``LocalFilesystemAcquirer.fetch()`` —
         we discover orientation + obs_ts (file mtime) here, then extract.
         """
-        from imdr.domains.fx.extractors_rate_bbg import (
-            BBGFXSourceFile, resolve_pair_orientation,
-        )
-        from datetime import datetime, timezone
-
         # Reconstruct BBGFXSourceFile from the acquired Path list. We trust
         # the layout: <root>/<CCY>/FX_<CCY>.csv (parent.name is the ccy code).
         srcs: list[BBGFXSourceFile] = []
@@ -180,12 +180,15 @@ class BloombergFXRatePipeline(BasePipeline[pd.DataFrame, list[FXRateCreate], int
         if raw.empty:
             return []
 
-        # 4. Resolve pair_ids, validate via Pydantic
+        # 4. Resolve pair_ids, validate via Pydantic.
+        # `to_dict("records")` iteration is 10-50× faster than `iterrows()`
+        # for the historical-backfill case (years of daily data → hundreds
+        # of thousands of rows). Same shape as `FXRatePipeline.transform`.
         observations: list[FXRateCreate] = []
         skipped_unmapped = 0
         skipped_nan_mid = 0
         skipped_invalid = 0
-        for _, row in raw.iterrows():
+        for row in raw.to_dict("records"):
             key = (row["base_ccy"], row["quote_ccy"])
             pair_id = pair_id_cache.get(key)
             if pair_id is None:

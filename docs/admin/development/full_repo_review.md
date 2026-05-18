@@ -1,14 +1,14 @@
 # Full Repo Review — Domain-by-Domain Lean Pass
 
 - **Filed**: 2026-05-13
-- **Status**: in progress — 4 of 21 subdirs walked + FX overhaul Phases 1-4 of 6 shipped + FX file-walk 12 of 19 files done
+- **Status**: in progress — 4 of 21 subdirs walked + FX overhaul Phases 1-4 of 6 shipped + FX file-walk 19 of 19 files done ✅
 - **Owner**: <OWNER>
 - **Goal**: **make IMDR lean and meaningful.** Every file justifies itself or it goes. Stale exploration, half-finished refactors, dead `__init__` exports, duplicated patterns, and orphan tests get cut.
 - **Scope**: every file in the repo — **tracked, untracked, and gitignored alike** — reviewed through the lens of *the domain it serves*, not the directory it lives in. Tracked count was 432 as of 2026-05-13; an additional 47 untracked production files surfaced on 2026-05-14 (BBG core ingest, Phase D country/calendar work, polymarket prediction, research MCP). Gitignored runtime dirs (`data/`, `.venv/`, build artifacts) get a quick glance to confirm nothing important is hiding, then we move on.
 
-## Progress log (last updated 2026-05-16)
+## Progress log (last updated 2026-05-19)
 
-Tests: **1058 passing, 6 baseline failures, 2 skipped** (+80 net since walk start). Baseline failures unchanged — same `test_fx_rate_universe` + `test_cmdty_universe` known-fails.
+Tests: **1088 passing, 6 baseline failures, 2 skipped** (+110 net since walk start; +30 in this session). Baseline failures unchanged — same `test_fx_rate_universe` + `test_cmdty_universe` known-fails.
 
 ### Subdirs walked (4 of 21)
 
@@ -46,7 +46,7 @@ Phase 4 artifacts:
 
 PM agent reviewed phases 1-2 before push (green-lit phase-by-phase commits over a single mega-PR, flagged the `pipeline.py` deletion lineage + the BBG-chain staging exclusion, confirmed `fx_dim_currency_pair_string_cleanup.md` conflict avoidance).
 
-### FX file-by-file walk (subdir 5 proper — 12 of 19 files done)
+### FX file-by-file walk (subdir 5 proper — 19 of 19 files done ✅)
 
 Started after the FX overhaul as the formal "per-file verdict" walk over `src/imdr/domains/fx/`. Per-file decisions tracked in [`fx_walk_optimization_log.md`](fx_walk_optimization_log.md) (applied / deferred / skipped with reasons).
 
@@ -64,8 +64,13 @@ Started after the FX overhaul as the formal "per-file verdict" walk over `src/im
 | 10 | `extractors_vol.py` | Opt A, E741, `tag_errors` diagnostic parity, **11 new tests** + filed [`extractor_errors_rename.md`](extractor_errors_rename.md) (cross-domain) | `70eba89`, `0dbbb3d` |
 | 11 | `pipeline_ohlc.py` | **N+1 anomaly prescreen** → batched repo call (~50 RTTs/hour → 1), wire quality thresholds from `pipelines.yml`, capture parquet failures in `result.diagnostics` + **18 new tests** + filed [`single_step_pipeline_abc.md`](single_step_pipeline_abc.md) | `68e01c7` |
 | 12 | `pipeline_rate.py` | **`iterrows()` → `to_dict("records")`** (10-50× faster for backfills) + **12 new tests** including exact-message error assertions + regression guard on `.iterrows(` + extended [`extractor_errors_rename.md`](extractor_errors_rename.md) with pipeline-layer rename | `2f42fe5` |
-
-Pending files 13-19: `pipeline_rate_bbg.py`, `pipeline_rate_bbg_daily.py`, `pipeline_vol.py`, `rate_translate.py`, `repository_ohlc.py`, `repository_rate.py`, `repository_vol.py`, `vol_translate.py`. Several already touched in slices 7-12 via caller updates.
+| 13 | `pipeline_rate_bbg.py` | Hoist function-local imports to module top + **`iterrows()` → `to_dict("records")`** + **4 new tests** (NaN mid_rate skip, frequency-missing error pin, invalid-row skip, `get_run_context`) + flagged transform duplication with `FXRatePipeline.transform` (~90% identical, deferred to consolidation slice) | this session |
+| 14 | `pipeline_rate_bbg_daily.py` | New **5 tests** (`test_bbg_fx_rate_daily_pipeline.py`) — pins the `obs_ts → midnight UTC` override + `FREQUENCY_CODE=DAILY` wiring. Kept the defensive `ts` alias as-is. | this session |
+| 15 | `pipeline_vol.py` | **`iterrows()` → `to_dict("records")`** (closes file 12 punch-list item for vol) + **9 new tests** (`test_fx_vol_pipeline.py`) — module had zero tests prior. | this session |
+| 16 | `rate_translate.py` | Keep — 98 lines, pure helpers, 16 existing tests, no smells. No edits. | — |
+| 17 | `repository_ohlc.py` | Delete dead `bulk_create` + `count_by_hour` + `get_last_close` (single-row, replaced by batched in slice 11); rewrite `delete_range` as single bulk DELETE; rewrite stale regression-guard test as source-code check; update `fx_overview.md` module map. | this session |
+| 18 | `repository_rate.py` | Delete dead `count_by_date` + falls-out imports. | this session |
+| 19 | `repository_vol.py` + `vol_translate.py` | Delete dead `FXCurrencyPairRepository.get_or_create` + `FXVolRepository.count_by_date` + falls-out imports. Kept `get_by_key` public (used by `fx_dim_currency_pair_string_cleanup` follow-up). New **9 tests** for `vol_translate.py` (`test_fx_vol_translate.py`). | this session |
 
 ### Memory notes added during the walk
 
@@ -101,9 +106,12 @@ Pending files 13-19: `pipeline_rate_bbg.py`, `pipeline_rate_bbg_daily.py`, `pipe
 ### Open follow-ups still on the punch list
 
 - ~~`for _, row in raw.iterrows():` in `pipeline_rate.py:172`~~ — **fixed in slice 12** (`2f42fe5`).
-- `for _, row in raw.iterrows():` in `pipeline_vol.py:119` — pending `to_dict("records")` rewrite, will land when file 15 is walked.
+- ~~`for _, row in raw.iterrows():` in `pipeline_vol.py:119`~~ — **fixed in slice 15** (this session).
+- ~~`for _, row in raw.iterrows():` in `pipeline_rate_bbg.py`~~ — **fixed in slice 13** (this session).
 - `BidFXExtractor` integration tests with HTTP mocking — pure-helper tests landed in slice 7; networked surface needs a mocking harness.
 - `BidFXExtractor._process_currency` reaches into `universe._order_pair` private — defer to Stage D1 (universe rewrite, not extractor edit).
+- Cross-domain dead-method audit (`count_by_date` defined-but-unused in `rates/repository.py`, `equity/repository.py`, `commodities/repository.py`, `rates/repository_skew.py`, `rates/repository_vol.py`) — surfaced in slice 17. Bundle with the per-domain trims when those subdirs are walked.
+- FX-rate transform duplication (`pipeline_rate.py` vs `pipeline_rate_bbg.py` — ~90% identical with real semantic differences) — surfaced in slice 13. Bundle with the cleaning-rules consolidation when that lands.
 
 ## Why this structure
 
