@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+import pandas as pd
 import structlog
 
 from imdr.config.pipeline_config import get_pipeline_config
@@ -301,8 +302,6 @@ def _write_parquet(
     log line with no fingerprint in the audit trail.
     """
     try:
-        import pandas as pd
-
         records = [b.model_dump() for b in bars]
         df = pd.DataFrame(records)
         path = Path(batch_dir) / "fx" / "fact_ohlc" / f"{window.start:%Y}" / f"{window.start:%m}" / f"{window.start:%d}" / f"fx_ohlc_{window.start:%Y%m%d_%H%M}.parquet"

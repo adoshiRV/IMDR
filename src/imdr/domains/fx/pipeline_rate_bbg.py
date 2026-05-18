@@ -101,13 +101,31 @@ class BloombergFXRatePipeline(BasePipeline[pd.DataFrame, list[FXRateCreate], int
         ``self._files`` comes from ``LocalFilesystemAcquirer.fetch()`` —
         we discover orientation + obs_ts (file mtime) here, then extract.
         """
+        # Alias the extractor's errors list before any stat()/extract() call
+        # so a path.stat() failure (file deleted between acquisition and
+        # here — R pipeline overwrites in place) and an extractor failure
+        # both flow into the same diagnostic stream.
+        extractor = BloombergCSVFXRateExtractor()
+        self._extraction_errors = extractor.errors
+
         # Reconstruct BBGFXSourceFile from the acquired Path list. We trust
         # the layout: <root>/<CCY>/FX_<CCY>.csv (parent.name is the ccy code).
         srcs: list[BBGFXSourceFile] = []
         for path in self._files:
             ccy = path.parent.name
-            base, quote = resolve_pair_orientation(ccy)
-            mtime = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
+            try:
+                base, quote = resolve_pair_orientation(ccy)
+                mtime = datetime.fromtimestamp(
+                    path.stat().st_mtime, tz=timezone.utc,
+                )
+            except (FileNotFoundError, OSError) as exc:
+                self._extraction_errors.append({
+                    "file": str(path),
+                    "ccy": ccy,
+                    "error": f"{type(exc).__name__}: {exc}",
+                })
+                _log.warning("bbg_source_file_missing", path=str(path), ccy=ccy)
+                continue
             srcs.append(
                 BBGFXSourceFile(
                     path=path, ccy=ccy, base_ccy=base,
@@ -115,9 +133,7 @@ class BloombergFXRatePipeline(BasePipeline[pd.DataFrame, list[FXRateCreate], int
                 )
             )
 
-        extractor = BloombergCSVFXRateExtractor()
         df = extractor.extract(srcs)
-        self._extraction_errors = extractor.errors
 
         # SNAPSHOT semantics: each ingest captures one batch moment per pair.
         # The live BBG CSV holds the full historical tail, but only the top
@@ -141,6 +157,11 @@ class BloombergFXRatePipeline(BasePipeline[pd.DataFrame, list[FXRateCreate], int
 
     def transform(self, raw: pd.DataFrame) -> list[FXRateCreate]:
         """Resolve FKs, validate via Pydantic. Mirrors the Citi pipeline."""
+        # No new BBG snapshot files this fire (R pipeline batch hasn't rolled
+        # over yet, or every file disappeared at acquisition time). Skip the
+        # session — nothing to seed or upsert.
+        if raw.empty:
+            return []
         # 1. Auto-seed dim_currency_pair (idempotent)
         if self._universe is None:
             from imdr.universe.fx import get_fx_universe
@@ -176,9 +197,6 @@ class BloombergFXRatePipeline(BasePipeline[pd.DataFrame, list[FXRateCreate], int
                 )
             vendor_id = vendor.id
             frequency_id = frequency.id
-
-        if raw.empty:
-            return []
 
         # 4. Resolve pair_ids, validate via Pydantic.
         # `to_dict("records")` iteration is 10-50× faster than `iterrows()`

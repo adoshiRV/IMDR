@@ -194,6 +194,33 @@
 | Add tests for `citi_vol_tag_to_internal` + `citi_vol_response_to_df` | ✅ applied | 9 new tests in `test_fx_vol_translate.py` — segment count, wrong prefix, empty, sort order, unparseable tag drop, per-tag ERROR skip. Per `feedback_always_write_tests`. |
 | File kept as-is (40 lines, clean, pure helpers) | ✅ applied | Nothing else to do. |
 
+## Agentic-review pass (post-walk, 2026-05-19)
+
+Ran `imdr-code-reviewer` over the post-walk state. Verified findings, applied
+in-scope correctness fixes and filed the cross-domain items as follow-ups.
+
+### Applied this pass
+
+| File:line | Fix | Reason |
+|---|---|---|
+| [`pipeline_rate_bbg.py`](../../../src/imdr/domains/fx/pipeline_rate_bbg.py) `extract()` | Guard `path.stat()` with `FileNotFoundError`/`OSError` try/except → per-file error entry, continue. Aliased `extractor.errors` to `self._extraction_errors` before the loop so the guard's appends survive. | The R pipeline overwrites in place — a source CSV can disappear between `LocalFilesystemAcquirer.fetch()` and `extract()`. Previously this would crash the whole fire. Test: `TestExtractMissingFileRace`. |
+| [`pipeline_rate_bbg.py`](../../../src/imdr/domains/fx/pipeline_rate_bbg.py) `transform()` | Hoist `if raw.empty: return []` to the top of the method — short-circuit before the session is opened. | Common "no new BBG files" case previously did two DB round-trips (vendor + frequency lookups) for nothing. Test: `TestTransformEmptyShortCircuit`. |
+| [`pipeline_vol.py`](../../../src/imdr/domains/fx/pipeline_vol.py) `extract()` | Alias `extractor.errors` inside the `with CitiVelocityClient` block + `try/finally` for `_quota_usage`. Mirrors the existing `pipeline_rate.py` pattern. | Mid-fetch `TagQuotaExceeded` previously lost the partial-state diagnostic lists because the alias was assigned *after* the context exited. Test: `TestExtractPartialStateSurvivesQuotaExceeded`. |
+| [`pipeline_ohlc.py`](../../../src/imdr/domains/fx/pipeline_ohlc.py) | Hoist `import pandas as pd` to module top; drop the function-local import in `_write_parquet`. | Module already imports heavyweight deps; the lazy `pandas` import bought nothing. |
+
+### Filed as new follow-up docs
+
+- [`quality_dispatch_helper.md`](quality_dispatch_helper.md) — 60-line `_run_quality_checks` dispatch loop duplicated across 4 pipelines (FX rate/vol, rates vol, commodities vol). Also catches a real bug: `qr.meta.get("total_violations") or qr.meta.get("outlier_count") or qr.meta.get("flagged_count")` returns `None` when all three are `0` (falsy). Audit logs currently record `flagged_count: None` for clean runs. Bundle with `healthchecks/` redesign.
+- [`bbg_pipeline_config_split.md`](bbg_pipeline_config_split.md) — `BloombergFXRatePipeline` reads `get_pipeline_config("fx.citi_rate")` for its config. Different cadence + vendor warrants its own entry in `pipelines.yml` so health-check thresholds (`row_count_min`, `max_staleness_hours`) can diverge cleanly. Loop in `imdr-dbm`.
+
+### Verified good (no action)
+
+- `get_last_closes_batch()` cartesian-IN + Python trim — correct; time bound keeps candidates small.
+- `_parquet_store.write_partitioned_parquet` atomic tmp+replace — correct, shared properly.
+- `FXCurrencyPairRepository.bulk_seed_from_universe()` — idempotent via `get_by_key` guard.
+- `BloombergFXRateDailyPipeline.FREQUENCY_CODE` class-attr override — correct mechanism.
+- `_TENOR_NORMALIZATION` post-slice-9 trim — correct.
+
 ## Pointers to deferred work docs
 
 - [ruff_sweep_scope.md](ruff_sweep_scope.md) — 645 ruff findings (273 `UP017`, 65 `F401`, etc.)
@@ -201,3 +228,5 @@
 - [citi_fetch_batch_across_pairs.md](citi_fetch_batch_across_pairs.md) — cross-pair Citi batching
 - [extractor_errors_rename.md](extractor_errors_rename.md) — `_errors` → `errors` rename + optional `BatchedCitiExtractor` base
 - [single_step_pipeline_abc.md](single_step_pipeline_abc.md) — `BasePipeline` ABC abuse for single-step pipelines
+- [quality_dispatch_helper.md](quality_dispatch_helper.md) — shared `_run_quality_checks` helper + `flagged_count` 0-falsy bug
+- [bbg_pipeline_config_split.md](bbg_pipeline_config_split.md) — BBG pipelines need their own `pipelines.yml` entries

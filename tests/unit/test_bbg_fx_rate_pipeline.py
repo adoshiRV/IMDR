@@ -351,6 +351,63 @@ class TestTransformRowIteration:
         assert observations == []
 
 
+class TestExtractMissingFileRace:
+    """A BBG source file can disappear between LocalFilesystemAcquirer.fetch()
+    and pipeline.extract() — the R pipeline overwrites in place. The pipeline
+    must record the per-file error and continue, not crash."""
+
+    def test_missing_file_recorded_not_raised(self, tmp_path: Path) -> None:
+        present_csv = (tmp_path / "JPY")
+        present_csv.mkdir()
+        f_present = present_csv / "FX_JPY.csv"
+        f_present.write_text(
+            "Ticker,JPY curncy,JPY1M curncy\n"
+            "Tenor,FX_JPY_SPOT,FX_JPY_1M\n"
+            "Maturity,0,0.083333333\n"
+            "23/04/2026,159.55,159.1444\n"
+        )
+        # A file that doesn't exist — simulates mid-fire deletion / overwrite.
+        f_missing = tmp_path / "EUR" / "FX_EUR.csv"
+
+        pipeline = BloombergFXRatePipeline(
+            files=[f_present, f_missing],
+            connector=MagicMock(),
+            settings=MagicMock(),
+        )
+        df = pipeline.extract()
+
+        # Present file still processed
+        assert not df.empty
+        # Missing file surfaced as a per-file error entry
+        assert any(
+            "FileNotFoundError" in err.get("error", "")
+            or "WinError" in err.get("error", "")
+            for err in pipeline._extraction_errors
+        )
+
+
+class TestTransformEmptyShortCircuit:
+    """Empty raw_df must skip the session entirely — no dim seed, no FK lookups.
+
+    Previously the empty check sat *after* the FK-resolution block, so the
+    common "no new BBG files yet" case opened a session and ran two queries.
+    """
+
+    def test_empty_raw_skips_session(self) -> None:
+        mock_connector = MagicMock()
+        # If the session is opened, mock_connector.session.assert_not_called
+        # will fail.
+        pipeline = BloombergFXRatePipeline(
+            files=[],
+            connector=mock_connector,
+            settings=MagicMock(),
+            universe=MagicMock(),
+        )
+        result = pipeline.transform(pd.DataFrame())
+        assert result == []
+        mock_connector.session.assert_not_called()
+
+
 class TestGetRunContext:
     def test_returns_latest_obs_date(self, jpy_csv: Path) -> None:
         pipeline = BloombergFXRatePipeline(

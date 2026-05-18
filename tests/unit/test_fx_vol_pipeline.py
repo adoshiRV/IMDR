@@ -238,3 +238,46 @@ class TestRunContext:
             end=datetime(2026, 3, 10, 23, 59),
         )
         assert pipeline.get_run_context() == {"run_date": date(2026, 3, 10)}
+
+
+class TestExtractPartialStateSurvivesQuotaExceeded:
+    """Symmetric with the pipeline_rate.py contract: when extract() raises
+    mid-fetch (e.g. TagQuotaExceeded), the partial-state diagnostic lists
+    (`_extraction_errors`, `_quota_usage`) must already be populated so
+    the caller's report formatter can show what got through."""
+
+    @patch("imdr.domains.fx.pipeline_vol.CitiVelocityClient")
+    @patch("imdr.domains.fx.pipeline_vol.TagQuotaTracker")
+    @patch("imdr.domains.fx.pipeline_vol.CitiVelocityFXVolExtractor")
+    def test_extraction_errors_aliased_before_extract_call(
+        self, mock_extractor_cls, mock_tracker_cls, mock_client_cls
+    ) -> None:
+        # Tracker reports a usage value
+        mock_tracker = MagicMock()
+        mock_tracker.current_usage.return_value = 1234
+        mock_tracker_cls.return_value = mock_tracker
+
+        # Client is a context manager
+        mock_client_cls.return_value.__enter__.return_value = MagicMock()
+        mock_client_cls.return_value.__exit__.return_value = None
+
+        # Extractor: errors list pre-populated, extract() raises mid-fetch.
+        mock_extractor = MagicMock()
+        partial_errors = [{"pair": "EUR/USD", "error": "tag quota reached"}]
+        mock_extractor.errors = partial_errors
+        mock_extractor.extract.side_effect = RuntimeError("TagQuotaExceeded")
+        mock_extractor_cls.return_value = mock_extractor
+
+        pipeline = FXVolPipeline(
+            connector=MagicMock(),
+            settings=MagicMock(),
+            universe=MagicMock(),
+            start=datetime(2026, 3, 10),
+            end=datetime(2026, 3, 10),
+        )
+        with pytest.raises(RuntimeError, match="TagQuotaExceeded"):
+            pipeline.extract()
+
+        # Partial state survived the raise
+        assert pipeline._extraction_errors is partial_errors
+        assert pipeline._quota_usage == 1234

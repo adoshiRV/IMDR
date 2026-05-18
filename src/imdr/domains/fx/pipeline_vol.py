@@ -87,10 +87,15 @@ class FXVolPipeline(BasePipeline[pd.DataFrame, list[FXVolCreate], int]):
                 universe=self._universe,
                 quota_tracker=tracker,
             )
-            df = extractor.extract(self._start, self._end, self._pairs)
+            # Alias the extractor's diagnostic list so it stays populated
+            # in-place even if extract() raises (e.g. TagQuotaExceeded).
+            # Mirrors the pipeline_rate.py pattern.
+            self._extraction_errors = extractor.errors
+            try:
+                df = extractor.extract(self._start, self._end, self._pairs)
+            finally:
+                self._quota_usage = tracker.current_usage()
 
-        self._extraction_errors = extractor.errors
-        self._quota_usage = tracker.current_usage()
         self._raw_df = df
         _log.info("extract_complete", rows=len(df),
                    extraction_errors=len(self._extraction_errors),
