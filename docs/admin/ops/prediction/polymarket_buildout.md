@@ -22,7 +22,7 @@ Build is incremental. Each step is small, validated, and preserves option value 
 | 2 (orig) | Scheduled event snapshots (2x/day) + analytic companion | superseded — kept on disk |
 | **2 (current)** | **URL-driven watcher: SQLite on `C:\IMDR_LOCAL\polymarket\` with poll / loop / cleanup** | **done** |
 | **3** | **Polywatch — move-detection runtime over `observations.db` with email alerts** | **done** |
-| 3.5 | Polywatch — Teams channel integration (Adaptive Cards via Workflows webhook) | later |
+| 3.5 | Macro snapshot — Teams channel posts (Adaptive Cards via Workflows webhook) | **done — AM via `imdr_daily.py`, PM via `imdr_evening.py`. See [teams_integration.md](teams_integration.md). Polywatch SPIKE/MODAL_FLIP alerts on the same channel still deferred.** |
 | 4 | Cross-asset overlay — align event panel against IMDR rates/FX snapshots | later |
 | 5 | Consumption surface — morning brief, alert thresholds, Slack/email | later |
 | 6 | Historical backfill via CLOB `/prices-history` for retrospective study | later |

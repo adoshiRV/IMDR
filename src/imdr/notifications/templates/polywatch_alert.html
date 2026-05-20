@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;font-family:Calibri,Arial,sans-serif;font-size:14px;color:#222;">
+
+<!-- Header -->
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#1a1a2e;">
+  <tr>
+    <td style="padding:18px 24px;">
+      <span style="color:#ffffff;font-size:20px;font-weight:bold;">Polywatch &mdash; Polymarket Move Detector</span>
+      {% if has_critical %}
+      <span style="background:#e74c3c;color:#fff;padding:4px 12px;border-radius:4px;font-size:13px;font-weight:bold;margin-left:16px;">{{ n_total }} MOVING</span>
+      {% elif n_total > 0 %}
+      <span style="background:#e67e22;color:#fff;padding:4px 12px;border-radius:4px;font-size:13px;font-weight:bold;margin-left:16px;">{{ n_total }} DRIFTING</span>
+      {% else %}
+      <span style="background:#27ae60;color:#fff;padding:4px 12px;border-radius:4px;font-size:13px;font-weight:bold;margin-left:16px;">QUIET</span>
+      {% endif %}
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:0 24px 14px 24px;">
+      <span style="color:#bdc3c7;font-size:14px;">Detected at: {{ run_time_utc }} / {{ run_time_sgt }}</span>
+    </td>
+  </tr>
+</table>
+
+<!-- Summary -->
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;">
+  <tr><td style="padding:0 24px;"><span style="font-size:16px;font-weight:bold;color:#1a1a2e;">SUMMARY</span></td></tr>
+</table>
+<table width="96%" cellpadding="6" cellspacing="0" style="margin:8px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;">
+  <tr style="background:#f5f5f5;">
+    <td style="border:1px solid #ddd;font-weight:bold;width:200px;">Events Triggered</td>
+    <td style="border:1px solid #ddd;">
+      {% if n_total > 0 %}<span style="font-weight:bold;">{{ n_total }}</span>{% else %}0{% endif %}
+    </td>
+  </tr>
+  <tr>
+    <td style="border:1px solid #ddd;font-weight:bold;">SPIKE (|&Delta;| &ge; spike threshold)</td>
+    <td style="border:1px solid #ddd;">
+      {% if n_spike > 0 %}<span style="color:#c0392b;font-weight:bold;">{{ n_spike }}</span>{% else %}<span style="color:#888;">0</span>{% endif %}
+    </td>
+  </tr>
+  <tr style="background:#f5f5f5;">
+    <td style="border:1px solid #ddd;font-weight:bold;">MODAL_FLIP (leader changed)</td>
+    <td style="border:1px solid #ddd;">
+      {% if n_modal_flip > 0 %}<span style="color:#c0392b;font-weight:bold;">{{ n_modal_flip }}</span>{% else %}<span style="color:#888;">0</span>{% endif %}
+    </td>
+  </tr>
+  <tr>
+    <td style="border:1px solid #ddd;font-weight:bold;">DRIFT (cumulative |&Delta;| over window)</td>
+    <td style="border:1px solid #ddd;">
+      {% if n_drift > 0 %}<span style="color:#e67e22;font-weight:bold;">{{ n_drift }}</span>{% else %}<span style="color:#888;">0</span>{% endif %}
+    </td>
+  </tr>
+  <tr style="background:#f5f5f5;">
+    <td style="border:1px solid #ddd;font-weight:bold;">VOL_BURST (24h vol &ge; ratio &times; baseline)</td>
+    <td style="border:1px solid #ddd;">
+      {% if n_vol_burst > 0 %}<span style="color:#8e44ad;font-weight:bold;">{{ n_vol_burst }}</span>{% else %}<span style="color:#888;">0</span>{% endif %}
+    </td>
+  </tr>
+</table>
+
+<!-- Body: per-asset-bucket sections, each with event cards and per-event sub-market tables -->
+{% for grp in asset_groups %}
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:24px;">
+  <tr>
+    <td style="padding:0 24px;">
+      <span style="font-size:16px;font-weight:bold;color:#1a1a2e;">{{ grp.asset_label }}</span>
+      <span style="color:#666;font-size:13px;margin-left:8px;">&mdash; {{ grp.count }} event{% if grp.count != 1 %}s{% endif %}</span>
+      <span style="color:#bdc3c7;font-size:11px;margin-left:8px;">[{{ grp.asset_tag }}]</span>
+    </td>
+  </tr>
+</table>
+
+{% for ev in grp.events %}
+<!-- Event header: title link + alert badges -->
+<table width="96%" cellpadding="0" cellspacing="0" style="margin:14px auto 0 auto;">
+  <tr>
+    <td style="padding:8px 12px;background:#fdecea;border-left:4px solid {% if 'SPIKE' in ev.alert_classes or 'MODAL_FLIP' in ev.alert_classes %}#e74c3c{% elif 'DRIFT' in ev.alert_classes %}#e67e22{% else %}#8e44ad{% endif %};font-size:15px;">
+      <a href="{{ ev.polymarket_url }}" style="color:#1f4e79;font-weight:bold;text-decoration:underline;">{{ ev.event_title }}</a>
+      {% for b in ev.badges %}
+      <span style="background:{{ b.colour }};color:#fff;padding:2px 8px;border-radius:3px;font-size:11px;font-weight:bold;margin-left:6px;">{{ b.class }}</span>
+      {% endfor %}
+    </td>
+  </tr>
+</table>
+
+<!-- Children sub-table -->
+{% if ev.has_children %}
+<table width="96%" cellpadding="6" cellspacing="0" style="margin:0 auto 0 auto;border-collapse:collapse;border:1px solid #ddd;font-size:13px;">
+  <tr style="background:#f5f5f5;">
+    <td style="border:1px solid #ddd;font-weight:bold;">Question</td>
+    <td style="border:1px solid #ddd;font-weight:bold;width:80px;">YES</td>
+    <td style="border:1px solid #ddd;font-weight:bold;width:130px;">&Delta; vs prior</td>
+    <td style="border:1px solid #ddd;font-weight:bold;width:90px;">24h Vol</td>
+    <td style="border:1px solid #ddd;font-weight:bold;width:70px;">Spread</td>
+  </tr>
+  {% for c in ev.child_rows %}
+  <tr {% if c.is_modal %}style="background:#fff8e1;"{% elif c.is_resolved %}style="background:#fafafa;color:#888;"{% endif %}>
+    <td style="border:1px solid #ddd;{% if c.is_modal %}font-weight:bold;{% endif %}">
+      {{ c.question }}
+      {% if c.is_new_leader %}
+      <span style="background:#27ae60;color:#fff;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:bold;margin-left:6px;">&rarr; NEW LEADER</span>
+      {% elif c.was_modal and not c.is_modal %}
+      <span style="background:#bdc3c7;color:#fff;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:bold;margin-left:6px;">was leader</span>
+      {% endif %}
+      {% if c.is_new %}
+      <span style="background:#3498db;color:#fff;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:bold;margin-left:6px;">NEW</span>
+      {% endif %}
+      {% if c.is_resolved %}
+      <span style="background:#7f8c8d;color:#fff;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:bold;margin-left:6px;">RESOLVED</span>
+      {% endif %}
+    </td>
+    <td style="border:1px solid #ddd;font-family:Consolas,monospace;{% if c.is_modal %}font-weight:bold;{% endif %}">{{ c.yes_pct }}</td>
+    <td style="border:1px solid #ddd;font-family:Consolas,monospace;">
+      {% if c.delta_pp %}
+      <span style="color:{% if c.delta_value > 0 %}#27ae60{% elif c.delta_value < 0 %}#c0392b{% else %}#666{% endif %};font-weight:bold;">{{ c.arrow|safe }} {{ c.delta_pp }}</span>
+      {% else %}
+      <span style="color:#888;">&mdash;</span>
+      {% endif %}
+    </td>
+    <td style="border:1px solid #ddd;font-family:Consolas,monospace;">{{ c.vol_24h_fmt }}</td>
+    <td style="border:1px solid #ddd;font-family:Consolas,monospace;{% if ev.is_illiquid and c.is_modal %}color:#c0392b;font-weight:bold;{% endif %}">{{ c.spread_pct }}</td>
+  </tr>
+  {% endfor %}
+  {% if ev.n_children_truncated > 0 %}
+  <tr>
+    <td colspan="5" style="border:1px solid #ddd;color:#888;font-size:12px;font-style:italic;background:#fafafa;">
+      &hellip; +{{ ev.n_children_truncated }} child market{% if ev.n_children_truncated != 1 %}s{% endif %} with smaller moves not shown
+    </td>
+  </tr>
+  {% endif %}
+</table>
+{% else %}
+<!-- Single-market event without children populated — fall back to modal-only summary -->
+<table width="96%" cellpadding="6" cellspacing="0" style="margin:0 auto 0 auto;border-collapse:collapse;border:1px solid #ddd;font-size:13px;">
+  <tr>
+    <td style="border:1px solid #ddd;width:160px;font-weight:bold;background:#fafafa;">Modal Question</td>
+    <td style="border:1px solid #ddd;">{{ ev.modal_question }}</td>
+  </tr>
+  <tr>
+    <td style="border:1px solid #ddd;font-weight:bold;background:#fafafa;">Modal YES</td>
+    <td style="border:1px solid #ddd;font-family:Consolas,monospace;">
+      {{ ev.prior_modal_yes_pct }} &rarr; <span style="font-weight:bold;">{{ ev.modal_yes_pct }}</span>
+      <span style="margin-left:12px;color:#666;font-weight:bold;">{{ ev.delta_pp }}</span>
+    </td>
+  </tr>
+  <tr>
+    <td style="border:1px solid #ddd;font-weight:bold;background:#fafafa;">24h Volume</td>
+    <td style="border:1px solid #ddd;font-family:Consolas,monospace;">
+      {{ ev.vol_24h_fmt }}
+      {% if ev.vol_ratio is not none %}
+      <span style="margin-left:12px;color:{% if ev.vol_ratio >= 5 %}#8e44ad{% else %}#666{% endif %};font-weight:bold;">{{ ev.vol_ratio_fmt }} vs 7d avg</span>
+      {% endif %}
+    </td>
+  </tr>
+</table>
+{% endif %}
+
+<!-- Lookback / vol-ratio annotation strip below the children table -->
+{% if ev.delta_lookback_pp != 'n/a' or ev.vol_ratio_fmt %}
+<table width="96%" cellpadding="3" cellspacing="0" style="margin:0 auto 0 auto;font-size:12px;color:#666;">
+  <tr>
+    <td style="padding-left:6px;">
+      {% if ev.delta_lookback_pp != 'n/a' %}
+      Lookback: <span style="font-family:Consolas,monospace;">{{ ev.delta_lookback_pp }}</span>
+      {% endif %}
+      {% if ev.vol_ratio_fmt %}
+      &nbsp;&middot;&nbsp; Vol ratio (24h vs 7d avg): <span style="font-family:Consolas,monospace;color:{% if ev.vol_ratio >= 5 %}#8e44ad{% else %}#666{% endif %};font-weight:bold;">{{ ev.vol_ratio_fmt }}</span>
+      {% endif %}
+    </td>
+  </tr>
+</table>
+{% endif %}
+{% endfor %}
+
+{% if grp.n_suppressed > 0 %}
+<table width="96%" cellpadding="0" cellspacing="0" style="margin:6px auto 0 auto;">
+  <tr>
+    <td style="padding:6px 12px;color:#888;font-size:12px;font-style:italic;background:#fafafa;border:1px solid #eee;">
+      &hellip; +{{ grp.n_suppressed }} more uncurated event{% if grp.n_suppressed != 1 %}s{% endif %} suppressed (cap = {{ grp.n_rendered }})
+    </td>
+  </tr>
+</table>
+{% endif %}
+{% endfor %}
+
+{% if n_total == 0 %}
+<table width="96%" cellpadding="0" cellspacing="0" style="margin:24px auto 0 auto;">
+  <tr>
+    <td style="padding:14px;color:#666;background:#f5f5f5;border:1px solid #ddd;">
+      No watchlisted events crossed the move thresholds in this detection cycle.
+    </td>
+  </tr>
+</table>
+{% endif %}
+
+<!-- Footer: thresholds applied -->
+{% if thresholds %}
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:24px;background-color:#f0f0f0;border-top:2px solid #ddd;">
+  <tr>
+    <td style="padding:12px 24px;color:#888;font-size:12px;">
+      <b>Thresholds applied:</b>
+      SPIKE &ge; {{ '%.0f'|format((thresholds.spike or 0) * 100) }}pp,
+      DRIFT &ge; {{ '%.0f'|format((thresholds.drift or 0) * 100) }}pp over {{ thresholds.drift_lookback_hours }}h,
+      VOL_BURST &ge; {{ thresholds.vol_burst_ratio }}&times; 7d avg,
+      ILLIQUID guard at spread &gt; {{ '%.0f'|format((thresholds.illiquid_spread or 0) * 100) }}pp,
+      cooldown {{ thresholds.cooldown_minutes }}m / re-arm at &Delta; {{ '%.0f'|format((thresholds.rearm_delta or 0) * 100) }}pp.
+      <br/>
+      Generated by Polywatch | {{ run_time_utc }}
+    </td>
+  </tr>
+</table>
+{% else %}
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:24px;background-color:#f0f0f0;border-top:2px solid #ddd;">
+  <tr>
+    <td style="padding:12px 24px;color:#888;font-size:12px;">
+      Generated by Polywatch | {{ run_time_utc }}
+    </td>
+  </tr>
+</table>
+{% endif %}
+
+</body>
+</html>
