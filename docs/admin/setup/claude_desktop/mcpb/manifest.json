@@ -1,0 +1,24 @@
+{
+  "manifest_version": "0.3",
+  "name": "imdr-db",
+  "display_name": "IMDR Database (Read-Only)",
+  "version": "1.0.0",
+  "description": "Read-only access to the IMDR (Internal Market Data Repository) SQL Server database. Browse schemas, inspect tables, and run SELECT queries — all audit-logged.",
+  "mcp_config": {
+    "command": "python",
+    "args": [
+      "${__dirname}/server/server.py"
+    ],
+    "env": {
+      "IMDR_MSSQL_HOST": "<DB_HOST>",
+      "IMDR_MSSQL_DATABASE": "IMDR"
+    }
+  },
+  "user_config": {
+    "IMDR_MSSQL_DRIVER": {
+      "description": "ODBC driver name. Run 'python -c \"import pyodbc; print(pyodbc.drivers())\"' to check. Common values: 'SQL+Server' or 'ODBC+Driver+17+for+SQL+Server'.",
+      "default": "SQL+Server",
+      "sensitive": false
+    }
+  }
+}

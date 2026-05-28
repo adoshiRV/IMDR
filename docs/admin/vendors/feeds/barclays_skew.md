@@ -76,5 +76,5 @@ PingFederate SSO, no MFA at the moment. If MFA is later enforced, SSO must be re
 
 - Spec: [src/imdr/vendors/specs/barclays_skew.py](../../../../src/imdr/vendors/specs/barclays_skew.py)
 - Pipeline: [src/imdr/domains/rates/pipeline_skew.py](../../../../src/imdr/domains/rates/pipeline_skew.py)
-- Schema doc: [docs/rates/swaption_skew.md](../../../rates/swaption_skew.md)
+- Schema doc: [docs/admin/rates/swaption_skew_schema.md](../../rates/swaption_skew_schema.md)
 - Migration: `migrations/017_create_rates_swaption_skew.sql`

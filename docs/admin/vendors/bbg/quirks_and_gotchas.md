@@ -114,7 +114,7 @@ End BbgCheck|value=NA|user=spanda|batchStart=2026-04-22 09:25:16.175
 
 BBG option `nonTradingDayFillOption=NON_TRADING_WEEKDAYS, nonTradingDayFillMethod=PREVIOUS_VALUE` returns weekend/holiday days with the previous-business-day value. This is fine for daily-close data but **silently fills regional holidays** — e.g., Chinese New Year week on a CNY curve shows "data" but it's stale.
 
-Our IMDR calendar (`calendar.cb_events`, `dim_market`) would let us strip these out. BBG CSVs don't flag them.
+Our IMDR calendar (`calendar.cb_events`, `dbo.dim_country`) would let us strip these out. BBG CSVs don't flag them.
 
 ### 22. `bdh` without `currency=USD` option returns native currency
 

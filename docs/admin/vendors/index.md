@@ -47,11 +47,12 @@ scripts/run_vendor_feed.py  python -m scripts.run_vendor_feed <feed>
 
 Use `python -m scripts.run_vendor_feed --list` to enumerate registered feeds at runtime.
 
-## External systems documented (not yet onboarded)
+## Vendor-specific documentation
 
-| System | Status | Docs |
+| Vendor | Status | Docs |
 |---|---|---|
-| **Bloomberg (BBG)** via existing R pipeline on Z:\ | Documentation-only — IMDR integration planned | [bbg/index.md](bbg/index.md) |
+| **Citi Velocity** | Live — primary vendor for rates, FX, equity, commodities | [citi/index.md](citi/index.md) |
+| **Bloomberg (BBG)** via existing R pipeline on Z:\ | FX live as of 2026-04-25; other domains documentation-only | [bbg/index.md](bbg/index.md) |
 
 ## Key guarantees
 

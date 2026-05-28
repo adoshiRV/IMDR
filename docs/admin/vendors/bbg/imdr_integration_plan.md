@@ -1,5 +1,7 @@
 # BBG Feed — IMDR Integration Plan
 
+> **Status (2026-04-25)**: FX phases A + B + D **complete**. 520K rows across 25 pairs back to 2007 in `fx.fact_fx_rate`. See [docs/admin/fx/fx_rate_bbg.md](../../fx/fx_rate_bbg.md) for the live operational picture and [docs/admin/ops/bbg_intraday_schedule.md](../../ops/bbg_intraday_schedule.md) for the 6×/day Task Scheduler install. Sections below describe the original design choices made during planning.
+
 ## Goal
 
 Ingest Bloomberg-sourced market data into IMDR without disrupting the existing R-based multi-PC pipeline on Z:\. The R pipeline stays authoritative for the existing dashboards; IMDR becomes a parallel consumer that stores the same data in normalized DB form plus parquet archives, with the usual run-logging, email reports, and health checks.

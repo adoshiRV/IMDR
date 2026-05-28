@@ -1,6 +1,32 @@
 # Bloomberg (BBG) Feed — System Documentation
 
-This documents the **existing** Bloomberg data-refresh system that lives on the shared Z: drive (`Z:\Business\Research\Dashboard\DataSources\BBG\`, which maps to `\\RVSG-FS01\shared\Business\Research\Dashboard\DataSources\BBG\`). It is **not** part of the IMDR codebase today; IMDR ingestion is planned — see [imdr_integration_plan.md](imdr_integration_plan.md).
+> ## ⚠️ HARD RULE — BBG FILES MUST NEVER BE MOVED, RENAMED, OR DELETED BY IMDR ⚠️
+>
+> The R pipeline on the upstream PCs **owns** every file under
+> `Z:\Business\Research\Dashboard\DataSources\BBG\` and `Z:\...\BBG_ASIA\`.
+> It overwrites them in place each batch. If IMDR moves a file out of the
+> way, the next 30-min poll has nothing to read and the upstream overwrite
+> loop is disrupted.
+>
+> **IMDR access to this tree is strictly read-only:** `glob`, `stat`,
+> `pd.read_csv`. Never `os.rename`, `Path.replace`, `shutil.move`,
+> `Path.unlink`, `Path.write_*`, `to_csv`, etc.
+>
+> Enforced in code by `archive_after_load=False` on every BBG-sourced
+> `VendorFeed`. Enforced in tests by
+> `tests/unit/test_vendors/test_bbg_fx_snapshot_no_move.py` — 5 tests
+> that fail loudly if anyone flips the flag or alters the runner. Any
+> new BBG-sourced feed (rates, vol, credit, bonds, futures) MUST follow
+> the same pattern and add an equivalent lock-in test.
+>
+> Outputs always go to the IMDR repo's local `data/` tree or to the
+> `IMDR` SQL database — never back into Z:\BBG\.
+
+This documents the **existing** Bloomberg data-refresh system that lives on the shared Z: drive (`Z:\Business\Research\Dashboard\DataSources\BBG\`, which maps to `\\RVSG-FS01\shared\Business\Research\Dashboard\DataSources\BBG\`).
+
+**FX status**: ingestion live as of 2026-04-25. 520K rows across 25 pairs back to 2007 in `fx.fact_fx_rate`. See [docs/admin/fx/fx_rate_bbg.md](../../fx/fx_rate_bbg.md) for IMDR-side operations and [bbg_intraday_schedule.md](../../ops/bbg_intraday_schedule.md) for the 6×/day Task Scheduler setup. Other domains (Rates / Vol / Credit / Bonds / Futures / Listed) are still upstream-only.
+
+For the original integration design, see [imdr_integration_plan.md](imdr_integration_plan.md).
 
 > **Scope**: this is a field-walk of the R-based multi-PC fetcher operated by the research team. The goal is to capture exactly how it works so IMDR can consume the outputs cleanly without disturbing the existing pipeline.
 

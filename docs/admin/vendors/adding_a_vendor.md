@@ -17,7 +17,7 @@ If the shape doesn't exist yet, implement the acquirer under `src/imdr/vendors/a
 
 ## 2. Seed the vendor in `dim_vendor` (if new)
 
-Check `docs/admin/dim_vendor.md` for the current seeds. If your vendor isn't there, add it via a follow-up migration. The vendor code you use in the spec must match `dbo.dim_vendor.vendor_code` — `resolve_vendor_id()` will fail loudly otherwise.
+Check `docs/admin/reference/dim_vendor.md` for the current seeds. If your vendor isn't there, add it via a follow-up migration. The vendor code you use in the spec must match `dbo.dim_vendor.vendor_code` — `resolve_vendor_id()` will fail loudly otherwise.
 
 ## 3. Add credentials to settings + `.env`
 

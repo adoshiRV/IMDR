@@ -57,5 +57,5 @@ The framework does not push credentials to vendor portals; it only makes them av
 
 ## Related
 
-- [../dim_vendor.md](../dim_vendor.md) — full vendor-dimension schema
+- [../reference/dim_vendor.md](../reference/dim_vendor.md) — full vendor-dimension schema
 - [sso_and_sessions.md](sso_and_sessions.md) — bootstrap / profile management

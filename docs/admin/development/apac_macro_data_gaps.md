@@ -59,7 +59,7 @@ Before sizing any trade, the desk needs to know the vol regime.
 |---|---|---|---|---|
 | FX vol surface (17 pairs, full strike/tenor) | `fact_vol_surface` | fx | BUILT | Citi Velocity |
 | Swaption vol cube (11 ccys, 3D surface) | `fact_swaption_vol` | rates | BUILT | Citi Velocity |
-| VIX, VIX3M, VIX9D, VVIX, VXN | `fact_vix` | equities | **BUILT** — pipeline + market_code FK | Citi Velocity |
+| VIX, VIX3M, VIX9D, VVIX, VXN | `fact_vix` | equities | **BUILT** — pipeline (ticker-anchored; no country FK) | Citi Velocity |
 | MOVE index (rates vol) | `fact_move` | equities | **NOT ON CITI** — ICE/BofA proprietary | Bloomberg |
 | Equity vol swaps (197 tickers × 13 tenors) | `fact_equity_vol` | equities | READY — VOLSWAP confirmed | Citi Velocity |
 | Variance swaps (SPX, NDX, N225 etc.) | `fact_equity_vol` | equities | READY — VARSWAP confirmed | Citi Velocity |
@@ -137,7 +137,7 @@ For a rates desk, equities are regime inputs, not a book.
 
 | What the desk needs | Table | Schema | Status | Source |
 |---|---|---|---|---|
-| Global index levels (24 tickers) | `fact_index_level` | equities | **BUILT** — 24 indices, dim_index + market_code FK | Citi Velocity |
+| Global index levels (24 tickers) | `fact_index_level` | equities | **BUILT** — 24 indices, `dim_index.country_id` FK to `dbo.dim_country` | Citi Velocity |
 | Equity vol (VOLSWAP, VARSWAP) | `fact_equity_vol` | equities | READY | Citi Velocity |
 | VIX family | `fact_vix` | equities | **BUILT** — VIX, VIX3M, VIX9D, VVIX, VXN | Citi Velocity |
 | Sector rotation (cyclicals vs defensives) | `fact_sector_rotation` | equities | NOT BUILT | Bloomberg |
@@ -286,7 +286,7 @@ Exhaustively probed 2026-03-26. These are dead ends on the Citi Velocity chartin
 | Credit/CDS (CDX, iTraxx, sovereign) | CREDIT, CDS, CDX, ITRAXX, FI, BOND, SPREAD + 6 more | Not on charting API |
 | MOVE index | Multiple RATES.* prefixes | ICE/BofA proprietary, Bloomberg only |
 | FX deposit rates | FX.DEPOSIT — 50 ccys browsable | Tag tree exists, zero data returns |
-| FX NDF points vs USD (wrong direction) | FX.FORWARD.FWD_POINT.{NDF_CCY}.USD | NDF ccys are not forward bases — use `USD.{NDF_CCY}` instead (see [docs/fx/citi_velocity_fx.md](../../fx/citi_velocity_fx.md), verified 2026-04-21) |
+| FX NDF points vs USD (wrong direction) | FX.FORWARD.FWD_POINT.{NDF_CCY}.USD | NDF ccys are not forward bases — use `USD.{NDF_CCY}` instead (see [docs/admin/vendors/citi/exploration/fx_spot_forward.md](../vendors/citi/exploration/fx_spot_forward.md), verified 2026-04-21) |
 | JPY money markets (TONAR) | RATES.MONEY_MARKETS.JPY | Tags exist, all empty |
 | European vol indices (V2X, VSTOXX, VDAX) | EQUITY.EQUITY_INDEX | No data |
 | China/EM macro data | Various root prefixes | Not on any Citi API |
