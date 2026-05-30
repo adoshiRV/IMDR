@@ -74,14 +74,33 @@ endpoint below.
 
 ## Listing API — GraphQL (Phase 2 confirmed)
 
+> **Why GraphQL over the higher-scoring `Home.model.json`?** The
+> `probe_listing_apis.py` log scored
+> `/jpmcp-cm/content/jpm-cp/research/Index/Home.model.json` highest
+> (2038, vs GraphQL 1054). That endpoint is the AEM page-config blob
+> for the research-home dashboard (sidebars, hero tiles, widget
+> layout) — it happens to embed lots of doc UUIDs but it does **not**
+> page the underlying corpus. GraphQL is what backs every actual
+> search / listing view in the SPA, and is the only one of the probed
+> endpoints with per-doc metadata (title/synopsis/analysts/etc) on a
+> paginated, date-filterable contract. A sibling endpoint
+> `/research/controller/aem/query` returns the same response shape but
+> only fires for widget-level lookups (the Phase-2 probe of the
+> Flagship-Latest search page never triggered it); we ignore it.
+
 **Endpoint:** `POST https://markets.jpmorgan.com/research/controller/graphql/query-v2`
 
 **Auth:** session cookies (Playwright persistent profile handles this
-automatically; no separate token in headers).
+automatically) **plus** a custom `janus_user` header carrying the
+portal username — see headers below. The SPA injects `janus_user` on
+every GraphQL call; we have not yet confirmed whether the server
+rejects calls without it, but the crawler should send it to be safe.
 
 **Headers used by the SPA:**
 - `content-type: application/json`
 - `accept: */*`
+- `janus_user: <portal-username>` — e.g. `janus_user: arjund`. Source
+  from `IMDR_RESEARCH_JPM_USERNAME` in the crawler; do **not** hard-code.
 - `referer: https://markets.jpmorgan.com/mcp-home/search?…` (cosmetic)
 
 **Request body:**
@@ -147,8 +166,8 @@ on the page is older than `since`.
 | `isResearch`          | `Y` \| `N`                                             | drop `N` in discovery filter   |
 | `contentTypes`        | `["PUBNOT"]`                                           | additional admin filter        |
 | `pageCount`           | `32`                                                   | sanity check during fetch      |
-| `analysts.results[]`  | `[{sid, displayName, primary, publishingAnalyst, businessGroup}]` | classifier `tags`     |
-| `businessGroup`       | `Global Markets Strategy`                              | classifier `asset_class` hint  |
+| `analysts.results[]`  | `[{sid, displayName, primary, active, publishingAnalyst, businessGroup}]` | classifier `tags`     |
+| `businessGroup`       | **OBJECT** — `{displayName: "Global Markets Strategy", subCategoryLabel: "Research", overrideDisplayName: …}` — use `.displayName` (or `.overrideDisplayName` when set) | classifier `asset_class` hint  |
 | `companies.results[]` | `[{ricCode: {ticker, exchange}}]`                      | single-name equity signal      |
 
 ### Aggregations (free taxonomy — use for classifier mapping)
@@ -159,7 +178,7 @@ controlled vocabulary. Snapshot from Flagship-Latest (9,404 docs):
 | Aggregation       | Buckets | Top values                                             |
 |-------------------|---------|--------------------------------------------------------|
 | `ASSET_CLASS`     | 4       | FixedIncome (7440), Currency (3328), Commodity (2968), Equity |
-| `REGION`          | 10      | Global, NorthAmerica, Europe, AsiaPacific, EmergingMarkets, … |
+| `REGION`          | 10      | Global, NorthAmerica, Europe, Australasia, Japan, AsiaPacific, LatinAmerica, EMEA (label "CEEMEA"), Africa, MiddleEast (label "MENA") — **no "EmergingMarkets" bucket** |
 | `COUNTRY`         | 95      | US (2265), CH, GB, JP, …                              |
 | `BUSINESS_GROUP`  | 28      | Economic Research, Markets Strategy, Rates Strategy, Equity Research, … |
 | `SECTOR`          | 172     | Consumer Discretionary, Industrials, Financials, …    |
