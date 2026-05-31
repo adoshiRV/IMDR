@@ -296,11 +296,44 @@ for the diagnostic that pinned this.
      `f"{BASE}/research/PubServlet?action=open&doc={ref.id}.pdf"`.
    - Return `list[ReportRef]`.
 
-2. **Phase 4 — `filters/jpm.py` + `classifiers/jpm.py`**:
-   - Filter: drop `documentType == "Video"`, `isResearch == "N"`,
-     `contentTypes` containing podcast/replay markers, results without
-     `application/pdf` in `documentFormats`.
-   - Classifier: map GraphQL fields → IMDR taxonomy (see table above).
+2. **Phase 4 — `filters/jpm.py` + `classifiers/jpm.py` (DONE 2026-05-31)**:
+   - Filter (`filters/jpm.py`): empty title-prefix tuple for now — JPM
+     hasn't shown the kind of "Invite:" / "Webcast:" admin titles
+     other vendors use; Phase-3 smoke surfaced none. Hard-drop logic
+     (Video, isResearch=N, no PDF rendition) lives in
+     ``crawler_jpm._parse_doc`` / ``_unfetchable_reason``.
+   - Classifier (`classifiers/jpm.py`): substring rules over
+     ``businessGroup.displayName`` with title-regex fallback. Tags
+     emitted: ``vendor_pubtype`` (businessGroup + each
+     ``contentTypes`` entry), ``author`` (primary + publishing
+     analysts, cap 4), ``ticker`` (joined ``{ticker}.{exchange}``
+     RIC form from ``companies.ricCode``), and ``format:daily-package``
+     when the doc has empty businessGroup + pageCount=0 + a recurring-
+     report title hint (per the 2026-05-31 tag-only decision).
+   - Empirical smoke (last 2 days, 442 refs):
+
+     | Asset class | Count | %    |
+     |-------------|------:|-----:|
+     | EQUITY      |   200 | 45.2 |
+     | STRATEGY    |    73 | 16.5 |
+     | MACRO       |    65 | 14.7 |
+     | CREDIT      |    60 | 13.6 |
+     | (empty)     |    19 |  4.3 |
+     | RATES       |    13 |  2.9 |
+     | FX          |    12 |  2.7 |
+
+     Tag-category totals across 442 refs:
+     ``author=1044, vendor_pubtype=889, ticker=620, format=52``.
+     Daily-package detection rate **52/442 = 11.8%** — lower than the
+     pre-smoke worry; the bulk of kept refs are genuine research
+     notes with rich businessGroup metadata, not chart-pack
+     boilerplate.
+
+   - Country code is NOT emitted (per-doc COUNTRY is not in the
+     GraphQL response; aggregations have it but only across the whole
+     search). Phase-4-extension TODO: probe whether expanding the
+     GraphQL selection set returns per-doc `assetClasses` /
+     `regions` / `countries`. Until then, ``country_code = None``.
 
 3. **Phase 5 — `ingest_today_jpm.py`**:
    - Mirror `ingest_today_nomura.py` / `ingest_today_anz.py` shape.
