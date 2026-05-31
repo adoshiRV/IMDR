@@ -207,13 +207,50 @@ selection set returns them, before resorting to a second call).
 
 ## Volume sanity-check
 
+Pre-smoke estimates:
+
 - All Time (every filter cleared): **1,873,348** docs.
 - Flagship-Latest curated saved view: **9,404** docs.
 - DAYS_BACK=1 (last 24h) sub-query in Flagship-Latest: ~10-30/day.
-- Realistic daily target after relevance-filter: rough guess
-  20-50/day across the whole portal once we widen beyond Flagship-Latest.
+- Realistic daily target after relevance-filter: rough guess 20-50/day.
 
-To be verified empirically on first 7-day smoke run.
+Empirical from the **Phase-3 smoke run (2026-05-31, `since=2026-05-29`,
+window = last 2 days)**:
+
+```
+698  server count (sum of last 2 calendar days, all-docs query)
+-218 unparseable   — HTML-only entries (no application/pdf in documentFormats)
+- 38 [DROP]        — isResearch=N (EOD commentary / desk briefings / market intel)
+=442 kept refs
+```
+
+That's **~220 refs/day raw**, ~4-10x the pre-smoke guess. The bulk of
+the kept refs are **Daily Packages** — recurring chartpacks, position
+reports, FX/rates reference sheets — that have a PDF + analyst
+attribution but empty ``businessGroup`` and ``pageCount=0``. These are
+genuine research artifacts but high-volume; the Phase-4 classifier
+plus ``relevance.py``'s single-name-equity drop will need to trim
+them aggressively or the daily ingest pacing
+(``IMDR_RESEARCH_PACING_SECONDS_MIN/MAX``, currently 3-10s) blows the
+schedule budget.
+
+Sample of dropped (``isResearch=N``) headlines so the classifier
+author knows the genre:
+
+- ``NY Crude EOD``, ``Colombia EoD May-29``, ``BRL Rates EOD``,
+  ``Chile Rates EOD``, ``MXN EoD Basis`` — desk EOD commentary.
+- ``JPM | US MACRO THEMATICS - Market dynamics on my mind…``,
+  ``Read this, Listen to that``, ``Through The Retail Lens`` —
+  short-form desk thoughts.
+- ``NY FX Spot Desk Morning View 5/29/2026``,
+  ``JPM US Market Intelligence | Morning Briefing``,
+  ``JPM EMEA Commodities Morning Commentary | 29 May 26`` — daily AM
+  briefings.
+
+The 218 ``unparseable`` entries are HTML-only short reports / blog
+posts. We don't ingest them (the GraphQL response advertises only
+``text/html`` in ``documentFormats``, so the cross-vendor PDF pipeline
+has nothing to fetch).
 
 ## Pattern classification
 
@@ -233,7 +270,20 @@ only the two base filters the API requires (`SEARCHABLE=Y`,
 all narrowing happens downstream in the discovery filter / classifier /
 `relevance.py`.
 
-1. **Phase 3 — `crawler_jpm.py`**:
+### Session-prime requirement (2026-05-31, learned the hard way)
+The first GraphQL POST returns **HTTP 405** unless the persistent
+profile has loaded a protected SPA route AND the SPA has finished
+booting. Concretely: `prime.goto(_SESSION_PRIME_URL,
+wait_until="domcontentloaded")` is **not enough on its own** — the
+crawler must also `wait_for_load_state("networkidle", timeout=20000)`
++ `wait_for_timeout(5000)`. Without those two waits the SPA hasn't
+plumbed in the cookies / runtime state the GraphQL endpoint expects
+and the POST gets converted to GET on an internal auth redirect
+(observed during the Phase-3 smoke). See
+[`playground/research/jpm_probe_post.py`](../../../playground/research/jpm_probe_post.py)
+for the diagnostic that pinned this.
+
+1. **Phase 3 — `crawler_jpm.py` (DONE 2026-05-31)**:
    - Repo path: `playground/research/ingest/crawler_jpm.py`.
    - Authenticated POST to `graphql/query-v2` via
      `ctx.request.post(...)` using the persistent profile.
