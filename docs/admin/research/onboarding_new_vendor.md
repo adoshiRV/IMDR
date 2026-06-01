@@ -115,16 +115,41 @@ it is missing 95% of the publications. See feedback memory
    `reports`/`publications`/`documents`/`results`, body size).
 
 2. **Inspect the top candidates**. The highest-scoring API is almost
-   always the right target. Capture:
+   always the right target — but not always. We've seen page-config
+   blob endpoints (AEM `*.model.json`) outscore the real listing API
+   because they happen to embed many UUIDs. **Read the response body
+   before assuming**: real listing APIs return per-doc metadata
+   (title / publish_date / authors / classification); page-config
+   blobs return widget layout. Pick the one with per-doc metadata.
+   Capture:
    * Request method + URL + path params.
-   * Body shape (Goldman uses POST JSON with a facets DSL; ANZ uses
-     GET with `param_limit` + `position`; Nomura uses an
-     Elasticsearch DSL; MS uses a POST JSON with `compositeRequest`).
+   * Body shape — four families we've seen:
+     - **REST POST + facets DSL** (Goldman: `POST` JSON with
+       `facets/language/page/size/sort`).
+     - **REST GET + cursor** (ANZ: `GET` with `param_limit` +
+       `position`).
+     - **Elasticsearch DSL** (Nomura: `POST` body is a literal ES
+       query).
+     - **GraphQL** (`POST` to a `/graphql` or `/query-v2` endpoint
+       with `{operationName, query, variables}`). For GraphQL,
+       capture the **full query string verbatim** from the SPA
+       request body — even if it contains redundancies (e.g.
+       duplicate variable declarations). The server tolerates the
+       captured shape; "cleaning it up" risks server-side
+       validation regressions on future runs.
+   * **Headers**, not just body. Sniff the request headers for
+     SPA-injected custom values — `janus_user: <username>`,
+     `x-csrf-token: ...`, `x-tenant-id: ...` are all real patterns
+     we've seen. The server may validate them. Thread these into
+     the crawler from `.env` (do **not** hard-code) and send them
+     on every API call.
    * Whether responses contain enough metadata to skip a per-uuid
      follow-up (Goldman/Nomura yes; MS needs a `/frontmatter?uuid=…`
      call for the PDF URL).
    * Page size — push it as high as the server allows. 200 is a safe
-     baseline; 500–1000 has worked for some.
+     baseline; 500–1000 has worked for some. Some servers cap silently
+     and just return the first N; check by comparing `len(results)`
+     against the page-size requested.
 
 3. **Figure out the PDF URL**. Two patterns we've seen:
    * **Deterministic from UUID** — Goldman swaps `.html` → `.pdf`;
@@ -170,6 +195,18 @@ def discover_reports(
 Conventions (see existing crawlers under
 [`playground/research/ingest/`](../../../playground/research/ingest/)):
 
+* **Session-prime before the first POST**. Many SPAs only set the
+  full auth state (session cookie + CSRF + per-user tokens) after
+  the JS bundle finishes booting. A bare `page.goto(...,
+  wait_until="domcontentloaded")` is usually **not enough** — the
+  first listing-API call from a freshly-spawned context returns
+  401/405/302-to-login because the SPA hasn't yet plumbed in the
+  state the server expects. Add both:
+  ```python
+  await prime.wait_for_load_state("networkidle", timeout=20000)
+  await prime.wait_for_timeout(5000)   # extra settle
+  ```
+  Then close the prime page and start your API calls.
 * **Paginate** until `oldest-in-page < since` (early stop). Don't
   fetch the whole archive every run.
 * **Use the persistent profile cookies** via `ctx.request.get/post`,
@@ -179,8 +216,37 @@ Conventions (see existing crawlers under
   pages.
 * **Construct PDF URL during discovery**, not at fetch time — keep
   the per-PDF stage stateless.
+* **Drop non-PDF refs at parse time**. Most vendors' listing APIs
+  return a mix of formats — PDF, Excel/CSV (data products), video
+  (Kaltura/FLV), audio (podcasts), HTML-only (web-native articles).
+  The shared `parse.py` is PDF-text only. Filter for
+  `application/pdf` (or the vendor's equivalent) in the listing
+  response's `documentFormats` / `mimeType` field, and **count the
+  drops with a clear label** — `no_pdf=NN` not `unparseable=NN`.
+  "Unparseable" suggests broken content; the reality is "wrong
+  format for a prose RAG". Document the actual format distribution
+  in `scrapers/<vendor>.md` so future-you knows what's behind the
+  drop count.
+* **Drop publisher-flagged non-research at the crawler stage**.
+  Many vendors ship per-doc flags that are cleaner signals than
+  title-regex matching: `isResearch=N`, `documentType=Video`,
+  `productCategory=Podcast`, `audienceType=Internal`. Match these
+  in `_parse_doc` (or just after) and log a `[DROP] <uuid> <reason>
+  <title[:60]>` line per item so the operator can audit volumes.
+  These belong in the crawler, not in `filters/<vendor>.py`
+  (which handles title-prefix patterns).
+* **Locale-safe date parsing**. Vendors ship `publish_date` in many
+  formats — epoch milliseconds (Goldman), ISO (BNP), RFC-822-ish
+  ctime strings (`"Wed May 27 17:27:27 UTC 2026"`, JPM).
+  `datetime.strptime("%a %b %d ...")` is **locale-aware** and breaks
+  on non-en_US systems. Hand-roll a parser with a month-name dict or
+  use `email.utils.parsedate_to_datetime` (RFC-strict only).
+  `dateutil.parser.parse` works too but adds a dependency.
 * **Return `ReportRef`** with `uuid`, `title`, `publish_date`,
-  `pdf_url`, `vendor_code`, `extra` (dict for vendor-specific fields).
+  `pdf_url`, `vendor_code`, plus any vendor-specific metadata fields
+  the classifier will consume (analysts, business_group, tickers,
+  content_types, etc.). Use a frozen dataclass with slots, not a
+  dict, so the contract is typed.
 
 Test the crawler in isolation:
 
@@ -214,6 +280,13 @@ Logs as `[SKIP] <vendor>: <title> — reason='<reason>'`. See
 [`filters/anz.py`](../../../playground/research/ingest/filters/anz.py)
 for the shape.
 
+**Tune empirically, not pre-emptively.** Ship the file with an empty
+`EXCLUDED_TITLE_PREFIXES = ()` tuple if you haven't seen the vendor's
+admin-title patterns in real data. Run 3 days of discovery first,
+then populate the tuple based on the `[DROP]` log lines and audit
+output. Pre-populating from guesswork (other vendors' patterns)
+risks false positives on real research.
+
 ### 4b. Classifier — `classifiers/<vendor>.py`
 
 `classify(ref: ReportRef, raw_metadata: dict) -> ClassifyResult`.
@@ -237,23 +310,58 @@ uses to drop single-name equity research by default — make sure
 single-name equity reports get tagged accurately so the filter can
 catch them.
 
+**Asset-class blanket drops with a keep-allowlist.** When a vendor
+publishes high-volume content in a domain we mostly don't want
+(e.g. one bank's equity stream is 50%+ of its raw output), don't
+blanket-drop everything in that asset class — you'll lose the
+macro-flavored equity subset (cross-asset positioning, regional
+market wraps, top-down sector strategy). The right pattern is a
+**vendor-specific branch in `relevance.py`** that drops the asset
+class **unless** the title matches a keep-allowlist regex (e.g.
+``strategy|portfolio|positioning|monthly|outlook|cross-asset|...``).
+See the JPM branch in
+[`is_single_name_equity()`](../../../playground/research/ingest/relevance.py)
+for the template. Single-name (n_tickers==1) always drops regardless
+of the allowlist match.
+
 ---
 
 ## Phase 5 — Wire the runner
 
-`playground/research/ingest_today_<vendor>.py`. Thin shim that:
+**The orchestrator is the canonical path.** Wire your new vendor
+into [`playground/research/ingest_today.py`](../../../playground/research/ingest_today.py)
+— specifically its `_load_vendor_registry()`. Two-line change:
 
-1. Opens a Playwright context with the vendor's persistent profile.
-2. Calls `discover_reports(...)`.
-3. Applies the discovery filter, then the classifier, then
-   `apply_relevance_filter`.
-4. Hands the survivors to the shared `ingest_one` pipeline
-   ([`pipeline.py`](../../../playground/research/pipeline.py)) which
-   handles fetch / parse / hash / chunk / OneDrive / DB / Qdrant.
+```python
+from ingest.crawler_<vendor> import discover_reports as <vendor>_discover
+...
+"<vendor>": VendorSpec(code="<vendor>", discover=<vendor>_discover),
+```
 
-Copy [`ingest_today_anz.py`](../../../playground/research/ingest_today_anz.py)
-or [`ingest_today_nomura.py`](../../../playground/research/ingest_today_nomura.py)
-as the starting point — these have the canonical structure.
+Plus register the classifier in
+[`ingest/classifiers/__init__.py`](../../../playground/research/ingest/classifiers/__init__.py)
+(`_VENDOR_CODES` + the dispatcher branch) so
+`get_classifier("<vendor>")` resolves.
+
+**Why orchestrator-first**: the orchestrator
+(`ingest_today.py`) **threads classifier output into `ReportMeta`**
+— `asset_class`, `country_code`, `tags`, `context` all populate
+`research.dim_report` and `research.map_report_tag` automatically.
+The legacy per-vendor `ingest_today_<vendor>.py` shims do **not**
+do this — they pass `asset_class=""` and an empty `meta.tags`, so
+the classifier output is computed (for `apply_relevance_filter`'s
+single-name check) then thrown away. Existing rows written via
+the standalone path show up in the DB without `asset_class` /
+`context` / tags. See the JPM backfill case below for the cleanup
+pain that creates.
+
+**When to also build a standalone `ingest_today_<vendor>.py`**:
+basically never. The orchestrator supports `--vendors <code>` for
+isolated runs. If you absolutely need a single-vendor shim (e.g. a
+non-standard fetch path like BNP's pre-fetched PDFs), make it a thin
+wrapper that calls the same `ingest_one` and passes the
+classifier-enriched `ReportMeta`. Do not copy the legacy
+`asset_class=""` template — that's the trap.
 
 ---
 
@@ -294,13 +402,53 @@ as the starting point — these have the canonical structure.
    First full-day run. Save the log under
    `playground/research/_ingest_today_<vendor>_<YYYY-MM-DD>.log`.
 
-4. **Spot-check retrieval**:
+4. **Audit the discovered set before promoting**. Write
+   `smoke_<vendor>_audit.py` — re-discover + classify a few days
+   of output and print:
+   * `asset_class` distribution (% per bucket; flag if `(empty)` is >5%).
+   * Drop reasons + counts (`[DROP]` lines).
+   * Title-keyword scan for **podcast / replay / webcast / audio /
+     reminder** patterns — should be `0` hits after the
+     publisher-flag drops in Phase 3. If anything leaks through,
+     either the crawler's hard-flag list is incomplete or the
+     vendor uses a flag we haven't sniffed.
+   * Sample titles per asset_class bucket so the operator can
+     eyeball whether the classifier is mapping correctly.
+   See [`smoke_jpm_audit.py`](../../../playground/research/smoke_jpm_audit.py)
+   as a template — adapt it per vendor.
+
+5. **Spot-check retrieval — harnessed**:
 
    ```powershell
-   C:/Users/adoshi/.conda/envs/imdr/python.exe playground/research/retrieve.py "<topic the new vendor covered>"
+   C:/Users/adoshi/.conda/envs/imdr/python.exe playground/research/smoke_<vendor>_retrieval.py
    ```
 
-   Should return at least one citation from the new vendor.
+   Add a `smoke_<vendor>_retrieval.py` that wraps
+   [`retrieve.py`](../../../playground/research/retrieve.py) with
+   3 vendor-flavored queries (`--vendor <code> --k 3`) and exits
+   non-zero if any returns zero hits. Mechanical sanity check for
+   "did the new vendor's chunks make it into Qdrant?" Run after
+   every embed-on full-day pass for the first week.
+   See [`smoke_jpm_retrieval.py`](../../../playground/research/smoke_jpm_retrieval.py)
+   as a template.
+
+6. **If your first smokes used a legacy standalone runner**:
+   the rows already in `dim_report` will have empty
+   `asset_class` / tags / context (per the Phase-5 trap above).
+   Idempotency on `content_hash` means a re-run through the
+   orchestrator will hit `[DUP]` and **not** enrich the existing
+   rows. You need a **one-off backfill script** —
+   `backfill_<vendor>_meta.py` — that:
+   * Pulls the unenriched rows (`asset_class IS NULL OR = ''` for
+     the new vendor).
+   * Re-discovers refs for the same date window via the crawler.
+   * Matches each DB row to a discovered ref by
+     `(title, publish_date)`.
+   * Runs the classifier on the matched ref.
+   * `UPDATE`s `dim_report.{asset_class, country_id, context}`
+     and `INSERT`s into `map_report_tag` (with dedup).
+   See [`backfill_jpm_meta.py`](../../../playground/research/backfill_jpm_meta.py).
+   Idempotent — re-runs are no-ops once `asset_class` is set.
 
 ---
 
@@ -354,6 +502,106 @@ These apply to every research vendor — review before phase 1:
   string assertions. During the playground phase, tests are
   optional but encouraged for the crawler's parsing logic. See
   feedback memory `feedback_always_write_tests.md`.
+
+---
+
+## Common pitfalls
+
+These are the traps we've actually fallen into. Read once before
+starting; refer back when something is misbehaving.
+
+1. **Confusing labels in crawler logs.** "Unparseable" sounds like
+   parse failure but in practice is almost always "no PDF rendition
+   advertised by the vendor" — i.e. the doc is an Excel/CSV/video/
+   audio/HTML asset, not a broken PDF. Name the counter for the
+   actual condition (`no_pdf`, `wrong_format`) — operators read these
+   logs and the labelling drives the wrong investigation.
+2. **The first listing-API POST returns 405 / 401 / a redirect to
+   login.** The persistent profile's cookies are valid, but the SPA
+   hasn't booted yet so the per-request token isn't bound. Fix is
+   always the same: `wait_for_load_state("networkidle")` +
+   `wait_for_timeout(5000)` after the session-prime `goto()`. See
+   Phase 3.
+3. **The highest-scoring probe response isn't always the listing
+   API.** AEM page-config blobs (`*.model.json`) score high on UUID
+   counts but return widget layout. Always read the response body
+   before committing to an endpoint.
+4. **Locale-sensitive date parsing breaks on non-en_US systems.**
+   `strptime("%a %b %d ...")` localises month + day-of-week names.
+   Hand-roll with a month dict; don't trust the system locale.
+5. **The classifier output is silently discarded when using the
+   legacy standalone runner pattern.** `apply_relevance_filter`
+   uses the classifier output internally, then the legacy
+   `ingest_today_<vendor>.py` builds `ReportMeta` with
+   `asset_class=""` — so nothing classifier-side reaches
+   `dim_report`. **Use the orchestrator** (`ingest_today.py`),
+   not a copy-pasted standalone shim.
+6. **`content_hash` idempotency is one-way.** Once a doc is in
+   `dim_report` with empty meta, re-running won't enrich it — the
+   write skips with `[DUP]`. Plan a one-off `backfill_<vendor>_meta.py`
+   if your early smokes used the legacy path. See Phase 6 step 6.
+7. **Vendor-injected custom headers.** Sniff request headers, not
+   just body. Patterns like `janus_user: <username>`, `x-csrf-token`,
+   `x-tenant-id` may be silently required. Thread from `.env`.
+8. **Blanket asset-class drops lose macro-flavored content.** If
+   a vendor publishes mostly equity, the relevance filter should
+   drop equity *with a keep-allowlist* (FTM regional wraps,
+   strategy/portfolio/positioning weeklies, sector themes), not all
+   of it. Audit the actual title distribution before deciding.
+9. **GraphQL queries are sticky-typed.** Copy the captured query
+   string verbatim — don't try to clean up duplicate variable
+   declarations or unused fields. The server's parser tolerates
+   what the SPA actually sends; deviations risk regressions.
+10. **Daily volume varies 5-10× from pre-launch estimates.**
+    "About 20-50/day" guesses are routinely wrong by an order of
+    magnitude once you see the full firehose. Build the audit
+    script first, ingest a 2-3 day window second, set the daily-
+    volume table from observation.
+
+---
+
+## Definition of done — checklist
+
+Before declaring a vendor **LIVE** (Phase 7 promotion), confirm:
+
+**Code in place** (all under `playground/research/`):
+- [ ] `explore_<vendor>.py` — Phase 1 wrapper.
+- [ ] `ingest/crawler_<vendor>.py` — discover_reports + session-prime
+  pattern + locale-safe date parsing + non-PDF drop + publisher-flag drop.
+- [ ] `ingest/filters/<vendor>.py` — title-prefix stub (may be empty).
+- [ ] `ingest/classifiers/<vendor>.py` — `classify()` populates
+  `asset_class`, `country_code`, `tags`, `context`.
+- [ ] `<vendor>` added to `_VENDOR_CODES` + dispatcher branch in
+  `ingest/classifiers/__init__.py`.
+- [ ] `<vendor>` added to `_load_vendor_registry()` in
+  `ingest_today.py` (the orchestrator).
+- [ ] `smoke_<vendor>_audit.py` — asset-class distribution + drop
+  reasons + audio/video leakage scan.
+- [ ] `smoke_<vendor>_retrieval.py` — 3-query Qdrant spot-check.
+- [ ] `backfill_<vendor>_meta.py` — only if your first smokes used a
+  legacy standalone runner; otherwise skip.
+
+**DB + ops state**:
+- [ ] `migrations/NNN_seed_<vendor>_dim_vendor.sql` written, applied,
+  and verified (`SELECT * FROM dbo.dim_vendor WHERE vendor_code='<v>'`).
+- [ ] First end-to-end smoke (`--embed false --limit 2-3`) wrote
+  rows to `research.dim_report` + chunks to `research.fact_chunk`,
+  PDF files synced to OneDrive/SharePoint.
+- [ ] First full-day `--embed true` run completed; chunks landed in
+  Qdrant; `smoke_<vendor>_retrieval.py` passes.
+
+**Docs**:
+- [ ] `scrapers/<vendor>.md` filled in: portal, profile, URL
+  patterns, listing API request/response shape, auth headers, PDF
+  URL pattern, volume table (raw / kept / drop reasons), Non-PDF
+  Assets section.
+- [ ] Row added to `scrapers/index.md` `Vendors` table and to the
+  `Common patterns / A. Listing-API firehose` table (or whichever
+  pattern subsection applies).
+- [ ] `vendors.yml` flipped from `profile_status: probe` →
+  `production`, with last_session_date updated.
+- [ ] All commits ship docs only (code lives under `playground/*`,
+  gitignored).
 
 ---
 
