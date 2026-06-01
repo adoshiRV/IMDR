@@ -378,3 +378,26 @@ for the diagnostic that pinned this.
    - `playground/research/vendors.yml` `jpm` block flipped from
      `profile_status: probe` to `production` with the empirical
      summary in `notes`.
+
+6. **Post-promotion tuning (2026-06-01, user audit)**:
+   - **Drop all JPM EQUITY in `relevance.py`** — added vendor-specific
+     branch `if vendor_code == "jpm": return True,
+     "equity-vendor-default-drop"` *before* the n_tickers check. The
+     IMDR RAG is for macro / cross-asset; JPM's high-volume equity
+     stream (single-name + sector + multi-name = ~52% of raw refs,
+     364 of 702 over a 3-day window) was crowding out macro hits in
+     retrieval. Now all JPM EQUITY drops; single-ticker, multi-ticker,
+     and zero-ticker alike.
+   - **Classifier title-regex extensions** — `_TITLE_RATES` /
+     `_TITLE_CREDIT` / `_TITLE_STRAT` widened to catch JPM Daily-
+     Package niche names that earlier produced ``asset_class=""``:
+     `TIPS`, `bond futures`, `money market`, `Eurex`, `front-end`,
+     `JACI`, `JULI`, `CMBS`, `CMBX`, `leveraged loan`, `spread vs
+     ratings`, `what's priced in`, `index movers`, `widest names`.
+     This shrunk the (empty) asset-class bucket from 32 → 4 refs
+     (87.5% reduction) over the same 3-day window.
+   - **Audio / podcast / replay / webcast / reminder scan** — `0`
+     title hits across 702 refs. The upstream `documentType=Video` +
+     `isResearch=N` discovery-filter pair catches every observable
+     non-PDF asset; no need for title-prefix rules in
+     `filters/jpm.py`.
