@@ -380,14 +380,26 @@ for the diagnostic that pinned this.
      summary in `notes`.
 
 6. **Post-promotion tuning (2026-06-01, user audit)**:
-   - **Drop all JPM EQUITY in `relevance.py`** — added vendor-specific
-     branch `if vendor_code == "jpm": return True,
-     "equity-vendor-default-drop"` *before* the n_tickers check. The
-     IMDR RAG is for macro / cross-asset; JPM's high-volume equity
-     stream (single-name + sector + multi-name = ~52% of raw refs,
-     364 of 702 over a 3-day window) was crowding out macro hits in
-     retrieval. Now all JPM EQUITY drops; single-ticker, multi-ticker,
-     and zero-ticker alike.
+   - **JPM EQUITY drop-with-allowlist in `relevance.py`** —
+     two-pass per JPM EQUITY ref:
+     1. Single-name (n_tickers==1) always drops as
+        ``equity-vendor-default-drop:1-ticker``.
+     2. Multi-name / zero-ticker: kept only if the title matches the
+        ``_JPM_EQUITY_KEEP`` allowlist (strategy / portfolio /
+        cross-asset / allocation / weekly / monthly / outlook /
+        thematic / themes / forecast / positioning / flow / FTM /
+        model portfolio / earnings season / sector). Otherwise drops
+        as ``equity-vendor-default-drop``.
+     - Threading: ``is_single_name_equity`` now takes ``title=...``
+       too — backward-compatible default ``""``.
+     - Effect on 3-day audit window (705 raw → 383 kept):
+       * **EQUITY: 364 → 42 kept** (12%). Survivors: 16 FTM regional
+         wraps (US/Europe/Asia/China/HK/Korea/Japan/India/LatAm/
+         CEEMEA/ASEAN/Australia/Taiwan/SMid/GEMS/International),
+         3 Portfolio Managers' Monthly, Investor Positioning,
+         sector weeklies (Refining, Renewable Diesel, Monthly Auto
+         Review, Large Cap Banks Fed Weekly, Global Autos Weekly).
+       * EQUITY drop reasons: 182 single-name + 140 default-drop.
    - **Classifier title-regex extensions** — `_TITLE_RATES` /
      `_TITLE_CREDIT` / `_TITLE_STRAT` widened to catch JPM Daily-
      Package niche names that earlier produced ``asset_class=""``:
