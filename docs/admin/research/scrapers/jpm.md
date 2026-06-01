@@ -247,10 +247,59 @@ author knows the genre:
   ``JPM EMEA Commodities Morning Commentary | 29 May 26`` — daily AM
   briefings.
 
-The 218 ``unparseable`` entries are HTML-only short reports / blog
-posts. We don't ingest them (the GraphQL response advertises only
-``text/html`` in ``documentFormats``, so the cross-vendor PDF pipeline
-has nothing to fetch).
+The crawler counter is called ``unparseable`` but the failure is
+almost always "no ``application/pdf`` in ``documentFormats``" — see
+the **Non-PDF assets** section below for the actual content
+distribution behind that number.
+
+## Non-PDF assets (intentionally dropped)
+
+The crawler's ``_parse_doc`` returns ``None`` when JPM advertises no
+PDF rendition for a doc. Counter logs that as ``unparseable=N``;
+empirically it's all "wrong-format content", not parse errors. A
+2026-06-01 audit (``playground/research/smoke_jpm_unparseable.py``)
+inspected 1,000 raw GraphQL results and got this breakdown across the
+217 non-PDF rows:
+
+| Format                | Count | Note                                                 |
+|-----------------------|------:|------------------------------------------------------|
+| Excel `.xlsx`         |   128 | OpenXML spreadsheets — model templates, screens, analytics tools |
+| CSV                   |    37 | Raw data downloads                                   |
+| Excel `.xlsm`         |    22 | Macro-enabled Excel (BWIC trackers, basis tools)     |
+| Video `.flv`          |    12 | Kaltura player content (no transcript PDF)           |
+| GIF                   |     7 | Embedded chart images                                |
+| MP3 audio             |     5 | Podcasts (no transcript PDF)                         |
+| Excel legacy / binary |     6 | `.xls` + `.xlsb`                                     |
+
+A follow-up inspection
+(``playground/research/inspect_jpm_excel.py``) fetched 5 representative
+Excel files (tracker-style, 5/5 success) plus 5 single-name model files
+(5/5 fetch failures — likely different URL pattern, doesn't matter
+because single-name equity is dropped by ``relevance.py`` anyway).
+Headline findings on the 5 fetched files:
+
+| File                          | Size  | Sheets | Content                              |
+|-------------------------------|-------|-------:|--------------------------------------|
+| International ABS BWIC Tracker | 277K  |     8  | Monthly BWIC volume + traded-ratio tables |
+| Global Daily Stockguide       | 9.4M  |    10  | Daily prices/forecasts/ratings for full coverage universe |
+| CMBX Daily Analytics          | 250K  |     8  | CMBX tranche-by-rating spreads (19.AAA / 19.AS / 19.AA / …) |
+| China A-shares Sentiment Index | 179K  |     3  | Sentiment time series since 2007 — pure numeric |
+| Equity Sentiment Indicator    | 111K  |     2  | Same shape as China — sentiment time series      |
+
+**Decision (2026-06-01, user)**: keep dropping all non-PDF refs. The
+Excel/CSV docs are pure number/data products with one or two prose
+lines (contact info + "data as of …"); a prose RAG can't usefully
+retrieve from cell tables. The narrative — when there is one — lives
+in the analyst's accompanying PDF, which we already ingest if present.
+
+**When to revisit:** if we ever decide the IMDR RAG should expose
+tabular data (sentiment time series, sector volumes, basis curves),
+the per-file-family parsers in
+``playground/research/inspect_jpm_excel.py`` are a starting point —
+each Excel family (BWIC / Stockguide / CMBX / Sentiment) has its own
+sheet layout, so the parser would be a per-shape dispatch rather than
+one generic Excel reader. Audio/video have no transcripts and stay
+out of scope regardless.
 
 ## Pattern classification
 
