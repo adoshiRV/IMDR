@@ -578,8 +578,11 @@ Detailed operations runbook lives in [polywatch_operations.md](polywatch_operati
 
 ```
 scripts/prediction/polymarket/
-├── streaming.py                      Step 2 (current) — poll | loop | cleanup subcommands
-└── polywatch.py                      Step 3 — detect | loop | backfill subcommands
+├── streaming.py                      Step 2 (current) — poll | loop | cleanup | prune | discover subcommands
+├── backfill.py                       Observation warm-up via CLOB /prices-history — see observations_backfill.md
+├── watchlist.py                      watchlist.yml loader (see watchlist_format.md)
+├── macro_snapshot.py                 HTML curation snapshot — see macro_snapshot.md
+└── polywatch.py                      Step 3 — detect | loop | backfill subcommands (backfill = detection replay)
 
 src/imdr/notifications/
 ├── formatters/polywatch_alert.py     Step 3 — Jinja2 + dataclass alert formatter

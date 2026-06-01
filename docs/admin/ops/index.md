@@ -11,4 +11,4 @@ Operational runbooks and playbooks for the IMDR data platform.
 - **[data_cleanup.md](data_cleanup.md)** — Ad-hoc data cleanup procedures (bad rows, outliers, source corrections).
 - **[new_product_playbook.md](new_product_playbook.md)** — Step-by-step checklist for onboarding a new data product (domain + table + pipeline + docs).
 - **[bbg_intraday_schedule.md](bbg_intraday_schedule.md)** — Windows Task Scheduler setup for the 6×/day BBG FX snapshot ingest.
-- **[prediction/](prediction/)** — Prediction market tooling: Polymarket buildout, Polywatch operations, watchlist format, macro snapshot.
+- **[prediction/](prediction/)** — Prediction market tooling: Polymarket buildout, Polywatch operations, watchlist format, macro snapshot, observations backfill.

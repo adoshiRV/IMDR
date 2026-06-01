@@ -124,21 +124,29 @@ def backfill_slug(
     ev_title = ev.get("title")
     markets = ev.get("markets") or []
 
-    # Don't let backfill points overtake live polled observations. If a slug
-    # has any live rows, cap backfill strictly before its earliest one — else
-    # the new global MAX(snapshot_ts) becomes a backfill row, which breaks
-    # macro_snapshot's latest-timestamp lookup. For genuinely-new slugs, cap
-    # at now-60s for the same reason.
-    existing_min = conn.execute(
-        "SELECT MIN(snapshot_ts) FROM market_observation WHERE event_slug=?",
+    # Don't let backfill points overtake live polled observations. Cap end_ts
+    # strictly below BOTH (a) this slug's earliest existing row and (b) the
+    # global MAX(snapshot_ts) — otherwise a genuinely-new slug (no existing
+    # rows) can land a backfill point at now-60s, past the most recent live
+    # poll, and become the new global MAX. macro_snapshot then looks up rows
+    # at that MAX and finds only the handful of slugs that backfilled to a
+    # similar instant, surfacing dozens of false-missing entries.
+    cap_row = conn.execute(
+        "SELECT MIN(snapshot_ts), MAX(snapshot_ts) FROM market_observation WHERE event_slug=?",
         [ev_slug],
+    ).fetchone()
+    existing_min = cap_row[0] if cap_row else None
+    global_max = conn.execute(
+        "SELECT MAX(snapshot_ts) FROM market_observation"
     ).fetchone()[0]
     now_ts = int(time.time())
+    end_ts = now_ts - 60
     if existing_min:
         cap_dt = datetime.fromisoformat(existing_min.replace("Z", "+00:00"))
-        end_ts = min(now_ts - 60, int(cap_dt.timestamp()) - 1)
-    else:
-        end_ts = now_ts - 60
+        end_ts = min(end_ts, int(cap_dt.timestamp()) - 1)
+    if global_max:
+        max_dt = datetime.fromisoformat(global_max.replace("Z", "+00:00"))
+        end_ts = min(end_ts, int(max_dt.timestamp()) - 1)
     start_ts = end_ts - hours * 3600
     if end_ts <= start_ts:
         return 0, 0, "no window to backfill"
