@@ -427,6 +427,41 @@ for the diagnostic that pinned this.
    - `playground/research/vendors.yml` `jpm` block flipped from
      `profile_status: probe` to `production` with the empirical
      summary in `notes`.
+   - **Orchestrator wiring** (added 2026-06-01 after the standalone
+     smoke confirmed end-to-end): `playground/research/ingest_today.py`
+     `_load_vendor_registry()` now imports
+     `ingest.crawler_jpm.discover_reports` and registers
+     `"jpm": VendorSpec(code="jpm", discover=jpm_discover)`. Going
+     forward, `python playground/research/ingest_today.py --embed`
+     picks JPM up as one of the eight active vendors. The
+     orchestrator's classifier path enriches `ReportMeta` with
+     `asset_class` / `country_code` / `tags` / `context` — unlike
+     the legacy per-vendor runners which pass empty meta.
+
+   - **Standalone `ingest_today_jpm.py` deleted (2026-06-01)** —
+     redundant with the orchestrator AND lossier (no classifier
+     enrichment of `ReportMeta`). Removing prevents the "two paths,
+     one inferior" trap on future operator runs.
+
+6. **Backfill of historical rows (DONE 2026-06-01)**:
+   The first smoke runs used the (now-deleted) standalone runner and
+   wrote 5 rows (`dim_report.id` 2018-2022) with empty
+   `asset_class` / `context` and zero `map_report_tag` rows.
+   ``playground/research/backfill_jpm_meta.py`` re-discovered each by
+   `(title, publish_date)` against the GraphQL listing, ran the
+   classifier, and `UPDATE`d the rows in place plus inserted 18
+   `map_report_tag` rows. All 5 are now classified as `CREDIT` (the
+   first JPM ingest happened to be a CREDIT-desk Daily Package batch)
+   with 134-230 chars of context each. Script is idempotent: re-runs
+   are no-ops because the WHERE filter is `asset_class IS NULL OR ''`.
+
+7. **Retrieval spot-check harness (Phase 6 step 4)**:
+   ``playground/research/smoke_jpm_retrieval.py`` runs three JPM-
+   flavored queries against the RAG with `--vendor jpm` and exits
+   non-zero if any query returns zero JPM citations. Only meaningful
+   *after* the first `ingest_today.py --embed` run that includes JPM
+   (chunks must be in Qdrant; until then JPM chunks live only in
+   `research.fact_chunk` table, not the vector store).
 
 6. **Post-promotion tuning (2026-06-01, user audit)**:
    - **JPM EQUITY drop-with-allowlist in `relevance.py`** —
