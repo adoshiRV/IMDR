@@ -1,9 +1,9 @@
 # J.P. Morgan — Markets research scraper
 
-Status: **Phase 2 complete (2026-05-29)** — interactive login, portal
-recon, and listing-API discovery all done. Next gap: confirm the PDF
-URL pattern for one document; then build crawler / classifier / runner
-(phases 3-7).
+Status: **LIVE (2026-06-01)** — full onboarding through Phase 7. End-to-
+end smoke run wrote `research.dim_report` ids 2018 + 2019 with 53
+chunks across the two reports. `dim_vendor` row seeded as id=16 via
+migration 060.
 
 ## Portal
 
@@ -335,18 +335,46 @@ for the diagnostic that pinned this.
      GraphQL selection set returns per-doc `assetClasses` /
      `regions` / `countries`. Until then, ``country_code = None``.
 
-3. **Phase 5 — `ingest_today_jpm.py`**:
-   - Mirror `ingest_today_nomura.py` / `ingest_today_anz.py` shape.
+3. **Phase 5 — `ingest_today_jpm.py` (DONE 2026-06-01)**:
+   - Mirrors `ingest_today_ms.py` / `ingest_today_goldman.py` shape.
+   - SGT-anchored date window (`today - 3d` to `today`); reads
+     `IMDR_RESEARCH_{SINCE,UNTIL,LIMIT,PARALLEL,EMBED,EMBED_MODEL}` env.
+   - Threads `IMDR_RESEARCH_JPM_USERNAME` into the GraphQL
+     `janus_user` header via `crawler_jpm._require_janus_user()` —
+     fails fast at start if `.env` is misconfigured.
+   - Like the other live runners, passes `asset_class=""` /
+     `region=""` to `ReportMeta`. The classifier's output (tags,
+     context, country_code, canonical asset_class) is only used by
+     the relevance filter to drop single-name-equity research; it's
+     **not persisted to `dim_report`**. Cross-vendor gap — applies to
+     `goldman`, `nomura`, `ms`, etc. equally — separate work.
 
-4. **Phase 6 — DB seed + smoke run**:
-   - `migrations/NNN_seed_dim_vendor_jpm.sql`:
-     ```sql
-     INSERT INTO dbo.dim_vendor
-         (vendor_code, display_name, vendor_type, is_active, created_at, updated_at)
-     VALUES ('jpm', 'J.P. Morgan', 'web', 1, SYSDATETIMEOFFSET(), SYSDATETIMEOFFSET());
+4. **Phase 6 — DB seed + smoke run (DONE 2026-06-01)**:
+   - `migrations/060_seed_jpm_dim_vendor.sql` — idempotent INSERT;
+     applied via `python -m scripts.migrations.apply_migration`.
+     `dbo.dim_vendor.id=16` for `vendor_code='jpm'`.
+   - First smoke (`IMDR_RESEARCH_EMBED=false IMDR_RESEARCH_LIMIT=2
+     IMDR_RESEARCH_SINCE=2026-05-30`):
+
      ```
-   - `IMDR_RESEARCH_EMBED=false IMDR_RESEARCH_LIMIT=3
-     python playground/research/ingest_today_jpm.py`.
+     393  server count (3-day window)
+     -72  unparseable (HTML-only, no PDF rendition)
+     -43  [DROP] isResearch=N
+     =278 kept by crawler
+     -~80 single-name-equity (relevance filter)
+     ~ 200 candidates → first 2 ingested per LIMIT
+     ```
 
-5. **Phase 7** — finalize this doc, add row to `scrapers/index.md`,
-   flip `vendors.yml` to `production`.
+     Result: `dim_report.id=2018` (US High Grade Sector Relative Value
+     Matrix, 46 chunks) and `dim_report.id=2019` (Credit Relative Value
+     Screen, 7 chunks). PDFs at OneDrive
+     `2026/06/01/jpm/...` synced to SharePoint
+     `ResearchData1/IMDR/jpm/2026/06/01/`. Re-run hits `[DUP]`
+     idempotency on content-hash.
+
+5. **Phase 7 — promotion (DONE 2026-06-01)**:
+   - Row added to [`scrapers/index.md`](index.md) `Vendors` + `Common
+     patterns / A. Listing-API firehose` tables.
+   - `playground/research/vendors.yml` `jpm` block flipped from
+     `profile_status: probe` to `production` with the empirical
+     summary in `notes`.
