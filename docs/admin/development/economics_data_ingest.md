@@ -54,7 +54,15 @@ Cadence / format / why for every source we intend to ingest. Priority comes from
 | **RBNZ — Statistics** ([url](https://www.rbnz.govt.nz/statistics)) | Daily → quarterly | XLSX, XLS | OCR, Real TWI, wholesale + retail rates, FX (daily + monthly + historical), monetary aggregates, registered-bank balance sheets, non-bank balance sheets, govt-bond turnover + non-resident holdings, RBNZ balance sheet + OMO, settlement-cash influences, standing facilities, official overseas reserves, NZ IMF position, household balance sheet, business + consumer expectations surveys. |
 | **data.govt.nz / MBIE** ([url](https://catalogue.data.govt.nz/)) | Weekly → annual | XLSX, CSV, JSON | Weekly fuel-price monitoring, Energy Quarterly (oil/gas/coal/electricity/prices), petroleum reserves, MRTE tourism estimates, labour-market reports. |
 
-### 2.3 Global / multi-country
+### 2.3 Hong Kong
+
+| Source | Cadence | Format | Why we want it |
+|---|---|---|---|
+| **HKMA — Daily Monetary Statistics** ([api](https://api.hkma.gov.hk/public/market-data-and-statistics/daily-monetary-statistics/)) | Daily | REST JSON (paginated, no auth) | HKMA Aggregate Balance, Monetary Base, Exchange Fund Bills+Notes outstanding (combined), Certificates of Indebtedness. The Aggregate Balance is the desk's #1 HK liquidity signal. Full daily history from 1997. |
+
+**Known gap**: the public API combines EF Bills + EF Notes outstanding into one series (`outstanding_efbn`). Separating them needs BBG (`HKEFBOUT Index` / `HKEFNOUT Index`) or an HKMA data-services contact.
+
+### 2.4 Global / multi-country
 
 | Source | Access | Best use |
 |---|---|---|
@@ -111,7 +119,8 @@ CREATE TABLE econ.dim_indicator (
     CONSTRAINT FK_dim_indicator_frequency FOREIGN KEY (frequency_id) REFERENCES dbo.dim_frequency(frequency_id),
     CONSTRAINT FK_dim_indicator_country   FOREIGN KEY (country_id)   REFERENCES dbo.dim_country(country_id),
     CONSTRAINT CK_dim_indicator_category  CHECK (category IN
-        ('cpi','gdp','labour','bop','balance_sheet','rates','fx','housing','credit','sentiment','energy','tourism','other'))
+        ('cpi','gdp','labour','bop','balance_sheet','rates','fx','housing','credit','sentiment','energy','tourism',
+         'liquidity','cb_facility','cb_balance_sheet','instr_outstand','other'))
 );
 
 CREATE INDEX IX_dim_indicator_category_country
@@ -119,6 +128,8 @@ CREATE INDEX IX_dim_indicator_category_country
 ```
 
 **`imdr_code` naming**: dotted, namespaced, stable — `{SOURCE}.{CATEGORY}.{KEY}[.{COUNTRY}]`. Examples: `FRED.CPIAUCSL`, `ABS.CPI.HEADLINE.AU`, `RBNZ.OCR`, `BIS.CGDP_GAP.US`. Matches the `playground/macro/funding/design.md` convention.
+
+**Category set evolution note**: The original set (`cpi`, `gdp`, `labour`, `bop`, `balance_sheet`, `rates`, `fx`, `housing`, `credit`, `sentiment`, `energy`, `tourism`, `other`) was extended during the HKMA playground prototype (2026-06-02) to add four CB-liquidity-focused values: `liquidity` (aggregate balance / reserve levels), `cb_facility` (standing facilities — RRP, discount window, SRF), `cb_balance_sheet` (monetary base and total-assets aggregates), and `instr_outstand` (outstanding instrument counts — EF Bills+Notes, CIs). The original `balance_sheet` value is kept for non-CB balance sheets (e.g. household, registered-bank). The set may grow further as FRED/BIS/ECB sources land in Phase 4.
 
 ### 3.3 `econ.fact_indicator` — the data
 
@@ -450,7 +461,7 @@ Only after Phase 0 review:
 4. **Vintage column** — keep from day one? (Adds 2 bytes/row; enables real-time history.) Default recommendation: yes. → Engineer will build with vintage; if you want it stripped, say so before the migration lands.
 5. **`value DECIMAL(28,10)`** — enough for both pp-level rates and trillion-AUD balance-sheet figures. OK?
 6. **`investor_breakdown_json NVARCHAR(MAX)`** on auctions — semi-structured here, or break into a child `fact_auction_investors` table? (Only matters at Phase 3; safe to defer.)
-7. **FRED API key** — needs registering. Lives under `IMDR_FRED_API_KEY` in `.env`.
+7. ~~FRED API key~~ — registered, lives under `IMDR_ECON_FRED_KEY` in `.env` (resolved 2026-06-02).
 
 ---
 

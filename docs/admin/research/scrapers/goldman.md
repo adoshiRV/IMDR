@@ -205,6 +205,175 @@ python playground/research/ingest_today_goldman.py
 Other env knobs documented in
 [`ingest_today_goldman.py`](../../../../playground/research/ingest_today_goldman.py).
 
+## Hard taxonomy probe (2026-06-02)
+
+Full read-only probe of the search-API response shape. Detailed
+write-up in
+[`taxonomy_probe/goldman_full.md`](../../../../playground/research/taxonomy_probe/goldman_full.md);
+the probe script
+[`probe_goldman_full.py`](../../../../playground/research/probe_goldman_full.py)
+is re-runnable (read-only — no DB write, no PDF fetch).
+
+### Key finding — `aemTags[]` is the master taxonomy
+
+Each document carries an `aemTags[]` array of strings shaped like
+``research:<axis>/<parent_guid>/<child_guid>[-Primary]`` spanning 19
+distinct axes. The GUIDs resolve via a `facetList` block returned in
+the **same response** — free, deterministic, no extra calls. This is
+GS's equivalent of JPM's `regions/assetClasses/sectors/countries`
+and MS's `cinfo.srcinfo`. The first cut of the crawler ignored it
+completely.
+
+Axes we now parse and structure on `ReportRef`:
+
+| aemTag axis | resolves via facet | what it carries |
+|---|---|---|
+| `sources` | Sources (7 buckets) | "Research" / "FICC and Equities" / "GS.com" / "Investment Banking" / "Asset Management" / "Wealth Management" / "Goldman Sachs Global Institute" |
+| `reportTypes` | Report Types (9) | "Flow" / "Analysis & Insight" / "Model" / "Compendium" / "Audio" / "Video" / "Blogs / Commentary" / "Presentation" / "IB_Marketing" |
+| `productFocus` | Focus (3) | **"Issuer" / "SectorIndustry" / "Country"** — **canonical single-name signal** |
+| `regions` | Regions/Countries (93) | super-regional buckets (Americas, Europe, Asia Pacific, EMEA, …) |
+| `countries` | Regions/Countries (93) | ISO-level country names; `-Primary` suffix marks the canonical entry |
+| `subjects` | Subjects (110) | Central Banks, Earnings, Inflation, ECB, Federal Reserve, Macro, Micro, … |
+| `girAssetTypes` / `girDisciplines` | Sub-sources/Assets (67) | "Equity Research" / "Currencies / FX" / "Rates" / "Credit" / "Commodities" / "Economics Research" / "Portfolio Strategy Research" / 50+ currencies |
+| `industries` | Industries (451) | Reuters-style sector hierarchy |
+| `giractions` | Actions (28) | EPS Estimate Change / Price Target Change / Rating Change / Forecast Change / … |
+
+### Filter design (Tier-0 deterministic drops at discovery)
+
+`filters/goldman.py` — first-match-wins precedence:
+
+1. `format:podcast` / `format:video` — listing booleans (legacy, kept)
+2. `report-type:<value>` — drop any of {Audio, Video, Blogs / Commentary, Presentation, IB_Marketing}
+3. `source:<value>` — drop when `sources` is populated but contains nothing in {Research, FICC and Equities}
+4. **`focus:Issuer`** — single-name research, **the main drop** (catches ~8% more than `primaryCompanyTickers==1`)
+5. `single-name:1-ticker` — fallback for legacy docs with no `aemTags.productFocus` axis
+6. `title-prefix:'<prefix>'` — invite/webcast admin posts (legacy)
+
+### Tier-0 classifier
+
+`classifiers/goldman.py` — first-match-wins:
+
+1. `focus=="Issuer"` OR `primaryCompanyTickers` non-empty → EQUITY
+2. **`girAssetTypes` → canonical** via the 9-row map (`Currencies / FX → FX`, `Rates → RATES`, `Credit → CREDIT`, `Commodities → COMMODITIES`, `Economics Research → MACRO`, `Portfolio Strategy Research → STRATEGY`, `Equity Research / Equities → EQUITY`, `ESG → ESG`). **This was the missing layer** — 61/200 docs ship empty `disciplines[]` (the FICC desks) and the old classifier fell through to title regex, often returning empty.
+3. `disciplines[]` substring (legacy fallback)
+4. `sourceDisplayName` substring (legacy fallback)
+5. Title regex (final fallback)
+
+Country code from `primary_country` (aemTags `countries-Primary`) →
+`normalize_country` → ISO 2-char. Was hardcoded `None` before.
+
+`subjects[]` aemTags emitted as `TAG_THEME` (replaces the deprecated
+`curatedKeywords[]`, which is empty on 100% of probe sample). First 5
+`industries[]` aemTags emitted as `TAG_INDUSTRY`.
+
+## DB audit (2026-06-02)
+
+Detailed write-up in
+[`taxonomy_probe/goldman_db_audit.md`](../../../../playground/research/taxonomy_probe/goldman_db_audit.md).
+480 rows, 2026-05-06 → 2026-05-29 (batch ingest, 12-day gap May 8-19).
+
+| issue | count | severity |
+|---|---|---|
+| **Blank `asset_class` + zero tags** (2026-05-21 + 2026-05-25 batches) | **144 rows (30%)** | pipeline / classifier failure — invisible to search; FICC desk content where `disciplines[]` was empty |
+| `asset_class='EQUITY'` (single-name leakage; every row has 2+ ticker tags) | 204 (42%) | discovery filter didn't catch — relevance filter not tuned to GS ticker-padding |
+| **Zero RATES / FX classifications** despite "BOJ JGB Path", "FX Forecast" titles | 107 collapsed into MACRO | classifier missed FICC content |
+| Zero country / region coverage (country_code hardcoded `None`) | 480/480 | structural — fixed via aemTags `countries-Primary` |
+| Encoding corruption | 0 | clean |
+| Non-canonical asset_class strings | 0 | clean (GS publication type lives in `vendor_pubtype` tag) |
+
+Cleanup buckets 7 + 8 added to
+[`cleanup_tier1_junk.py`](../../../../playground/research/cleanup_tier1_junk.py):
+- `goldman-empty-classifier` — 144 rows; DELETE → daily re-ingest under Tier-0
+- `goldman-equity-leak` — 204 EQUITY rows; DELETE → re-ingest, single-name drops at discovery via `focus=Issuer`
+
+## 7-day smoke (2026-06-03)
+
+Read-only via
+[`smoke_goldman_7day.py`](../../../../playground/research/smoke_goldman_7day.py).
+Log at
+[`taxonomy_probe/goldman_smoke_7day.log`](../../../../playground/research/taxonomy_probe/goldman_smoke_7day.log).
+
+**Volume — 7-day window (since=2026-05-27 until=2026-06-03):**
+
+| stage | count |
+|---|---|
+| raw cards processed | ~1136 |
+| discovery drops | 716 (63%) — focus:Issuer 370, single-name:1-ticker 310, format:podcast 17, audio/video 0, blogs 7, GS.com 5, video-bool 5, presentation 1, webcast-prefix 1 |
+| discovery kept | 420 (~60/day) |
+| relevance kept (v1, loose) | 414 (99% of post-discovery) — 6 extra single-name catches |
+| relevance kept (v2, tightened 2026-06-03) | **266 (63% of post-discovery, ~38/day)** — drops 149 sector-only EQUITY via the Goldman branch below |
+
+**Field coverage on 420 survivors:** sources 100%, gir_asset_types
+98%, subjects 82%, regions 71%, countries 64%, focus 44%, industries
+34%, report_types 79%.
+
+**Kept asset_class distribution:**
+
+After the v2 tightening (Goldman branch in `relevance.py`):
+
+| class | count | % | comment |
+|---|---|---|---|
+| MACRO | 112 | **42%** | Euro Inflation, Balance of Payments, Fair Work Commission, Earnings Season Takeaways |
+| **RATES** | 70 | **26%** | (was 0 in DB) Canadian Rates Weekly, GS Rates MarketStrats, Treasury RV, Global IR Gamma — the FICC stream now picked up by Tier-0 |
+| STRATEGY | 21 | 8% | Asian equity market daily, Cross-Asset, Yield builds |
+| EQUITY | **19** | 7% | post-tightening — daily "Ratings and Target Price Changes" digests (Macro-tagged), "This Week in Global Research", "Inside the Model", "Positioning ahead", "Weekly sector news, positioning data" |
+| **FX** | 14 | 5% | (was 0 in DB) GS FX MarketStrats, FXpresso Daily, USD/CAD USMCA |
+| (empty) | 12 | 5% | execution analytics (Futures Cost-to-Trade) + French-language reports |
+| COMMODITIES | 11 | 4% | Brent volatility, Copper, Hormuz |
+| CREDIT | 7 | 3% | GS Credit Volatility Report, Corporate Credit |
+
+**Country coverage now working** (was 0/480): top countries US 72,
+CN 38, BR 23, JP 21, AU 20, KR 11, DE 9, UK 8. Regions: apac 111,
+americas 86, emea 55, latam 38.
+
+**Sample kept titles** confirm the FICC-desk recovery:
+- RATES: *"Canadian Rates Weekly"* / *"Treasury RV Report"* / *"GS Rates MarketStrats - Global Bond Futures Carry"*
+- FX: *"GS FX MarketStrats | FXpresso Daily"* / *"USD/CAD and The USMCA Review"*
+- CREDIT: *"Corporate Credit Look Into Housing"* / *"GS Credit Volatility Report"*
+
+### Posture on sector EQUITY — tightening (2026-06-03)
+
+The first-cut smoke kept 168 EQUITY survivors (40% of total kept).
+Review of those titles surfaced a clear split:
+* **131 `focus=SectorIndustry`** — pure sector noise (Watches round-up,
+  TV Viewership Tracker, ASCO conference notes, Container shipping,
+  Hospital occupancy, Hyundai monthly wholesale, per-name covers).
+  All carry `subj=[Micro]` only.
+* **37 `focus=(empty)`** — daily wraps + multi-stock digests, mixed
+  quality. ~8 carry a `Macro` subject tag (the desk's cross-asset /
+  research-summary content); ~29 are Micro-only sector content.
+
+User decision: tighten. Added a Goldman branch to
+[`relevance.is_single_name_equity`](../../../../playground/research/ingest/relevance.py):
+
+```
+if vendor_code == "goldman" and asset_class == EQUITY:
+    if n_tickers == 1:                              -> drop
+    if "Macro" in subject-tags:                     -> keep
+    if title matches _GS_EQUITY_KEEP allowlist:     -> keep
+    else:                                            -> drop
+```
+
+`_GS_EQUITY_KEEP` keywords: ``strategy | portfolio | cross-asset |
+allocation | outlook | thematic | themes | positioning | earnings
+season | earnings preview | global research | cross-sector``.
+
+GS-native `Macro` subject tag is the cleaner signal — Subjects facet
+has Macro (51K catalog-wide) vs Micro (217K). 100% of SectorIndustry
+survivors are Micro-only; the macro-flavoured daily wraps carry Macro.
+
+Net 7-day result after tightening: **266 kept (was 414), ~38/day**.
+EQUITY survivors 168 → 19 (kept the daily "Ratings and Target Price
+Changes" multi-stock digests with Macro tag, "This Week in Global
+Research", "Inside the Model", "Positioning ahead", "Weekly sector
+news, positioning data"; dropped sector noise + per-name SectorIndustry
+covers).
+
+Two edge cases lost — *Berlin Mietspiegel* (German RE macro) and
+*China Trade Tracker* — accepted at ~2-3/week. Both classify EQUITY
+because the Equity Research desk publishes them; could be recovered
+by mapping `subj=[Trade Policy]` → MACRO in a future pass.
+
 ## Last verified
 
 2026-05-08 — pipeline working end-to-end via advanced-search +
@@ -212,3 +381,13 @@ path-type filter. **~330 PDF reports/day** discovered (was ~6 with DOM
 scrape; was ~470/day before filter — the difference is non-PDF content
 types we now skip at discovery). Per-PDF wall-clock ~3s with embed off,
 fail rate dropped 50% → ~5%.
+
+2026-06-03 — Tier-0 + aemTags filter + Tier-0 classifier landed in
+playground (gitignored). 7-day smoke (loose v1) showed ~60 kept/day
+after 63% discovery drop. Then user-requested tightening on sector
+EQUITY: added Goldman branch to `relevance.is_single_name_equity`
+with `Macro` subject-tag bypass + cross-asset title allowlist
+(`_GS_EQUITY_KEEP`). v2 = **38 kept/day**, EQUITY 168 → 19,
+composition MACRO 42% / RATES 26% / STRATEGY 8% / EQUITY 7% /
+FX 5% / COMMODITIES 4% / CREDIT 3%. RATES, FX, and country/region
+populated for the first time.

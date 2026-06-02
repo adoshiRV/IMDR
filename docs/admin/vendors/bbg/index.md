@@ -62,6 +62,8 @@ Multiple PCs on the research team each run a Windows Task Scheduler job several 
 | [other_pipelines.md](other_pipelines.md) | Credit / Bonds / Futures / Fixings / Listed (briefer) |
 | [quirks_and_gotchas.md](quirks_and_gotchas.md) | Known issues and subtle behaviours before IMDR touches this |
 | [imdr_integration_plan.md](imdr_integration_plan.md) | Proposed path for IMDR-side ingestion |
+| [terminal_python_setup.md](terminal_python_setup.md) | `imdrbbg` conda env — install + daily-use guide for the four Terminal users + `shared_term` |
+| [app_integration.md](app_integration.md) | **How a downstream app integrates** — subprocess invocation, exit codes, reading the snapshot, error handling |
 
 ## Why this matters for IMDR
 
