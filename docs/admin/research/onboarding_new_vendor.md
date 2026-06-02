@@ -16,6 +16,15 @@ shippable — we stop at the end of each phase, verify, then move on. Do
 not skip ahead; the discovery API in phase 2 is what unlocks everything
 downstream, and getting it wrong burns days.
 
+**Phase 8 — Hard taxonomy probe + structured tightening** is run
+**after** the vendor has ≥1 week of production ingest. It uses the
+vendor's *own* listing-API taxonomy to replace title-string heuristics
+with deterministic structured signals. Don't skip it — it's where the
+real cleanup happens. The pattern is the same every time: spawn 3-4
+parallel probe agents → find the vendor-native signal → ship five
+edits (crawler / filter / classifier / cleanup / smoke) → docs + memory.
+Run it once per vendor; expect 1-2 hours per vendor.
+
 ---
 
 ## Phase 0 — Decide whether to onboard
@@ -474,6 +483,208 @@ classifier-enriched `ReportMeta`. Do not copy the legacy
    `scripts/imdr_daily.py` if production code has moved out of
    `playground/`. Currently all research lives in `playground/` —
    leave the scheduler hook for the promotion-to-`src/imdr/` cleanup.
+
+---
+
+## Phase 8 — Hard taxonomy probe + structured tightening
+
+A new vendor reaches Phase 7 with a "working but loose" ingest:
+title-prefix filter only, classifier off whatever publication-type
+table you hand-curated, and country/region coverage that's whatever
+the listing surface happens to expose. **Phase 8 is the
+vendor-native-signal pass** that tightens this loop using the
+listing API's *own* taxonomy fields rather than your title regex.
+
+Run Phase 8 after the vendor has ≥1 week of production ingest. The
+DB audit gets meaningful, the smoke window is real, and the drift
+between "what we ingest" and "what the desk publishes" is visible.
+
+Pattern proven 2026-06-02→03 across JPM / MS / Goldman / BNP / ANZ /
+Westpac. Each vendor took 1-2 hours from probe start to docs-
+committed. See per-vendor memory entries linked below.
+
+### Phase 8.1 — Spawn 3-4 parallel agents
+
+The probe has independent strands; run them concurrently:
+
+| agent | task |
+|---|---|
+| **Explore — current stack** | Read crawler / filter / classifier / scraper-doc / explore script / smoke logs. Identify which API fields we parse vs ignore. Cite file:line. |
+| **imdr-dbm — DB audit** | Use `mcp__imdr-db__query` SELECTs. Count NULL/empty/non-canonical asset_class. Single-name leakage. Encoding corruption. Country/region tag coverage. Format leakage (podcast/video/chart-pack titles). Save to `playground/research/taxonomy_probe/<vendor>_db_audit.md`. |
+| **general-purpose — hard probe** | Read crawler + probe artefacts. Enumerate **every** key on the listing response (not just the ones we map). Identify vendor-native taxonomy: assetClass / region / single-name / format / pubtype enums. Stage a read-only probe at `playground/research/probe_<vendor>_full.py`; execute only if metadata-only (no PDFs, no DB writes). Save to `playground/research/taxonomy_probe/<vendor>_full.md` + JSON dumps. |
+| **Explore — Deepak cross-check** | Only if `Z:\Business\Personnel\Arjun\playwrights\<vendor>-playwright\` exists. READ the on-disk Chrome profile (Bookmarks, History — do NOT launch the browser). Save URL/hub visit distribution to `<vendor>_deepak.md`. Skip if no profile. |
+
+Brief each agent like a smart colleague — file paths, what to read,
+what shape the report should take. Reserve full prompts for findings
+docs; the agent results come back into the main context as compact
+summaries.
+
+### Phase 8.2 — Find the vendor-native taxonomy signal
+
+Every vendor we've audited has one. The pattern is **always**:
+a top-level structured field (or array of structured tags) carrying
+the desk's own asset-class / region / format / single-name
+enumeration. Confirmed analogues:
+
+| vendor | the signal |
+|---|---|
+| JPM | bare-scalar `regions` / `assetClasses` / `sectors` / `countries` in the GraphQL result (added via field projection) + `businessGroup` drop |
+| MS | `cinfo.srcinfo` / `cinfo.ptcinfo` (single-name) + frontmatter `region` + `topicHeadline` → ASSET_CLASS_LEVEL2 map (from `lookupall/allbylanguagecode`) |
+| Goldman | `aemTags[]` (19 axes) — `productFocus=Issuer` is the single-name signal; `girAssetTypes` is the FICC-aware asset-class; `subjects` for Macro/Micro |
+| BNP | `tags.quantModels` non-empty (chart-pack) + `tags.assetClasses` (already used as Tier-0) |
+| Barclays | `pubSeriesInfo.assetClassInfo` + `eqSecurities[]` count + 28-type `tags[]` |
+| ANZ | `tile-tags` `[Sub-Topic, Topic]` pair (unlock with `param_layout=full` — was stripped at `wide`) |
+| Westpac | `invRecommParentTag` (Currencytickers / swapsau / commoditytickers / credittickers / …) + `invRecommSubCategoriesTag` (Bloomberg tickers) |
+
+**If you can't find a vendor-native signal in 30 minutes of probe,
+the vendor probably doesn't have one** — fall back to a tighter
+title/pubtype rule set and document the gap. Most vendors do
+expose one; it's just buried (Goldman's `aemTags` resolve via the
+same response's `facetList`; ANZ's tags only exist at the
+`layout=full` URL parameter).
+
+### Phase 8.3 — Ship five edits (A-E)
+
+This is the same five-step package every time:
+
+| step | file | what changes |
+|---|---|---|
+| A | `crawler_<vendor>.py` | Parse the new structured fields onto `ReportRef`. Keep existing fields verbatim — additive only. If the signal is GUID-based, resolve to human names at parse time (Goldman pattern). If the response carries a facet dictionary in the same body, build the lookup once per crawl. |
+| B | `filters/<vendor>.py` | Add structured drops layered **before** existing title rules. Standard precedence: format flags (audio/video booleans) → format strings (file path slug, doc type) → non-research source (allow-list) → single-name (focus/cinfo/issuer/ticker count) → vendor-specific drop (chart-pack model, discontinued pubtype, etc.) → legacy title-prefix. First match wins. |
+| C | `classifiers/<vendor>.py` | New Tier-0 from the structured signal → canonical asset_class. Keep existing logic as Tier-1 fallback. Surface country/region from the new fields if present. Emit any Bloomberg tickers / industry tags. |
+| D | `cleanup_tier1_junk.py` | Add a bucket per vendor for the historical leakers the new rules now catch (non-canonical asset_class rows, format leaks, single-name leaks). DELETE-only (the new ingest will re-discover them and re-drop cleanly). Skip if DB is empty for this vendor. |
+| E | `smoke_<vendor>_7day.py` | Mirror `smoke_anz_7day.py` / `smoke_bnp_7day.py`: per-day discovered/kept, structured-field coverage, drop reason breakdown with 5 samples each, kept asset_class/region/country distribution, sample titles per class. |
+
+Do A→E in order. Each step should compile cleanly before the next.
+
+### Phase 8.4 — Sanity-test on real probe data
+
+Before running the 7-day smoke, validate the parser + filter +
+classifier against actual cards from the probe sample:
+
+```python
+# Pull a real card from playground/research/taxonomy_probe/<vendor>_full_sample.json
+# Run it through the crawler's tile parser (or whatever extracts ReportRef-shaped dicts)
+# Then through filter.should_exclude(...)
+# Then through classifiers.<vendor>.classify(...)
+# Assert: filter precedence is correct (drop reasons fire on the right cases),
+#         classifier resolves the right asset_class on 4-6 representative samples.
+```
+
+This catches off-by-one regex bugs (e.g. unquoted `class=tag`
+attribute on ANZ, `'true'` string instead of bool on Westpac
+`hideArticle`, `australian` vs `australia` substring mismatches)
+before you spend 10 minutes on a smoke that's broken at parse time.
+
+### Phase 8.5 — Run the 7-day smoke
+
+```bash
+C:/Users/adoshi/.conda/envs/imdr/python.exe \
+    playground/research/smoke_<vendor>_7day.py \
+    > playground/research/taxonomy_probe/<vendor>_smoke_7day.log 2>&1
+```
+
+Read the log end-to-end. Key things to check:
+
+1. **Hub coverage** — did all configured hubs return cards?
+2. **Discovery drop reasons** — do the counts look right? Spot-check
+   the 5 sample titles per reason; if any look legit (i.e. a real
+   macro brief got dropped as a chart-pack), the rule is too tight.
+3. **Relevance kept ratio** — JPM/MS/Goldman/BNP/ANZ/Westpac all
+   landed at 99-100% kept *post-discovery* once tightening was
+   complete. If your vendor is below 90%, either the classifier is
+   leaking sector EQUITY into the relevance path (loosen Tier-0 to
+   catch more) or the relevance default-drop is firing on legit
+   content (consult `relevance.py` vendor branches).
+4. **Asset-class composition** — should be **macro/rates/fx/
+   credit/commodities-dominated**, with EQUITY ≤ 10% (sector-only)
+   and zero junk classes.
+5. **Country/region coverage on survivors** — should be ≥ 60%
+   after Phase 8. If lower, the vendor signal probably exposes
+   country and you're not extracting it.
+
+Iterate if needed — a v1 smoke that exposes a bug + v2 fix is
+normal. Westpac and ANZ both needed a one-line fix between v1 and
+v2 (`Blue Lens` over-drop on ANZ; nothing material on Westpac).
+
+### Phase 8.6 — Apply the vendor-specific posture
+
+User instruction *"GET ALL and full deep coverage, no single-name
+equity/credit, trends ok"* (2026-06-03) becomes per-vendor:
+
+- **MS**: strict drop on EQUITY (no Macro-subject equivalent on MS,
+  sector wraps are mostly noise). See
+  `memory/feedback_ms_strict_sector_equity_drop.md`.
+- **Goldman**: strict drop default with a narrow allowlist —
+  `Macro` subject tag OR title matches
+  `strategy|portfolio|cross-asset|allocation|outlook|thematic|
+  positioning|earnings season|global research`. See
+  `memory/feedback_goldman_tightening.md`.
+- **BNP**: strict drop on any `quantModels` non-empty (chart-pack
+  signal). See `memory/feedback_bnp_strict_quantmodels.md`.
+- **ANZ**: no equity in vendor taxonomy → no decision needed. See
+  `memory/feedback_anz_layout_full.md`.
+- **Westpac**: drop on `credittickers` parent (single-name credit);
+  keep all other `invRecomm` parents. See
+  `memory/feedback_westpac_three_hubs.md`.
+
+If a vendor's relevance branch needs a `_<VENDOR>_EQUITY_KEEP`
+title-regex allowlist, model it on `_JPM_EQUITY_KEEP` /
+`_GS_EQUITY_KEEP` / `_DB_EQUITY_KEEP` in
+`playground/research/ingest/relevance.py`.
+
+### Phase 8.7 — Docs + memory + commit
+
+1. **Update `docs/admin/research/scrapers/<vendor>.md`** — append
+   a "Hard taxonomy probe + tightening (`<date>`)" section with:
+   probe links, key win (the single sentence: what signal we
+   started using), filter precedence table, classifier Tier-0
+   table, DB audit summary, 7-day smoke result, any vendor-specific
+   posture trade-off.
+2. **Add a `memory/feedback_<vendor>_<rule>.md` file** if there's a
+   sticky vendor-specific decision (strict-equity-drop, structured
+   chart-pack rule, weird HTML quirk, etc.) — future sessions need
+   to see it before they touch the filter again.
+3. **Index it in `MEMORY.md`** with a one-line hook.
+4. **Commit docs only** (`docs/admin/research/scrapers/<vendor>.md`).
+   Code stays in gitignored `playground/`. Commit message format:
+   ```
+   research/<vendor>: <key-win> + Tier-0 + 7-day smoke
+
+   Doc-only update capturing the <date> <vendor> probe pass. Code
+   stays in gitignored playground/.
+
+   What landed in <vendor>.md:
+   - Hard taxonomy probe — <key signal + count of distinct values>
+   - Filter precedence — <new drop reasons>
+   - Tier-0 classifier — <signal → canonical map>
+   - DB audit — <count of leakers + buckets cleaned>
+   - 7-day smoke — <kept/day> kept, composition <top classes>
+   - <Posture decision> — <accepted vs. tightened, with rationale>
+   ```
+
+### Phase 8 anti-patterns
+
+- **Don't write filter rules from probe-agent guesses alone.**
+  Agent-3 reports often over-classify legitimate content as drop
+  candidates (ANZ `Blue Lens` was a real macro brief, not internal
+  collation). Always cross-check the dropped-titles sample from
+  the smoke before trusting an enum-based drop.
+- **Don't commit code to git.** Research stays in
+  `playground/research/` — gitignored. Only the docs commit.
+- **Don't ship without running the smoke.** The smoke is the
+  forcing function that surfaces parse bugs, false-positive drops,
+  and integration issues. If it didn't run cleanly end-to-end,
+  the changes aren't done.
+- **Don't add `EQUITY` to the relevance default-keep set.** Per
+  the user's instruction (2026-06-03 and prior), the macro/rates/
+  fx/credit/commodities stream is the goal. EQUITY survives only
+  with vendor-specific allowlists (Macro-subject, cross-asset
+  title keywords) — never as default-keep.
+- **Don't loosen a vendor branch in `relevance.py` without checking
+  the memory entry first.** Each strict-drop decision is documented
+  in `memory/feedback_<vendor>_*.md` with the rationale. Loosening
+  re-opens the noise we already paid to filter out.
 
 ---
 
