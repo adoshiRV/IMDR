@@ -216,8 +216,136 @@ $env:IMDR_RESEARCH_EMBED = "true"
 python playground/research/ingest_today_nomura.py
 ```
 
+## Hard taxonomy probe + tightening (2026-06-03)
+
+Probe artefacts in
+[`taxonomy_probe/nomura_full.md`](../../../../playground/research/taxonomy_probe/nomura_full.md),
+[`taxonomy_probe/nomura_db_audit.md`](../../../../playground/research/taxonomy_probe/nomura_db_audit.md),
+[`taxonomy_probe/nomura_full_sample_star.json`](../../../../playground/research/taxonomy_probe/nomura_full_sample_star.json).
+Re-runnable probe at
+[`probe_nomura_full.py`](../../../../playground/research/probe_nomura_full.py).
+
+### Key win — `assetClassId` scalar + `companies[]` single-name signal
+
+The crawler was mapping 9 of 62 fields on the ES response. Probe
+surfaced two strong vendor-native signals we were ignoring:
+
+| field | values | role |
+|---|---|---|
+| **`assetClassId`** | 4-value enum: `EQ` / `FI` / `FX` / `EC` | Tier-0 asset-class scalar (Nomura's MS-`ASSET_CLASS_LEVEL2` analogue) |
+| **`companies[]`** | array of `{ticker, securityType, name, id}` populated on ~63% of docs | Single-name detection — `assetClassId=="EQ" AND companies!=[]` is deterministic |
+| `publishingOrganisation` | 5-value enum (`JE`/`AE`/`FI`/`FX`/`EC`) | publishing desk; JE+AE = single-name equity desks |
+| `themes` / `subThemes` | curator macro vocab (`Central Bank`, `BOJ`, `Inflation`, `Fiscal Policy`) | sparse (29% / 23%) — emitted as TAG_THEME |
+| `reportTitles[].en` | publication-series enum | noise denylist signal (`MBS Data Reports`, `Japan Small Cap`, `Agency * Report`) |
+| `deleted` / `displayInGRP` / `replacementPublicationId` | vendor lifecycle flags | drop superseded / hidden / deleted rows |
+
+### Filter precedence (added 2026-06-03)
+
+`filters/nomura.py` — first match wins:
+
+1. **`vendor-deleted`** — `deleted == true`
+2. **`not-displayed`** — `displayInGRP == false`
+3. **`superseded:<id>`** — `replacementPublicationId` set
+4. **`noise-report-title:<name>`** — `reportTitles[].en` substring match against `{mbs data reports, japan small cap, agency mbs lockup, agency mbs buyout, gnm buyout reports, fhl exchange reports}`
+5. **`single-name-equity:companies=<n>`** — `assetClassId == "EQ" AND companies != []` (gated by `drop_single_name`)
+6. **`title-prefix:'<p>'`** — legacy admin
+
+### Classifier — Tier-0 from assetClassId
+
+`classifiers/nomura.py`:
+
+1. **Tier-0**: `assetClassId` → canonical: `EQ→EQUITY`, `FX→FX`,
+   `EC→MACRO`, `FI→split` (RATES default; CREDIT if `assetClasses[]`
+   contains Credit / Securitized / MBS / CLO / ABS / HY).
+2. **Tier-1**: `assetClasses[].en` string substring match (legacy).
+3. **Tier-2**: pubtype + title text-regex (legacy MBS/CLO fallback).
+
+**Tickers** emitted from both `companies[]` (new, structured) AND
+title-mined `(TICKER EX)` patterns (legacy) — deduped while
+preserving order.
+
+**Themes** from `themes` + `subThemes` lists → `TAG_THEME`
+(capped 5 + 3 to avoid bloated tag sets on multi-themed reports).
+
+### DB audit (378 rows, 2026-05-07 → 2026-06-01)
+
+| issue | count | severity |
+|---|---|---|
+| **Non-canonical `asset_class`** — Nomura publication series leaking ("Equity Report" 14, "MBS Data Reports" 14, "Japanese Equity Quantitative S" 5 truncated, "Strategy Trade" 3, …) | **83 (22%)** | classifier wrote pubtype into asset_class when no rule matched |
+| Empty `asset_class` | 12 (3%) | classifier returned "" |
+| **Single-name EQUITY leakage** — `(Buy)/(Sell)/(Neutral)/(Reduce)` rating-flag titles | **~49 (36% of EQUITY)** | no ticker tags exist → ticker-count detector couldn't catch them |
+| Region tag coverage | 81.5% (good) | — |
+| Country coverage | thin (JP/WW/EU only) | — |
+| Encoding corruption / podcast leakage | 0 | clean |
+
+Bucket 11 added to
+[`cleanup_tier1_junk.py`](../../../../playground/research/cleanup_tier1_junk.py):
+`nomura-leakage` — DELETEs ~144 rows (83 non-canonical + 12 empty +
+49 single-name EQUITY with rating-flag titles). Re-ingest under
+Tier-0 + new single-name filter cleans them.
+
+### 7-day smoke (2026-06-03)
+
+Read-only via
+[`smoke_nomura_7day.py`](../../../../playground/research/smoke_nomura_7day.py).
+Log at
+[`taxonomy_probe/nomura_smoke_7day.log`](../../../../playground/research/taxonomy_probe/nomura_smoke_7day.log).
+
+| stage | count |
+|---|---|
+| raw cards processed | ~385 |
+| discovery drops | **269** — 254 `single-name-equity:companies=N`, 36 `noise-report-title:MBS*`, others |
+| discovery kept | 116 (~17/day) |
+| relevance kept | **116 (100%)** — no relevance drops needed (single-name caught at discovery) |
+
+**Structured-field coverage on survivors**: `assetClassId` 100%,
+`publishingOrganisation` 100%, `companies` 0% (all populated cards
+caught at discovery — exactly the intent), `themes` 29%,
+`subThemes` 23%.
+
+**Composition** — clean macro/rates/fx with sector EQUITY:
+
+| class | count | % |
+|---|---|---|
+| FX | 33 | 28% |
+| MACRO | 29 | 25% |
+| RATES | 28 | 24% |
+| EQUITY | 26 | 22% |
+
+Zero non-canonical asset_class, zero empty — the 36-row leak hole
+is plugged at source.
+
+**Country coverage** (was JP/WW/EU only pre-fix): JP 65, WW 7, EU 2.
+**Region**: apac 101, global 19, americas 18, emea 9.
+
+The 26 EQUITY survivors are sector / quant / multi-name research
+(`Japanese equities factor geek`, `Japan Research Pack`,
+`China factory automation data`, `Rolled aluminum product
+statistics`) — no single-name leakage. The 254 single-name-equity
+drops are textbook stock notes with `(Buy)/(Neutral)/(Sell)` flags
+(e.g. *"Tokyo Century (8439 JP) (Buy)"*, *"Sony Financial Group
+(8729 JP) (Buy)"*, *"Adani Port & SEZ (ADSEZ IN) (Buy)"*).
+
+**Deepak cross-check** (`taxonomy_probe/nomura_deepak.md`):
+Economics 20 visits, FX 9, Macro Strategy 9, Rates 9 — pure macro
+focus, zero equity-research visits. Confirms scope.
+
+**Sample kept titles**:
+- MACRO: *"Asia Insights - Korea: Strong chip prices drive exports higher"*, *"First Insights - Euro area: Services prices drive inflation higher"*, *"US Daily Commentary - Review & Preview"*
+- RATES: *"Yen RV Analytics"*, *"Yen Rates Daily Monitor"*, *"Australia Rates Insights"*, *"Nomura Quant Insights - AI rally"*
+- FX: *"FX Insights - Inflows to US equities accelerated"*, *"JPY Intraday Comment"*, *"USD/CNY fix model - Projection: 6.7762"*
+
 ## Last verified
 
 2026-05-07 — pipeline working end-to-end via the new ES search API.
 **~107 reports/day** in English (was ~31 with DOM scrape of /m/Home).
 Per-PDF wall-clock ~5-7s with embed off.
+
+2026-06-03 — `assetClassId` Tier-0 + `companies[]` single-name
+drop + noise-report-title denylist + vendor-lifecycle flags
+(deleted/displayInGRP/replacementPublicationId) landed in
+playground (gitignored). 7-day smoke shows **~17/day kept** (was
+~100/day raw with single-name pollution), 100% kept at relevance,
+clean FX 28% / MACRO 25% / RATES 24% / EQUITY 22% (all sector).
+269 discovery drops (~70% drop rate, mostly single-name stock
+notes).
