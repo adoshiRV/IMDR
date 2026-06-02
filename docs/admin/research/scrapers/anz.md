@@ -201,6 +201,120 @@ $env:IMDR_RESEARCH_EMBED = "true"
 python playground/research/ingest_today_anz.py
 ```
 
+## Hard taxonomy probe + tightening (2026-06-03)
+
+Probe artefacts in
+[`taxonomy_probe/anz_full.md`](../../../../playground/research/taxonomy_probe/anz_full.md),
+[`taxonomy_probe/anz_db_audit.md`](../../../../playground/research/taxonomy_probe/anz_db_audit.md),
+[`taxonomy_probe/anz_full_sample.json`](../../../../playground/research/taxonomy_probe/anz_full_sample.json).
+Re-runnable probe at
+[`probe_anz_full.py`](../../../../playground/research/probe_anz_full.py).
+
+### Key win — flip `param_layout=wide` → `full`
+
+Same endpoint, same auth, same paging. Body grows 60KB → 95KB at
+size=50. **Exposes `tile-tags` (Topic + Sub-Topic pair) and
+`tile-authors` inline on ~94% of tiles** — zero additional HTTP
+requests. Vendor-native structured taxonomy replaces the
+hard-coded 45-row publication_type table as the primary signal.
+
+Tile-tags format: `[Sub-Topic, Topic]` per tile, e.g.
+`["Rates & bonds - Aust", "Rates & bonds"]`,
+`["Crude oil", "Commodities"]`, `["USD", "Foreign exchange"]`,
+`["Housing - Aust", "Property & infrastructure"]`. Topic (12-value
+enum) is the asset-class signal; Sub-Topic carries the country
+suffix (`- Aust` / `- NZ` / `- Asia` / `- China` / `- US` / `- G3`).
+
+### Filter design (added 2026-06-03)
+
+`filters/anz.py` — first match wins:
+
+1. Title-prefix admin (legacy: `5 in 5 with anz`, `invite:`,
+   `webcast:`, `conference call:`, `expert access:`)
+2. Title-substring `"(podcast)"` (legacy)
+3. **`pubtype:<name>`** — exact match against `_EXCLUDED_PUB_TYPES_EXACT`:
+   * Audio/video: `Podcast`, `This Week in NZ Economics (Podcast)`,
+     `Client Calls & Webinars`, `Credit Strategy Webinars`
+   * Internal curation: `Shortlist`, `The Vault`
+   * `5 in 5 with ANZ` (defensive — also caught by title-prefix)
+4. **`pubtype-discontinued:<name>`** — any pubtype ending `(Discontinued)`
+5. **`topic:Climate / Sustainability / ESG`** — not in IMDR scope today
+
+Conservative cut — `Blue Lens` and `ANZecdotes` were initially
+included in the drop list per the probe enumeration but the smoke
+confirmed both are legitimate daily macro briefs. Removed.
+
+### Classifier — Tier-0 from tile-tags (added 2026-06-03)
+
+`classifiers/anz.py` — first match wins:
+
+1. **Tier-0a:** Topic → canonical (12-value map): `Foreign exchange→FX`,
+   `Rates & bonds→RATES`, `Credit strategy→CREDIT`, `Commodities→COMMODITIES`,
+   `Economic indicators / Fiscal policy / Monetary policy / Forecast update / Property & infrastructure / ANZ-observed data→MACRO`,
+   `Trade recommendations→STRATEGY`, `Climate / Sustainability / ESG→ESG`.
+2. **Tier-0b:** Sub-Topic suffix → country/region: `- Aust→AU`,
+   `- NZ→NZ`, `- China→CN`, `- US→US`, `- Asia→region=APAC`,
+   `- G3 / - G10→region=GLOBAL`, `- Pacific→region=APAC`.
+3. **Tier-1:** legacy publication_type table (45 rules, kept as fallback).
+4. **Tier-2:** pubtype keyword fallback (kept).
+
+Bug fix: `Australian Economic Update` (with trailing `n`) wasn't
+matching the legacy table key `australia economic update` because
+of substring asymmetry. Added an alias.
+
+### DB audit (107 rows, 2026-05-06 → 2026-06-01)
+
+| issue | count | severity |
+|---|---|---|
+| **Non-canonical `asset_class`** — series names ("Vietnam Insight", "NZ Morning Focus", "Monetary Policy Expectations", "AUD Midweek Highlights") | **28 rows (26%)** | classifier wrote pubtype into asset_class when no rule matched |
+| Empty `asset_class` | 8 rows | classifier returned "" |
+| Zero region/country coverage | **59/107 (55%)** | region was only 1 value (apac); 6 country codes total |
+| 2026-05-11 weekly ingest gap (1 row vs 20-50) | — | scraper failure that week (separate issue) |
+| Encoding corruption / single-name leakage | 0 | clean |
+
+Bucket 10 added to
+[`cleanup_tier1_junk.py`](../../../../playground/research/cleanup_tier1_junk.py):
+`anz-noncanonical-ac` — DELETE all 36 leakers (28 non-canonical +
+8 empty); they re-ingest under Tier-0 with correct asset_class +
+country anchor.
+
+### 7-day smoke (2026-06-03)
+
+Read-only via
+[`smoke_anz_7day.py`](../../../../playground/research/smoke_anz_7day.py).
+Log at
+[`taxonomy_probe/anz_smoke_7day_v2.log`](../../../../playground/research/taxonomy_probe/anz_smoke_7day_v2.log).
+
+| stage | count |
+|---|---|
+| raw cards processed | ~59 |
+| discovery drops | 10 — 4 Shortlist, 4 `(podcast)`, 1 The Vault, 1 5-in-5 |
+| discovery kept | 49 (~7/day) |
+| relevance kept | **49 (100%)** — no single-name to drop |
+
+**layout=full coverage on survivors**: topic 100%, sub_topic 90%,
+tile_authors 100%.
+
+**Composition** — pure macro/rates/fx/commodities:
+
+| class | count | % |
+|---|---|---|
+| MACRO | 33 | 67% |
+| RATES | 8 | 16% |
+| COMMODITIES | 4 | 8% |
+| FX | 4 | 8% |
+
+Zero EQUITY, zero CREDIT, zero (empty) — the 36-row leak hole is
+plugged at source.
+
+**Country coverage** (was 45% pre-smoke): AU 18, NZ 9, CN 2, KR 1.
+
+**Sample kept titles** confirm signal quality:
+- MACRO: *"Australia's wage decision and final Q1 2026 GDP estimate"* / *"Australia's housing market: slowdown accelerates"* / *"China's urban unemployment"* / *"ANZ-Roy Morgan Australian Consumer Confidence"*
+- RATES: *"STIR Update: staying short AUD; tighter liquidity near term"* / *"Daily Rates RV Pack"* / *"AUD Rates Weekly Snapshot"*
+- FX: *"FX Strategy Weekly: USD at crossroads"* / *"South Korea: KRW unfairly beaten down"* / *"Pacific Island currencies stronger against the USD"*
+- COMMODITIES: *"Commodity Call: nickel market rebalancing"* / *"Global oil market tracker: issue 3"*
+
 ## Last verified
 
 2026-05-07 — pipeline working end-to-end via the tile API
@@ -209,3 +323,9 @@ python playground/research/ingest_today_anz.py
 the API switch was for reliability + paginatability rather than
 coverage). Per-PDF wall-clock ~12s with embed off (slow-path
 redirect chain to S3 dominates).
+
+2026-06-03 — layout=full + Tier-0 classifier + publication_type
+drop-list landed in playground (gitignored). 7-day smoke shows
+~7/day kept post-discovery (100% kept at relevance), pure
+MACRO 67% / RATES 16% / COMMODITIES 8% / FX 8% composition, 100%
+country/region coverage on survivors with Sub-Topic geo.
