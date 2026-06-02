@@ -2,6 +2,7 @@
 
 Status: **live** (since 2026-05-08). Asset-class allowlist + single-name
 drop added 2026-06-02 (see [#asset-class-allowlist-2026-06-02](#asset-class-allowlist--single-name-drop-2026-06-02)).
+Language filter added 2026-06-02 (see [#language-filter-2026-06-02](#language-filter-2026-06-02)).
 
 * Discovery: ~**200 publications/day** raw via the publication-search
   firehose (`responseDetailLevel=FULL`, ~200/page, paginated until
@@ -54,8 +55,11 @@ Discovery (`discover_reports`):
      for each publication:
        parse basicInfo.pubDate
        if oldest_in_page < since → break  (early stop)
-       extract asset_class_name, eq_securities_count, is_event,
-               is_non_research, debt_restricted
+       extract basicInfo.language, asset_class_name,
+               eq_securities_count, is_event, is_non_research,
+               debt_restricted
+       apply filters/barclays.should_exclude_by_language
+              (drop non-English, e.g. Japanese Tokyo desk notes)
        apply filters/barclays.should_exclude         (title-prefix admin)
        apply filters/barclays.should_exclude_by_asset_class
               (allowlist + single-name equity + single-name credit + events)
@@ -320,6 +324,54 @@ category Deepak's URL pattern touched. No new asset classes to add, no
 URL-scoping shortcut available (the API metadata is more authoritative
 than the URL slug anyway).
 
+## Language filter (2026-06-02)
+
+Barclays publishes Tokyo desk notes in Japanese on the same asset
+classes we keep for English content (Interest Rates, FX, Global Macro,
+Economics). Without a language gate they pass the allowlist and land
+in the corpus as broken-encoding `??????` rows (see DB cleanup log
+below for the historical mess).
+
+### Signal
+
+`basicInfo.language` — ISO 639-2 alpha-3, always populated.
+
+### Probe results
+
+[`probe_barclays_language.py`](../../../../playground/research/probe_barclays_language.py)
+swept the most recent 1,882 pubs (2026-06-02). Output:
+[`taxonomy_probe/barclays_language.md`](../../../../playground/research/taxonomy_probe/barclays_language.md).
+
+| language | count |
+|---|---|
+| `eng` | 1,835 |
+| `jpn` | 47 |
+
+All 47 `jpn` pubs sit under `Interest Rates`, `Foreign Exchange`,
+`Global Macro`, or `Economics` — i.e. they'd be ingested today without
+this filter. Zero `eng`-labelled pubs carried CJK characters in the
+title, so the language field alone is reliable — no regex backstop.
+
+### Rule
+
+Allowlist on the language code. Implemented in
+[`filters/barclays.py::should_exclude_by_language`](../../../../playground/research/ingest/filters/barclays.py):
+
+```
+_KEEP_LANGUAGES = {"eng", ""}   # missing allowed defensively
+```
+
+Anything else drops with reason `language:'<code>'`. Allowlist semantics
+on purpose: if Barclays adds Chinese (`zho`) or Spanish (`spa`)
+tomorrow, those drop by default — no silent ingestion.
+
+The language check runs **first** in the discovery loop (cheapest:
+single string compare, no title parsing, no asset-class extraction).
+
+Tests: [`test_barclays_filter.py`](../../../../playground/research/test_barclays_filter.py)
+pins five real Japanese pub titles + the allowlist semantics
+(`jpn`/`zho`/`spa`/`fra`/`deu` all drop; `eng`/empty pass).
+
 ## DB cleanup log
 
 ### Tier-1 junk sweep (2026-06-02)
@@ -332,9 +384,11 @@ flagged 56 Barclays rows for deletion via
 * **30 broken-encoding titles** — Japanese / CJK characters lost on
   insert showed up as runs of `?` in the title (`??????·??????:
   ????????????????????`). The source delivered Japanese, the persist
-  path corrupted to cp1252; unreadable for RAG. Root cause not yet
-  fixed — until it is, the post-ingest check
-  `title LIKE '%??????%'` is a defensive backstop.
+  path corrupted to cp1252; unreadable for RAG. **Going forward** these
+  pubs are dropped at discovery by the language filter (see above);
+  the post-ingest check `title LIKE '%??????%'` remains as a defensive
+  backstop in case Barclays ships a `language="eng"` pub with CJK
+  characters in the title (none observed in the 1,882-pub probe).
 * **27 admin / morning-summary / event-invite rows** — `Barclays
   Americas Morning Research Summary`, `Barclays European Morning
   Research Summary`, `Barclays Americas Small Cap Research Summary`,
