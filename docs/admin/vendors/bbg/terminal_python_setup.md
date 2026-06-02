@@ -1,7 +1,7 @@
 # BBG Terminal — Python Setup (`imdrbbg` env)
 
-One-time install for the four Bloomberg Terminal users (DS / RM / RW / SP) and
-the shared terminal account. Lets a user run Python scripts in
+One-time install for the five Bloomberg Terminal users (AD / DS / RM / RW / SP)
+and the shared terminal account. Lets a user run Python scripts in
 [`bloomberg/`](../../../../bloomberg/) against their logged-in Terminal.
 
 This is **separate** from:
@@ -18,11 +18,12 @@ A slim conda env named **`imdrbbg`** with:
 | ---------------- | ----------------------------------------------------------- |
 | `python`         | 3.11                                                        |
 | `blpapi`         | Bloomberg Desktop API (pip, Bloomberg's private index)      |
-| `pyarrow`        | Parquet output for production jobs                          |
-| `pyyaml`         | Reserved for future config formats                          |
+| `pyarrow`        | Reserved — parquet output for future high-volume jobs       |
+| `pyyaml`         | Reserved — future config formats                            |
 | `jinja2`         | HTML email templates (refresh summary mail)                 |
 | `python-dotenv`  | Load `.env` (for `IMDR_EMAIL_TO`, etc.)                     |
 | `pywin32`        | Outlook COM automation (sends the refresh summary email)    |
+| `structlog`      | Structured logging (used by the IMDR notifications module)  |
 
 ## Prerequisites
 
@@ -61,12 +62,14 @@ conda activate imdrbbg
 # 1. Smoke test (first time, or after re-install) — no email
 python Z:\Business\Personnel\Arjun\GitHub\IMDR\bloomberg\smoke_test.py --user dsuri
 
-# 2. Refresh — the real driver. Reads bloomberg/tickers.csv, sends summary email.
+# 2. Refresh — the real driver. Reads bloomberg/tickers/{rates,bonds,fx}.csv,
+#    sends summary email.
 python Z:\Business\Personnel\Arjun\GitHub\IMDR\bloomberg\refresh.py --user dsuri --schedule hourly
 
 # Useful flags:
-#   --dry-run    parse tickers.csv, print what would be pulled, exit. No BBG call.
-#   --no-email   skip the summary email even if IMDR_EMAIL_ENABLED=true.
+#   --domain rates|bonds|fx   filter to one ticker file (apps should pass this).
+#   --dry-run                 print what would be pulled, exit. No BBG call.
+#   --no-email                skip the summary email even if IMDR_EMAIL_ENABLED=true.
 ```
 
 Substitute your user folder: `adoshi`, `dsuri`, `rmahadevan`, `rwu`, `spanda`, or
@@ -81,7 +84,7 @@ Substitute your user folder: `adoshi`, `dsuri`, `rmahadevan`, `rwu`, `spanda`, o
 | **Snapshot** | On-demand — you hit refresh | `--schedule snapshot` | Manually, or a desktop shortcut |
 
 **Daily** and **Hourly** pull only rows tagged with that exact `schedule` in
-`bloomberg/tickers.csv`. **Snapshot** pulls **every enabled row for the user**
+`bloomberg/tickers/{rates,bonds,fx}.csv`. **Snapshot** pulls **every enabled row for the user**
 (daily + hourly + snapshot-tagged) — it's the "refresh everything I care
 about, now" mode. Rows tagged `schedule=snapshot` are pulled *only* on
 manual snapshot runs.
@@ -110,8 +113,10 @@ When Arjun pushes new BBG scripts, they appear under
 
 ```
 Z:\Business\Personnel\Arjun\GitHub\IMDR\data\bloomberg\{user}\
-    smoke_test_YYYYMMDD_HHMM.csv
-    bbg_<job>_YYYYMMDD_HHMM.parquet     # future production jobs
+    smoke_test_YYYYMMDD_HHMMSS.csv
+    bbg_daily_YYYYMMDD_HHMMSS.csv
+    bbg_hourly_YYYYMMDD_HHMMSS.csv
+    bbg_snapshot_YYYYMMDD_HHMMSS.csv
 ```
 
 This path is already gitignored (`data/*`). An IMDR-side watcher reads from

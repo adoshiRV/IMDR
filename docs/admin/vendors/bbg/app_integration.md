@@ -53,6 +53,31 @@ Pick (3c) when you can wait up to 15 minutes and want canonical SQL access.
 Use `snapshot` for anything user-initiated — it pulls everything enabled for
 that user, which is what the user expects when they "refresh."
 
+### Always scope by domain when your app calls refresh
+
+The ticker registry is split into three files (`tickers/rates.csv`,
+`tickers/bonds.csv`, `tickers/fx.csv`) and `refresh.py` by default reads
+all three. That's fine for the **scheduled** Task Scheduler entries, but
+**app-driven** calls should usually scope down with `--domain` so they
+only pull what the caller actually needs.
+
+```bash
+python refresh.py --user dsuri --schedule snapshot --domain rates    # rates only
+python refresh.py --user dsuri --schedule snapshot --domain fx       # FX only
+python refresh.py --user dsuri --schedule snapshot --domain bonds    # bonds only
+# Omitting --domain pulls all three (existing scheduled-run behaviour).
+```
+
+Why this matters:
+
+- A `shared_term` snapshot today pulls ~800 securities; an FX-only app
+  shouldn't pay for the rates + bonds round-trip.
+- Bloomberg's `//blp/refdata` charges count-based caps per Terminal —
+  pulling only the data your app needs preserves quota for everyone else.
+- Per-user domain ownership: if a desk member is the named owner of one
+  domain (e.g., FX on `rwu`), apps invoking on their behalf should pass
+  the matching `--domain`.
+
 ### Subprocess example (Python)
 
 ```python
@@ -65,6 +90,7 @@ result = subprocess.run(
         r"Z:\Business\Personnel\Arjun\GitHub\IMDR\bloomberg\refresh.py",
         "--user", "dsuri",
         "--schedule", "snapshot",
+        "--domain", "rates",  # scope to this app's domain; omit for all 3
     ],
     capture_output=True,
     text=True,
@@ -109,18 +135,19 @@ if ($LASTEXITCODE -eq 0) {
 
 ### Exit codes
 
-| Code | Meaning                                                                                      |
-| ---- | -------------------------------------------------------------------------------------------- |
-| `0`  | Success — all tickers pulled, file written, email sent (if configured).                       |
-| `1`  | Setup/connection error — no Terminal, no `imdrbbg` env, or no matching rows in `tickers.csv`. |
-| `2`  | Partial — some tickers errored individually. Snapshot still written with the successes.       |
+| Code | Meaning                                                                                                       |
+| ---- | ------------------------------------------------------------------------------------------------------------- |
+| `0`  | Success — all tickers pulled, file written, email sent (if configured).                                        |
+| `1`  | Setup/connection error — no Terminal, no `imdrbbg` env, or no matching rows in `tickers/{rates,bonds,fx}.csv`. |
+| `2`  | Partial — some tickers errored individually. Snapshot still written with the successes.                        |
 
 ### Flags your app should know about
 
-| Flag         | When to pass                                                                                                |
-| ------------ | ----------------------------------------------------------------------------------------------------------- |
-| `--no-email` | Suppress the Outlook summary email. Use when your app sends its own notification, or for high-frequency runs. |
-| `--dry-run`  | Plan only — parses `tickers.csv` and prints what *would* be pulled. No BBG call, no write, no email.        |
+| Flag                  | When to pass                                                                                                          |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `--domain rates\|bonds\|fx` | Filter to a single ticker file. Always pass for app-driven calls (see above). Omit only for "pull everything" runs.   |
+| `--no-email`          | Suppress the Outlook summary email. Use when your app sends its own notification, or for high-frequency runs.         |
+| `--dry-run`           | Plan only — parses the ticker files and prints what *would* be pulled. No BBG call, no write, no email.               |
 
 ### Things your app **must not** assume
 
@@ -142,15 +169,17 @@ Z:\Business\Personnel\Arjun\GitHub\IMDR\data\bloomberg\{user}\bbg_{schedule}_{YY
 
 Schema (long format, one row per ticker × field):
 
-| Column           | Type          | Example                          |
-| ---------------- | ------------- | -------------------------------- |
-| `ticker`         | string        | `USGG10YR Index`                 |
-| `terminal_user`  | string        | `dsuri`                          |
-| `pulled_at_utc`  | ISO-8601 UTC  | `2026-06-02T14:23:17+00:00`      |
-| `host`           | string        | `DSURI-PC01`                     |
-| `domain`         | string        | `rates`                          |
-| `field`          | string        | `PX_LAST`                        |
-| `value`          | string        | `4.31`                           |
+| Column           | Type          | Example                       | Notes |
+| ---------------- | ------------- | ----------------------------- | ----- |
+| `ticker`         | string        | `USGG10YR Index`              | Exact BBG identifier (case/whitespace preserved). |
+| `terminal_user`  | string        | `dsuri`                       | The terminal account the request was attributed to. |
+| `pulled_at_utc`  | ISO-8601 UTC  | `2026-06-02T14:23:17+00:00`   | Wall-clock at the start of the BBG request. |
+| `host`           | string        | `DSURI-PC01`                  | Producer host (for tracing). |
+| `domain`         | string        | `rates`                       | One of `rates / bonds / fx`. Derived from which `tickers/*.csv` file the row came from, **not** a column on the source. |
+| `field`          | string        | `PX_LAST`                     | BBG field name. |
+| `value`          | string        | `4.31`                        | Raw response value; downstream converts to numeric per field type. |
+
+Routing-relevant columns (e.g., `curve_code`, `quote_type`, `country`) are **not** in the snapshot CSV — the IMDR sweeper joins back to `tickers/{rates,bonds,fx}.csv` by `(ticker, domain)` to get them.
 
 Atomicity: files appear via `.tmp` → rename. **Never read a `.tmp` file.**
 
@@ -224,14 +253,15 @@ on reference-data calls; hammering them gets the Terminal user throttled.
 
 ## Error handling cheat sheet
 
-| Symptom                                            | Root cause                                  | Your app should…                                              |
-| -------------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------- |
-| Exit `1`, stderr says `could not start a session`  | BBG Terminal off or not logged in           | Surface "Bloomberg Terminal not running" to the user.         |
-| Exit `1`, stderr says `No enabled tickers`         | `tickers.csv` empty for this `(user, schedule)` | Surface "No tickers configured" — direct user to update CSV.  |
-| Exit `1`, stderr says `blpapi is not installed`    | Subprocess didn't pick up the imdrbbg env   | Fix the subprocess invocation to use the right `python.exe`.  |
-| Exit `2`                                           | Some tickers had `securityError` from BBG   | Parse the snapshot anyway; warn user about the failed ones.   |
-| Subprocess times out                               | BBG Terminal frozen / network stalled       | Retry once; if still timing out, surface to user.             |
-| File appears but is empty                          | You read a `.tmp` file or read mid-write    | Check the suffix is exactly `.csv`, not `.csv.tmp`.           |
+| Symptom                                            | Root cause                                                | Your app should…                                                  |
+| -------------------------------------------------- | --------------------------------------------------------- | ----------------------------------------------------------------- |
+| Exit `1`, stderr says `could not start a session`  | BBG Terminal off or not logged in                          | Surface "Bloomberg Terminal not running" to the user.             |
+| Exit `1`, stderr says `No enabled tickers`         | All three of `tickers/{rates,bonds,fx}.csv` empty for this `(user, schedule, domain)` filter | Surface "No tickers configured" — direct user to update the right file. |
+| Exit `1`, stderr says `blpapi is not installed`    | Subprocess didn't pick up the imdrbbg env                  | Fix the subprocess invocation to use the right `python.exe`.       |
+| Exit `2`                                           | Some tickers had `securityError` from BBG                  | Parse the snapshot anyway; warn user about the failed ones.        |
+| Subprocess times out, ≳800 tickers                 | Oversized `ReferenceDataRequest` — refresh.py doesn't chunk yet | Pass `--domain` to scope down, or wait for the batching fix.       |
+| Subprocess times out                               | BBG Terminal frozen / network stalled                      | Retry once; if still timing out, surface to user.                  |
+| File appears but is empty                          | You read a `.tmp` file or read mid-write                   | Check the suffix is exactly `.csv`, not `.csv.tmp`.                |
 
 ---
 

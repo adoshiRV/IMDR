@@ -1,0 +1,804 @@
+ticker,user,schedule,enabled,owner,domain,kind,currency,country,curve_code,tenor,quote_type,source_file
+BBSW 3M INDEX,shared_term,daily,true,AD,rates,IRS,AUD,,AUD-BBSW-3M,3M,YIELD,tickers/rates.csv
+ADSWFQ BGN Curncy,shared_term,daily,true,AD,rates,IRS,AUD,,AUD-BBSW-3M,6M,YIELD,tickers/rates.csv
+ADSWIQ BGN Curncy,shared_term,daily,true,AD,rates,IRS,AUD,,AUD-BBSW-3M,9M,YIELD,tickers/rates.csv
+ADSWAP1Q BGN Curncy,shared_term,daily,true,AD,rates,IRS,AUD,,AUD-BBSW-3M,1Y,YIELD,tickers/rates.csv
+ADSW1FQ BGN Curncy,shared_term,daily,true,AD,rates,IRS,AUD,,AUD-BBSW-3M,18M,YIELD,tickers/rates.csv
+ADSWAP2Q BGN Curncy,shared_term,daily,true,AD,rates,IRS,AUD,,AUD-BBSW-3M,2Y,YIELD,tickers/rates.csv
+ADSWAP3Q BGN Curncy,shared_term,daily,true,AD,rates,IRS,AUD,,AUD-BBSW-3M,3Y,YIELD,tickers/rates.csv
+ADSWAP4Q BGN Curncy,shared_term,daily,true,AD,rates,IRS,AUD,,AUD-BBSW-3M,4Y,YIELD,tickers/rates.csv
+ADSWAP5Q BGN Curncy,shared_term,daily,true,AD,rates,IRS,AUD,,AUD-BBSW-3M,5Y,YIELD,tickers/rates.csv
+ADSWAP6Q BGN Curncy,shared_term,daily,true,AD,rates,IRS,AUD,,AUD-BBSW-3M,6Y,YIELD,tickers/rates.csv
+ADSWAP7Q BGN Curncy,shared_term,daily,true,AD,rates,IRS,AUD,,AUD-BBSW-3M,7Y,YIELD,tickers/rates.csv
+ADSWAP10Q BGN Curncy,shared_term,daily,true,AD,rates,IRS,AUD,,AUD-BBSW-3M,10Y,YIELD,tickers/rates.csv
+ADSWAP12Q BGN Curncy,shared_term,daily,true,AD,rates,IRS,AUD,,AUD-BBSW-3M,12Y,YIELD,tickers/rates.csv
+ADSWAP15Q BGN Curncy,shared_term,daily,true,AD,rates,IRS,AUD,,AUD-BBSW-3M,15Y,YIELD,tickers/rates.csv
+ADSWAP20Q BGN Curncy,shared_term,daily,true,AD,rates,IRS,AUD,,AUD-BBSW-3M,20Y,YIELD,tickers/rates.csv
+ADSWAP25Q BGN Curncy,shared_term,daily,true,AD,rates,IRS,AUD,,AUD-BBSW-3M,25Y,YIELD,tickers/rates.csv
+ADSWAP30Q BGN Curncy,shared_term,daily,true,AD,rates,IRS,AUD,,AUD-BBSW-3M,30Y,YIELD,tickers/rates.csv
+SD0302P 6M BLC3 Curncy,shared_term,daily,true,AD,rates,IRS,AUD,,AUD-BBSW-6M,6M,YIELD,tickers/rates.csv
+SD0302P 9m BLC3 Curncy,shared_term,daily,true,AD,rates,IRS,AUD,,AUD-BBSW-6M,9M,YIELD,tickers/rates.csv
+SD0302P 1Y BLC3 Curncy,shared_term,daily,true,AD,rates,IRS,AUD,,AUD-BBSW-6M,1Y,YIELD,tickers/rates.csv
+SD0302P 15m BLC3 Curncy,shared_term,daily,true,AD,rates,IRS,AUD,,AUD-BBSW-6M,15M,YIELD,tickers/rates.csv
+SD0302P 18m BLC3 Curncy,shared_term,daily,true,AD,rates,IRS,AUD,,AUD-BBSW-6M,18M,YIELD,tickers/rates.csv
+SD0302P 2Y BLC3 Curncy,shared_term,daily,true,AD,rates,IRS,AUD,,AUD-BBSW-6M,2Y,YIELD,tickers/rates.csv
+SD0302P 3Y BLC3 Curncy,shared_term,daily,true,AD,rates,IRS,AUD,,AUD-BBSW-6M,3Y,YIELD,tickers/rates.csv
+SD0302P 4Y BLC3 Curncy,shared_term,daily,true,AD,rates,IRS,AUD,,AUD-BBSW-6M,4Y,YIELD,tickers/rates.csv
+SD0302P 5Y BLC3 Curncy,shared_term,daily,true,AD,rates,IRS,AUD,,AUD-BBSW-6M,5Y,YIELD,tickers/rates.csv
+SD0302P 6Y BLC3 Curncy,shared_term,daily,true,AD,rates,IRS,AUD,,AUD-BBSW-6M,6Y,YIELD,tickers/rates.csv
+SD0302P 7Y BLC3 Curncy,shared_term,daily,true,AD,rates,IRS,AUD,,AUD-BBSW-6M,7Y,YIELD,tickers/rates.csv
+SD0302P 8Y BLC3 Curncy,shared_term,daily,true,AD,rates,IRS,AUD,,AUD-BBSW-6M,8Y,YIELD,tickers/rates.csv
+SD0302P 9Y BLC3 Curncy,shared_term,daily,true,AD,rates,IRS,AUD,,AUD-BBSW-6M,9Y,YIELD,tickers/rates.csv
+SD0302P 10Y BLC3 Curncy,shared_term,daily,true,AD,rates,IRS,AUD,,AUD-BBSW-6M,10Y,YIELD,tickers/rates.csv
+SD0302P 12Y BLC3 Curncy,shared_term,daily,true,AD,rates,IRS,AUD,,AUD-BBSW-6M,12Y,YIELD,tickers/rates.csv
+SD0302P 15Y BLC3 Curncy,shared_term,daily,true,AD,rates,IRS,AUD,,AUD-BBSW-6M,15Y,YIELD,tickers/rates.csv
+SD0302P 20Y BLC3 Curncy,shared_term,daily,true,AD,rates,IRS,AUD,,AUD-BBSW-6M,20Y,YIELD,tickers/rates.csv
+SD0302P 25Y BLC3 Curncy,shared_term,daily,true,AD,rates,IRS,AUD,,AUD-BBSW-6M,25Y,YIELD,tickers/rates.csv
+SD0302P 30Y BLC3 Curncy,shared_term,daily,true,AD,rates,IRS,AUD,,AUD-BBSW-6M,30Y,YIELD,tickers/rates.csv
+CNRR007 Index,shared_term,daily,true,AD,rates,IRS,CNO,,CNO-REPO-7D,1W,YIELD,tickers/rates.csv
+CCSWOA CMPN CURNCY,shared_term,daily,true,AD,rates,IRS,CNO,,CNO-REPO-7D,4W,YIELD,tickers/rates.csv
+CCSWOC CMPN CURNCY,shared_term,daily,true,AD,rates,IRS,CNO,,CNO-REPO-7D,3M,YIELD,tickers/rates.csv
+CCSWOF CMPN CURNCY,shared_term,daily,true,AD,rates,IRS,CNO,,CNO-REPO-7D,6M,YIELD,tickers/rates.csv
+CCSWOI CMPN CURNCY,shared_term,daily,true,AD,rates,IRS,CNO,,CNO-REPO-7D,9M,YIELD,tickers/rates.csv
+CCSWO1 CMPN CURNCY,shared_term,daily,true,AD,rates,IRS,CNO,,CNO-REPO-7D,1Y,YIELD,tickers/rates.csv
+CCSWO2 CMPN CURNCY,shared_term,daily,true,AD,rates,IRS,CNO,,CNO-REPO-7D,2Y,YIELD,tickers/rates.csv
+CCSWO3 CMPN CURNCY,shared_term,daily,true,AD,rates,IRS,CNO,,CNO-REPO-7D,3Y,YIELD,tickers/rates.csv
+CCSWO4 CMPN CURNCY,shared_term,daily,true,AD,rates,IRS,CNO,,CNO-REPO-7D,4Y,YIELD,tickers/rates.csv
+CCSWO5 CMPN CURNCY,shared_term,daily,true,AD,rates,IRS,CNO,,CNO-REPO-7D,5Y,YIELD,tickers/rates.csv
+CCSWO7 CMPN CURNCY,shared_term,daily,true,AD,rates,IRS,CNO,,CNO-REPO-7D,7Y,YIELD,tickers/rates.csv
+CCSWO10 CMPN CURNCY,shared_term,daily,true,AD,rates,IRS,CNO,,CNO-REPO-7D,10Y,YIELD,tickers/rates.csv
+CCSWNIA CMPN CURNCY,shared_term,daily,true,AD,rates,IRS,CNY,,CNY-REPO-7D,4W,YIELD,tickers/rates.csv
+CCSWNIC CMPN CURNCY,shared_term,daily,true,AD,rates,IRS,CNY,,CNY-REPO-7D,3M,YIELD,tickers/rates.csv
+CCSWNIF CMPN CURNCY,shared_term,daily,true,AD,rates,IRS,CNY,,CNY-REPO-7D,6M,YIELD,tickers/rates.csv
+CCSWNII CMPN CURNCY,shared_term,daily,true,AD,rates,IRS,CNY,,CNY-REPO-7D,9M,YIELD,tickers/rates.csv
+CCSWNI1 CMPN CURNCY,shared_term,daily,true,AD,rates,IRS,CNY,,CNY-REPO-7D,1Y,YIELD,tickers/rates.csv
+CCSWNI2 CMPN CURNCY,shared_term,daily,true,AD,rates,IRS,CNY,,CNY-REPO-7D,2Y,YIELD,tickers/rates.csv
+CCSWNI3 CMPN CURNCY,shared_term,daily,true,AD,rates,IRS,CNY,,CNY-REPO-7D,3Y,YIELD,tickers/rates.csv
+CCSWNI4 CMPN CURNCY,shared_term,daily,true,AD,rates,IRS,CNY,,CNY-REPO-7D,4Y,YIELD,tickers/rates.csv
+CCSWNI5 CMPN CURNCY,shared_term,daily,true,AD,rates,IRS,CNY,,CNY-REPO-7D,5Y,YIELD,tickers/rates.csv
+CCSWNI6 CMPN CURNCY,shared_term,daily,true,AD,rates,IRS,CNY,,CNY-REPO-7D,6Y,YIELD,tickers/rates.csv
+CCSWNI7 CMPN CURNCY,shared_term,daily,true,AD,rates,IRS,CNY,,CNY-REPO-7D,7Y,YIELD,tickers/rates.csv
+CCSWNI10 CMPN CURNCY,shared_term,daily,true,AD,rates,IRS,CNY,,CNY-REPO-7D,10Y,YIELD,tickers/rates.csv
+EUR003M Index,shared_term,daily,true,AD,rates,IRS,EUR,,EUR-EURIBOR-3M,3M,YIELD,tickers/rates.csv
+EUSWFV3 CMPN Curncy,shared_term,daily,true,AD,rates,IRS,EUR,,EUR-EURIBOR-3M,6M,YIELD,tickers/rates.csv
+EUSW1V3 CMPN Curncy,shared_term,daily,true,AD,rates,IRS,EUR,,EUR-EURIBOR-3M,1Y,YIELD,tickers/rates.csv
+EUSW2V3 CMPN Curncy,shared_term,daily,true,AD,rates,IRS,EUR,,EUR-EURIBOR-3M,2Y,YIELD,tickers/rates.csv
+EUSW3V3 CMPN Curncy,shared_term,daily,true,AD,rates,IRS,EUR,,EUR-EURIBOR-3M,3Y,YIELD,tickers/rates.csv
+EUSW4V3 CMPN Curncy,shared_term,daily,true,AD,rates,IRS,EUR,,EUR-EURIBOR-3M,4Y,YIELD,tickers/rates.csv
+EUSW5V3 CMPN Curncy,shared_term,daily,true,AD,rates,IRS,EUR,,EUR-EURIBOR-3M,5Y,YIELD,tickers/rates.csv
+EUSW6V3 CMPN Curncy,shared_term,daily,true,AD,rates,IRS,EUR,,EUR-EURIBOR-3M,6Y,YIELD,tickers/rates.csv
+EUSW7V3 CMPN Curncy,shared_term,daily,true,AD,rates,IRS,EUR,,EUR-EURIBOR-3M,7Y,YIELD,tickers/rates.csv
+EUSW8V3 CMPN Curncy,shared_term,daily,true,AD,rates,IRS,EUR,,EUR-EURIBOR-3M,8Y,YIELD,tickers/rates.csv
+EUSW9V3 CMPN Curncy,shared_term,daily,true,AD,rates,IRS,EUR,,EUR-EURIBOR-3M,9Y,YIELD,tickers/rates.csv
+EUSW10V3 CMPN Curncy,shared_term,daily,true,AD,rates,IRS,EUR,,EUR-EURIBOR-3M,10Y,YIELD,tickers/rates.csv
+EUSW11V3 CMPN Curncy,shared_term,daily,true,AD,rates,IRS,EUR,,EUR-EURIBOR-3M,11Y,YIELD,tickers/rates.csv
+EUSW12V3 CMPN Curncy,shared_term,daily,true,AD,rates,IRS,EUR,,EUR-EURIBOR-3M,12Y,YIELD,tickers/rates.csv
+EUSW15V3 CMPN Curncy,shared_term,daily,true,AD,rates,IRS,EUR,,EUR-EURIBOR-3M,15Y,YIELD,tickers/rates.csv
+EUSW18V3 CMPN Curncy,shared_term,daily,true,AD,rates,IRS,EUR,,EUR-EURIBOR-3M,18Y,YIELD,tickers/rates.csv
+EUSW20V3 CMPN Curncy,shared_term,daily,true,AD,rates,IRS,EUR,,EUR-EURIBOR-3M,20Y,YIELD,tickers/rates.csv
+EUSW25V3 CMPN Curncy,shared_term,daily,true,AD,rates,IRS,EUR,,EUR-EURIBOR-3M,25Y,YIELD,tickers/rates.csv
+EUSW30V3 CMPN Curncy,shared_term,daily,true,AD,rates,IRS,EUR,,EUR-EURIBOR-3M,30Y,YIELD,tickers/rates.csv
+EUSW35V3 CMPN Curncy,shared_term,daily,true,AD,rates,IRS,EUR,,EUR-EURIBOR-3M,35Y,YIELD,tickers/rates.csv
+EUSW40V3 CMPN Curncy,shared_term,daily,true,AD,rates,IRS,EUR,,EUR-EURIBOR-3M,40Y,YIELD,tickers/rates.csv
+EUR006M Index,shared_term,daily,true,AD,rates,IRS,EUR,,EUR-EURIBOR-6M,6M,YIELD,tickers/rates.csv
+EUSA1 BGN Curncy,shared_term,daily,true,AD,rates,IRS,EUR,,EUR-EURIBOR-6M,1Y,YIELD,tickers/rates.csv
+EUSA2 BGN Curncy,shared_term,daily,true,AD,rates,IRS,EUR,,EUR-EURIBOR-6M,2Y,YIELD,tickers/rates.csv
+EUSA3 BGN Curncy,shared_term,daily,true,AD,rates,IRS,EUR,,EUR-EURIBOR-6M,3Y,YIELD,tickers/rates.csv
+EUSA4 BGN Curncy,shared_term,daily,true,AD,rates,IRS,EUR,,EUR-EURIBOR-6M,4Y,YIELD,tickers/rates.csv
+EUSA5 BGN Curncy,shared_term,daily,true,AD,rates,IRS,EUR,,EUR-EURIBOR-6M,5Y,YIELD,tickers/rates.csv
+EUSA6 BGN Curncy,shared_term,daily,true,AD,rates,IRS,EUR,,EUR-EURIBOR-6M,6Y,YIELD,tickers/rates.csv
+EUSA7 BGN Curncy,shared_term,daily,true,AD,rates,IRS,EUR,,EUR-EURIBOR-6M,7Y,YIELD,tickers/rates.csv
+EUSA8 BGN Curncy,shared_term,daily,true,AD,rates,IRS,EUR,,EUR-EURIBOR-6M,8Y,YIELD,tickers/rates.csv
+EUSA9 BGN Curncy,shared_term,daily,true,AD,rates,IRS,EUR,,EUR-EURIBOR-6M,9Y,YIELD,tickers/rates.csv
+EUSA10 BGN Curncy,shared_term,daily,true,AD,rates,IRS,EUR,,EUR-EURIBOR-6M,10Y,YIELD,tickers/rates.csv
+EUSA11 BGN Curncy,shared_term,daily,true,AD,rates,IRS,EUR,,EUR-EURIBOR-6M,11Y,YIELD,tickers/rates.csv
+EUSA12 BGN Curncy,shared_term,daily,true,AD,rates,IRS,EUR,,EUR-EURIBOR-6M,12Y,YIELD,tickers/rates.csv
+EUSA15 BGN Curncy,shared_term,daily,true,AD,rates,IRS,EUR,,EUR-EURIBOR-6M,15Y,YIELD,tickers/rates.csv
+EUSA20 BGN Curncy,shared_term,daily,true,AD,rates,IRS,EUR,,EUR-EURIBOR-6M,20Y,YIELD,tickers/rates.csv
+EUSA25 BGN Curncy,shared_term,daily,true,AD,rates,IRS,EUR,,EUR-EURIBOR-6M,25Y,YIELD,tickers/rates.csv
+EUSA30 BGN Curncy,shared_term,daily,true,AD,rates,IRS,EUR,,EUR-EURIBOR-6M,30Y,YIELD,tickers/rates.csv
+EUSA35 BGN Curncy,shared_term,daily,true,AD,rates,IRS,EUR,,EUR-EURIBOR-6M,35Y,YIELD,tickers/rates.csv
+EUSA40 BGN Curncy,shared_term,daily,true,AD,rates,IRS,EUR,,EUR-EURIBOR-6M,40Y,YIELD,tickers/rates.csv
+HIHD03M Index,shared_term,daily,true,AD,rates,IRS,HKD,,HKD-HIBOR-3M,3M,YIELD,tickers/rates.csv
+HDSWF BGN Curncy,shared_term,daily,true,AD,rates,IRS,HKD,,HKD-HIBOR-3M,6M,YIELD,tickers/rates.csv
+HDSWI BGN Curncy,shared_term,daily,true,AD,rates,IRS,HKD,,HKD-HIBOR-3M,9M,YIELD,tickers/rates.csv
+HDSW1 BGN Curncy,shared_term,daily,true,AD,rates,IRS,HKD,,HKD-HIBOR-3M,1Y,YIELD,tickers/rates.csv
+HDSW2 BGN Curncy,shared_term,daily,true,AD,rates,IRS,HKD,,HKD-HIBOR-3M,2Y,YIELD,tickers/rates.csv
+HDSW3 BGN Curncy,shared_term,daily,true,AD,rates,IRS,HKD,,HKD-HIBOR-3M,3Y,YIELD,tickers/rates.csv
+HDSW4 BGN Curncy,shared_term,daily,true,AD,rates,IRS,HKD,,HKD-HIBOR-3M,4Y,YIELD,tickers/rates.csv
+HDSW5 BGN Curncy,shared_term,daily,true,AD,rates,IRS,HKD,,HKD-HIBOR-3M,5Y,YIELD,tickers/rates.csv
+HDSW6 BGN Curncy,shared_term,daily,true,AD,rates,IRS,HKD,,HKD-HIBOR-3M,6Y,YIELD,tickers/rates.csv
+HDSW7 BGN Curncy,shared_term,daily,true,AD,rates,IRS,HKD,,HKD-HIBOR-3M,7Y,YIELD,tickers/rates.csv
+HDSW10 BGN Curncy,shared_term,daily,true,AD,rates,IRS,HKD,,HKD-HIBOR-3M,10Y,YIELD,tickers/rates.csv
+HDSW12 BGN Curncy,shared_term,daily,true,AD,rates,IRS,HKD,,HKD-HIBOR-3M,12Y,YIELD,tickers/rates.csv
+HDSW15 BGN Curncy,shared_term,daily,true,AD,rates,IRS,HKD,,HKD-HIBOR-3M,15Y,YIELD,tickers/rates.csv
+KWCDC Curncy,shared_term,daily,true,AD,rates,IRS,KRO,,KRO-91D_CD-3M,3M,YIELD,tickers/rates.csv
+KWSWOF  CMPN Curncy,shared_term,daily,true,AD,rates,IRS,KRO,,KRO-91D_CD-3M,6M,YIELD,tickers/rates.csv
+KWSWOI  CMPN Curncy,shared_term,daily,true,AD,rates,IRS,KRO,,KRO-91D_CD-3M,9M,YIELD,tickers/rates.csv
+KWSWO1  CMPN Curncy,shared_term,daily,true,AD,rates,IRS,KRO,,KRO-91D_CD-3M,1Y,YIELD,tickers/rates.csv
+KWSWO2  CMPN Curncy,shared_term,daily,true,AD,rates,IRS,KRO,,KRO-91D_CD-3M,2Y,YIELD,tickers/rates.csv
+KWSWO3  CMPN Curncy,shared_term,daily,true,AD,rates,IRS,KRO,,KRO-91D_CD-3M,3Y,YIELD,tickers/rates.csv
+KWSWO4  CMPN Curncy,shared_term,daily,true,AD,rates,IRS,KRO,,KRO-91D_CD-3M,4Y,YIELD,tickers/rates.csv
+KWSWO5  CMPN Curncy,shared_term,daily,true,AD,rates,IRS,KRO,,KRO-91D_CD-3M,5Y,YIELD,tickers/rates.csv
+KWSWO6  CMPN Curncy,shared_term,daily,true,AD,rates,IRS,KRO,,KRO-91D_CD-3M,6Y,YIELD,tickers/rates.csv
+KWSWO7  CMPN Curncy,shared_term,daily,true,AD,rates,IRS,KRO,,KRO-91D_CD-3M,7Y,YIELD,tickers/rates.csv
+KWSWO10  CMPN Curncy,shared_term,daily,true,AD,rates,IRS,KRO,,KRO-91D_CD-3M,10Y,YIELD,tickers/rates.csv
+KWSWO12  CMPN Curncy,shared_term,daily,true,AD,rates,IRS,KRO,,KRO-91D_CD-3M,12Y,YIELD,tickers/rates.csv
+KWSWO15  CMPN Curncy,shared_term,daily,true,AD,rates,IRS,KRO,,KRO-91D_CD-3M,15Y,YIELD,tickers/rates.csv
+KWSWO20  CMPN Curncy,shared_term,daily,true,AD,rates,IRS,KRO,,KRO-91D_CD-3M,20Y,YIELD,tickers/rates.csv
+KWSWNIF  CMPN Curncy,shared_term,daily,true,AD,rates,IRS,KRW,,KRW-91D_CD-3M,6M,YIELD,tickers/rates.csv
+KWSWNII  CMPN Curncy,shared_term,daily,true,AD,rates,IRS,KRW,,KRW-91D_CD-3M,9M,YIELD,tickers/rates.csv
+KWSWNI1  CMPN Curncy,shared_term,daily,true,AD,rates,IRS,KRW,,KRW-91D_CD-3M,1Y,YIELD,tickers/rates.csv
+KWSWNI2  CMPN Curncy,shared_term,daily,true,AD,rates,IRS,KRW,,KRW-91D_CD-3M,2Y,YIELD,tickers/rates.csv
+KWSWNI3  CMPN Curncy,shared_term,daily,true,AD,rates,IRS,KRW,,KRW-91D_CD-3M,3Y,YIELD,tickers/rates.csv
+KWSWNI4  CMPN Curncy,shared_term,daily,true,AD,rates,IRS,KRW,,KRW-91D_CD-3M,4Y,YIELD,tickers/rates.csv
+KWSWNI5  CMPN Curncy,shared_term,daily,true,AD,rates,IRS,KRW,,KRW-91D_CD-3M,5Y,YIELD,tickers/rates.csv
+KWSWNI6  CMPN Curncy,shared_term,daily,true,AD,rates,IRS,KRW,,KRW-91D_CD-3M,6Y,YIELD,tickers/rates.csv
+KWSWNI7  CMPN Curncy,shared_term,daily,true,AD,rates,IRS,KRW,,KRW-91D_CD-3M,7Y,YIELD,tickers/rates.csv
+KWSWNI10  CMPN Curncy,shared_term,daily,true,AD,rates,IRS,KRW,,KRW-91D_CD-3M,10Y,YIELD,tickers/rates.csv
+KWSWNI12  CMPN Curncy,shared_term,daily,true,AD,rates,IRS,KRW,,KRW-91D_CD-3M,12Y,YIELD,tickers/rates.csv
+KWSWNI15  CMPN Curncy,shared_term,daily,true,AD,rates,IRS,KRW,,KRW-91D_CD-3M,15Y,YIELD,tickers/rates.csv
+KWSWNI20  CMPN Curncy,shared_term,daily,true,AD,rates,IRS,KRW,,KRW-91D_CD-3M,20Y,YIELD,tickers/rates.csv
+KLIB3M INDEX,shared_term,daily,true,AD,rates,IRS,MYR,,MYR-KLIBOR-3M,3M,YIELD,tickers/rates.csv
+MRSWNIF BLC3 CURNCY,shared_term,daily,true,AD,rates,IRS,MYR,,MYR-KLIBOR-3M,6M,YIELD,tickers/rates.csv
+MRSWNII BLC3 CURNCY,shared_term,daily,true,AD,rates,IRS,MYR,,MYR-KLIBOR-3M,9M,YIELD,tickers/rates.csv
+MRSWNI1 BLC3 CURNCY,shared_term,daily,true,AD,rates,IRS,MYR,,MYR-KLIBOR-3M,1Y,YIELD,tickers/rates.csv
+MRSWNI2 BLC3 CURNCY,shared_term,daily,true,AD,rates,IRS,MYR,,MYR-KLIBOR-3M,2Y,YIELD,tickers/rates.csv
+MRSWNI3 BLC3 CURNCY,shared_term,daily,true,AD,rates,IRS,MYR,,MYR-KLIBOR-3M,3Y,YIELD,tickers/rates.csv
+MRSWNI4 BLC3 CURNCY,shared_term,daily,true,AD,rates,IRS,MYR,,MYR-KLIBOR-3M,4Y,YIELD,tickers/rates.csv
+MRSWNI5 BLC3 CURNCY,shared_term,daily,true,AD,rates,IRS,MYR,,MYR-KLIBOR-3M,5Y,YIELD,tickers/rates.csv
+MRSWNI7 BLC3 CURNCY,shared_term,daily,true,AD,rates,IRS,MYR,,MYR-KLIBOR-3M,7Y,YIELD,tickers/rates.csv
+MRSWNI10 BLC3 CURNCY,shared_term,daily,true,AD,rates,IRS,MYR,,MYR-KLIBOR-3M,10Y,YIELD,tickers/rates.csv
+MRSWNI12 BLC3 CURNCY,shared_term,daily,true,AD,rates,IRS,MYR,,MYR-KLIBOR-3M,12Y,YIELD,tickers/rates.csv
+MRSWNI15 BLC3 CURNCY,shared_term,daily,true,AD,rates,IRS,MYR,,MYR-KLIBOR-3M,15Y,YIELD,tickers/rates.csv
+NDBB3M Curncy,shared_term,daily,true,AD,rates,IRS,NZD,,NZD-BKBM-3M,3M,YIELD,tickers/rates.csv
+NDSWF CMPN CURNCY,shared_term,daily,true,AD,rates,IRS,NZD,,NZD-BKBM-3M,6M,YIELD,tickers/rates.csv
+NDSWI CMPN CURNCY,shared_term,daily,true,AD,rates,IRS,NZD,,NZD-BKBM-3M,9M,YIELD,tickers/rates.csv
+NDSWAP1 CMPN CURNCY,shared_term,daily,true,AD,rates,IRS,NZD,,NZD-BKBM-3M,1Y,YIELD,tickers/rates.csv
+NDSWAP2 CMPN CURNCY,shared_term,daily,true,AD,rates,IRS,NZD,,NZD-BKBM-3M,2Y,YIELD,tickers/rates.csv
+NDSWAP3 CMPN CURNCY,shared_term,daily,true,AD,rates,IRS,NZD,,NZD-BKBM-3M,3Y,YIELD,tickers/rates.csv
+NDSWAP4 CMPN CURNCY,shared_term,daily,true,AD,rates,IRS,NZD,,NZD-BKBM-3M,4Y,YIELD,tickers/rates.csv
+NDSWAP5 CMPN CURNCY,shared_term,daily,true,AD,rates,IRS,NZD,,NZD-BKBM-3M,5Y,YIELD,tickers/rates.csv
+NDSWAP6 CMPN CURNCY,shared_term,daily,true,AD,rates,IRS,NZD,,NZD-BKBM-3M,6Y,YIELD,tickers/rates.csv
+NDSWAP7 CMPN CURNCY,shared_term,daily,true,AD,rates,IRS,NZD,,NZD-BKBM-3M,7Y,YIELD,tickers/rates.csv
+NDSWAP10 CMPN CURNCY,shared_term,daily,true,AD,rates,IRS,NZD,,NZD-BKBM-3M,10Y,YIELD,tickers/rates.csv
+NDSWAP12 CMPN CURNCY,shared_term,daily,true,AD,rates,IRS,NZD,,NZD-BKBM-3M,12Y,YIELD,tickers/rates.csv
+NDSWAP15 CMPN CURNCY,shared_term,daily,true,AD,rates,IRS,NZD,,NZD-BKBM-3M,15Y,YIELD,tickers/rates.csv
+NDSWAP20 CMPN CURNCY,shared_term,daily,true,AD,rates,IRS,NZD,,NZD-BKBM-3M,20Y,YIELD,tickers/rates.csv
+TAIBOR3M index,shared_term,daily,true,AD,rates,IRS,TWD,,TWD-TAIBOR-3M,3M,YIELD,tickers/rates.csv
+TDSWNIF Curncy,shared_term,daily,true,AD,rates,IRS,TWD,,TWD-TAIBOR-3M,6M,YIELD,tickers/rates.csv
+TDSWNI1 Curncy,shared_term,daily,true,AD,rates,IRS,TWD,,TWD-TAIBOR-3M,1Y,YIELD,tickers/rates.csv
+TDSWNI2 Curncy,shared_term,daily,true,AD,rates,IRS,TWD,,TWD-TAIBOR-3M,2Y,YIELD,tickers/rates.csv
+TDSWNI3 Curncy,shared_term,daily,true,AD,rates,IRS,TWD,,TWD-TAIBOR-3M,3Y,YIELD,tickers/rates.csv
+TDSWNI4 Curncy,shared_term,daily,true,AD,rates,IRS,TWD,,TWD-TAIBOR-3M,4Y,YIELD,tickers/rates.csv
+TDSWNI5 Curncy,shared_term,daily,true,AD,rates,IRS,TWD,,TWD-TAIBOR-3M,5Y,YIELD,tickers/rates.csv
+TDSWNI7 Curncy,shared_term,daily,true,AD,rates,IRS,TWD,,TWD-TAIBOR-3M,7Y,YIELD,tickers/rates.csv
+TDSWNI10 Curncy,shared_term,daily,true,AD,rates,IRS,TWD,,TWD-TAIBOR-3M,10Y,YIELD,tickers/rates.csv
+TDSWNI12 Curncy,shared_term,daily,true,AD,rates,IRS,TWD,,TWD-TAIBOR-3M,12Y,YIELD,tickers/rates.csv
+TDSWNI15 Curncy,shared_term,daily,true,AD,rates,IRS,TWD,,TWD-TAIBOR-3M,15Y,YIELD,tickers/rates.csv
+RBACOR Index,shared_term,daily,true,AD,rates,OIS,AUD,,AUD-AONIA-ON,1D,YIELD,tickers/rates.csv
+ADSO1Z BGN Curncy,shared_term,daily,true,AD,rates,OIS,AUD,,AUD-AONIA-ON,1W,YIELD,tickers/rates.csv
+ADSOA BGN Curncy,shared_term,daily,true,AD,rates,OIS,AUD,,AUD-AONIA-ON,4W,YIELD,tickers/rates.csv
+ADSOB BGN Curncy,shared_term,daily,true,AD,rates,OIS,AUD,,AUD-AONIA-ON,2M,YIELD,tickers/rates.csv
+ADSOC BGN Curncy,shared_term,daily,true,AD,rates,OIS,AUD,,AUD-AONIA-ON,3M,YIELD,tickers/rates.csv
+ADSOD BGN Curncy,shared_term,daily,true,AD,rates,OIS,AUD,,AUD-AONIA-ON,4M,YIELD,tickers/rates.csv
+ADSOE BGN Curncy,shared_term,daily,true,AD,rates,OIS,AUD,,AUD-AONIA-ON,5M,YIELD,tickers/rates.csv
+ADSOF BGN Curncy,shared_term,daily,true,AD,rates,OIS,AUD,,AUD-AONIA-ON,6M,YIELD,tickers/rates.csv
+ADSOI BGN Curncy,shared_term,daily,true,AD,rates,OIS,AUD,,AUD-AONIA-ON,9M,YIELD,tickers/rates.csv
+ADSO1 BGN Curncy,shared_term,daily,true,AD,rates,OIS,AUD,,AUD-AONIA-ON,1Y,YIELD,tickers/rates.csv
+ADSO1F BGN Curncy,shared_term,daily,true,AD,rates,OIS,AUD,,AUD-AONIA-ON,18M,YIELD,tickers/rates.csv
+ADSO2 BGN Curncy,shared_term,daily,true,AD,rates,OIS,AUD,,AUD-AONIA-ON,2Y,YIELD,tickers/rates.csv
+ADSO3 BGN Curncy,shared_term,daily,true,AD,rates,OIS,AUD,,AUD-AONIA-ON,3Y,YIELD,tickers/rates.csv
+ADSO4 BGN Curncy,shared_term,daily,true,AD,rates,OIS,AUD,,AUD-AONIA-ON,4Y,YIELD,tickers/rates.csv
+ADSO5 BGN Curncy,shared_term,daily,true,AD,rates,OIS,AUD,,AUD-AONIA-ON,5Y,YIELD,tickers/rates.csv
+ADSO6 BGN Curncy,shared_term,daily,true,AD,rates,OIS,AUD,,AUD-AONIA-ON,6Y,YIELD,tickers/rates.csv
+ADSO7 BGN Curncy,shared_term,daily,true,AD,rates,OIS,AUD,,AUD-AONIA-ON,7Y,YIELD,tickers/rates.csv
+ADSO8 BGN Curncy,shared_term,daily,true,AD,rates,OIS,AUD,,AUD-AONIA-ON,8Y,YIELD,tickers/rates.csv
+ADSO9 BGN Curncy,shared_term,daily,true,AD,rates,OIS,AUD,,AUD-AONIA-ON,9Y,YIELD,tickers/rates.csv
+ADSO10 BGN Curncy,shared_term,daily,true,AD,rates,OIS,AUD,,AUD-AONIA-ON,10Y,YIELD,tickers/rates.csv
+ADSO12 BGN Curncy,shared_term,daily,true,AD,rates,OIS,AUD,,AUD-AONIA-ON,12Y,YIELD,tickers/rates.csv
+ADSO15 BGN Curncy,shared_term,daily,true,AD,rates,OIS,AUD,,AUD-AONIA-ON,15Y,YIELD,tickers/rates.csv
+ADSO20 BGN Curncy,shared_term,daily,true,AD,rates,OIS,AUD,,AUD-AONIA-ON,20Y,YIELD,tickers/rates.csv
+ADSO25 BGN Curncy,shared_term,daily,true,AD,rates,OIS,AUD,,AUD-AONIA-ON,25Y,YIELD,tickers/rates.csv
+ADSO30 BGN Curncy,shared_term,daily,true,AD,rates,OIS,AUD,,AUD-AONIA-ON,30Y,YIELD,tickers/rates.csv
+CAONREPO INDEX,shared_term,daily,true,AD,rates,OIS,CAD,,CAD-CORRA-ON,0,YIELD,tickers/rates.csv
+CDSO1Z BGN CURNCY,shared_term,daily,true,AD,rates,OIS,CAD,,CAD-CORRA-ON,1W,YIELD,tickers/rates.csv
+CDSO2Z BGN CURNCY,shared_term,daily,true,AD,rates,OIS,CAD,,CAD-CORRA-ON,2W,YIELD,tickers/rates.csv
+CDSOA BGN CURNCY,shared_term,daily,true,AD,rates,OIS,CAD,,CAD-CORRA-ON,4W,YIELD,tickers/rates.csv
+CDSOB BGN CURNCY,shared_term,daily,true,AD,rates,OIS,CAD,,CAD-CORRA-ON,2M,YIELD,tickers/rates.csv
+CDSOC BGN CURNCY,shared_term,daily,true,AD,rates,OIS,CAD,,CAD-CORRA-ON,3M,YIELD,tickers/rates.csv
+CDSOD BGN CURNCY,shared_term,daily,true,AD,rates,OIS,CAD,,CAD-CORRA-ON,4M,YIELD,tickers/rates.csv
+CDSOE BGN CURNCY,shared_term,daily,true,AD,rates,OIS,CAD,,CAD-CORRA-ON,5M,YIELD,tickers/rates.csv
+CDSOF BGN CURNCY,shared_term,daily,true,AD,rates,OIS,CAD,,CAD-CORRA-ON,6M,YIELD,tickers/rates.csv
+CDSOI BGN CURNCY,shared_term,daily,true,AD,rates,OIS,CAD,,CAD-CORRA-ON,9M,YIELD,tickers/rates.csv
+CDSO1 BGN CURNCY,shared_term,daily,true,AD,rates,OIS,CAD,,CAD-CORRA-ON,1Y,YIELD,tickers/rates.csv
+CDSO2 BGN CURNCY,shared_term,daily,true,AD,rates,OIS,CAD,,CAD-CORRA-ON,2Y,YIELD,tickers/rates.csv
+CDSO3 BGN CURNCY,shared_term,daily,true,AD,rates,OIS,CAD,,CAD-CORRA-ON,3Y,YIELD,tickers/rates.csv
+CDSO4 BGN CURNCY,shared_term,daily,true,AD,rates,OIS,CAD,,CAD-CORRA-ON,4Y,YIELD,tickers/rates.csv
+CDSO5 BGN CURNCY,shared_term,daily,true,AD,rates,OIS,CAD,,CAD-CORRA-ON,5Y,YIELD,tickers/rates.csv
+SRFXON3 INDEX,shared_term,daily,true,AD,rates,OIS,CHF,,CHF-SARON-ON,0,YIELD,tickers/rates.csv
+SFSNT1Z CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,CHF,,CHF-SARON-ON,1W,YIELD,tickers/rates.csv
+SFSNT2Z CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,CHF,,CHF-SARON-ON,2W,YIELD,tickers/rates.csv
+SFSNTA CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,CHF,,CHF-SARON-ON,4W,YIELD,tickers/rates.csv
+SFSNTB CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,CHF,,CHF-SARON-ON,2M,YIELD,tickers/rates.csv
+SFSNTC CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,CHF,,CHF-SARON-ON,3M,YIELD,tickers/rates.csv
+SFSNTD CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,CHF,,CHF-SARON-ON,4M,YIELD,tickers/rates.csv
+SFSNTE CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,CHF,,CHF-SARON-ON,5M,YIELD,tickers/rates.csv
+SFSNTF CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,CHF,,CHF-SARON-ON,6M,YIELD,tickers/rates.csv
+SFSNTG CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,CHF,,CHF-SARON-ON,7M,YIELD,tickers/rates.csv
+SFSNTH CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,CHF,,CHF-SARON-ON,8M,YIELD,tickers/rates.csv
+SFSNTI CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,CHF,,CHF-SARON-ON,9M,YIELD,tickers/rates.csv
+SFSNTJ CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,CHF,,CHF-SARON-ON,10M,YIELD,tickers/rates.csv
+SFSNTK CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,CHF,,CHF-SARON-ON,11M,YIELD,tickers/rates.csv
+SFSNT1 CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,CHF,,CHF-SARON-ON,1Y,YIELD,tickers/rates.csv
+SFSNT1C CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,CHF,,CHF-SARON-ON,15M,YIELD,tickers/rates.csv
+SFSNT1F CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,CHF,,CHF-SARON-ON,18M,YIELD,tickers/rates.csv
+SFSNT1I CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,CHF,,CHF-SARON-ON,21M,YIELD,tickers/rates.csv
+SFSNT2 CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,CHF,,CHF-SARON-ON,2Y,YIELD,tickers/rates.csv
+SFSNT3 CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,CHF,,CHF-SARON-ON,3Y,YIELD,tickers/rates.csv
+SFSNT4 CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,CHF,,CHF-SARON-ON,4Y,YIELD,tickers/rates.csv
+SFSNT5 CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,CHF,,CHF-SARON-ON,5Y,YIELD,tickers/rates.csv
+SFSNT6 CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,CHF,,CHF-SARON-ON,6Y,YIELD,tickers/rates.csv
+SFSNT7 CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,CHF,,CHF-SARON-ON,7Y,YIELD,tickers/rates.csv
+SFSNT8 CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,CHF,,CHF-SARON-ON,8Y,YIELD,tickers/rates.csv
+SFSNT9 CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,CHF,,CHF-SARON-ON,9Y,YIELD,tickers/rates.csv
+SFSNT10 CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,CHF,,CHF-SARON-ON,10Y,YIELD,tickers/rates.csv
+SFSNT12 CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,CHF,,CHF-SARON-ON,12Y,YIELD,tickers/rates.csv
+SFSNT15 CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,CHF,,CHF-SARON-ON,15Y,YIELD,tickers/rates.csv
+SFSNT20 CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,CHF,,CHF-SARON-ON,20Y,YIELD,tickers/rates.csv
+SFSNT25 CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,CHF,,CHF-SARON-ON,25Y,YIELD,tickers/rates.csv
+SFSNT30 CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,CHF,,CHF-SARON-ON,30Y,YIELD,tickers/rates.csv
+ESTRON Index,shared_term,daily,true,AD,rates,OIS,EUR,,EUR-ESTR-ON,1D,YIELD,tickers/rates.csv
+EESWE1Z  BGN Curncy,shared_term,daily,true,AD,rates,OIS,EUR,,EUR-ESTR-ON,1W,YIELD,tickers/rates.csv
+EESWE2Z  BGN Curncy,shared_term,daily,true,AD,rates,OIS,EUR,,EUR-ESTR-ON,2W,YIELD,tickers/rates.csv
+EESWEA   BGN Curncy,shared_term,daily,true,AD,rates,OIS,EUR,,EUR-ESTR-ON,4W,YIELD,tickers/rates.csv
+EESWEB   BGN Curncy,shared_term,daily,true,AD,rates,OIS,EUR,,EUR-ESTR-ON,2M,YIELD,tickers/rates.csv
+EESWEC   BGN Curncy,shared_term,daily,true,AD,rates,OIS,EUR,,EUR-ESTR-ON,3M,YIELD,tickers/rates.csv
+EESWED   BGN Curncy,shared_term,daily,true,AD,rates,OIS,EUR,,EUR-ESTR-ON,4M,YIELD,tickers/rates.csv
+EESWEE   BGN Curncy,shared_term,daily,true,AD,rates,OIS,EUR,,EUR-ESTR-ON,5M,YIELD,tickers/rates.csv
+EESWEF   BGN Curncy,shared_term,daily,true,AD,rates,OIS,EUR,,EUR-ESTR-ON,6M,YIELD,tickers/rates.csv
+EESWEG   BGN Curncy,shared_term,daily,true,AD,rates,OIS,EUR,,EUR-ESTR-ON,7M,YIELD,tickers/rates.csv
+EESWEH   BGN Curncy,shared_term,daily,true,AD,rates,OIS,EUR,,EUR-ESTR-ON,8M,YIELD,tickers/rates.csv
+EESWEI   BGN Curncy,shared_term,daily,true,AD,rates,OIS,EUR,,EUR-ESTR-ON,9M,YIELD,tickers/rates.csv
+EESWEJ   BGN Curncy,shared_term,daily,true,AD,rates,OIS,EUR,,EUR-ESTR-ON,10M,YIELD,tickers/rates.csv
+EESWEK   BGN Curncy,shared_term,daily,true,AD,rates,OIS,EUR,,EUR-ESTR-ON,11M,YIELD,tickers/rates.csv
+EESWE1   BGN Curncy,shared_term,daily,true,AD,rates,OIS,EUR,,EUR-ESTR-ON,1Y,YIELD,tickers/rates.csv
+EESWE1F  BGN Curncy,shared_term,daily,true,AD,rates,OIS,EUR,,EUR-ESTR-ON,18M,YIELD,tickers/rates.csv
+EESWE2   BGN Curncy,shared_term,daily,true,AD,rates,OIS,EUR,,EUR-ESTR-ON,2Y,YIELD,tickers/rates.csv
+EESWE3   BGN Curncy,shared_term,daily,true,AD,rates,OIS,EUR,,EUR-ESTR-ON,3Y,YIELD,tickers/rates.csv
+EESWE4   BGN Curncy,shared_term,daily,true,AD,rates,OIS,EUR,,EUR-ESTR-ON,4Y,YIELD,tickers/rates.csv
+EESWE5   BGN Curncy,shared_term,daily,true,AD,rates,OIS,EUR,,EUR-ESTR-ON,5Y,YIELD,tickers/rates.csv
+EESWE6   BGN Curncy,shared_term,daily,true,AD,rates,OIS,EUR,,EUR-ESTR-ON,6Y,YIELD,tickers/rates.csv
+EESWE7   BGN Curncy,shared_term,daily,true,AD,rates,OIS,EUR,,EUR-ESTR-ON,7Y,YIELD,tickers/rates.csv
+EESWE8   BGN Curncy,shared_term,daily,true,AD,rates,OIS,EUR,,EUR-ESTR-ON,8Y,YIELD,tickers/rates.csv
+EESWE9   BGN Curncy,shared_term,daily,true,AD,rates,OIS,EUR,,EUR-ESTR-ON,9Y,YIELD,tickers/rates.csv
+EESWE10  BGN Curncy,shared_term,daily,true,AD,rates,OIS,EUR,,EUR-ESTR-ON,10Y,YIELD,tickers/rates.csv
+EESWE11  BGN Curncy,shared_term,daily,true,AD,rates,OIS,EUR,,EUR-ESTR-ON,11Y,YIELD,tickers/rates.csv
+EESWE12  BGN Curncy,shared_term,daily,true,AD,rates,OIS,EUR,,EUR-ESTR-ON,12Y,YIELD,tickers/rates.csv
+EESWE15  BGN Curncy,shared_term,daily,true,AD,rates,OIS,EUR,,EUR-ESTR-ON,15Y,YIELD,tickers/rates.csv
+EESWE20  BGN Curncy,shared_term,daily,true,AD,rates,OIS,EUR,,EUR-ESTR-ON,20Y,YIELD,tickers/rates.csv
+EESWE25  BGN Curncy,shared_term,daily,true,AD,rates,OIS,EUR,,EUR-ESTR-ON,25Y,YIELD,tickers/rates.csv
+EESWE30  BGN Curncy,shared_term,daily,true,AD,rates,OIS,EUR,,EUR-ESTR-ON,30Y,YIELD,tickers/rates.csv
+EESWE40  BGN Curncy,shared_term,daily,true,AD,rates,OIS,EUR,,EUR-ESTR-ON,40Y,YIELD,tickers/rates.csv
+EESWE50  BGN Curncy,shared_term,daily,true,AD,rates,OIS,EUR,,EUR-ESTR-ON,50Y,YIELD,tickers/rates.csv
+SONIO/N INDEX,shared_term,daily,true,AD,rates,OIS,GBP,,GBP-SONIA-ON,0,YIELD,tickers/rates.csv
+BPSWS1Z CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,GBP,,GBP-SONIA-ON,1W,YIELD,tickers/rates.csv
+BPSWS2Z CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,GBP,,GBP-SONIA-ON,2W,YIELD,tickers/rates.csv
+BPSWSA CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,GBP,,GBP-SONIA-ON,4W,YIELD,tickers/rates.csv
+BPSWSB CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,GBP,,GBP-SONIA-ON,2M,YIELD,tickers/rates.csv
+BPSWSC CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,GBP,,GBP-SONIA-ON,3M,YIELD,tickers/rates.csv
+BPSWSD CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,GBP,,GBP-SONIA-ON,4M,YIELD,tickers/rates.csv
+BPSWSE CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,GBP,,GBP-SONIA-ON,5M,YIELD,tickers/rates.csv
+BPSWSF CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,GBP,,GBP-SONIA-ON,6M,YIELD,tickers/rates.csv
+BPSWSG CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,GBP,,GBP-SONIA-ON,7M,YIELD,tickers/rates.csv
+BPSWSH CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,GBP,,GBP-SONIA-ON,8M,YIELD,tickers/rates.csv
+BPSWSI CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,GBP,,GBP-SONIA-ON,9M,YIELD,tickers/rates.csv
+BPSWSJ CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,GBP,,GBP-SONIA-ON,10M,YIELD,tickers/rates.csv
+BPSWSK CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,GBP,,GBP-SONIA-ON,11M,YIELD,tickers/rates.csv
+BPSWS1 CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,GBP,,GBP-SONIA-ON,1Y,YIELD,tickers/rates.csv
+BPSWS1F CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,GBP,,GBP-SONIA-ON,18M,YIELD,tickers/rates.csv
+BPSWS2 CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,GBP,,GBP-SONIA-ON,2Y,YIELD,tickers/rates.csv
+BPSWS3 CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,GBP,,GBP-SONIA-ON,3Y,YIELD,tickers/rates.csv
+BPSWS4 CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,GBP,,GBP-SONIA-ON,4Y,YIELD,tickers/rates.csv
+BPSWS5 CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,GBP,,GBP-SONIA-ON,5Y,YIELD,tickers/rates.csv
+BPSWS6 CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,GBP,,GBP-SONIA-ON,6Y,YIELD,tickers/rates.csv
+BPSWS7 CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,GBP,,GBP-SONIA-ON,7Y,YIELD,tickers/rates.csv
+BPSWS8 CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,GBP,,GBP-SONIA-ON,8Y,YIELD,tickers/rates.csv
+BPSWS9 CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,GBP,,GBP-SONIA-ON,9Y,YIELD,tickers/rates.csv
+BPSWS10 CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,GBP,,GBP-SONIA-ON,10Y,YIELD,tickers/rates.csv
+BPSWS12 CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,GBP,,GBP-SONIA-ON,12Y,YIELD,tickers/rates.csv
+BPSWS15 CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,GBP,,GBP-SONIA-ON,15Y,YIELD,tickers/rates.csv
+BPSWS20 CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,GBP,,GBP-SONIA-ON,20Y,YIELD,tickers/rates.csv
+BPSWS25 CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,GBP,,GBP-SONIA-ON,25Y,YIELD,tickers/rates.csv
+BPSWS30 CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,GBP,,GBP-SONIA-ON,30Y,YIELD,tickers/rates.csv
+BPSWS40 CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,GBP,,GBP-SONIA-ON,40Y,YIELD,tickers/rates.csv
+BPSWS50 CMPN CURNCY,shared_term,daily,true,AD,rates,OIS,GBP,,GBP-SONIA-ON,50Y,YIELD,tickers/rates.csv
+SHIRON INDEX,shared_term,daily,true,AD,rates,OIS,ILS,,ILS-SHIR-ON,1D,YIELD,tickers/rates.csv
+ISOISC BGN Curncy,shared_term,daily,true,AD,rates,OIS,ILS,,ILS-SHIR-ON,3M,YIELD,tickers/rates.csv
+ISOISF BGN Curncy,shared_term,daily,true,AD,rates,OIS,ILS,,ILS-SHIR-ON,6M,YIELD,tickers/rates.csv
+ISOISI BGN Curncy,shared_term,daily,true,AD,rates,OIS,ILS,,ILS-SHIR-ON,9M,YIELD,tickers/rates.csv
+ISOIS1 BGN Curncy,shared_term,daily,true,AD,rates,OIS,ILS,,ILS-SHIR-ON,1Y,YIELD,tickers/rates.csv
+ISOIS2 BGN Curncy,shared_term,daily,true,AD,rates,OIS,ILS,,ILS-SHIR-ON,2Y,YIELD,tickers/rates.csv
+ISOIS3 BGN Curncy,shared_term,daily,true,AD,rates,OIS,ILS,,ILS-SHIR-ON,3Y,YIELD,tickers/rates.csv
+ISOIS4 BGN Curncy,shared_term,daily,true,AD,rates,OIS,ILS,,ILS-SHIR-ON,4Y,YIELD,tickers/rates.csv
+ISOIS5 BGN Curncy,shared_term,daily,true,AD,rates,OIS,ILS,,ILS-SHIR-ON,5Y,YIELD,tickers/rates.csv
+ISOIS6 BGN Curncy,shared_term,daily,true,AD,rates,OIS,ILS,,ILS-SHIR-ON,6Y,YIELD,tickers/rates.csv
+ISOIS7 BGN Curncy,shared_term,daily,true,AD,rates,OIS,ILS,,ILS-SHIR-ON,7Y,YIELD,tickers/rates.csv
+ISOIS10 BGN Curncy,shared_term,daily,true,AD,rates,OIS,ILS,,ILS-SHIR-ON,10Y,YIELD,tickers/rates.csv
+ISOIS12 BGN Curncy,shared_term,daily,true,AD,rates,OIS,ILS,,ILS-SHIR-ON,12Y,YIELD,tickers/rates.csv
+ISOIS15 BGN Curncy,shared_term,daily,true,AD,rates,OIS,ILS,,ILS-SHIR-ON,15Y,YIELD,tickers/rates.csv
+ISOIS20 BGN Curncy,shared_term,daily,true,AD,rates,OIS,ILS,,ILS-SHIR-ON,20Y,YIELD,tickers/rates.csv
+IN00O/N Index,shared_term,daily,true,AD,rates,OIS,INR,,INR-MIBOR-ON,1D,YIELD,tickers/rates.csv
+IRSWNIA BGN Curncy,shared_term,daily,true,AD,rates,OIS,INR,,INR-MIBOR-ON,4W,YIELD,tickers/rates.csv
+IRSWNIB BGN Curncy,shared_term,daily,true,AD,rates,OIS,INR,,INR-MIBOR-ON,2M,YIELD,tickers/rates.csv
+IRSWNIC BGN Curncy,shared_term,daily,true,AD,rates,OIS,INR,,INR-MIBOR-ON,3M,YIELD,tickers/rates.csv
+IRSWNIF BGN Curncy,shared_term,daily,true,AD,rates,OIS,INR,,INR-MIBOR-ON,6M,YIELD,tickers/rates.csv
+IRSWNII BGN Curncy,shared_term,daily,true,AD,rates,OIS,INR,,INR-MIBOR-ON,9M,YIELD,tickers/rates.csv
+IRSWNI1 BGN Curncy,shared_term,daily,true,AD,rates,OIS,INR,,INR-MIBOR-ON,1Y,YIELD,tickers/rates.csv
+IRSWNI2 BGN Curncy,shared_term,daily,true,AD,rates,OIS,INR,,INR-MIBOR-ON,2Y,YIELD,tickers/rates.csv
+IRSWNI3 BGN Curncy,shared_term,daily,true,AD,rates,OIS,INR,,INR-MIBOR-ON,3Y,YIELD,tickers/rates.csv
+IRSWNI4 BGN Curncy,shared_term,daily,true,AD,rates,OIS,INR,,INR-MIBOR-ON,4Y,YIELD,tickers/rates.csv
+IRSWNI5 BGN Curncy,shared_term,daily,true,AD,rates,OIS,INR,,INR-MIBOR-ON,5Y,YIELD,tickers/rates.csv
+IRSWNI7 BGN Curncy,shared_term,daily,true,AD,rates,OIS,INR,,INR-MIBOR-ON,7Y,YIELD,tickers/rates.csv
+IRSWNI10 BGN Curncy,shared_term,daily,true,AD,rates,OIS,INR,,INR-MIBOR-ON,10Y,YIELD,tickers/rates.csv
+MUTKCALM      Index,shared_term,daily,true,AD,rates,OIS,JPY,,JPY-TONAR-ON,1D,YIELD,tickers/rates.csv
+JYSO1Z   BGN  Curncy,shared_term,daily,true,AD,rates,OIS,JPY,,JPY-TONAR-ON,1W,YIELD,tickers/rates.csv
+JYSO2Z   BGN  Curncy,shared_term,daily,true,AD,rates,OIS,JPY,,JPY-TONAR-ON,2W,YIELD,tickers/rates.csv
+JYSO3Z   BGN  Curncy,shared_term,daily,true,AD,rates,OIS,JPY,,JPY-TONAR-ON,3W,YIELD,tickers/rates.csv
+JYSOA    BGN  Curncy,shared_term,daily,true,AD,rates,OIS,JPY,,JPY-TONAR-ON,4W,YIELD,tickers/rates.csv
+JYSOB    BGN  Curncy,shared_term,daily,true,AD,rates,OIS,JPY,,JPY-TONAR-ON,2M,YIELD,tickers/rates.csv
+JYSOC    BGN  Curncy,shared_term,daily,true,AD,rates,OIS,JPY,,JPY-TONAR-ON,3M,YIELD,tickers/rates.csv
+JYSOD    BGN  Curncy,shared_term,daily,true,AD,rates,OIS,JPY,,JPY-TONAR-ON,4M,YIELD,tickers/rates.csv
+JYSOE    BGN  Curncy,shared_term,daily,true,AD,rates,OIS,JPY,,JPY-TONAR-ON,5M,YIELD,tickers/rates.csv
+JYSOF    BGN  Curncy,shared_term,daily,true,AD,rates,OIS,JPY,,JPY-TONAR-ON,6M,YIELD,tickers/rates.csv
+JYSOG    BGN  Curncy,shared_term,daily,true,AD,rates,OIS,JPY,,JPY-TONAR-ON,7M,YIELD,tickers/rates.csv
+JYSOH    BGN  Curncy,shared_term,daily,true,AD,rates,OIS,JPY,,JPY-TONAR-ON,8M,YIELD,tickers/rates.csv
+JYSOI    BGN  Curncy,shared_term,daily,true,AD,rates,OIS,JPY,,JPY-TONAR-ON,9M,YIELD,tickers/rates.csv
+JYSOJ    BGN  Curncy,shared_term,daily,true,AD,rates,OIS,JPY,,JPY-TONAR-ON,10M,YIELD,tickers/rates.csv
+JYSOK    BGN  Curncy,shared_term,daily,true,AD,rates,OIS,JPY,,JPY-TONAR-ON,11M,YIELD,tickers/rates.csv
+JYSO1    BGN  Curncy,shared_term,daily,true,AD,rates,OIS,JPY,,JPY-TONAR-ON,1Y,YIELD,tickers/rates.csv
+JYSO1C   BGN  Curncy,shared_term,daily,true,AD,rates,OIS,JPY,,JPY-TONAR-ON,15M,YIELD,tickers/rates.csv
+JYSO1F   BGN  Curncy,shared_term,daily,true,AD,rates,OIS,JPY,,JPY-TONAR-ON,18M,YIELD,tickers/rates.csv
+JYSO2    BGN  Curncy,shared_term,daily,true,AD,rates,OIS,JPY,,JPY-TONAR-ON,2Y,YIELD,tickers/rates.csv
+JYSO3    BGN  Curncy,shared_term,daily,true,AD,rates,OIS,JPY,,JPY-TONAR-ON,3Y,YIELD,tickers/rates.csv
+JYSO4    BGN  Curncy,shared_term,daily,true,AD,rates,OIS,JPY,,JPY-TONAR-ON,4Y,YIELD,tickers/rates.csv
+JYSO5    BGN  Curncy,shared_term,daily,true,AD,rates,OIS,JPY,,JPY-TONAR-ON,5Y,YIELD,tickers/rates.csv
+JYSO6    BGN  Curncy,shared_term,daily,true,AD,rates,OIS,JPY,,JPY-TONAR-ON,6Y,YIELD,tickers/rates.csv
+JYSO7    BGN  Curncy,shared_term,daily,true,AD,rates,OIS,JPY,,JPY-TONAR-ON,7Y,YIELD,tickers/rates.csv
+JYSO8    BGN  Curncy,shared_term,daily,true,AD,rates,OIS,JPY,,JPY-TONAR-ON,8Y,YIELD,tickers/rates.csv
+JYSO9    BGN  Curncy,shared_term,daily,true,AD,rates,OIS,JPY,,JPY-TONAR-ON,9Y,YIELD,tickers/rates.csv
+JYSO10   BGN  Curncy,shared_term,daily,true,AD,rates,OIS,JPY,,JPY-TONAR-ON,10Y,YIELD,tickers/rates.csv
+JYSO11   BGN  Curncy,shared_term,daily,true,AD,rates,OIS,JPY,,JPY-TONAR-ON,11Y,YIELD,tickers/rates.csv
+JYSO12   BGN  Curncy,shared_term,daily,true,AD,rates,OIS,JPY,,JPY-TONAR-ON,12Y,YIELD,tickers/rates.csv
+JYSO15   BGN  Curncy,shared_term,daily,true,AD,rates,OIS,JPY,,JPY-TONAR-ON,15Y,YIELD,tickers/rates.csv
+JYSO20   BGN  Curncy,shared_term,daily,true,AD,rates,OIS,JPY,,JPY-TONAR-ON,20Y,YIELD,tickers/rates.csv
+JYSO25   BGN  Curncy,shared_term,daily,true,AD,rates,OIS,JPY,,JPY-TONAR-ON,25Y,YIELD,tickers/rates.csv
+JYSO30   BGN  Curncy,shared_term,daily,true,AD,rates,OIS,JPY,,JPY-TONAR-ON,30Y,YIELD,tickers/rates.csv
+JYSO35   BGN  Curncy,shared_term,daily,true,AD,rates,OIS,JPY,,JPY-TONAR-ON,35Y,YIELD,tickers/rates.csv
+JYSO40   BGN  Curncy,shared_term,daily,true,AD,rates,OIS,JPY,,JPY-TONAR-ON,40Y,YIELD,tickers/rates.csv
+NZOCRS Index,shared_term,daily,true,AD,rates,OIS,NZD,,NZD-NZOCRS-ON,1D,YIELD,tickers/rates.csv
+NDSOA CMPN Curncy,shared_term,daily,true,AD,rates,OIS,NZD,,NZD-NZOCRS-ON,4W,YIELD,tickers/rates.csv
+NDSOB CMPN Curncy,shared_term,daily,true,AD,rates,OIS,NZD,,NZD-NZOCRS-ON,2M,YIELD,tickers/rates.csv
+NDSOC CMPN Curncy,shared_term,daily,true,AD,rates,OIS,NZD,,NZD-NZOCRS-ON,3M,YIELD,tickers/rates.csv
+NDSOF CMPN Curncy,shared_term,daily,true,AD,rates,OIS,NZD,,NZD-NZOCRS-ON,6M,YIELD,tickers/rates.csv
+NDSOI CMPN Curncy,shared_term,daily,true,AD,rates,OIS,NZD,,NZD-NZOCRS-ON,9M,YIELD,tickers/rates.csv
+NDSO1 CMPN Curncy,shared_term,daily,true,AD,rates,OIS,NZD,,NZD-NZOCRS-ON,1Y,YIELD,tickers/rates.csv
+NDSO2 CMPN Curncy,shared_term,daily,true,AD,rates,OIS,NZD,,NZD-NZOCRS-ON,2Y,YIELD,tickers/rates.csv
+NDSO3 CMPN Curncy,shared_term,daily,true,AD,rates,OIS,NZD,,NZD-NZOCRS-ON,3Y,YIELD,tickers/rates.csv
+NDSO4 CMPN Curncy,shared_term,daily,true,AD,rates,OIS,NZD,,NZD-NZOCRS-ON,4Y,YIELD,tickers/rates.csv
+NDSO5 CMPN Curncy,shared_term,daily,true,AD,rates,OIS,NZD,,NZD-NZOCRS-ON,5Y,YIELD,tickers/rates.csv
+NDSO6 CMPN Curncy,shared_term,daily,true,AD,rates,OIS,NZD,,NZD-NZOCRS-ON,6Y,YIELD,tickers/rates.csv
+NDSO7 CMPN Curncy,shared_term,daily,true,AD,rates,OIS,NZD,,NZD-NZOCRS-ON,7Y,YIELD,tickers/rates.csv
+NDSO8 CMPN Curncy,shared_term,daily,true,AD,rates,OIS,NZD,,NZD-NZOCRS-ON,8Y,YIELD,tickers/rates.csv
+NDSO9 CMPN Curncy,shared_term,daily,true,AD,rates,OIS,NZD,,NZD-NZOCRS-ON,9Y,YIELD,tickers/rates.csv
+NDSO10 CMPN Curncy,shared_term,daily,true,AD,rates,OIS,NZD,,NZD-NZOCRS-ON,10Y,YIELD,tickers/rates.csv
+NDSO12 CMPN Curncy,shared_term,daily,true,AD,rates,OIS,NZD,,NZD-NZOCRS-ON,12Y,YIELD,tickers/rates.csv
+NDSO15 CMPN Curncy,shared_term,daily,true,AD,rates,OIS,NZD,,NZD-NZOCRS-ON,15Y,YIELD,tickers/rates.csv
+NDSO20 CMPN Curncy,shared_term,daily,true,AD,rates,OIS,NZD,,NZD-NZOCRS-ON,20Y,YIELD,tickers/rates.csv
+SIBCSORA Index,shared_term,daily,true,AD,rates,OIS,SGD,,SGD-SOR-ON,1D,YIELD,tickers/rates.csv
+SDSOAA BGN Curncy,shared_term,daily,true,AD,rates,OIS,SGD,,SGD-SOR-ON,4W,YIELD,tickers/rates.csv
+SDSOAB BGN Curncy,shared_term,daily,true,AD,rates,OIS,SGD,,SGD-SOR-ON,2M,YIELD,tickers/rates.csv
+SDSOAC BGN Curncy,shared_term,daily,true,AD,rates,OIS,SGD,,SGD-SOR-ON,3M,YIELD,tickers/rates.csv
+SDSOAF BGN Curncy,shared_term,daily,true,AD,rates,OIS,SGD,,SGD-SOR-ON,6M,YIELD,tickers/rates.csv
+SDSOAI BGN Curncy,shared_term,daily,true,AD,rates,OIS,SGD,,SGD-SOR-ON,9M,YIELD,tickers/rates.csv
+SDSOA1 BGN Curncy,shared_term,daily,true,AD,rates,OIS,SGD,,SGD-SOR-ON,1Y,YIELD,tickers/rates.csv
+SDSOA1F BGN Curncy,shared_term,daily,true,AD,rates,OIS,SGD,,SGD-SOR-ON,18M,YIELD,tickers/rates.csv
+SDSOA2 BGN Curncy,shared_term,daily,true,AD,rates,OIS,SGD,,SGD-SOR-ON,2Y,YIELD,tickers/rates.csv
+SDSOA3 BGN Curncy,shared_term,daily,true,AD,rates,OIS,SGD,,SGD-SOR-ON,3Y,YIELD,tickers/rates.csv
+SDSOA4 BGN Curncy,shared_term,daily,true,AD,rates,OIS,SGD,,SGD-SOR-ON,4Y,YIELD,tickers/rates.csv
+SDSOA5 BGN Curncy,shared_term,daily,true,AD,rates,OIS,SGD,,SGD-SOR-ON,5Y,YIELD,tickers/rates.csv
+SDSOA6 BGN Curncy,shared_term,daily,true,AD,rates,OIS,SGD,,SGD-SOR-ON,6Y,YIELD,tickers/rates.csv
+SDSOA7 BGN Curncy,shared_term,daily,true,AD,rates,OIS,SGD,,SGD-SOR-ON,7Y,YIELD,tickers/rates.csv
+SDSOA8 BGN Curncy,shared_term,daily,true,AD,rates,OIS,SGD,,SGD-SOR-ON,8Y,YIELD,tickers/rates.csv
+SDSOA9 BGN Curncy,shared_term,daily,true,AD,rates,OIS,SGD,,SGD-SOR-ON,9Y,YIELD,tickers/rates.csv
+SDSOA10 BGN Curncy,shared_term,daily,true,AD,rates,OIS,SGD,,SGD-SOR-ON,10Y,YIELD,tickers/rates.csv
+SDSOA12 BGN Curncy,shared_term,daily,true,AD,rates,OIS,SGD,,SGD-SOR-ON,12Y,YIELD,tickers/rates.csv
+SDSOA15 BGN Curncy,shared_term,daily,true,AD,rates,OIS,SGD,,SGD-SOR-ON,15Y,YIELD,tickers/rates.csv
+SDSOA20 BGN Curncy,shared_term,daily,true,AD,rates,OIS,SGD,,SGD-SOR-ON,20Y,YIELD,tickers/rates.csv
+SDSOA30 BGN Curncy,shared_term,daily,true,AD,rates,OIS,SGD,,SGD-SOR-ON,30Y,YIELD,tickers/rates.csv
+TTHORON index,shared_term,daily,true,AD,rates,OIS,THB,,THB-THOR-ON,1D,YIELD,tickers/rates.csv
+TBSWHA BGN Curncy,shared_term,daily,true,AD,rates,OIS,THB,,THB-THOR-ON,4W,YIELD,tickers/rates.csv
+TBSWHB BGN Curncy,shared_term,daily,true,AD,rates,OIS,THB,,THB-THOR-ON,2M,YIELD,tickers/rates.csv
+TBSWHC BGN Curncy,shared_term,daily,true,AD,rates,OIS,THB,,THB-THOR-ON,3M,YIELD,tickers/rates.csv
+TBSWHF BGN Curncy,shared_term,daily,true,AD,rates,OIS,THB,,THB-THOR-ON,6M,YIELD,tickers/rates.csv
+TBSWHI BGN Curncy,shared_term,daily,true,AD,rates,OIS,THB,,THB-THOR-ON,9M,YIELD,tickers/rates.csv
+TBSWH1 BGN Curncy,shared_term,daily,true,AD,rates,OIS,THB,,THB-THOR-ON,1Y,YIELD,tickers/rates.csv
+TBSWH2 BGN Curncy,shared_term,daily,true,AD,rates,OIS,THB,,THB-THOR-ON,2Y,YIELD,tickers/rates.csv
+TBSWH3 BGN Curncy,shared_term,daily,true,AD,rates,OIS,THB,,THB-THOR-ON,3Y,YIELD,tickers/rates.csv
+TBSWH4 BGN Curncy,shared_term,daily,true,AD,rates,OIS,THB,,THB-THOR-ON,4Y,YIELD,tickers/rates.csv
+TBSWH5 BGN Curncy,shared_term,daily,true,AD,rates,OIS,THB,,THB-THOR-ON,5Y,YIELD,tickers/rates.csv
+TBSWH7 BGN Curncy,shared_term,daily,true,AD,rates,OIS,THB,,THB-THOR-ON,7Y,YIELD,tickers/rates.csv
+TBSWH10 BGN Curncy,shared_term,daily,true,AD,rates,OIS,THB,,THB-THOR-ON,10Y,YIELD,tickers/rates.csv
+TBSWH12 BGN Curncy,shared_term,daily,true,AD,rates,OIS,THB,,THB-THOR-ON,12Y,YIELD,tickers/rates.csv
+TBSWH15 BGN Curncy,shared_term,daily,true,AD,rates,OIS,THB,,THB-THOR-ON,15Y,YIELD,tickers/rates.csv
+TBSWI1Z BGN Curncy,shared_term,daily,true,AD,rates,OIS,THO,,THO-THOR-ON,1W,YIELD,tickers/rates.csv
+TBSWI2Z BGN Curncy,shared_term,daily,true,AD,rates,OIS,THO,,THO-THOR-ON,2W,YIELD,tickers/rates.csv
+TBSWIA BGN Curncy,shared_term,daily,true,AD,rates,OIS,THO,,THO-THOR-ON,4W,YIELD,tickers/rates.csv
+TBSWIB BGN Curncy,shared_term,daily,true,AD,rates,OIS,THO,,THO-THOR-ON,2M,YIELD,tickers/rates.csv
+TBSWIC BGN Curncy,shared_term,daily,true,AD,rates,OIS,THO,,THO-THOR-ON,3M,YIELD,tickers/rates.csv
+TBSWIF BGN Curncy,shared_term,daily,true,AD,rates,OIS,THO,,THO-THOR-ON,6M,YIELD,tickers/rates.csv
+TBSWII BGN Curncy,shared_term,daily,true,AD,rates,OIS,THO,,THO-THOR-ON,9M,YIELD,tickers/rates.csv
+TBSWI1 BGN Curncy,shared_term,daily,true,AD,rates,OIS,THO,,THO-THOR-ON,1Y,YIELD,tickers/rates.csv
+TBSWI2 BGN Curncy,shared_term,daily,true,AD,rates,OIS,THO,,THO-THOR-ON,2Y,YIELD,tickers/rates.csv
+TBSWI3 BGN Curncy,shared_term,daily,true,AD,rates,OIS,THO,,THO-THOR-ON,3Y,YIELD,tickers/rates.csv
+TBSWI4 BGN Curncy,shared_term,daily,true,AD,rates,OIS,THO,,THO-THOR-ON,4Y,YIELD,tickers/rates.csv
+TBSWI5 BGN Curncy,shared_term,daily,true,AD,rates,OIS,THO,,THO-THOR-ON,5Y,YIELD,tickers/rates.csv
+TBSWI7 BGN Curncy,shared_term,daily,true,AD,rates,OIS,THO,,THO-THOR-ON,7Y,YIELD,tickers/rates.csv
+TBSWI10 BGN Curncy,shared_term,daily,true,AD,rates,OIS,THO,,THO-THOR-ON,10Y,YIELD,tickers/rates.csv
+TBSWI12 BGN Curncy,shared_term,daily,true,AD,rates,OIS,THO,,THO-THOR-ON,12Y,YIELD,tickers/rates.csv
+TBSWI15 BGN Curncy,shared_term,daily,true,AD,rates,OIS,THO,,THO-THOR-ON,15Y,YIELD,tickers/rates.csv
+FEDL01        Index,shared_term,daily,true,AD,rates,OIS,USD,,USD-FEDFUNDS-ON,1D,YIELD,tickers/rates.csv
+USSO1Z   BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-FEDFUNDS-ON,1W,YIELD,tickers/rates.csv
+USSO2Z   BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-FEDFUNDS-ON,2W,YIELD,tickers/rates.csv
+USSO3Z   BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-FEDFUNDS-ON,3W,YIELD,tickers/rates.csv
+USSOA    BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-FEDFUNDS-ON,4W,YIELD,tickers/rates.csv
+USSOB    BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-FEDFUNDS-ON,2M,YIELD,tickers/rates.csv
+USSOC    BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-FEDFUNDS-ON,3M,YIELD,tickers/rates.csv
+USSOD    BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-FEDFUNDS-ON,4M,YIELD,tickers/rates.csv
+USSOE    BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-FEDFUNDS-ON,5M,YIELD,tickers/rates.csv
+USSOF    BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-FEDFUNDS-ON,6M,YIELD,tickers/rates.csv
+USSOG    BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-FEDFUNDS-ON,7M,YIELD,tickers/rates.csv
+USSOH    BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-FEDFUNDS-ON,8M,YIELD,tickers/rates.csv
+USSOI    BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-FEDFUNDS-ON,9M,YIELD,tickers/rates.csv
+USSOJ    BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-FEDFUNDS-ON,10M,YIELD,tickers/rates.csv
+USSOK    BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-FEDFUNDS-ON,11M,YIELD,tickers/rates.csv
+USSO1   BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-FEDFUNDS-ON,1Y,YIELD,tickers/rates.csv
+USSO1C   BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-FEDFUNDS-ON,15M,YIELD,tickers/rates.csv
+USSO1F   BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-FEDFUNDS-ON,18M,YIELD,tickers/rates.csv
+USSO2 BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-FEDFUNDS-ON,2Y,YIELD,tickers/rates.csv
+USSO3 BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-FEDFUNDS-ON,3Y,YIELD,tickers/rates.csv
+USSO4 BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-FEDFUNDS-ON,4Y,YIELD,tickers/rates.csv
+USSO5 BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-FEDFUNDS-ON,5Y,YIELD,tickers/rates.csv
+USSO6 BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-FEDFUNDS-ON,6Y,YIELD,tickers/rates.csv
+USSO7 BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-FEDFUNDS-ON,7Y,YIELD,tickers/rates.csv
+USSO8 BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-FEDFUNDS-ON,8Y,YIELD,tickers/rates.csv
+USSO9 BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-FEDFUNDS-ON,9Y,YIELD,tickers/rates.csv
+USSO10 BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-FEDFUNDS-ON,10Y,YIELD,tickers/rates.csv
+USSO12 BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-FEDFUNDS-ON,12Y,YIELD,tickers/rates.csv
+USSO15 BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-FEDFUNDS-ON,15Y,YIELD,tickers/rates.csv
+USSO20 BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-FEDFUNDS-ON,20Y,YIELD,tickers/rates.csv
+USSO25 BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-FEDFUNDS-ON,25Y,YIELD,tickers/rates.csv
+USSO30 BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-FEDFUNDS-ON,30Y,YIELD,tickers/rates.csv
+SOFRRATE Index,shared_term,daily,true,AD,rates,OIS,USD,,USD-SOFR-ON,1D,YIELD,tickers/rates.csv
+USOSFR1Z BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-SOFR-ON,2D,YIELD,tickers/rates.csv
+USOSFR2Z BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-SOFR-ON,2W,YIELD,tickers/rates.csv
+USOSFR3Z BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-SOFR-ON,2W,YIELD,tickers/rates.csv
+USOSFRA BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-SOFR-ON,4W,YIELD,tickers/rates.csv
+USOSFRB BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-SOFR-ON,2M,YIELD,tickers/rates.csv
+USOSFRC BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-SOFR-ON,3M,YIELD,tickers/rates.csv
+USOSFRD BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-SOFR-ON,4M,YIELD,tickers/rates.csv
+USOSFRE BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-SOFR-ON,5M,YIELD,tickers/rates.csv
+USOSFRF BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-SOFR-ON,6M,YIELD,tickers/rates.csv
+USOSFRG BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-SOFR-ON,7M,YIELD,tickers/rates.csv
+USOSFRH BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-SOFR-ON,8M,YIELD,tickers/rates.csv
+USOSFRI BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-SOFR-ON,9M,YIELD,tickers/rates.csv
+USOSFRJ BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-SOFR-ON,10M,YIELD,tickers/rates.csv
+USOSFRK BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-SOFR-ON,11M,YIELD,tickers/rates.csv
+USOSFR1 BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-SOFR-ON,1Y,YIELD,tickers/rates.csv
+USOSFR1F BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-SOFR-ON,18M,YIELD,tickers/rates.csv
+USOSFR2 BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-SOFR-ON,2Y,YIELD,tickers/rates.csv
+USOSFR3 BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-SOFR-ON,3Y,YIELD,tickers/rates.csv
+USOSFR4 BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-SOFR-ON,4Y,YIELD,tickers/rates.csv
+USOSFR5 BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-SOFR-ON,5Y,YIELD,tickers/rates.csv
+USOSFR6 BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-SOFR-ON,6Y,YIELD,tickers/rates.csv
+USOSFR7 BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-SOFR-ON,7Y,YIELD,tickers/rates.csv
+USOSFR8 BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-SOFR-ON,8Y,YIELD,tickers/rates.csv
+USOSFR9 BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-SOFR-ON,9Y,YIELD,tickers/rates.csv
+USOSFR10 BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-SOFR-ON,10Y,YIELD,tickers/rates.csv
+USOSFR12 BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-SOFR-ON,12Y,YIELD,tickers/rates.csv
+USOSFR15 BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-SOFR-ON,15Y,YIELD,tickers/rates.csv
+USOSFR20 BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-SOFR-ON,20Y,YIELD,tickers/rates.csv
+USOSFR25 BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-SOFR-ON,25Y,YIELD,tickers/rates.csv
+USOSFR30 BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-SOFR-ON,30Y,YIELD,tickers/rates.csv
+USOSFR40 BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-SOFR-ON,40Y,YIELD,tickers/rates.csv
+USOSFR50 BGN Curncy,shared_term,daily,true,AD,rates,OIS,USD,,USD-SOFR-ON,50Y,YIELD,tickers/rates.csv
+ISXOQQ1 BGN Curncy,shared_term,daily,true,AD,rates,BASIS,ILS,,ILS-SHIR-ON.USD-SOFR-ON,1Y,YIELD,tickers/rates.csv
+ISXOQQ2 BGN Curncy,shared_term,daily,true,AD,rates,BASIS,ILS,,ILS-SHIR-ON.USD-SOFR-ON,2Y,YIELD,tickers/rates.csv
+ISXOQQ3 BGN Curncy,shared_term,daily,true,AD,rates,BASIS,ILS,,ILS-SHIR-ON.USD-SOFR-ON,3Y,YIELD,tickers/rates.csv
+ISXOQQ4 BGN Curncy,shared_term,daily,true,AD,rates,BASIS,ILS,,ILS-SHIR-ON.USD-SOFR-ON,4Y,YIELD,tickers/rates.csv
+ISXOQQ5 BGN Curncy,shared_term,daily,true,AD,rates,BASIS,ILS,,ILS-SHIR-ON.USD-SOFR-ON,5Y,YIELD,tickers/rates.csv
+ISXOQQ6 BGN Curncy,shared_term,daily,true,AD,rates,BASIS,ILS,,ILS-SHIR-ON.USD-SOFR-ON,6Y,YIELD,tickers/rates.csv
+ISXOQQ7 BGN Curncy,shared_term,daily,true,AD,rates,BASIS,ILS,,ILS-SHIR-ON.USD-SOFR-ON,7Y,YIELD,tickers/rates.csv
+ISXOQQ10 BGN Curncy,shared_term,daily,true,AD,rates,BASIS,ILS,,ILS-SHIR-ON.USD-SOFR-ON,10Y,YIELD,tickers/rates.csv
+ISXOQQ12 BGN Curncy,shared_term,daily,true,AD,rates,BASIS,ILS,,ILS-SHIR-ON.USD-SOFR-ON,12Y,YIELD,tickers/rates.csv
+ISXOQQ15 BGN Curncy,shared_term,daily,true,AD,rates,BASIS,ILS,,ILS-SHIR-ON.USD-SOFR-ON,15Y,YIELD,tickers/rates.csv
+ISXOQQ20 BGN Curncy,shared_term,daily,true,AD,rates,BASIS,ILS,,ILS-SHIR-ON.USD-SOFR-ON,20Y,YIELD,tickers/rates.csv
+SDSF66M Curncy,shared_term,daily,true,AD,rates,BASIS,SGD,,SGD-SOR-ON.USD-SOFR-ON,6M,YIELD,tickers/rates.csv
+SDSF61Y Curncy,shared_term,daily,true,AD,rates,BASIS,SGD,,SGD-SOR-ON.USD-SOFR-ON,1Y,YIELD,tickers/rates.csv
+SDSF62Y Curncy,shared_term,daily,true,AD,rates,BASIS,SGD,,SGD-SOR-ON.USD-SOFR-ON,2Y,YIELD,tickers/rates.csv
+SDSF63Y Curncy,shared_term,daily,true,AD,rates,BASIS,SGD,,SGD-SOR-ON.USD-SOFR-ON,3Y,YIELD,tickers/rates.csv
+SDSF64Y Curncy,shared_term,daily,true,AD,rates,BASIS,SGD,,SGD-SOR-ON.USD-SOFR-ON,4Y,YIELD,tickers/rates.csv
+SDSF65Y Curncy,shared_term,daily,true,AD,rates,BASIS,SGD,,SGD-SOR-ON.USD-SOFR-ON,5Y,YIELD,tickers/rates.csv
+SDSF66Y Curncy,shared_term,daily,true,AD,rates,BASIS,SGD,,SGD-SOR-ON.USD-SOFR-ON,6Y,YIELD,tickers/rates.csv
+SDSF67Y Curncy,shared_term,daily,true,AD,rates,BASIS,SGD,,SGD-SOR-ON.USD-SOFR-ON,7Y,YIELD,tickers/rates.csv
+SDSF610Y Curncy,shared_term,daily,true,AD,rates,BASIS,SGD,,SGD-SOR-ON.USD-SOFR-ON,10Y,YIELD,tickers/rates.csv
+SDSF612Y Curncy,shared_term,daily,true,AD,rates,BASIS,SGD,,SGD-SOR-ON.USD-SOFR-ON,12Y,YIELD,tickers/rates.csv
+SDSF615Y Curncy,shared_term,daily,true,AD,rates,BASIS,SGD,,SGD-SOR-ON.USD-SOFR-ON,15Y,YIELD,tickers/rates.csv
+SDSF620Y Curncy,shared_term,daily,true,AD,rates,BASIS,SGD,,SGD-SOR-ON.USD-SOFR-ON,20Y,YIELD,tickers/rates.csv
+SDSF630Y Curncy,shared_term,daily,true,AD,rates,BASIS,SGD,,SGD-SOR-ON.USD-SOFR-ON,30Y,YIELD,tickers/rates.csv
+CNHSQQF BGN Curncy,shared_term,daily,true,AD,rates,CCS,CNH,,CNH-FIXED.USD-SOFR-ON,6M,YIELD,tickers/rates.csv
+CNHSQQ1 BGN Curncy,shared_term,daily,true,AD,rates,CCS,CNH,,CNH-FIXED.USD-SOFR-ON,1Y,YIELD,tickers/rates.csv
+CNHSQQ2 BGN Curncy,shared_term,daily,true,AD,rates,CCS,CNH,,CNH-FIXED.USD-SOFR-ON,2Y,YIELD,tickers/rates.csv
+CNHSQQ3 BGN Curncy,shared_term,daily,true,AD,rates,CCS,CNH,,CNH-FIXED.USD-SOFR-ON,3Y,YIELD,tickers/rates.csv
+CNHSQQ4 BGN Curncy,shared_term,daily,true,AD,rates,CCS,CNH,,CNH-FIXED.USD-SOFR-ON,4Y,YIELD,tickers/rates.csv
+CNHSQQ5 BGN Curncy,shared_term,daily,true,AD,rates,CCS,CNH,,CNH-FIXED.USD-SOFR-ON,5Y,YIELD,tickers/rates.csv
+CNHSQQ7 BGN Curncy,shared_term,daily,true,AD,rates,CCS,CNH,,CNH-FIXED.USD-SOFR-ON,7Y,YIELD,tickers/rates.csv
+CNHSQQ10 BGN Curncy,shared_term,daily,true,AD,rates,CCS,CNH,,CNH-FIXED.USD-SOFR-ON,10Y,YIELD,tickers/rates.csv
+CTAUDII5Y Govt,shared_term,daily,true,AD,bonds,BOND,AUD,AUS,AUD_ACGBI_REAL_GENERIC,5Y,YIELD,tickers/bonds.csv
+CTAUDII10Y Govt,shared_term,daily,true,AD,bonds,BOND,AUD,AUS,AUD_ACGBI_REAL_GENERIC,10Y,YIELD,tickers/bonds.csv
+CTAUDII15Y Govt,shared_term,daily,true,AD,bonds,BOND,AUD,AUS,AUD_ACGBI_REAL_GENERIC,15Y,YIELD,tickers/bonds.csv
+CTAUDII20Y Govt,shared_term,daily,true,AD,bonds,BOND,AUD,AUS,AUD_ACGBI_REAL_GENERIC,20Y,YIELD,tickers/bonds.csv
+GCDB1YR INDEX,shared_term,daily,true,AD,bonds,BOND,CNY,CHN,CNY_CDB_NOMINAL_GENERIC,1Y,YIELD,tickers/bonds.csv
+GCDB5YR INDEX,shared_term,daily,true,AD,bonds,BOND,CNY,CHN,CNY_CDB_NOMINAL_GENERIC,5Y,YIELD,tickers/bonds.csv
+GCDB10YR INDEX,shared_term,daily,true,AD,bonds,BOND,CNY,CHN,CNY_CDB_NOMINAL_GENERIC,10Y,YIELD,tickers/bonds.csv
+GIDN1YR INDEX,shared_term,daily,true,AD,bonds,BOND,IDR,IDN,IDR_IDGB_NOMINAL_GENERIC,1Y,YIELD,tickers/bonds.csv
+GIDN3YR INDEX,shared_term,daily,true,AD,bonds,BOND,IDR,IDN,IDR_IDGB_NOMINAL_GENERIC,3Y,YIELD,tickers/bonds.csv
+GIDN5YR INDEX,shared_term,daily,true,AD,bonds,BOND,IDR,IDN,IDR_IDGB_NOMINAL_GENERIC,5Y,YIELD,tickers/bonds.csv
+GIDN7YR INDEX,shared_term,daily,true,AD,bonds,BOND,IDR,IDN,IDR_IDGB_NOMINAL_GENERIC,7Y,YIELD,tickers/bonds.csv
+GIDN10YR INDEX,shared_term,daily,true,AD,bonds,BOND,IDR,IDN,IDR_IDGB_NOMINAL_GENERIC,10Y,YIELD,tickers/bonds.csv
+GIDN20YR INDEX,shared_term,daily,true,AD,bonds,BOND,IDR,IDN,IDR_IDGB_NOMINAL_GENERIC,20Y,YIELD,tickers/bonds.csv
+GIDN30YR Index,shared_term,daily,true,AD,bonds,BOND,IDR,IDN,IDR_IDGB_NOMINAL_GENERIC,30Y,YIELD,tickers/bonds.csv
+GTJPY1Y govt,shared_term,daily,true,AD,bonds,BOND,JPY,JPN,JPY_JGB_NOMINAL_GENERIC,1Y,YIELD,tickers/bonds.csv
+GTJPY2Y govt,shared_term,daily,true,AD,bonds,BOND,JPY,JPN,JPY_JGB_NOMINAL_GENERIC,2Y,YIELD,tickers/bonds.csv
+GTJPY3Y govt,shared_term,daily,true,AD,bonds,BOND,JPY,JPN,JPY_JGB_NOMINAL_GENERIC,3Y,YIELD,tickers/bonds.csv
+GTJPY4Y govt,shared_term,daily,true,AD,bonds,BOND,JPY,JPN,JPY_JGB_NOMINAL_GENERIC,4Y,YIELD,tickers/bonds.csv
+GTJPY5Y govt,shared_term,daily,true,AD,bonds,BOND,JPY,JPN,JPY_JGB_NOMINAL_GENERIC,5Y,YIELD,tickers/bonds.csv
+GTJPY6Y govt,shared_term,daily,true,AD,bonds,BOND,JPY,JPN,JPY_JGB_NOMINAL_GENERIC,6Y,YIELD,tickers/bonds.csv
+GTJPY7Y govt,shared_term,daily,true,AD,bonds,BOND,JPY,JPN,JPY_JGB_NOMINAL_GENERIC,7Y,YIELD,tickers/bonds.csv
+GTJPY10Y govt,shared_term,daily,true,AD,bonds,BOND,JPY,JPN,JPY_JGB_NOMINAL_GENERIC,10Y,YIELD,tickers/bonds.csv
+GTJPY15Y govt,shared_term,daily,true,AD,bonds,BOND,JPY,JPN,JPY_JGB_NOMINAL_GENERIC,15Y,YIELD,tickers/bonds.csv
+GTJPY20Y govt,shared_term,daily,true,AD,bonds,BOND,JPY,JPN,JPY_JGB_NOMINAL_GENERIC,20Y,YIELD,tickers/bonds.csv
+GTJPY30Y govt,shared_term,daily,true,AD,bonds,BOND,JPY,JPN,JPY_JGB_NOMINAL_GENERIC,30Y,YIELD,tickers/bonds.csv
+GTJPYII5YR  govt,shared_term,daily,true,AD,bonds,BOND,JPY,JPN,JPY_JGBI_REAL_GENERIC,5Y,YIELD,tickers/bonds.csv
+GTJPYII6YR  govt,shared_term,daily,true,AD,bonds,BOND,JPY,JPN,JPY_JGBI_REAL_GENERIC,6Y,YIELD,tickers/bonds.csv
+GTJPYII7YR  govt,shared_term,daily,true,AD,bonds,BOND,JPY,JPN,JPY_JGBI_REAL_GENERIC,7Y,YIELD,tickers/bonds.csv
+GTJPYII8YR  govt,shared_term,daily,true,AD,bonds,BOND,JPY,JPN,JPY_JGBI_REAL_GENERIC,8Y,YIELD,tickers/bonds.csv
+GTJPYII9YR  govt,shared_term,daily,true,AD,bonds,BOND,JPY,JPN,JPY_JGBI_REAL_GENERIC,9Y,YIELD,tickers/bonds.csv
+GTJPYII10YR  govt,shared_term,daily,true,AD,bonds,BOND,JPY,JPN,JPY_JGBI_REAL_GENERIC,10Y,YIELD,tickers/bonds.csv
+GVSK3MON Index,shared_term,daily,true,AD,bonds,BOND,KRW,KOR,KRW_KTB_NOMINAL_OTR,3M,YIELD,tickers/bonds.csv
+GVSK6MON Index,shared_term,daily,true,AD,bonds,BOND,KRW,KOR,KRW_KTB_NOMINAL_OTR,6M,YIELD,tickers/bonds.csv
+GVSK1YR Index,shared_term,daily,true,AD,bonds,BOND,KRW,KOR,KRW_KTB_NOMINAL_OTR,1Y,YIELD,tickers/bonds.csv
+GVSK2YR Index,shared_term,daily,true,AD,bonds,BOND,KRW,KOR,KRW_KTB_NOMINAL_OTR,2Y,YIELD,tickers/bonds.csv
+GVSK3YR Index,shared_term,daily,true,AD,bonds,BOND,KRW,KOR,KRW_KTB_NOMINAL_OTR,3Y,YIELD,tickers/bonds.csv
+GVSK5YR Index,shared_term,daily,true,AD,bonds,BOND,KRW,KOR,KRW_KTB_NOMINAL_OTR,5Y,YIELD,tickers/bonds.csv
+GVSK10YR Index,shared_term,daily,true,AD,bonds,BOND,KRW,KOR,KRW_KTB_NOMINAL_OTR,10Y,YIELD,tickers/bonds.csv
+GVSK20YR Index,shared_term,daily,true,AD,bonds,BOND,KRW,KOR,KRW_KTB_NOMINAL_OTR,20Y,YIELD,tickers/bonds.csv
+MAGY3YR INDEX,shared_term,daily,true,AD,bonds,BOND,MYR,MYS,MYR_MGS_NOMINAL_GENERIC,3Y,YIELD,tickers/bonds.csv
+MAGY5YR INDEX,shared_term,daily,true,AD,bonds,BOND,MYR,MYS,MYR_MGS_NOMINAL_GENERIC,5Y,YIELD,tickers/bonds.csv
+MAGY7YR INDEX,shared_term,daily,true,AD,bonds,BOND,MYR,MYS,MYR_MGS_NOMINAL_GENERIC,7Y,YIELD,tickers/bonds.csv
+MAGY10YR INDEX,shared_term,daily,true,AD,bonds,BOND,MYR,MYS,MYR_MGS_NOMINAL_GENERIC,10Y,YIELD,tickers/bonds.csv
+MAGY20YR INDEX,shared_term,daily,true,AD,bonds,BOND,MYR,MYS,MYR_MGS_NOMINAL_GENERIC,20Y,YIELD,tickers/bonds.csv
+USGG1M Index,shared_term,daily,true,AD,bonds,BOND,USD,USA,USD_UST_NOMINAL_CMT,4W,YIELD,tickers/bonds.csv
+USGG6M Index,shared_term,daily,true,AD,bonds,BOND,USD,USA,USD_UST_NOMINAL_CMT,6M,YIELD,tickers/bonds.csv
+USGG12M Index,shared_term,daily,true,AD,bonds,BOND,USD,USA,USD_UST_NOMINAL_CMT,1Y,YIELD,tickers/bonds.csv
+USGG2YR Index,shared_term,hourly,true,AD,bonds,BOND,USD,USA,USD_UST_NOMINAL_CMT,2Y,YIELD,tickers/bonds.csv
+USGG3YR Index,shared_term,daily,true,AD,bonds,BOND,USD,USA,USD_UST_NOMINAL_CMT,3Y,YIELD,tickers/bonds.csv
+USGG5YR Index,shared_term,hourly,true,AD,bonds,BOND,USD,USA,USD_UST_NOMINAL_CMT,5Y,YIELD,tickers/bonds.csv
+USGG7YR Index,shared_term,daily,true,AD,bonds,BOND,USD,USA,USD_UST_NOMINAL_CMT,7Y,YIELD,tickers/bonds.csv
+USGG10YR Index,shared_term,hourly,true,AD,bonds,BOND,USD,USA,USD_UST_NOMINAL_CMT,10Y,YIELD,tickers/bonds.csv
+USGG20YR Index,shared_term,daily,true,AD,bonds,BOND,USD,USA,USD_UST_NOMINAL_CMT,20Y,YIELD,tickers/bonds.csv
+USGG30YR Index,shared_term,hourly,true,AD,bonds,BOND,USD,USA,USD_UST_NOMINAL_CMT,30Y,YIELD,tickers/bonds.csv
+GUKG10 INDEX,shared_term,daily,true,AD,bonds,BOND,GBP,GBR,GBP_GILT_NOMINAL_CMT,10Y,YIELD,tickers/bonds.csv
+GJGB10 Index,shared_term,daily,true,AD,bonds,BOND,JPY,JPN,JPY_JGB_NOMINAL_OTR,10Y,YIELD,tickers/bonds.csv
+GDBR10 Index,shared_term,daily,true,AD,bonds,BOND,EUR,DEU,EUR_BUND_NOMINAL_CMT,10Y,YIELD,tickers/bonds.csv
+GFRN10 Index,shared_term,daily,true,AD,bonds,BOND,EUR,FRA,EUR_OAT_NOMINAL_CMT,10Y,YIELD,tickers/bonds.csv
+GACGB10 Index,shared_term,daily,true,AD,bonds,BOND,AUD,AUS,AUD_ACGB_NOMINAL_CMT,10Y,YIELD,tickers/bonds.csv
+USGGBE10 Index,shared_term,daily,true,AD,bonds,BOND,USD,USA,USD_UST_BEI_CMT,10Y,BREAKEVEN,tickers/bonds.csv
+UKGGBE10 INDEX,shared_term,daily,true,AD,bonds,BOND,GBP,GBR,GBP_GILT_BEI_CMT,10Y,BREAKEVEN,tickers/bonds.csv
+JYGGBE10 INDEX,shared_term,daily,true,AD,bonds,BOND,JPY,JPN,JPY_JGB_BEI_CMT,10Y,BREAKEVEN,tickers/bonds.csv
+DEGGBE10 INDEX,shared_term,daily,true,AD,bonds,BOND,EUR,DEU,EUR_BUND_BEI_CMT,10Y,BREAKEVEN,tickers/bonds.csv
+FRGGBE10 INDEX,shared_term,daily,true,AD,bonds,BOND,EUR,FRA,EUR_OAT_BEI_CMT,10Y,BREAKEVEN,tickers/bonds.csv
+ADGGBE10 INDEX,shared_term,daily,true,AD,bonds,BOND,AUD,AUS,AUD_ACGB_BEI_CMT,10Y,BREAKEVEN,tickers/bonds.csv
+AUD curncy,shared_term,daily,true,AD,fx,FX,AUD,AUS,FX_AUD,SPOT,RATE,tickers/fx.csv
+AUD1W curncy,shared_term,daily,true,AD,fx,FX,AUD,AUS,FX_AUD,1W,RATE,tickers/fx.csv
+AUD1M curncy,shared_term,daily,true,AD,fx,FX,AUD,AUS,FX_AUD,4W,RATE,tickers/fx.csv
+AUD3m curncy,shared_term,daily,true,AD,fx,FX,AUD,AUS,FX_AUD,3M,RATE,tickers/fx.csv
+AUD6m curncy,shared_term,daily,true,AD,fx,FX,AUD,AUS,FX_AUD,6M,RATE,tickers/fx.csv
+AUD9m curncy,shared_term,daily,true,AD,fx,FX,AUD,AUS,FX_AUD,9M,RATE,tickers/fx.csv
+AUD12m curncy,shared_term,daily,true,AD,fx,FX,AUD,AUS,FX_AUD,1Y,RATE,tickers/fx.csv
+AUD2Y curncy,shared_term,daily,true,AD,fx,FX,AUD,AUS,FX_AUD,2Y,RATE,tickers/fx.csv
+CAD Curncy,shared_term,daily,true,AD,fx,FX,CAD,CAN,FX_CAD,SPOT,RATE,tickers/fx.csv
+CAD1W Curncy,shared_term,daily,true,AD,fx,FX,CAD,CAN,FX_CAD,1W,RATE,tickers/fx.csv
+CAD2W Curncy,shared_term,daily,true,AD,fx,FX,CAD,CAN,FX_CAD,2W,RATE,tickers/fx.csv
+CAD3W Curncy,shared_term,daily,true,AD,fx,FX,CAD,CAN,FX_CAD,3W,RATE,tickers/fx.csv
+CAD1M Curncy,shared_term,daily,true,AD,fx,FX,CAD,CAN,FX_CAD,4W,RATE,tickers/fx.csv
+CAD2M Curncy,shared_term,daily,true,AD,fx,FX,CAD,CAN,FX_CAD,2M,RATE,tickers/fx.csv
+CAD3M Curncy,shared_term,daily,true,AD,fx,FX,CAD,CAN,FX_CAD,3M,RATE,tickers/fx.csv
+CAD4M Curncy,shared_term,daily,true,AD,fx,FX,CAD,CAN,FX_CAD,4M,RATE,tickers/fx.csv
+CAD5M Curncy,shared_term,daily,true,AD,fx,FX,CAD,CAN,FX_CAD,5M,RATE,tickers/fx.csv
+CAD6M Curncy,shared_term,daily,true,AD,fx,FX,CAD,CAN,FX_CAD,6M,RATE,tickers/fx.csv
+CAD9M Curncy,shared_term,daily,true,AD,fx,FX,CAD,CAN,FX_CAD,9M,RATE,tickers/fx.csv
+CAD12M Curncy,shared_term,daily,true,AD,fx,FX,CAD,CAN,FX_CAD,1Y,RATE,tickers/fx.csv
+CAD18M Curncy,shared_term,daily,true,AD,fx,FX,CAD,CAN,FX_CAD,18M,RATE,tickers/fx.csv
+CAD2Y Curncy,shared_term,daily,true,AD,fx,FX,CAD,CAN,FX_CAD,2Y,RATE,tickers/fx.csv
+CHF curncy,shared_term,daily,true,AD,fx,FX,CHF,CHE,FX_CHF,SPOT,RATE,tickers/fx.csv
+CHF1W curncy,shared_term,daily,true,AD,fx,FX,CHF,CHE,FX_CHF,1W,RATE,tickers/fx.csv
+CHF1M curncy,shared_term,daily,true,AD,fx,FX,CHF,CHE,FX_CHF,4W,RATE,tickers/fx.csv
+CHF3m curncy,shared_term,daily,true,AD,fx,FX,CHF,CHE,FX_CHF,3M,RATE,tickers/fx.csv
+CHF6m curncy,shared_term,daily,true,AD,fx,FX,CHF,CHE,FX_CHF,6M,RATE,tickers/fx.csv
+CHF9m curncy,shared_term,daily,true,AD,fx,FX,CHF,CHE,FX_CHF,9M,RATE,tickers/fx.csv
+CHF12m curncy,shared_term,daily,true,AD,fx,FX,CHF,CHE,FX_CHF,1Y,RATE,tickers/fx.csv
+CHF2Y curncy,shared_term,daily,true,AD,fx,FX,CHF,CHE,FX_CHF,2Y,RATE,tickers/fx.csv
+CNH curncy,shared_term,daily,true,AD,fx,FX,CNH,CHN,FX_CNH,SPOT,RATE,tickers/fx.csv
+CNH+1W curncy,shared_term,daily,true,AD,fx,FX,CNH,CHN,FX_CNH,1W,RATE,tickers/fx.csv
+CNH+1M curncy,shared_term,daily,true,AD,fx,FX,CNH,CHN,FX_CNH,4W,RATE,tickers/fx.csv
+CNH+3m curncy,shared_term,daily,true,AD,fx,FX,CNH,CHN,FX_CNH,3M,RATE,tickers/fx.csv
+CNH+6m curncy,shared_term,daily,true,AD,fx,FX,CNH,CHN,FX_CNH,6M,RATE,tickers/fx.csv
+CNH+9m curncy,shared_term,daily,true,AD,fx,FX,CNH,CHN,FX_CNH,9M,RATE,tickers/fx.csv
+CNH+12m curncy,shared_term,daily,true,AD,fx,FX,CNH,CHN,FX_CNH,1Y,RATE,tickers/fx.csv
+CNH+2Y curncy,shared_term,daily,true,AD,fx,FX,CNH,CHN,FX_CNH,2Y,RATE,tickers/fx.csv
+EUR curncy,shared_term,daily,true,AD,fx,FX,EUR,EUR,FX_EUR,SPOT,RATE,tickers/fx.csv
+EUR1W curncy,shared_term,daily,true,AD,fx,FX,EUR,EUR,FX_EUR,1W,RATE,tickers/fx.csv
+EUR1M curncy,shared_term,daily,true,AD,fx,FX,EUR,EUR,FX_EUR,4W,RATE,tickers/fx.csv
+EUR3m curncy,shared_term,daily,true,AD,fx,FX,EUR,EUR,FX_EUR,3M,RATE,tickers/fx.csv
+EUR6m curncy,shared_term,daily,true,AD,fx,FX,EUR,EUR,FX_EUR,6M,RATE,tickers/fx.csv
+EUR9m curncy,shared_term,daily,true,AD,fx,FX,EUR,EUR,FX_EUR,9M,RATE,tickers/fx.csv
+EUR12m curncy,shared_term,daily,true,AD,fx,FX,EUR,EUR,FX_EUR,1Y,RATE,tickers/fx.csv
+EUR2Y curncy,shared_term,daily,true,AD,fx,FX,EUR,EUR,FX_EUR,2Y,RATE,tickers/fx.csv
+GBP curncy,shared_term,daily,true,AD,fx,FX,GBP,GBR,FX_GBP,SPOT,RATE,tickers/fx.csv
+GBP1W curncy,shared_term,daily,true,AD,fx,FX,GBP,GBR,FX_GBP,1W,RATE,tickers/fx.csv
+GBP1M curncy,shared_term,daily,true,AD,fx,FX,GBP,GBR,FX_GBP,4W,RATE,tickers/fx.csv
+GBP3m curncy,shared_term,daily,true,AD,fx,FX,GBP,GBR,FX_GBP,3M,RATE,tickers/fx.csv
+GBP6m curncy,shared_term,daily,true,AD,fx,FX,GBP,GBR,FX_GBP,6M,RATE,tickers/fx.csv
+GBP9m curncy,shared_term,daily,true,AD,fx,FX,GBP,GBR,FX_GBP,9M,RATE,tickers/fx.csv
+GBP12m curncy,shared_term,daily,true,AD,fx,FX,GBP,GBR,FX_GBP,1Y,RATE,tickers/fx.csv
+GBP2Y curncy,shared_term,daily,true,AD,fx,FX,GBP,GBR,FX_GBP,2Y,RATE,tickers/fx.csv
+HKD curncy,shared_term,daily,true,AD,fx,FX,HKD,HKG,FX_HKD,SPOT,RATE,tickers/fx.csv
+HKD+1M curncy,shared_term,daily,true,AD,fx,FX,HKD,HKG,FX_HKD,4W,RATE,tickers/fx.csv
+HKD+3m curncy,shared_term,daily,true,AD,fx,FX,HKD,HKG,FX_HKD,3M,RATE,tickers/fx.csv
+HKD+6m curncy,shared_term,daily,true,AD,fx,FX,HKD,HKG,FX_HKD,6M,RATE,tickers/fx.csv
+HKD+9m curncy,shared_term,daily,true,AD,fx,FX,HKD,HKG,FX_HKD,9M,RATE,tickers/fx.csv
+HKD+12m curncy,shared_term,daily,true,AD,fx,FX,HKD,HKG,FX_HKD,1Y,RATE,tickers/fx.csv
+HKD+2Y curncy,shared_term,daily,true,AD,fx,FX,HKD,HKG,FX_HKD,2Y,RATE,tickers/fx.csv
+IDR curncy,shared_term,daily,true,AD,fx,FX,IDR,IDN,FX_IDR,SPOT,RATE,tickers/fx.csv
+IHN+1W curncy,shared_term,daily,true,AD,fx,FX,IDR,IDN,FX_IDR,1W,RATE,tickers/fx.csv
+IHN+1M curncy,shared_term,daily,true,AD,fx,FX,IDR,IDN,FX_IDR,4W,RATE,tickers/fx.csv
+IHN+3m curncy,shared_term,daily,true,AD,fx,FX,IDR,IDN,FX_IDR,3M,RATE,tickers/fx.csv
+IHN+6m curncy,shared_term,daily,true,AD,fx,FX,IDR,IDN,FX_IDR,6M,RATE,tickers/fx.csv
+IHN+9m curncy,shared_term,daily,true,AD,fx,FX,IDR,IDN,FX_IDR,9M,RATE,tickers/fx.csv
+IHN+12m curncy,shared_term,daily,true,AD,fx,FX,IDR,IDN,FX_IDR,1Y,RATE,tickers/fx.csv
+IHN+2Y curncy,shared_term,daily,true,AD,fx,FX,IDR,IDN,FX_IDR,2Y,RATE,tickers/fx.csv
+ILS curncy,shared_term,daily,true,AD,fx,FX,ILS,ISR,FX_ILS,SPOT,RATE,tickers/fx.csv
+ILS1W curncy,shared_term,daily,true,AD,fx,FX,ILS,ISR,FX_ILS,1W,RATE,tickers/fx.csv
+ILS1M curncy,shared_term,daily,true,AD,fx,FX,ILS,ISR,FX_ILS,4W,RATE,tickers/fx.csv
+ILS3M curncy,shared_term,daily,true,AD,fx,FX,ILS,ISR,FX_ILS,3M,RATE,tickers/fx.csv
+ILS6M curncy,shared_term,daily,true,AD,fx,FX,ILS,ISR,FX_ILS,6M,RATE,tickers/fx.csv
+ILS9M curncy,shared_term,daily,true,AD,fx,FX,ILS,ISR,FX_ILS,9M,RATE,tickers/fx.csv
+ILS12M curncy,shared_term,daily,true,AD,fx,FX,ILS,ISR,FX_ILS,1Y,RATE,tickers/fx.csv
+ILS18M curncy,shared_term,daily,true,AD,fx,FX,ILS,ISR,FX_ILS,18M,RATE,tickers/fx.csv
+ILS2Y curncy,shared_term,daily,true,AD,fx,FX,ILS,ISR,FX_ILS,2Y,RATE,tickers/fx.csv
+INR curncy,shared_term,daily,true,AD,fx,FX,INR,IND,FX_INR,SPOT,RATE,tickers/fx.csv
+IRN+1W curncy,shared_term,daily,true,AD,fx,FX,INR,IND,FX_INR,1W,RATE,tickers/fx.csv
+IRN+1M curncy,shared_term,daily,true,AD,fx,FX,INR,IND,FX_INR,4W,RATE,tickers/fx.csv
+IRN+3m curncy,shared_term,daily,true,AD,fx,FX,INR,IND,FX_INR,3M,RATE,tickers/fx.csv
+IRN+6m curncy,shared_term,daily,true,AD,fx,FX,INR,IND,FX_INR,6M,RATE,tickers/fx.csv
+IRN+9m curncy,shared_term,daily,true,AD,fx,FX,INR,IND,FX_INR,9M,RATE,tickers/fx.csv
+IRN+12m curncy,shared_term,daily,true,AD,fx,FX,INR,IND,FX_INR,1Y,RATE,tickers/fx.csv
+IRN+2Y curncy,shared_term,daily,true,AD,fx,FX,INR,IND,FX_INR,2Y,RATE,tickers/fx.csv
+JPY curncy,shared_term,daily,true,AD,fx,FX,JPY,JPN,FX_JPY,SPOT,RATE,tickers/fx.csv
+JPY1W curncy,shared_term,daily,true,AD,fx,FX,JPY,JPN,FX_JPY,1W,RATE,tickers/fx.csv
+JPY1M curncy,shared_term,daily,true,AD,fx,FX,JPY,JPN,FX_JPY,4W,RATE,tickers/fx.csv
+JPY3m curncy,shared_term,daily,true,AD,fx,FX,JPY,JPN,FX_JPY,3M,RATE,tickers/fx.csv
+JPY6m curncy,shared_term,daily,true,AD,fx,FX,JPY,JPN,FX_JPY,6M,RATE,tickers/fx.csv
+JPY9m curncy,shared_term,daily,true,AD,fx,FX,JPY,JPN,FX_JPY,9M,RATE,tickers/fx.csv
+JPY12m curncy,shared_term,daily,true,AD,fx,FX,JPY,JPN,FX_JPY,1Y,RATE,tickers/fx.csv
+JPY2Y curncy,shared_term,daily,true,AD,fx,FX,JPY,JPN,FX_JPY,2Y,RATE,tickers/fx.csv
+KRW curncy,shared_term,daily,true,AD,fx,FX,KRW,KOR,FX_KRW,SPOT,RATE,tickers/fx.csv
+KWN+1W curncy,shared_term,daily,true,AD,fx,FX,KRW,KOR,FX_KRW,1W,RATE,tickers/fx.csv
+KWN+1M curncy,shared_term,daily,true,AD,fx,FX,KRW,KOR,FX_KRW,4W,RATE,tickers/fx.csv
+KWN+3m curncy,shared_term,daily,true,AD,fx,FX,KRW,KOR,FX_KRW,3M,RATE,tickers/fx.csv
+KWN+6m curncy,shared_term,daily,true,AD,fx,FX,KRW,KOR,FX_KRW,6M,RATE,tickers/fx.csv
+KWN+9m curncy,shared_term,daily,true,AD,fx,FX,KRW,KOR,FX_KRW,9M,RATE,tickers/fx.csv
+KWN+12m curncy,shared_term,daily,true,AD,fx,FX,KRW,KOR,FX_KRW,1Y,RATE,tickers/fx.csv
+KWN+2Y curncy,shared_term,daily,true,AD,fx,FX,KRW,KOR,FX_KRW,2Y,RATE,tickers/fx.csv
+MXN CURNCY,shared_term,daily,true,AD,fx,FX,MXN,MEX,FX_MXN,SPOT,RATE,tickers/fx.csv
+MXN1W Curncy,shared_term,daily,true,AD,fx,FX,MXN,MEX,FX_MXN,1W,RATE,tickers/fx.csv
+MXN1M Curncy,shared_term,daily,true,AD,fx,FX,MXN,MEX,FX_MXN,4W,RATE,tickers/fx.csv
+MXN3M CURNCY,shared_term,daily,true,AD,fx,FX,MXN,MEX,FX_MXN,3M,RATE,tickers/fx.csv
+MXN6M CURNCY,shared_term,daily,true,AD,fx,FX,MXN,MEX,FX_MXN,6M,RATE,tickers/fx.csv
+MXN9M CURNCY,shared_term,daily,true,AD,fx,FX,MXN,MEX,FX_MXN,9M,RATE,tickers/fx.csv
+MXN12M CURNCY,shared_term,daily,true,AD,fx,FX,MXN,MEX,FX_MXN,1Y,RATE,tickers/fx.csv
+MXN2Y CURNCY,shared_term,daily,true,AD,fx,FX,MXN,MEX,FX_MXN,2Y,RATE,tickers/fx.csv
+MYR curncy,shared_term,daily,true,AD,fx,FX,MYR,MYS,FX_MYR,SPOT,RATE,tickers/fx.csv
+MRN+1W curncy,shared_term,daily,true,AD,fx,FX,MYR,MYS,FX_MYR,1W,RATE,tickers/fx.csv
+MRN+1M curncy,shared_term,daily,true,AD,fx,FX,MYR,MYS,FX_MYR,4W,RATE,tickers/fx.csv
+MRN+3m curncy,shared_term,daily,true,AD,fx,FX,MYR,MYS,FX_MYR,3M,RATE,tickers/fx.csv
+MRN+6m curncy,shared_term,daily,true,AD,fx,FX,MYR,MYS,FX_MYR,6M,RATE,tickers/fx.csv
+MRN+9m curncy,shared_term,daily,true,AD,fx,FX,MYR,MYS,FX_MYR,9M,RATE,tickers/fx.csv
+MRN+12m curncy,shared_term,daily,true,AD,fx,FX,MYR,MYS,FX_MYR,1Y,RATE,tickers/fx.csv
+MRN+2Y curncy,shared_term,daily,true,AD,fx,FX,MYR,MYS,FX_MYR,2Y,RATE,tickers/fx.csv
+NOK curncy,shared_term,daily,true,AD,fx,FX,NOK,NOR,FX_NOK,SPOT,RATE,tickers/fx.csv
+NOK1W curncy,shared_term,daily,true,AD,fx,FX,NOK,NOR,FX_NOK,1W,RATE,tickers/fx.csv
+NOK1M curncy,shared_term,daily,true,AD,fx,FX,NOK,NOR,FX_NOK,4W,RATE,tickers/fx.csv
+NOK3m curncy,shared_term,daily,true,AD,fx,FX,NOK,NOR,FX_NOK,3M,RATE,tickers/fx.csv
+NOK6m curncy,shared_term,daily,true,AD,fx,FX,NOK,NOR,FX_NOK,6M,RATE,tickers/fx.csv
+NOK9m curncy,shared_term,daily,true,AD,fx,FX,NOK,NOR,FX_NOK,9M,RATE,tickers/fx.csv
+NOK12m curncy,shared_term,daily,true,AD,fx,FX,NOK,NOR,FX_NOK,1Y,RATE,tickers/fx.csv
+NOK2Y curncy,shared_term,daily,true,AD,fx,FX,NOK,NOR,FX_NOK,2Y,RATE,tickers/fx.csv
+NZD curncy,shared_term,daily,true,AD,fx,FX,NZD,NZL,FX_NZD,SPOT,RATE,tickers/fx.csv
+NZD1W curncy,shared_term,daily,true,AD,fx,FX,NZD,NZL,FX_NZD,1W,RATE,tickers/fx.csv
+NZD1M curncy,shared_term,daily,true,AD,fx,FX,NZD,NZL,FX_NZD,4W,RATE,tickers/fx.csv
+NZD3m curncy,shared_term,daily,true,AD,fx,FX,NZD,NZL,FX_NZD,3M,RATE,tickers/fx.csv
+NZD6m curncy,shared_term,daily,true,AD,fx,FX,NZD,NZL,FX_NZD,6M,RATE,tickers/fx.csv
+NZD9m curncy,shared_term,daily,true,AD,fx,FX,NZD,NZL,FX_NZD,9M,RATE,tickers/fx.csv
+NZD12m curncy,shared_term,daily,true,AD,fx,FX,NZD,NZL,FX_NZD,1Y,RATE,tickers/fx.csv
+NZD2Y curncy,shared_term,daily,true,AD,fx,FX,NZD,NZL,FX_NZD,2Y,RATE,tickers/fx.csv
+PHP curncy,shared_term,daily,true,AD,fx,FX,PHP,PHL,FX_PHP,SPOT,RATE,tickers/fx.csv
+PPN+1W curncy,shared_term,daily,true,AD,fx,FX,PHP,PHL,FX_PHP,1W,RATE,tickers/fx.csv
+PPN+1M curncy,shared_term,daily,true,AD,fx,FX,PHP,PHL,FX_PHP,4W,RATE,tickers/fx.csv
+PPN+3m curncy,shared_term,daily,true,AD,fx,FX,PHP,PHL,FX_PHP,3M,RATE,tickers/fx.csv
+PPN+6m curncy,shared_term,daily,true,AD,fx,FX,PHP,PHL,FX_PHP,6M,RATE,tickers/fx.csv
+PPN+9m curncy,shared_term,daily,true,AD,fx,FX,PHP,PHL,FX_PHP,9M,RATE,tickers/fx.csv
+PPN+12m curncy,shared_term,daily,true,AD,fx,FX,PHP,PHL,FX_PHP,1Y,RATE,tickers/fx.csv
+PPN+2Y curncy,shared_term,daily,true,AD,fx,FX,PHP,PHL,FX_PHP,2Y,RATE,tickers/fx.csv
+PLN Curncy,shared_term,daily,true,AD,fx,FX,PLN,POL,FX_PLN,SPOT,RATE,tickers/fx.csv
+PLN1W Curncy,shared_term,daily,true,AD,fx,FX,PLN,POL,FX_PLN,1W,RATE,tickers/fx.csv
+PLN2W Curncy,shared_term,daily,true,AD,fx,FX,PLN,POL,FX_PLN,2W,RATE,tickers/fx.csv
+PLN3W Curncy,shared_term,daily,true,AD,fx,FX,PLN,POL,FX_PLN,3W,RATE,tickers/fx.csv
+PLN1M Curncy,shared_term,daily,true,AD,fx,FX,PLN,POL,FX_PLN,4W,RATE,tickers/fx.csv
+PLN2M Curncy,shared_term,daily,true,AD,fx,FX,PLN,POL,FX_PLN,2M,RATE,tickers/fx.csv
+PLN3M Curncy,shared_term,daily,true,AD,fx,FX,PLN,POL,FX_PLN,3M,RATE,tickers/fx.csv
+PLN4M Curncy,shared_term,daily,true,AD,fx,FX,PLN,POL,FX_PLN,4M,RATE,tickers/fx.csv
+PLN5M Curncy,shared_term,daily,true,AD,fx,FX,PLN,POL,FX_PLN,5M,RATE,tickers/fx.csv
+PLN6M Curncy,shared_term,daily,true,AD,fx,FX,PLN,POL,FX_PLN,6M,RATE,tickers/fx.csv
+PLN9M Curncy,shared_term,daily,true,AD,fx,FX,PLN,POL,FX_PLN,9M,RATE,tickers/fx.csv
+PLN12M Curncy,shared_term,daily,true,AD,fx,FX,PLN,POL,FX_PLN,1Y,RATE,tickers/fx.csv
+PLN2Y Curncy,shared_term,daily,true,AD,fx,FX,PLN,POL,FX_PLN,2Y,RATE,tickers/fx.csv
+SEK curncy,shared_term,daily,true,AD,fx,FX,SEK,SWE,FX_SEK,SPOT,RATE,tickers/fx.csv
+SEK1W curncy,shared_term,daily,true,AD,fx,FX,SEK,SWE,FX_SEK,1W,RATE,tickers/fx.csv
+SEK1M curncy,shared_term,daily,true,AD,fx,FX,SEK,SWE,FX_SEK,4W,RATE,tickers/fx.csv
+SEK3m curncy,shared_term,daily,true,AD,fx,FX,SEK,SWE,FX_SEK,3M,RATE,tickers/fx.csv
+SEK6m curncy,shared_term,daily,true,AD,fx,FX,SEK,SWE,FX_SEK,6M,RATE,tickers/fx.csv
+SEK9m curncy,shared_term,daily,true,AD,fx,FX,SEK,SWE,FX_SEK,9M,RATE,tickers/fx.csv
+SEK12m curncy,shared_term,daily,true,AD,fx,FX,SEK,SWE,FX_SEK,1Y,RATE,tickers/fx.csv
+SEK2Y curncy,shared_term,daily,true,AD,fx,FX,SEK,SWE,FX_SEK,2Y,RATE,tickers/fx.csv
+SGD curncy,shared_term,daily,true,AD,fx,FX,SGD,SGP,FX_SGD,SPOT,RATE,tickers/fx.csv
+SGD1W curncy,shared_term,daily,true,AD,fx,FX,SGD,SGP,FX_SGD,1W,RATE,tickers/fx.csv
+SGD2W curncy,shared_term,daily,true,AD,fx,FX,SGD,SGP,FX_SGD,2W,RATE,tickers/fx.csv
+SGD3W curncy,shared_term,daily,true,AD,fx,FX,SGD,SGP,FX_SGD,3W,RATE,tickers/fx.csv
+SGD1M curncy,shared_term,daily,true,AD,fx,FX,SGD,SGP,FX_SGD,4W,RATE,tickers/fx.csv
+SGD2M curncy,shared_term,daily,true,AD,fx,FX,SGD,SGP,FX_SGD,2M,RATE,tickers/fx.csv
+SGD3M curncy,shared_term,daily,true,AD,fx,FX,SGD,SGP,FX_SGD,3M,RATE,tickers/fx.csv
+SGD4M curncy,shared_term,daily,true,AD,fx,FX,SGD,SGP,FX_SGD,4M,RATE,tickers/fx.csv
+SGD5M curncy,shared_term,daily,true,AD,fx,FX,SGD,SGP,FX_SGD,5M,RATE,tickers/fx.csv
+SGD6M curncy,shared_term,daily,true,AD,fx,FX,SGD,SGP,FX_SGD,6M,RATE,tickers/fx.csv
+SGD9M curncy,shared_term,daily,true,AD,fx,FX,SGD,SGP,FX_SGD,9M,RATE,tickers/fx.csv
+SGD12M curncy,shared_term,daily,true,AD,fx,FX,SGD,SGP,FX_SGD,1Y,RATE,tickers/fx.csv
+SGD18M curncy,shared_term,daily,true,AD,fx,FX,SGD,SGP,FX_SGD,18M,RATE,tickers/fx.csv
+SGD2Y curncy,shared_term,daily,true,AD,fx,FX,SGD,SGP,FX_SGD,2Y,RATE,tickers/fx.csv
+THB curncy,shared_term,daily,true,AD,fx,FX,THB,THA,FX_THB,SPOT,RATE,tickers/fx.csv
+THB1W curncy,shared_term,daily,true,AD,fx,FX,THB,THA,FX_THB,1W,RATE,tickers/fx.csv
+THB1M curncy,shared_term,daily,true,AD,fx,FX,THB,THA,FX_THB,4W,RATE,tickers/fx.csv
+THB3m curncy,shared_term,daily,true,AD,fx,FX,THB,THA,FX_THB,3M,RATE,tickers/fx.csv
+THB6m curncy,shared_term,daily,true,AD,fx,FX,THB,THA,FX_THB,6M,RATE,tickers/fx.csv
+THB9m curncy,shared_term,daily,true,AD,fx,FX,THB,THA,FX_THB,9M,RATE,tickers/fx.csv
+THB12m curncy,shared_term,daily,true,AD,fx,FX,THB,THA,FX_THB,1Y,RATE,tickers/fx.csv
+THB2Y curncy,shared_term,daily,true,AD,fx,FX,THB,THA,FX_THB,2Y,RATE,tickers/fx.csv
+TWD curncy,shared_term,daily,true,AD,fx,FX,TWD,TWN,FX_TWD,SPOT,RATE,tickers/fx.csv
+NTN+1W curncy,shared_term,daily,true,AD,fx,FX,TWD,TWN,FX_TWD,1W,RATE,tickers/fx.csv
+NTN+1M curncy,shared_term,daily,true,AD,fx,FX,TWD,TWN,FX_TWD,4W,RATE,tickers/fx.csv
+NTN+3m curncy,shared_term,daily,true,AD,fx,FX,TWD,TWN,FX_TWD,3M,RATE,tickers/fx.csv
+NTN+6m curncy,shared_term,daily,true,AD,fx,FX,TWD,TWN,FX_TWD,6M,RATE,tickers/fx.csv
+NTN+9m curncy,shared_term,daily,true,AD,fx,FX,TWD,TWN,FX_TWD,9M,RATE,tickers/fx.csv
+NTN+12m curncy,shared_term,daily,true,AD,fx,FX,TWD,TWN,FX_TWD,1Y,RATE,tickers/fx.csv
+NTN+2Y curncy,shared_term,daily,true,AD,fx,FX,TWD,TWN,FX_TWD,2Y,RATE,tickers/fx.csv
