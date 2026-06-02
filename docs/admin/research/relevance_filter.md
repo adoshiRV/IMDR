@@ -92,12 +92,22 @@ Snapshot from a 24h dry test on 2026-05-21:
 | barclays | `barclays-discipline`  |        236 |     143 |   93 |       61% |
 | bnp      | n/a (no EQUITY in feed)|         12 |       0 |   12 |        0% |
 | goldman  | `1-ticker` (incl. RIC) |        271 |     135 |  136 |       49% |
-| hsbc     | n/a (no EQUITY in feed)|         11 |       0 |   11 |        0% |
+| hsbc     | `1-ticker` (title regex, added 2026-06-02) |         11 |       0 |   11 |        0% |
 | ms       | `ms-default-drop`      |        280 |     265 |   15 |       95% |
 | nomura   | `1-ticker` (BB pair)   |         95 |      29 |   66 |       31% |
 | **total**|                        |    **923** | **572** | **351** | **62%** |
 
-ANZ, BNP and HSBC drop nothing at this stage — their daily feeds are
+The 2026-05-21 snapshot shows HSBC dropping 0/11 — but that's stale.
+Re-running on 2026-06-02 we discovered that the HSBC ``Equities`` feed
+*does* carry heavy single-name coverage (HK/CH/IN/US tickers), it just
+wasn't being recognised because the HSBC classifier didn't mine
+tickers. Title-regex ticker extraction landed in ``classifiers/hsbc.py``
+on 2026-06-02; HSBC now drops ~5/day (Dis-Chem, UPL, Meituan-style
+notes) via the standard ``1-ticker`` branch. The pre-filter cleanup at
+[`cleanup_hsbc_single_name.py`](../../../playground/research/cleanup_hsbc_single_name.py)
+removed 60 leaked single-name HSBC rows already in the corpus.
+
+ANZ and BNP still drop nothing at this stage — their daily feeds are
 overwhelmingly macro/rates/FX/commodities and never tag
 ``tickers``/``issuers``. BNP additionally drops ~9/day at the *earlier*
 discovery filter (chart-pack boilerplate, see
@@ -114,7 +124,7 @@ drop a healthy minority via ticker extraction.
 | barclays | none (falls back to `barclays-discipline`) |
 | bnp      | none — feed is pure macro/strategy; never tags `tickers`/`issuers`. Relevance filter is a no-op (the chart-pack drop happens at the discovery filter instead) |
 | goldman  | `primaryCompanyTickers[]` + `companyTickers[]` listing fields. **Title-regex fallback** when both are empty — catches RIC `(601231.SS, NC)` and Bloomberg-pair `(AAPL US)` formats. |
-| hsbc     | none (feed is mostly Economics) |
+| hsbc     | title regex `_BB_TICKER` (Bloomberg pair `(SYM EXCH)` — added 2026-06-02). HSBC titles encode single-name coverage as `{Company} ({SYM} {EXCH}) {Buy\|Hold\|Sell\|Initiate}: {topic}`. SYM 2–9 alnum, EXCH from the global Bloomberg code list. `Equity Strategy` product is excluded from the drop. |
 | ms       | title regex `\(([A-Z0-9.]{1,12})\s+([A-Z]{2,3})\)` — works in theory, but MS titles rarely include tickers. Default-drop handles the rest. |
 | nomura   | title regex (same Bloomberg-pair format as MS). Nomura titles routinely include tickers — e.g. "Gift Holdings (9279 JP) (Buy)". |
 
@@ -148,6 +158,8 @@ drop a healthy minority via ticker extraction.
 | [`playground/research/ingest_today_*.py`](../../../playground/research/) | Per-vendor scripts — wired immediately after `discover_reports()` (same gate). |
 | [`playground/research/test_orchestrator_filter_wired.py`](../../../playground/research/test_orchestrator_filter_wired.py) | Regression test pinning the orchestrator's filter call (AST check). |
 | [`playground/research/cleanup_filter_violations.py`](../../../playground/research/cleanup_filter_violations.py) | One-shot cleanup tool — replays `is_single_name_equity()` from persisted classifier output to find and remove leaked rows (DB + Qdrant + OneDrive). |
+| [`playground/research/cleanup_hsbc_single_name.py`](../../../playground/research/cleanup_hsbc_single_name.py) | Vendor-specific cleanup for HSBC single-name notes ingested before the 2026-06-02 classifier update. Dry-run by default; `--commit` deletes DB rows + Qdrant points + OneDrive PDFs. 60 reports removed on 2026-06-02. |
+| [`playground/research/probe_hsbc_single_name.py`](../../../playground/research/probe_hsbc_single_name.py) | Probe — runs the HSBC crawler + draft single-name regex against the live listing, prints kept/dropped split. Used to design the title regex before wiring it into the classifier. |
 | [`playground/research/dry_test_all_vendors.py`](../../../playground/research/dry_test_all_vendors.py) | Dry-run across all 7 vendors with the filter applied — no fetches |
 | [`playground/research/inspect_goldman_survivors.py`](../../../playground/research/inspect_goldman_survivors.py) | Per-vendor survivor inspection — quantifies slip-through |
 | [`src/imdr/config/settings.py`](../../../src/imdr/config/settings.py) | `research_drop_single_name_equity: bool = True` |

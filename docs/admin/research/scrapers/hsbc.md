@@ -137,9 +137,54 @@ regardless of our `RowsPerPage` param. Pagination stops when:
 * `_MAX_PAGES` safety cap (50 pages × ~31 rows = ~1500 reports —
   more than any realistic daily window).
 
+## Classifier & relevance filtering (2026-06-02)
+
+The HSBC ``Equities`` feed is dominated by single-name corporate
+coverage — ~5/day APAC + global names (Akeso, Broadcom, Meituan,
+Mengniu, NMDC, Rasan, etc.). The classifier mines tickers from the
+title and the relevance filter drops them.
+
+**Title shape (observed):** `{Company} ({SYM} {EXCH}) {Buy|Hold|Sell|Initiate}: {topic}`
+
+  * Examples: `Meituan (3690 HK) Buy: ...`, `Rasan (RASAN AB) Initiate at Buy: ...`,
+    `Broadcom Inc (AVGO US) Buy: ...`, `MphasiS (MPHL IN) Buy: ...`
+  * SYM is 2–9 alphanumeric chars (Indian + UAE tickers run up to 9:
+    `MAXHEALT IN`, `ADNOCDIS UH`, `DALBHARA IN`).
+  * EXCH is a Bloomberg country code: `HK, CH, US, IN, KS, KQ, TT, JP,
+    AB, LN, FP, GR, IM, SM, SE, NO, DC, SP, PM, TB, VN, KP, AU, NZ,
+    SJ, RM, EY, MM, MX, UH, UQ, ...` (full list in
+    [`classifiers/hsbc.py`](../../../../playground/research/ingest/classifiers/hsbc.py)
+    `_BB_TICKER`).
+  * Tightened with `(?<![A-Za-z0-9])...(?![A-Za-z0-9])` so we don't
+    match phrases like "Q4 26", "FY26e AI", or "AI EU".
+
+**What stays kept**
+
+  * `product = "Equity Strategy"` — these are sector / top-down /
+    flows notes. The classifier maps them to `STRATEGY` asset_class
+    so they bypass the EQUITY check entirely.
+  * Equity reports with no parenthesised ticker — sector / regional
+    wraps (e.g. "China Consumer Moving with momentum...", "Korea
+    Non-life Insurance 1Q26", "MENAT Real Estate Trends").
+  * Reports with 2+ tickers (paired comparison / sector basket).
+
+**Verification.** Sample from the 2026-06-02 dry probe of a 3-day
+window: 15 reports discovered → 5 dropped (single-name) → 10 kept
+(7 sector/regional + 1 Equity Strategy + 2 Economics + 1
+Sustainability). All 5 dropped reports were the targeted single-name
+notes; no false drops. See
+[`probe_hsbc_single_name.py`](../../../../playground/research/probe_hsbc_single_name.py).
+
+**Backfill cleanup.** 60 single-name HSBC reports ingested before the
+filter landed were removed on 2026-06-02 via
+[`cleanup_hsbc_single_name.py`](../../../../playground/research/cleanup_hsbc_single_name.py)
+(60 dim_report rows + 1,119 fact_chunk rows + 60 PDFs from
+OneDrive/SharePoint). No embeddings had been generated for these.
+
 ## Files
 
 * [`crawler_hsbc.py`](../../../../playground/research/ingest/crawler_hsbc.py)
+* [`classifiers/hsbc.py`](../../../../playground/research/ingest/classifiers/hsbc.py) — product → asset_class + ticker mining
 * [`ingest_today_hsbc.py`](../../../../playground/research/ingest_today_hsbc.py)
 * `dim_vendor` row: `id=13, code='hsbc', display_name='HSBC Global Investment Research', vendor_type='web'`
 
