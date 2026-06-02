@@ -47,7 +47,7 @@ gating, phase 2 listing-API discovery, phase 6 smoke runs, etc.) see
 | `barclays` | live.barcap.com | Programmatic login (no MFA on trusted device); fresh profile per run; `page.evaluate(fetch())` for all API calls; `responseDetailLevel=FULL` to ship `eqSecurities` + `restrictions` + full `tags[]`; language allowlist (`eng` only) + asset-class allowlist + single-name drop at discovery | live, ~200/day raw → ~135/day kept ([details](barclays.md)) |
 | `bnp` | markets360.bnpparibas.com | Pattern A — `PUT /contentportal/research-service/v1.1/research_documents` returns `documentLink` (JWS slink, directly fetchable as PDF). ~21/day discovered; ~12/day net after chart-pack drop ([details](bnp.md)) | live, ~12/day net |
 | `ubs` | neo.ubs.com | TBD | not yet built |
-| `socgen` | sso.sgmarkets.com | TBD | not yet built |
+| `socgen` | insight.sgmarkets.com | API `do-search-publications` (POST, skip/take, Bearer auth) on `api-z.sgmarkets.com`; PDFs via `preview/en` → `doc.sgmarkets.com/*.html?sid=…` with per-Playwright-session OIDC handshake (in-session `fetch_pdfs` like Barclays) | live, ~7-8/day net ([details](socgen.md)) |
 | `cacib` | research.ca-cib.com | TBD | not yet built |
 | `westpac` | www.westpaciq.com.au | Pattern D (new) — AEM hub HTML with inline per-card JSON; PDF lifted from card `executiveSummary` (`/content/dam/.../*.pdf`), fall back to detail-page regex for Economics stubs | live, ~15/day net ([details](westpac.md)) |
 
