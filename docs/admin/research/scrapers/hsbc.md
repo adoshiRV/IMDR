@@ -1,8 +1,10 @@
 # HSBC Global Investment Research — scraper notes
 
-Status: **live** (since 2026-05-08). Smoke test: 2 PDFs ingested in
-~4 s each. Page 1 of the listing returned 31 rows (today + ~2 weeks
-back); 20 fell inside the today + yesterday window.
+Status: **live** (since 2026-05-08). Scoped to macro/rates/FX/credit
+via three productid filters 2026-06-02 (see
+[#productid-scoping-2026-06-02](#productid-scoping-2026-06-02)).
+Per-scope page 1 returns 35-46 rows; 25 fell inside today+7-days
+window after dedup across scopes.
 
 ## Portal
 
@@ -180,6 +182,97 @@ filter landed were removed on 2026-06-02 via
 [`cleanup_hsbc_single_name.py`](../../../../playground/research/cleanup_hsbc_single_name.py)
 (60 dim_report rows + 1,119 fact_chunk rows + 60 PDFs from
 OneDrive/SharePoint). No embeddings had been generated for these.
+
+## productid scoping (2026-06-02)
+
+The original crawler fetched the un-filtered firehose
+(`productid=0`, all-products) and relied on
+`classifiers/hsbc.py`'s Bloomberg ticker regex + `relevance.py`'s
+single-name drop to remove equity. That worked but ingested ~half
+the daily Reach catalogue before filtering.
+
+After the 2026-06-02 in-portal nav probe
+([taxonomy_probe/hsbc_deep.md](../../../../playground/research/taxonomy_probe/hsbc_deep.md))
+revealed that HSBC's nav uses `productid` to scope its own product
+homes, the crawler now walks three scoped listings instead:
+
+| Scope | URL | Product space |
+|---|---|---|
+| economics | `?productid=5&variant=P53` | `Economics` + cross-listed |
+| fx        | `?productid=3&variant=P30` | `Currencies` + cross-listed (HSBC lumps Commodities under CurrencyHome) |
+| rates     | `?notproductid=8&variant=P38` | Fixed Income — `Credit Strategy`, `Rates`, etc. (excludes Equity Strategy product 8) |
+
+Each scope opens its own `page` in the persistent context so
+`rcRedisplayReportsTab` JS binds to the scoped landing's document
+state. Article shortIds dedupe across scopes via `by_uuid`.
+
+### Verification (deep probe, [taxonomy_probe/hsbc_full.md](../../../../playground/research/taxonomy_probe/hsbc_full.md))
+
+One-page sample per scope on 2026-06-02:
+
+| Scope | Rows | Single-name (Bloomberg ticker in title) | Sector / macro |
+|---|---|---|---|
+| economics | 38 | **0 (0%)** | 38 |
+| fx        | 35 | **0 (0%)** | 35 |
+| rates     | 46 | **0 (0%)** | 46 |
+
+**119 pubs, 0 single-name leakage across all three scopes.** The
+productid filter does the gating server-side — `_BB_TICKER` regex
+in `classifiers/hsbc.py` and the downstream `relevance.py` drop now
+serve as belt-and-suspenders for the rare cross-listed equity piece.
+
+### Per-scope product-column composition
+
+| Scope | Top products in `cells[3]` |
+|---|---|
+| economics | `Economics` (24) + multi-product cross-lists ("Economics , more... Currencies Rates Equity Strategy Asset Allocation") |
+| fx        | `Currencies` (21) + multi-product cross-lists |
+| rates     | `Credit Strategy` (15) + `Credit Strategy , more... Credit - High Grade Credit - High Yield` (9) + `Rates` (8) |
+
+The "rates" scope label is mildly misleading — it's effectively
+Fixed Income (Credit + Rates). Multi-product cross-lists where a
+piece touches Economics/Currencies/Rates naturally surface across
+all three scopes — dedup catches them.
+
+### Cross-check against Deepak's hsbc-playwright profile
+
+To validate the 3-scope choice independently, we mined Deepak's
+inherited browsing profile at
+`Z:\Business\Personnel\Arjun\playwrights\hsbc-playwright` and grouped
+every URL he hit by path + query-shape. See
+[taxonomy_probe/hsbc_deepak_gaps.md](../../../../playground/research/taxonomy_probe/hsbc_deepak_gaps.md).
+
+| Deepak's URL | Visits | Our scope? |
+|---|---|---|
+| `Reach?productid=5&variant=P53` (Economics) | 13 | ✓ economics |
+| `Reach?productid=3&variant=P30` (FX/Currencies) | 13 | ✓ fx |
+| `Reach?notproductid=8&variant=P38` (Fixed Income) | 10 | ✓ rates |
+| `Reach` (bare landing) | 14 | implicit landing redirect |
+| `/ibcom/.../internal/login` | 3 | SSO transit |
+| `/R/10/LPBwzZwGCzXQ` (direct report) | 2 | individual PDF nav |
+| `Reach?searchbox=Precious Metals&tab=all` | 1 | **not scoped — see note** |
+
+**Conclusion**: Deepak's day-to-day browsing pattern matched our 3
+scopes exactly — same productid values, same variant codes. The one
+URL outside our scopes was a single ad-hoc free-text search for
+"Precious Metals" — that's interactive exploration, not a recurring
+ingest pattern. Commodities content otherwise arrives via the `fx`
+scope (HSBC lumps Commodities under `CurrencyHome` / `productid=3`).
+
+`IndexedDB` does not exist on this profile (Reach isn't a SPA);
+`Local Storage` leveldb scan found no cached scope URLs. Nothing more
+to mine.
+
+### Things observed but NOT wired
+
+| Observation | Why not |
+|---|---|
+| `/O/{token}` aggregate URLs (19 across 3 scopes) | Landing-page indexes ("Macro Matters", "First Light"), no PDFs |
+| Sub-title as separate `<div>` from title `<a>` | Currently concatenated into cells[1]; not blocking |
+| Structured analyst ID via `openAnalystProfilesPage("331555")` | Useful for dedup but not filtering — deferred |
+| Video flag `<img short_video.png>` | Already covered by "Video:" title prefix |
+| `data-*` row attributes | None present — only `class="reportTableRow"` |
+| Standalone `Sustainability` pubs (no cross-list) | Out of scope for macro/rates/FX/credit goal |
 
 ## Files
 
