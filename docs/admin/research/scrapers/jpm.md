@@ -691,3 +691,56 @@ E. **Fix the non-ASCII title encoding artefact** in the persist path.
    `title LIKE '%??????%'` acts as a backstop in
    `cleanup_tier1_junk.py`. Same root cause as Barclays' 30 broken
    titles.
+
+### 7-day smoke + Tier-0 refinements (2026-06-02)
+
+Ran `smoke_jpm_7day.py` over the 2026-05-26 → 2026-06-02 window with
+the just-shipped A+B+C+single-name-credit code. Results:
+
+- Server count: 3,275 pubs
+- Discovered after crawler drops: 1,883 (57%)
+- **Kept after relevance filter: 847 (45% of discovered)**
+- Weekday rate: ~100-160/day; weekends: 16-18/day
+
+**Drop breakdown** (1,036 total):
+  - 561 single-name equity (1-ticker)
+  - 451 multi-name equity not matching macro-flavoured allowlist
+  - **24 single-name credit** — new rule firing on Guala Closures,
+    Cheplapharm, Drax, Adecoagro, Shui On Land, etc.
+
+The smoke surfaced **two Tier-0 reclassification issues** that were
+patched in the same session:
+
+1. **CDX / IG / HY / HG Basis routed to RATES** instead of CREDIT.
+   Tier 0 mapped `assetClasses=["FixedIncome"]` + null businessGroup
+   to RATES by default; the Daily Packages with clear credit signals
+   in title (CDX, "High Grade", CMBS, etc.) were misclassified.
+   **Fix**: when FixedIncome + non-credit businessGroup, also check
+   `_TITLE_CREDIT` regex before defaulting to RATES.
+
+2. **Macro pieces with Commodity in assetClasses routed to COMMODITIES.**
+   Multi-valued `assetClasses=["Commodity","FixedIncome"]` on macro
+   pubs (e.g. "Global Economic Outlook Summary") with businessGroup
+   = "Economic Research". **Fix**: when Commodity + macro businessGroup
+   (Economic / Emerging Markets / Macro / Global Markets), stay MACRO.
+
+3. **Existing `_TITLE_CREDIT` regex narrowed** — bare
+   `\bspread analytics\b` was matching "Front-end Spread Analytics"
+   (a Treasury/rates daily package). Tightened to
+   `\bcredit spread analytics\b`.
+
+Impact on the 7-day numbers:
+  CREDIT  144 -> 231   (+87 from the FixedIncome title-regex fix)
+  RATES   304 -> 218   (-86; reabsorbed by CREDIT)
+  MACRO   136 -> 148   (+12 from the Commodity macro override)
+  COMMODITIES  11 -> 0  (correctly recategorised as MACRO)
+
+Final 7-day kept distribution:
+
+  CREDIT       231  27%
+  RATES        218  26%
+  MACRO        148  17%
+  EQUITY       148  17%  (allowlist keeps)
+  FX            59   7%
+  STRATEGY      36   4%
+  empty          7   1%
