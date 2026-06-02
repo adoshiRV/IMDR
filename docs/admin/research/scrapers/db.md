@@ -388,6 +388,137 @@ changes.
   values (`Comment`, `Charts`) surfaced — not seen in the Phase-2
   sample.
 
+## Hard taxonomy probe + tightening (2026-06-03)
+
+Probe artefacts:
+[`taxonomy_probe/db_full.md`](../../../../playground/research/taxonomy_probe/db_full.md),
+[`taxonomy_probe/db_db_audit.md`](../../../../playground/research/taxonomy_probe/db_db_audit.md),
+[`taxonomy_probe/db_full_sample.json`](../../../../playground/research/taxonomy_probe/db_full_sample.json),
+[`taxonomy_probe/db_full_facets.json`](../../../../playground/research/taxonomy_probe/db_full_facets.json).
+Re-runnable probe at
+[`probe_db_full.py`](../../../../playground/research/probe_db_full.py).
+
+### Key wins
+
+**1. `companies[i].isPrimary == true` is the vendor-native single-name
+signal.** Crawler now parses it (was discarded). Filter drops at
+discovery when any primary company is non-empty. **Works for equity
+coverage notes** — corrects the long-standing assumption documented
+in the legacy classifier that "DB leaves companies[] empty for
+single-name." **Credit single-name notes DO still ship empty
+companies[]** so the legacy `_DB_CREDIT_KEEP` title allowlist in
+`relevance.py` remains the right rule there (validated by the
+2026-06-03 smoke — 16 single-name credit drops still hit the
+allowlist).
+
+**2. `topics[].template` enum extended.** Probe enumerated 7 values
+across the 10k-doc archive (was hardcoded to 3 in the classifier):
+
+| template | meaning | → canonical |
+|---|---|---|
+| `FI` | Fixed Income | RATES default; CREDIT/MACRO per topic-name keywords |
+| `EQ` | Equity | EQUITY |
+| `MA` | Multi-Asset | STRATEGY |
+| `REC` | Recommendation (catalyst call) | EQUITY |
+| `GEC` | Global Economics | MACRO |
+| `TP` | Top Picks | EQUITY |
+| `THM` | Theme | STRATEGY |
+
+**3. `EXCLUDED_PRODUCT_TYPES` populated.** Was an empty stub —
+2026-06-03 probe confirmed two product types are reliably
+non-research:
+
+| productType | archive count | drop reason |
+|---|---|---|
+| `Catalyst Call` | 2,207 | always single-name BUY/SELL recommendation |
+| `Charts` | 2,865 | chart-only decks with minimal extractable text |
+
+`Alert` is large (81k) but mixed — kept and gated per-row.
+
+### Filter precedence (added 2026-06-03)
+
+`filters/db.py` — first match wins:
+
+1. `cjk:'japanese'` — CJK character in title (legacy, kept)
+2. `is-demotion` — vendor-flagged superseded re-publish
+3. `product-type:<value>` — `Catalyst Call` or `Charts`
+4. `single-name:companies_primary=<n>` — at least one `isPrimary == True` company
+5. `title-prefix:'expert call'` (legacy admin, kept)
+
+### Crawler changes
+
+`crawler_db.py` now parses two new fields:
+- `companies[i].isPrimary` → `DBCompany.is_primary`
+- `is_demotion` → `ReportRef.is_demotion`
+
+### DB state
+
+**Zero rows** — vendor seeded but no production ingest had run when
+the audit happened. Clean slate. No cleanup bucket needed.
+
+### Server-side filtering confirmed dead
+
+Probe tested 15 plausible filter params (`region`, `regions`,
+`sector`, `sectors`, `countries`, `product`, `productType`,
+`topicTemplate`, `template`, `topicId`, `periodicalId`,
+`businessGroup`, …) — every single one returned the **identical**
+`count=10000` baseline. The SPA filters in JavaScript; the listing
+API is firehose-only. All discovery filtering must be client-side.
+
+### 7-day smoke (2026-06-03)
+
+Read-only via
+[`smoke_db_7day.py`](../../../../playground/research/smoke_db_7day.py).
+Log at
+[`taxonomy_probe/db_smoke_7day.log`](../../../../playground/research/taxonomy_probe/db_smoke_7day.log).
+Earlier discovery-only
+[`smoke_db_discover.py`](../../../../playground/research/smoke_db_discover.py)
+is kept as the Phase-3 isolation validator.
+
+| stage | count |
+|---|---|
+| discovery drops | **217** — 139 single-name (primary=1) + 64 multi-primary + 6 expert-call + 4 Charts + 4 CJK |
+| discovery kept | 247 (~35/day) |
+| relevance drops | 166 — 143 `equity-vendor-default-drop` (sector wraps DB ships under EQ template) + 16 `credit-vendor-default-drop` (single-name credit caught by title allowlist) + 7 1-ticker |
+| relevance kept | **81 (~12/day)** |
+
+**Composition** — clean RATES/CREDIT/STRATEGY-dominated:
+
+| class | count | % |
+|---|---|---|
+| RATES | 28 | 35% |
+| CREDIT | 20 | 25% |
+| STRATEGY | 20 | 25% |
+| EQUITY | 13 | 16% |
+
+Zero non-canonical, zero empty asset_class.
+
+**Country coverage**: WW 51, EU 12, JP 2 (the 51 WW rows are
+multi-region pieces that span 3+ regions — `_region_segments` →
+`country_code = "WW"`).
+**Region**: global 51, americas 20, emea 19, apac 7, latam 4.
+
+**The 13 EQUITY survivors are macro-flavoured** content DB ships
+under EQ template that survives the strict `_DB_EQUITY_KEEP`
+allowlist via "macro" / "world outlook" / "strategy" / "outlook"
+keywords (e.g. *"LatAm Macro and Strategy Monthly"*,
+*"US Economic Perspectives"*, *"Focus Europe"*, *"World Outlook"*).
+Acceptable per user's "trends ok" guidance.
+
+**Sample kept titles**:
+- RATES: *"EM Credit Monthly: Onward"*, *"Covered Bonds and SSA Update"*, *"FX Liquidity Snapshot"*, *"Fixed Income Chart Of The Day: Liquidity transmission by FHLBs"*
+- CREDIT: *"European HY one-stop: Weekly Earnings and Event Calendar"*, *"The Outlook: MBS and Securitized Products"*, *"US CLO Weekly"*, *"Building Products Weekly Rel Val"*, *"CRE Debt Research: CMBS"*
+- STRATEGY: *"Thematic Research: When 1999 meets 1990"*, *"Default Study: 2026: Steady, but AI & the Hawks are Circling"*, *"Early Morning Reid: Macro Strategy"*
+- EQUITY: *"LatAm Macro and Strategy Monthly"*, *"US Economic Perspectives"*, *"Focus Europe"*, *"World Outlook"* — macro-flavoured, kept by allowlist
+
+### Posture: keep both filter + relevance allowlists
+
+DB is unique among vendors in having BOTH:
+- A new structured single-name signal (`isPrimary`) for equity at discovery
+- An ongoing need for title-keyword allowlists (`_DB_EQUITY_KEEP` / `_DB_CREDIT_KEEP`) because DB's listing API leaves `companies[]` empty for credit single-name notes AND ships macro-flavoured content under EQ template
+
+Both layers are load-bearing — don't remove either.
+
 ## documentKey ID format note
 
 Phase 3 confirmed DB ships **two distinct documentKey shapes** in the
