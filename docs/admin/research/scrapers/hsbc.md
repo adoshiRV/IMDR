@@ -274,11 +274,97 @@ to mine.
 | `data-*` row attributes | None present — only `class="reportTableRow"` |
 | Standalone `Sustainability` pubs (no cross-list) | Out of scope for macro/rates/FX/credit goal |
 
+## Hard taxonomy probe + tightening (2026-06-03 formalisation)
+
+HSBC had a substantive tightening pass on **2026-06-02** —
+documented in the *Classifier & relevance filtering* and *productid
+scoping* sections above. The 2026-06-03 formalisation pass added
+the standard Phase-8 artefacts: DB audit, 7-day smoke in standard
+format, and cleanup bucket for residual leakers.
+
+### What was already done (2026-06-02 — see sections above)
+
+1. **productid scoping** — `economics` (`productid=5`), `fx`
+   (`productid=3`), `rates` (`notproductid=8`). Walks three
+   server-side filtered listings instead of the all-products
+   firehose. Deep probe verified 0/119 single-name leakage across
+   all three scopes.
+2. **Bloomberg-ticker single-name regex** in
+   `classifiers/hsbc.py:_BB_TICKER` — `\(SYM EXCH\)` with bounded
+   `\b` guards and 2-9-char SYM. 100% precision on the 3-day probe
+   (5/15 dropped, 0 false positives).
+3. **60-row backfill cleanup** via
+   [`cleanup_hsbc_single_name.py`](../../../../playground/research/cleanup_hsbc_single_name.py).
+4. **Deepak cross-check** — confirmed 3-scope choice matches his
+   day-to-day browsing pattern (Reach?productid=5/3 + Reach?
+   notproductid=8, no other scopes).
+
+### Phase-8 standard artefacts (added 2026-06-03)
+
+**DB audit**
+([`taxonomy_probe/hsbc_db_audit.md`](../../../../playground/research/taxonomy_probe/hsbc_db_audit.md)) —
+56 rows post-cleanup. Three issues found:
+
+| issue | count | resolution |
+|---|---|---|
+| **5 non-canonical `asset_class`** rows from a single broken ingest 2026-05-21 (`Equities` ×2, `Currencies` ×2, `Economics` ×1 — captured rendered product-column text verbatim) | 5 | Bucket 12 DELETE → re-ingest under productid scoping classifies cleanly |
+| 2 chart-pack duplicates (`European and US Credit: Weekly Chartpack`) | 2 | Bucket 12 DELETE |
+| Zero region/country tag coverage on 56/56 rows | known gap | HSBC product field is generic (`Economics`/`Currencies`/`Rates`); would need title parsing — deferred |
+
+Bucket 12 added to
+[`cleanup_tier1_junk.py`](../../../../playground/research/cleanup_tier1_junk.py):
+`hsbc-leakage` — DELETEs the 5 noncanonical + 2 chart-pack dupes.
+
+**7-day smoke**
+([`smoke_hsbc_7day.py`](../../../../playground/research/smoke_hsbc_7day.py))
+in standard format (mirrors smoke_anz_7day.py / smoke_nomura_7day.py).
+Log at
+[`taxonomy_probe/hsbc_smoke_7day.log`](../../../../playground/research/taxonomy_probe/hsbc_smoke_7day.log).
+The discovery-only legacy smoke
+[`smoke_hsbc_scoped_discover.py`](../../../../playground/research/smoke_hsbc_scoped_discover.py)
+is kept as the productid-wiring validator.
+
+| stage | count |
+|---|---|
+| discovery kept (3 scopes deduped) | 22 (~3/day) |
+| relevance kept | **22 (100%)** — single-name caught upstream by productid scoping |
+
+**Composition** — pure macro/rates/fx/credit, zero EQUITY:
+
+| class | count | % |
+|---|---|---|
+| MACRO | 9 | 41% |
+| FX | 6 | 27% |
+| RATES | 5 | 23% |
+| STRATEGY | 1 | 5% |
+| CREDIT | 1 | 5% |
+
+`publication_type` 100% populated; `analysts` 100%. Region/country
+tags 0% (the known gap).
+
+**Sample kept titles**:
+- MACRO: *"ECB Preview (June) Summer hiking (but for how long?)"*, *"Mexico Economics Robust exports offset subdued domestic conditions"*, *"Commodity Prices Snapshot Hormuz still closed…super-squeeze continues"*
+- RATES: *"Global Rates Supply Outlook"*, *"Mexico Rates F-TIIE 2s10s Steepener"*, *"UK LDI/BPA update Resilience"*
+- FX: *"HSBC Positioning Indicators"*, *"LatAm FX Trade Idea Sell USD-COP 2m NDF"*, *"FX - The week in 60 seconds"*
+- CREDIT: *"European and US Credit: Weekly Chartpack"* (1 row; the duplicates are in the cleanup bucket)
+
+### Why no code changes in this Phase-8 pass
+
+Unlike other vendors where Phase 8 added new structured fields
+(JPM bare scalars, MS cinfo, Goldman aemTags, etc.), HSBC's
+existing **productid scoping** + **title-ticker regex** already
+achieves the Phase-8 goal: zero single-name leakage, clean
+macro/rates/fx/credit composition. The 2026-06-03 pass formalised
+the artefacts (smoke, db audit, cleanup bucket) without changing
+the crawler/filter/classifier.
+
 ## Files
 
 * [`crawler_hsbc.py`](../../../../playground/research/ingest/crawler_hsbc.py)
 * [`classifiers/hsbc.py`](../../../../playground/research/ingest/classifiers/hsbc.py) — product → asset_class + ticker mining
 * [`ingest_today_hsbc.py`](../../../../playground/research/ingest_today_hsbc.py)
+* [`smoke_hsbc_7day.py`](../../../../playground/research/smoke_hsbc_7day.py) — Phase-8 standard smoke (relevance + classifier + composition breakdown)
+* [`smoke_hsbc_scoped_discover.py`](../../../../playground/research/smoke_hsbc_scoped_discover.py) — discovery-only smoke (productid wiring validator)
 * `dim_vendor` row: `id=13, code='hsbc', display_name='HSBC Global Investment Research', vendor_type='web'`
 
 ## Files captured during discovery (reference)
