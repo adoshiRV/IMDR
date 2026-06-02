@@ -197,13 +197,15 @@ For the classifier in [`classifiers/jpm.py`](../../../playground/research/ingest
   `sid`, primary `displayName`.
 - `context` ← `title` + `subtitle` + `synopsis`.
 
-**Note**: each result's full taxonomy fields are not in the basic
-GraphQL response shape captured here — the response gives aggregations
-across the search, but individual results only include
-`analysts`/`companies`/`businessGroup`/`documentType` /`title` /
-`synopsis`. To get per-doc `ASSET_CLASS`/`REGION`/`COUNTRY` we may need
-a richer per-doc query (TBD — check whether expanding the GraphQL
-selection set returns them, before resorting to a second call).
+**Per-result taxonomy fields** (answered 2026-06-02 probe — see the
+[Hard probe (2026-06-02)](#hard-probe-2026-06-02) section): the
+GraphQL schema exposes `regions`, `assetClasses`, `sectors`,
+`countries` as **bare-scalar string arrays** on each result. The
+crawler's current selection doesn't request them — adding them is a
+one-line schema change. Avoid sub-selections like
+`regions { displayName }` — the schema rejects those with
+`SubSelectionNotAllowed: leaf type null`. Singular field names
+(`region`, `assetClass`) are `FieldUndefined`.
 
 ## Volume sanity-check
 
@@ -497,3 +499,151 @@ for the diagnostic that pinned this.
      `isResearch=N` discovery-filter pair catches every observable
      non-PDF asset; no need for title-prefix rules in
      `filters/jpm.py`.
+
+## Hard probe (2026-06-02)
+
+Full audit triggered by the "what's our actual coverage vs what's
+available" question. Three artefacts:
+
+* [taxonomy_probe/jpm_full.md](../../../../playground/research/taxonomy_probe/jpm_full.md) — schema discovery + DB analysis + Deepak cross-check.
+* [taxonomy_probe/jpm_deepak_gaps.md](../../../../playground/research/taxonomy_probe/jpm_deepak_gaps.md) — URL-history mining of `Z:\...\playwrights\jpm-playwright`.
+* [taxonomy_probe/jpm_xhr_v2/](../../../../playground/research/taxonomy_probe/jpm_xhr_v2/) — raw GraphQL response files.
+
+### Schema discovery — extra per-result fields available
+
+The Phase-3 doc had flagged that per-doc taxonomy fields might exist
+in the GraphQL schema. Confirmed 2026-06-02: **`regions`,
+`assetClasses`, `sectors`, `countries` are valid as bare-scalar
+string arrays on each result.** Our crawler doesn't request them
+today; adding them is a one-line schema change.
+
+Sample working result from the probe:
+
+```json
+{
+  "id": "GPS-5323222-0",
+  "title": "Merlin Properties",
+  "documentType": "Document",
+  "businessGroup": {"displayName": "Equity Research"},
+  "regions": ["Europe"],
+  "assetClasses": ["Equity"],
+  "sectors": ["60", "6010", "601010", "60101010"],
+  "countries": ["ES"]
+}
+```
+
+Selection-shape findings:
+
+| Selection | Result |
+|---|---|
+| `regions { displayName }` (object) | ❌ `SubSelectionNotAllowed: leaf type null` |
+| `region` / `assetClass` (singular) | ❌ `FieldUndefined` |
+| `regions` / `assetClasses` / `sectors` / `countries` (bare scalar) | ✅ returns string array |
+| `aggregations { aggregation buckets ... }` as result field | ❌ not queryable on result; aggregations are an INPUT param only |
+
+Note: `start: 0` in variables yields an `IllegalArgumentException:
+[from] parameter cannot be negative` from the search backend (some
+internal offset subtraction). Use `start: 1` for 1-indexed
+pagination — the existing crawler already does (`crawler_jpm.py:514`).
+
+### Coverage gap (GraphQL vs DB)
+
+| Source | Window | Pubs | Note |
+|---|---|---|---|
+| GraphQL `count` | last 1-2 days | **827** | what JPM offers |
+| `dim_report` | 2026-06-01 | 38 | kept after filter |
+| `dim_report` | 2026-05-29 | 88 | best day so far |
+
+Daily rate: ~400/day available, ~88/day kept = **~22% capture rate**.
+Most of the drop is correct:
+
+- ~70% of catalog is `assetClasses=["Equity"]` (69/100 in page 1) —
+  largely single-name equity, dropped by
+  `relevance.is_single_name_equity` except the 12% macro-flavoured
+  allowlist.
+- ~19% of page 1 is non-research `businessGroup`:
+  `Specialist Sales` (12), `Non Research Other` (5),
+  `Data Assets & Alpha Group` (2). These could be dropped at
+  discovery instead of relying on downstream filtering.
+- The rest are Daily Packages (kept and tagged as `daily-package`).
+
+### businessGroup distribution (page 1, n=100)
+
+| businessGroup | count | bucket |
+|---|---|---|
+| Equity Research | 50 | EQUITY (mostly single-name → drop) |
+| Specialist Sales | 12 | **non-research — drop candidate** |
+| Global Markets Strategy | 8 | STRATEGY |
+| Credit Research | 6 | CREDIT |
+| Non Research Other | 5 | **non-research — drop candidate** |
+| Data Assets & Alpha Group | 2 | **non-research — drop candidate** |
+| Emerging Markets Research | 1 | MACRO |
+| (null — Daily Packages) | 16 | classifier tags as `daily-package` |
+
+### Cross-check vs Deepak's jpm-playwright profile
+
+Mined `Z:\Business\Personnel\Arjun\playwrights\jpm-playwright`:
+
+| Deepak's URL | Visits |
+|---|---|
+| `/jpmm/research.economics` | 21 |
+| `/jpmm/research.rates.australia` | 15 |
+| `/jpmm/Global_Research` | 13 |
+| `/jpmm/research.rates.global` | 11 |
+| `/jpmm/research.rates.us` | 11 |
+| `/jpmm/research.rates.japan` | 11 |
+| `/jpmm/research.page.app_base?page=monetary-policy` | 10 |
+| `/jpmm/research.em.fixed_income` | 10 |
+
+All 5 category URLs Deepak browsed are SPA shell pages on the same
+GraphQL endpoint we already crawl. **No new scope, no hidden
+taxonomy.** Local Storage scan found nothing scope-relevant cached.
+
+His top-2 slug is `research.rates.australia` (15 visits). DB has 1
+recent AU/NZ pub ("Australia and New Zealand: Weekly Prospects").
+Could be (a) JPM publishes little Australia-specific rates content
+or (b) our relevance filter drops the wrong stuff. Worth a 1-day
+audit with `countries=["AU"]` after the schema extension lands.
+
+### DB state (130 reports since 2026-05-29)
+
+| asset_class | count |
+|---|---|
+| CREDIT | 39 |
+| STRATEGY | 38 |
+| MACRO | 28 |
+| EQUITY (allowlist kept) | 12 |
+| RATES | 8 |
+| FX | 4 |
+| (empty) | 1 |
+
+Date distribution shows the expected weekday/weekend pattern — 88 on
+Thu May 29 (Phase-7 backfill), 3 on Sat 30, 1 on Sun 31, 38 on Mon
+Jun 1.
+
+### Encoding artefact
+
+A couple of DB titles show `?????` — non-ASCII (Japanese / Chinese)
+chars lost on insert. Two June-1 titles like
+`J.P.??????????????? ??????` survive as STRATEGY. cp1252 vs UTF-8
+mismatch somewhere in the persist path; worth chasing separately.
+
+### Proposed follow-ups (deferred — not in this commit)
+
+A. **Extend GraphQL selection** with the 4 new bare-scalar fields
+   (`regions`, `assetClasses`, `sectors`, `countries`). One-line
+   change to `_GRAPHQL_QUERY`. Plumb into `ReportRef`.
+
+B. **Upgrade classifier** to use `assetClasses[0]` as the primary
+   asset-class signal (cleaner than businessGroup substring), and
+   emit `country_code` from `countries[0]` instead of forcing `None`.
+
+C. **Add `EXCLUDED_BUSINESS_GROUPS` to `filters/jpm.py`**:
+   `Specialist Sales` / `Non Research Other` / `Data Assets & Alpha
+   Group`. Drops ~19% of firehose processing at discovery instead of
+   downstream.
+
+D. **Audit Australia rates coverage** after A+B land (Deepak's #2
+   slug, our coverage is thin).
+
+E. **Fix the non-ASCII title encoding artefact** in the persist path.
