@@ -628,22 +628,60 @@ chars lost on insert. Two June-1 titles like
 `J.P.??????????????? ??????` survive as STRATEGY. cp1252 vs UTF-8
 mismatch somewhere in the persist path; worth chasing separately.
 
-### Proposed follow-ups (deferred — not in this commit)
+### Filter / classifier upgrade (2026-06-02, done)
 
-A. **Extend GraphQL selection** with the 4 new bare-scalar fields
-   (`regions`, `assetClasses`, `sectors`, `countries`). One-line
-   change to `_GRAPHQL_QUERY`. Plumb into `ReportRef`.
+A. **GraphQL selection extended** with the 4 new bare-scalar fields
+   `regions`, `assetClasses`, `sectors`, `countries`. `ReportRef`
+   carries `regions`, `asset_classes`, `sectors`, `countries` as
+   tuples. `_parse_doc` populates them.
 
-B. **Upgrade classifier** to use `assetClasses[0]` as the primary
-   asset-class signal (cleaner than businessGroup substring), and
-   emit `country_code` from `countries[0]` instead of forcing `None`.
+B. **Classifier upgraded** (`classifiers/jpm.py`):
+   - Tier 0 — `assetClasses[0]` direct map: `Equity → EQUITY`,
+     `Currency → FX`, `Commodity → COMMODITIES`, `FixedIncome`
+     disambiguates via businessGroup substring (`credit / securitiz /
+     muni` → CREDIT, else → RATES).
+   - Tier 1 (kept) — businessGroup substring.
+   - Tier 2 (kept) — title regex fallback for Daily Packages.
+   - `country_code = countries[0]` (was forced `None`).
+   - Emit `TAG_REGION` from `regions[0]`.
 
-C. **Add `EXCLUDED_BUSINESS_GROUPS` to `filters/jpm.py`**:
-   `Specialist Sales` / `Non Research Other` / `Data Assets & Alpha
-   Group`. Drops ~19% of firehose processing at discovery instead of
-   downstream.
+C. **`EXCLUDED_BUSINESS_GROUPS` added to `filters/jpm.py`**:
+   `Specialist Sales`, `Non Research Other`, `Data Assets & Alpha
+   Group`. Defensive — the existing `isResearch=N` upstream check in
+   `_unfetchable_reason` already drops every observed instance, so
+   this filter typically fires zero. Kept as a safety net for the
+   edge case where a non-research businessGroup ships `isResearch=Y`.
 
-D. **Audit Australia rates coverage** after A+B land (Deepak's #2
-   slug, our coverage is thin).
+**Relevance filter — single-name credit added** (`relevance.py`):
+JPM CREDIT refs with `n_tickers == 1` now drop as
+`credit-vendor-default-drop:1-ticker`. Mirrors the single-name equity
+rule but for credit (Ford Motor / Tesla credit / single-issuer notes).
+
+### Empirical impact (1-day smoke 2026-06-02 vs prior DB baseline)
+
+| Metric | Before | After | Δ |
+|---|---|---|---|
+| Raw discovered (1-day) | ~88 best | **489** | +5.5x |
+| Kept after relevance | 38 / 88 | **220** | +5.8x |
+| RATES kept | 8 | 84 | +10x |
+| CREDIT kept | ~13/day | 39 | +3x |
+| FX kept | ~1/day | 10 | +10x |
+| Single-name credit dropped | 0 | 4 (NEW) | — |
+| `country_code` populated | 0% | ~80% | — |
+| Region tag emitted | 0% | ~95% | — |
+
+The 10x RATES jump comes from Tier 0 catching `assetClasses=
+["FixedIncome"]` on JPM Daily Packages whose `businessGroup` is null
+(previously fell to patchy title regex).
+
+Drop breakdown (489 raw → 220 kept = 269 drops):
+- 139 single-name equity (`n_tickers==1`)
+- 126 multi-name equity not matching `_JPM_EQUITY_KEEP` allowlist
+- 4 single-name credit (NEW)
+
+### Still on the backlog
+
+D. **Audit Australia rates coverage** — Deepak's #2 slug, our coverage
+   is thin even after the upgrade. Worth a `countries=["AU"]` slice.
 
 E. **Fix the non-ASCII title encoding artefact** in the persist path.
