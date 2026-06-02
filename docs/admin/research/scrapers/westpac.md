@@ -278,7 +278,120 @@ to `TAG_DISCIPLINE`; emit the rest as `TAG_THEME`. See
 `_SECONDARY_TO_DISCIPLINE` in `classifiers/westpac.py`. This mirrors
 BNP's `_discipline_tags` pattern.
 
+## Hard taxonomy probe + tightening (2026-06-03)
+
+Probe artefacts in
+[`taxonomy_probe/westpac_full.md`](../../../../playground/research/taxonomy_probe/westpac_full.md),
+[`taxonomy_probe/westpac_db_audit.md`](../../../../playground/research/taxonomy_probe/westpac_db_audit.md),
+[`taxonomy_probe/westpac_full_sample.json`](../../../../playground/research/taxonomy_probe/westpac_full_sample.json).
+Re-runnable probe at
+[`probe_westpac_full.py`](../../../../playground/research/probe_westpac_full.py).
+
+### Wins
+
+**1. Missing hub recovered.** Westpac IQ has THREE hubs, not two:
+`/economics`, `/markets`, **`/thought-leadership`**. The crawler now
+hits all three. Thought-leadership publishes Sustainability /
+Innovation / Industry insights at monthly-ish cadence (50 cards span
+~8 months — sparse but valuable macro-adjacent content per the
+user's "trends ok" guidance).
+
+**2. Structured fields lifted from inline card JSON.** ReportRef now
+carries 5 additional fields probed from the 150-card sample:
+
+| field | values observed | use |
+|---|---|---|
+| `inv_recomm_parent` | empty 73% / `Currencytickers` 12 / `topics` 8 / `investmentrecommendations` 8 / `swapsnz` 6 / `commoditytickers` 3 / `credittickers` 2 / `bondsotherglobaltickers` 2 | **Tier-0 asset_class** + single-name-credit drop |
+| `inv_recomm_sub` | semicolon-delimited `category:value` pairs | **Bloomberg-ticker emission** for downstream RV joins |
+| `youtube_id` | populated on 7/150 video explainers | `format:video` drop |
+| `file_reference` | featured-image URL with semantic folder slugs | `format:podcasts` drop on `/podcasts/` slug |
+| `hide_article` | string `'true'` on soft-deleted articles (1/150) | `hide-article` drop |
+
+### Filter precedence (added 2026-06-03)
+
+`filters/westpac.py` — first match wins:
+
+1. `hide-article` (boolean from `hideArticle`)
+2. `format:video` (`youtubeId` non-empty)
+3. `format:<slug>` (`fileReference` matches `/podcasts/` / `/audio/` / `/video/`)
+4. **`single-name-credit:credittickers`** — invRecommParentTag drop
+5. Title-prefix admin (legacy, empty by default)
+6. Title-substring (legacy, empty by default)
+
+### Classifier Tier-0 (added 2026-06-03)
+
+`classifiers/westpac.py`:
+
+1. **Tier-0**: `invRecommParentTag` → canonical asset_class:
+   `Currencytickers→FX`, `swapsau / swapsnz→RATES`,
+   `commoditytickers→COMMODITIES`, `bondsotherglobaltickers→RATES`,
+   `credittickers→CREDIT` (but filter-dropped at discovery).
+2. **Tier-1**: existing primary_tag substring lookup (kept).
+3. **Umbrella fallback**: Economics→MACRO, Markets→STRATEGY,
+   **Thought leadership→ESG** (new).
+4. **Tickers**: `_parse_inv_recomm_tickers` extracts Bloomberg
+   tickers from `invRecommSubCategoriesTag` (`audcurncy`,
+   `adsw10curncy`, `co1comdty`, etc.) and emits as `TAG_TICKER`.
+
+### DB state
+
+**Zero rows** — vendor seeded 2026-06-02 (yesterday), production
+ingest hadn't run when the audit happened. Clean slate — no cleanup
+work needed.
+
+### 7-day smoke (2026-06-03)
+
+Read-only via
+[`smoke_westpac_7day.py`](../../../../playground/research/smoke_westpac_7day.py).
+Log at
+[`taxonomy_probe/westpac_smoke_7day.log`](../../../../playground/research/taxonomy_probe/westpac_smoke_7day.log).
+
+| stage | count |
+|---|---|
+| hubs crawled | 3/3 — Economics (50), Markets (50), Thought-leadership (50) |
+| raw cards processed | 150 — 134 unique (16 cross-hub overlap) |
+| discovery drops | 0 (window had no podcasts/videos/hideArticle/credittickers) |
+| in-window cards | 39 (~6/day, up from ~3/day pre-change) |
+| relevance kept | **39 (100%)** |
+
+`/thought-leadership` returned 50 cards but the oldest is
+2024-10-31 — cadence is too slow for the 7-day window to show any
+t/l cards. The structural fix is correct; over a 30-day window
+we'd expect 3-5 sustainability/innovation pieces.
+
+**Composition**:
+
+| class | count | % |
+|---|---|---|
+| STRATEGY | 14 | 36% |
+| MACRO | 13 | 33% |
+| FX | 6 | 15% |
+| RATES | 4 | 10% |
+| COMMODITIES | 2 | 5% |
+
+**Structured-signal coverage**: `inv_recomm_parent` 51%,
+`inv_recomm_sub` 54% (ticker tags emitted), `youtube_id` 0%
+(no videos this window), `is_secure` 54%.
+
+**Country**: AU 16, NZ 3 (49% of survivors anchored).
+**Region**: APAC 39/39.
+
+**Sample kept titles**:
+- MACRO: *"Australian dwelling approvals: turning point emerging?"*, *"Australian GDP: a preview bulletin"*, *"Westpac Card Tracker"*
+- RATES: *"Estimating housing-related impacts on state revenues. - A$ & NZ$ Rates"*, *"NZGB Tender Preview"*, *"Review of RBNZ May 2026 Monetary Policy Statement"*
+- FX: *"NZD FX Weekly"*, *"ForeX Focus"*, *"Macro FX Trade Ideas"*
+- COMMODITIES: *"Australian Fuel Update"*, *"NZ Agri Bites"*
+- STRATEGY: *"What's Priced In"*, *"Westpac Strategy Antipodean Daily Wrap"*, *"AUD Rates Morning Chartpacks"*
+
 ## Last verified
 
 Phase 6 smoke completed 2026-06-02 (10 inserts + 3 dups). Phase 7
 (embed-on + production flip) pending.
+
+2026-06-03 — `/thought-leadership` hub added + structured-signal
+filter (youtubeId / hideArticle / credittickers) + Tier-0
+classifier from invRecommParentTag + Bloomberg-ticker emission
+landed in playground (gitignored). 7-day smoke shows ~6/day kept
+(up from ~3/day), 100% kept at relevance, pure
+STRATEGY 36% / MACRO 33% / FX 15% / RATES 10% / COMMODITIES 5%
+composition with 51% inv-parent coverage on survivors.
