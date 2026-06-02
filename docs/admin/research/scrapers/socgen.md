@@ -55,6 +55,7 @@ unrelated saved logins (chatgpt.com, claude.ai, hotel sites, etc. — see
 | 5 — orchestrator wiring | done | Registered in `ingest_today.py` `_load_vendor_registry()` and `classifiers/__init__.py`. SG branch added to the in-session fetch path (see Phase 6 finding below). |
 | 6 — DB seed + smoke | done | Migration `074_seed_socgen_dim_vendor.sql` applied 2026-06-03. Smoke run (`--vendors socgen --limit 3 --since 2026-06-02 --embed false`): 3/3 inserted, asset_class/region/country/tags all populated correctly. |
 | 7 — promote | done | `vendors.yml: socgen.profile_status = production` (2026-06-03). Embed-on smoke + audit + retrieval all clean. Daily-scheduler wiring still pending — leave for the production-cleanup promotion to `src/imdr/`. |
+| 8 — hard probe + tightening | done | Brand-based filter (SCB/ATM enum + isCompanyDoc + endDate), referential resolution (authors/keywords), classifier sharpening (Corporate sub-mapping + category-name region scan + universe:X theme leak fix). See "Hard taxonomy probe + tightening" section below. |
 
 ## Hubs surfaced in Phase 1
 
@@ -454,6 +455,111 @@ Format distribution will be re-measured during Phase 6 smoke.
   Crawler pins `language="EN"` via `facetCriteria.languages = ["EN"]`
   (preferred) or post-filters by `publicationExtract.language`.
 
+## Hard taxonomy probe + tightening (2026-06-03)
+
+Phase 8 run on the same day SG went live (atypical — usually we wait
+for ≥1 week of production data — but the user explicitly requested it).
+Per the playbook §8 pattern, four agents probed in parallel
+(current-stack audit, DB audit, hard listing-response probe, Deepak
+playwright cross-check), then five edits shipped.
+
+### Probe findings (in `playground/research/taxonomy_probe/`)
+
+* `socgen_full.md` — full enumeration of `do-search-publications.hits[]`
+  + `publicationExtracts[]` + `preview/en` response keys. Identified
+  five high-value unmapped signals:
+  - `products[productId].brand` — "SG" / "SCB" (Bernstein) / "ATM"
+    (Autonomous) enum, cleaner than the legacy product-name string
+    match.
+  - `products[productId].isCompanyDoc` (bool) — vendor-native per-
+    product single-name flag.
+  - `products[productId].endDate` — non-null = discontinued series.
+  - `keywords[]` resolved via `do-get-keywords` — flat `{id, name}`
+    catalog (~500 entries: country names, ISO currency codes, themes).
+  - `authors[]` resolved via `do-get-authors` — UUID → display name.
+* `socgen_db_audit.md` — 5-row sanity audit. Clean (no encoding /
+  duplicates / non-canonical asset_class). One micro-leak: row 2379
+  has a `theme = "universe:Sales and Trading"` tag from the Phase-4
+  classifier that the new classifier rewrites as a clean
+  `Tag('universe', 'Sales and Trading')`. With 1 leaked row, no
+  cleanup DELETE bucket is justified; future ingests will not
+  reproduce it.
+* `socgen_deepak.md` — read-only inventory of Deepak's legacy
+  contaminated playwright profile (`Z:\…\playwrights\socgen-playwright`).
+  Top hosts: `doc.sgmarkets.com` (166), `sso.sgmarkets.com` (106),
+  `insight.sgmarkets.com` (17). He bypassed the portal entirely
+  (direct PDF retrieval), so no new hubs / URL patterns surfaced.
+  Validates that our crawler's `insight.sgmarkets.com` discovery model
+  is comprehensive vs his asymmetric usage.
+
+### Critical request-shape correction
+
+Phase-2 cached responses suggested `do-get-products`, `do-get-keywords`,
+and `do-get-authors` were bulk catalog dumps. They are **not** — the
+SPA captures show they require `{"productIds": […]}` /
+`{"keywordIds": […]}` / `{"icIds": […]}` request bodies; an empty
+body returns HTTP 400. Phase-8 crawler collects IDs from `hits[]`
+and `extracts[]`, then batch-resolves in parallel (chunks of 100).
+
+### Five edits shipped
+
+| Step | File | Change |
+|---|---|---|
+| A — crawler | `ingest/crawler_socgen.py` | Added `_resolve_products` / `_resolve_keywords` / `_resolve_authors` helpers + `_ProductMeta` cache. New ReportRef fields: `product_brand`, `product_is_company_doc`, `product_end_date`, `authors` (resolved display names), `keyword_names`. Discovery flow reordered: collect IDs from hits/extracts → batch-resolve referentials → run filter. Renamed `author_names` → `authors` so the orchestrator's `_normalize_authors` picks it up for `dim_report.authors`. |
+| B — filter | `ingest/filters/socgen.py` | New drop reasons (precedence order, first-match wins): `product:translation` → `title:non-latin-script` → `product:retired` (endDate non-null) → `product:isCompanyDoc` → `product-brand:SCB` / `product-brand:ATM` (with `_SG_EQUITY_KEEP` allowlist) → `product:Bernstein` legacy name-match (defence-in-depth). The brand-based drop generalises the Bernstein-keep allowlist to both equity-acquisition brands (SCB + ATM). |
+| C — classifier | `ingest/classifiers/socgen.py` | (1) "Corporate" `category_group` now disambiguates via product name keywords (Credit / FX / Rates → matching canonical, else STRATEGY) instead of blanket STRATEGY. (2) Region scan now includes `category.name` blob (e.g. "Europe Macro Radar" → emea even when title is neutral). (3) Replaced opaque `socgen:{uuid}` author tags with resolved `Tag('author', "First Last")`. Fall-back to opaque form only when referential didn't resolve. (4) Emit resolved keywords as `Tag('theme', name)` (capped at 8 per doc). (5) Fixed `universe:X` theme leak — emits `Tag('universe', name)` in its own category instead of stuffing into the global theme namespace. |
+| D — cleanup | n/a | Skipped. 5-row DB sample has one micro-leak (the `universe:Sales and Trading` theme on row 2379). With only 1 leaked row + future-ingest immunity, a DELETE bucket is overkill. Documented for visibility. |
+| E — smoke | `playground/research/smoke_socgen_7day.py` | Mirror of `smoke_anz_7day.py` / `smoke_bnp_7day.py`. Tracks per-day discovered/kept, referential field coverage, drop reason breakdown, kept asset_class/region/country distribution, sample titles per class. |
+
+### 7-day smoke result (2026-05-27 → 2026-06-02)
+
+Probe ([`smoke_7day_v2.log`](../../../playground/research/socgen_explore/smoke_7day_v2.log)):
+
+```
+Per-day discovered (after crawler-level drops):
+  2026-05-27   7    2026-05-28   7    2026-05-29   8
+  2026-06-01   7    2026-06-02   8                       ~7-8/day
+
+Crawler-stage drops:
+  product-brand:SCB:    196   Bernstein single-name + sector wraps (1 cross-asset wrap survived)
+  product-brand:ATM:     53   Autonomous (financials boutique)
+  restricted:            20   subscriptionRequired Index Watch series
+  no_fileUrl:            11   HTML-only / web-native pubs
+  product:translation:    2   Japanese Translation - Rates & FX
+
+Referential coverage:
+  products=39/39   keywords=20/20   authors=154/154   (100% / 100% / 100%)
+  product_brand resolved on 37/37 survivors (100%)
+  authors resolved on 37/37 (100%)
+  keyword_names resolved on 17/37 (46%)   [not every doc has keywords assigned]
+
+Relevance filter (post-discovery): 37 kept, 0 dropped (100% kept — single-name
+already drops upstream via filter, so relevance.py doesn't fire)
+
+Kept composition:
+  MACRO 14 (38%)   STRATEGY 12 (32%)   CREDIT 4   RATES 3   FX 3   COMMODITIES 1
+  zero EQUITY survivors — Bernstein/ATM brand drops doing their job
+
+Geography:
+  Region: global 30, emea 5, apac 2  (81% non-default region)
+  Country: EU 4, CO 1, IN 1, CN 1  (19% with country anchor)
+```
+
+### Acceptance gates ([playbook §8.5](../onboarding_new_vendor.md#phase-85--run-the-7-day-smoke))
+
+* ✅ Hub coverage — N/A; we crawl the unified firehose.
+* ✅ Discovery drop reasons — counts plausible; brand-based drops dominate as expected. Spot-checks of the 5 sample titles per reason show clean classification.
+* ✅ Relevance kept ratio 100% (≥90% target).
+* ✅ Asset-class composition macro/strategy-dominated, zero EQUITY survivors.
+* ✅ Region coverage 81% (≥60% target). Country coverage 19% — acceptable given SG doesn't expose per-doc country in the listing response; the title/category heuristic is the only path.
+
+### Phase 8 anti-patterns observed + avoided
+
+* Empty-body referential probe returned 400 (caught in v1 smoke; fixed before commit).
+* `_TRANSLATION_PRODUCT_RE` is broad on purpose — no false positives observed across the 7-day window (only the two Japanese Translation rows matched, both correctly).
+
+---
+
 ## Phase 3 posture (agreed 2026-06-03)
 
 Decided before crawler build, to be revisited after first 7-day smoke:
@@ -476,12 +582,13 @@ Decided before crawler build, to be revisited after first 7-day smoke:
 
 ## Last verified
 
-2026-06-03 — **Phases 0 → 7 done.** Final state:
+2026-06-03 — **Phases 0 → 8 done.** Final state:
 
 * Embed-off smoke ([`smoke_orchestrator_v2.log`](../../../playground/research/socgen_explore/smoke_orchestrator_v2.log)) — 3/3 inserted (`dim_report.id` 2379-2381), asset_class / region / country / tags all populated correctly, 36 chunks landed in `research.fact_chunk`.
 * Embed-on smoke ([`smoke_orchestrator_embed_v1.log`](../../../playground/research/socgen_explore/smoke_orchestrator_embed_v1.log)) — 2 new IDs (2382 EM Looking Glass, 2383 ETF Market Pulse), 24 Qdrant points (`gemini-embedding-2`).
-* Audit ([`audit_v1.log`](../../../playground/research/socgen_explore/audit_v1.log)) — 17/17 survivors over 3-day window have a valid asset_class; 0 audio/podcast/reminder leakage; 0 single-name leakage; one Japanese-translation row leaked through despite `languages=["EN"]` pinning (Phase-8 tightening candidate, not blocking).
+* Audit ([`audit_v1.log`](../../../playground/research/socgen_explore/audit_v1.log)) — 17/17 survivors over 3-day window have a valid asset_class; 0 audio/podcast/reminder leakage; 0 single-name leakage. **Japanese-translation leak fixed** by the Phase-8 `product:translation` + `title:non-latin-script` filter (see Hard Taxonomy Probe section).
 * Retrieval ([`retrieval_v1.log`](../../../playground/research/socgen_explore/retrieval_v1.log)) — 4/5 queries returned SG citations; 5th hit a pre-existing `retrieve.py` cp1252 encoding bug while printing a Unicode glyph, not a SG retrieval failure.
+* **Phase 8 — 7-day smoke** ([`smoke_7day_v2.log`](../../../playground/research/socgen_explore/smoke_7day_v2.log)) — 37 net survivors across 2026-05-27 → 2026-06-02 (~7-8/day), referential coverage 100% products / 100% authors / 46% keywords, brand-based filter killing 196 SCB + 53 ATM + 2 translation + 20 restricted + 11 no_fileUrl, asset_class composition 38% MACRO / 32% STRATEGY / rest CREDIT+RATES+FX+COMMODITIES, 81% non-default region.
 
 **Daily-scheduler wiring not yet done** — playbook §7.5 says leave the
 scheduler hook for the promotion-to-`src/imdr/` cleanup. SG runs via
