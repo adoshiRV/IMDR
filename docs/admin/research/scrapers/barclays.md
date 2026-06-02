@@ -274,6 +274,52 @@ Sustainable Investing - Equity               → drop
 Sustainable Investing - FICC                 → drop (ambiguous; revisit if macro-flavoured)
 ```
 
+### Cross-check against Deepak's barclays-playwright profile
+
+To validate the asset-class allowlist independently, we mined Deepak's
+inherited browsing profile at
+`Z:\Business\Personnel\Arjun\playwrights\barclays-playwright` and
+grouped every URL he hit by path + query-shape. See
+[taxonomy_probe/barclays_deepak_gaps.md](../../../../playground/research/taxonomy_probe/barclays_deepak_gaps.md).
+
+Unlike HSBC (where we scope by `productid` query param), the Barclays
+filter operates on **API metadata** (`pubSeriesInfo.assetClassInfo`,
+`eqSecurities`, `tags[]`). Deepak's URL history therefore validates
+the allowlist *contents*, not the *scope*.
+
+| Deepak's URL | Visits | Maps to allowlist? |
+|---|---|---|
+| `/BU/research/macro/interest-rates/pubs` | 17 | ✓ `Interest Rates` → RATES |
+| `/BU/research/macro/economics/pubs` | 4 | ✓ `Economics` → MACRO |
+| `/BU/research/macro/emerging-markets/pubs` | 4 | ✓ `Emerging Markets` → MACRO |
+| `/BU/research/content/publication-viewer?...restriction=DEBT` (1 article, 7 hits) | 7 | ✓ Credit content via `Credit Strategy` / `Credit Fundamental` / `Credit Product Management` |
+| `/as/authorization.oauth2`, `/UAB/ct_logon_basic`, `/pa/oidc/cb` | 13 | SSO transit |
+
+**Findings:**
+
+1. **All three `/BU/research/macro/{slug}/` sector landings Deepak
+   browsed map directly into our allowlist**: `interest-rates` →
+   `Interest Rates`, `economics` → `Economics`, `emerging-markets` →
+   `Emerging Markets`. The early YAML had only `interest-rates`
+   evidenced; this confirms the URL slug set is at least three wide.
+2. **Only 1 article was actually opened** ("US Fixed Income
+   Issuance: AI-fueled IG supply") — `restriction=DEBT`, Credit content.
+   Our allowlist captures it via the four credit asset classes.
+3. **No FX / Commodities / Sustainability / Equity URLs** in this
+   profile. Deepak's browsing focused on rates, macro economics and
+   credit — exactly the macro/rates/FX/credit target buckets. The
+   absence of FX/Commodities URLs doesn't suggest a gap (we cover them
+   via API-metadata `Foreign Exchange` and `Commodities` asset class
+   names), just that this profile was used for FI-focused work.
+4. **Local Storage leveldb** cached the same 3 sector pages +
+   publication-viewer URL — no hidden scopes, no cached SPA state
+   revealing alternate filter axes.
+
+**Verdict**: our 13-entry asset-class allowlist is a superset of every
+category Deepak's URL pattern touched. No new asset classes to add, no
+URL-scoping shortcut available (the API metadata is more authoritative
+than the URL slug anyway).
+
 ## Files
 
 * [`login_barclays.py`](../../../../playground/research/ingest/login_barclays.py)
