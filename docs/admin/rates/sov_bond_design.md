@@ -1,7 +1,7 @@
 # Bond Yield Integration — Design
 
-- **Status**: IN PROGRESS — step 1 (Bloomberg `dim_vendor` consolidation) shipped as migrations `056`–`058`; bond-specific migrations `060`+ pending
-- **Drafted**: 2026-05-25, finalized 2026-05-26
+- **Status**: SCHEMA + DIM SEED COMPLETE — DDL (`063`/`065`/`067`) and dim seeds (`064`/`066`) applied 2026-06-02. `rates.fact_bond_yield` is empty awaiting backfill (`068`+).
+- **Drafted**: 2026-05-25, finalized 2026-05-26, schema applied 2026-06-02
 - **Companion exploration**: [`../vendors/citi/exploration/bonds_full.md`](../vendors/citi/exploration/bonds_full.md)
 - **Reference desk gap**: [`../development/apac_macro_data_gaps.md`](../development/apac_macro_data_gaps.md)
 
@@ -273,6 +273,27 @@ Current `Z:\...\BBG_mirror\BONDS\` contains 8 CSVs covering 7 currencies. Each m
 
 These get seeded with `is_active=0` so the FK structure is ready; rows flip to `is_active=1` and the source map gets populated when upstream lands the data.
 
+### Parallel GT placeholders (added 2026-06-02, `is_active=0`)
+
+The desk matrix referenced Bloomberg generic `GT{CCY}*` tickers; BBG_mirror uses country-specific tickers (GVSK/GIDN/MAGY/GCDB) for the APAC EM curves. Per 2026-06-02 decision, the GT-prefix variants are seeded as parallel placeholder curves so the source map can be populated cleanly when upstream adds them.
+
+| curve_code | Parallel to (active) | GT ticker convention | Distinguished by |
+|---|---|---|---|
+| `KRW_KTB_NOMINAL_GENERIC` | `KRW_KTB_NOMINAL_OTR` (GVSK) | `GTKRW*` | `benchmark_kind = GENERIC` vs `OTR` |
+| `IDR_IDGB_NOMINAL_GT_GENERIC` | `IDR_IDGB_NOMINAL_GENERIC` (GIDN) | `GTIDR*` | `curve_code` suffix (`_GT_GENERIC`); both `benchmark_kind = GENERIC` |
+| `MYR_MGS_NOMINAL_GT_GENERIC` | `MYR_MGS_NOMINAL_GENERIC` (MAGY) | `GTMYR*` | `curve_code` suffix (`_GT_GENERIC`); both `benchmark_kind = GENERIC` |
+
+CNY is already covered: `CNY_CGB_NOMINAL_CMT` (in pending list) is the real sovereign — distinct from `CNY_CDB_NOMINAL_GENERIC` (active, agency).
+
+### Curve totals after `064`
+
+| Group | Rows |
+|---|---|
+| Active (BBG_mirror) | 8 |
+| Placeholders — mirror gaps (DM + APAC sovereign) | 15 |
+| Placeholders — parallel GT (APAC EM) | 3 |
+| **Total** | **26** |
+
 ---
 
 ## Seed list — `rates.dim_bond_source` for BBG_mirror (54 active rows)
@@ -399,21 +420,23 @@ All `quote_type=YIELD`, `units=PCT`, `vendor_field=px_last`. (Note: R code uses 
 
 Each step is small and reversible. Steps 1–3 are universal blockers; steps 4+ are bond-specific.
 
-Step 1 is **DONE** — the Bloomberg `dim_vendor` consolidation shipped across `056`–`058` (056 repointed calendar FKs and started the rename; 057 attempted the fact-table FK repoint; 058 resolved the id=5 duplicate-key collisions and finished the rename). `dbo.dim_vendor` now holds a single Bloomberg row: `id=4, vendor_code='BBG'`. Migration `059` is already taken (`059_seed_bnp_dim_vendor.sql`), so the bond-specific work starts at `060`.
+**Slot renumbering**: design-doc-original migrations `060`–`069` got repurposed for vendor seeds (`060_seed_jpm_dim_vendor.sql`, `061_seed_westpac_dim_vendor.sql`, `062_seed_db_dim_vendor.sql`) between drafting and apply. Bond-specific work re-anchored at `063`.
 
-1. ~~**`NNN_dim_vendor_consolidate_bloomberg.sql`**~~ — **DONE** as `056`–`058`. Single Bloomberg row `id=4, vendor_code='BBG'`.
-2. **`060_create_dim_bond_curve.sql`** — DDL for `dbo.dim_bond_curve`.
-3. **`061_seed_dim_bond_curve_bbg_mirror.sql`** — 8 active + 15 inactive (pending) rows per the lists above.
-4. **`062_create_dim_bond_source.sql`** — DDL for `rates.dim_bond_source`.
-5. **`063_seed_dim_bond_source_bbg_mirror.sql`** — 54 rows per the tables above.
-6. **`064_create_fact_bond_yield.sql`** — DDL + clustered index + NCI.
-7. **`065_backfill_fact_bond_yield_bbg_mirror.sql`** — load history from the 8 mirror CSVs (~210K rows, single transaction; rebuild stats after).
-8. **`066_create_fact_bond_future_basis.sql`** + Citi seed/ingest for `RATES.OIS_INVOICESPREAD.*` (44 tags).
-9. **`067_create_fact_yield_forecast.sql`** + Citi seed/ingest for `RATES.FORECAST.*` (12 tags).
-10. **`068_seed_dim_bond_curve_citi_dm_tier2.sql`** — add Citi DM extensions (28 sovereign curves: CAN, CHE, ITA, ESP, NLD, BEL, AUT, IRL, FIN, GRC, PRT, NOR, SWE, DNK, NZL, ISR, LUX, PLN, CZE, HUN, ROU, SVK, SVN, CYP, TUR, ZAF).
-11. **`069_seed_dim_bond_curve_ssa.sql`** — ~35 SSA issuers from Citi.
+| # | Migration | Status | Notes |
+|---|---|---|---|
+| 1 | `056`–`058` Bloomberg `dim_vendor` consolidation | ✅ DONE | Single row `id=4, vendor_code='BBG'`. |
+| 2 | `063_create_dim_bond_curve.sql` | ✅ APPLIED 2026-06-02 | `dbo.dim_bond_curve` DDL (FKs to `dim_country` + `dim_vendor`; CHECK on `issuer_class`/`yield_type`/`benchmark_kind`). |
+| 3 | `064_seed_dim_bond_curve_bbg_mirror.sql` | ✅ APPLIED 2026-06-02 | **26 rows** seeded: 8 active mirror curves + 15 design-doc placeholders + **3 parallel GT placeholders** (`KRW_KTB_NOMINAL_GENERIC`, `IDR_IDGB_NOMINAL_GT_GENERIC`, `MYR_MGS_NOMINAL_GT_GENERIC`). |
+| 4 | `065_create_dim_bond_source.sql` | ✅ APPLIED 2026-06-02 | `rates.dim_bond_source` DDL; two UNIQUE constraints (`(vendor_id, source_ticker)` + 5-axis tuple). |
+| 5 | `066_seed_dim_bond_source_bbg_mirror.sql` | ✅ APPLIED 2026-06-02 | 54 BBG ticker rows. Whitespace preserved byte-for-byte (`GTJPYII5YR  govt` double-space; `GIDN30YR Index` mixed case). |
+| 6 | `067_create_fact_bond_yield.sql` | ✅ APPLIED 2026-06-02 | PK NONCLUSTERED, clustered on `(obs_date, bond_curve_id, tenor_code)`, PAGE compression, NCI for per-curve reads. |
+| 7 | `068_backfill_fact_bond_yield_bbg_mirror.sql` | 🔲 PENDING | Load history from the 8 mirror CSVs (~210K rows). Runs through `BBGMirrorBondsFeed` (built first), not raw SQL — exercises the ingest path before production. |
+| 8 | `069_create_fact_bond_future_basis.sql` + Citi seed/ingest | 🔲 PENDING | `RATES.OIS_INVOICESPREAD.*` (44 tags). |
+| 9 | `070_create_fact_yield_forecast.sql` + Citi seed/ingest | 🔲 PENDING | `RATES.FORECAST.*` (12 tags). |
+| 10 | `071_seed_dim_bond_curve_citi_dm_tier2.sql` | 🔲 PENDING | 28 Citi DM sovereigns (CAN, CHE, ITA, ESP, NLD, BEL, AUT, IRL, FIN, GRC, PRT, NOR, SWE, DNK, NZL, ISR, LUX, PLN, CZE, HUN, ROU, SVK, SVN, CYP, TUR, ZAF). |
+| 11 | `072_seed_dim_bond_curve_ssa.sql` | 🔲 PENDING | ~35 SSA issuers from Citi. |
 
-After step 7, the user's APAC bonds dashboard works end-to-end for the 7 currencies the mirror covers (US, JP, CN-CDB, ID, KR, MY + AUD-linker only). The remaining 6 countries from the user's matrix (UK, DE, FR, SG, IN, TH) wait on upstream mirror additions.
+After step 7 (`068`), the APAC bonds dashboard works end-to-end for the 7 currencies the mirror covers (US, JP, CN-CDB, ID, KR, MY + AUD-linker only). The remaining 6 countries from the desk matrix (UK, DE, FR, SG, IN, TH) wait on upstream mirror additions.
 
 ---
 
@@ -492,12 +515,12 @@ NaN cells (5,588 in USD_GOVT, 1,270 in AUD_LINKER) are early-history tenors not 
 
 ---
 
-## Open questions (still need a call before SQL)
+## Open questions
 
-1. **APAC EM ticker convention**: user's matrix wanted generic `GT{CCY}10Y` series; BBG_mirror provides country-specific tickers (`GVSK`, `GIDN`, `GTJPY`, `GCDB`, `MAGY`). The seed list above uses what's IN the mirror. Decision: live with the mirror's choices, or request upstream to add the user's `GT*` series alongside (which would be a parallel curve_code in `dim_bond_curve`, since they reference different bonds).
+1. ~~**APAC EM ticker convention**: user's matrix wanted generic `GT{CCY}10Y` series; BBG_mirror provides country-specific tickers (`GVSK`, `GIDN`, `GTJPY`, `GCDB`, `MAGY`).~~ **RESOLVED 2026-06-02** — seed both: active mirror curves (GVSK/GIDN/MAGY/GCDB) AND parallel `is_active=0` placeholders for the GT-prefix variants (KRW/IDR/MYR). See "Parallel GT placeholders" above. CNY's GT variant is the already-pending sovereign `CNY_CGB_NOMINAL_CMT`.
 2. ~~**Bloomberg vendor dedup** (`BBG` vs `bloomberg` in `dim_vendor`): pick one, repoint FKs. Migration step 1.~~ **RESOLVED** — consolidated to `id=4, vendor_code='BBG'` via migrations `056`–`058`.
-3. **Mirror gaps**: 15 pending `dim_bond_curve` rows are inactive placeholders. Either pursue upstream mirror additions (UK, DE, FR, SG, IN, TH, AUD GOVT, USD LINKER, BEI series for all 6 DM) or accept that those rows of the user's matrix are uncovered.
-4. **Citi as a parallel source for DM**: when do we start populating `dim_bond_source` rows with `vendor_id=citi_velocity` for the same DM curves? After BBG ingest is stable, or in parallel.
+3. ~~**Mirror gaps**: 15 pending `dim_bond_curve` rows are inactive placeholders.~~ **RESOLVED 2026-06-02** — seed all 15 placeholders as `is_active=0` (FK structure ready; rows flip to active when upstream lands data). Pursue upstream mirror additions (UK, DE, FR, SG, IN, TH, AUD GOVT, USD LINKER, BEI series for all 6 DM) in parallel.
+4. ~~**Citi as a parallel source for DM**: when do we start populating `dim_bond_source` rows with `vendor_id=citi_velocity` for the same DM curves?~~ **RESOLVED 2026-06-02** — sequenced same-stint: stabilize BBG_mirror ingest end-to-end first (`068`), then layer Citi DM via `071`+ in the same work block (not deferred).
 
 ---
 

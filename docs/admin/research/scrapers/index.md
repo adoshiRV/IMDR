@@ -44,12 +44,12 @@ gating, phase 2 listing-API discovery, phase 6 smoke runs, etc.) see
 | `jpm` | markets.jpmorgan.com | `POST /research/controller/graphql/query-v2` (GraphQL `operationName=research`, facets DSL in `researchQueryNodeChildren`, paginated by `start`+`pageSize`); deterministic PDF at `/research/PubServlet?action=open&doc={id}.pdf`. Custom `janus_user` header required. | live, ~150-220/day raw (~12% Daily Packages tagged) ([details](jpm.md)) |
 | `ms` | ny.matrix.ms.com/eqr/research/portal/home/global | API `/portal-content-service/search` (POST, paginated, sort=d) → frontmatter JSON → PDF | live, ~500/day ([details](ms.md)) |
 | `hsbc` | www.research.hsbc.com | Server-rendered HTML; `/Reach` landing page parsed; pagination via `rcRedisplayReportsTab` JS; `/R/10/{shortId}` is direct PDF | live, ~30 rows/page ([details](hsbc.md)) |
-| `barclays` | live.barcap.com | Programmatic login (no MFA on trusted device); fresh profile per run; `page.evaluate(fetch())` for all API calls; pre-cache PDFs during discovery | live, ~30 pubIds/run ([details](barclays.md)) |
+| `barclays` | live.barcap.com | Programmatic login (no MFA on trusted device); fresh profile per run; `page.evaluate(fetch())` for all API calls; `responseDetailLevel=FULL` to ship `eqSecurities` + `restrictions` + full `tags[]`; asset-class allowlist + single-name drop at discovery | live, ~200/day raw → ~135/day kept ([details](barclays.md)) |
 | `bnp` | markets360.bnpparibas.com | Pattern A — `PUT /contentportal/research-service/v1.1/research_documents` returns `documentLink` (JWS slink, directly fetchable as PDF). ~21/day discovered; ~12/day net after chart-pack drop ([details](bnp.md)) | live, ~12/day net |
 | `ubs` | neo.ubs.com | TBD | not yet built |
 | `socgen` | sso.sgmarkets.com | TBD | not yet built |
 | `cacib` | research.ca-cib.com | TBD | not yet built |
-| `westpac` | www.westpaciq.com.au | TBD | not yet built |
+| `westpac` | www.westpaciq.com.au | Pattern D (new) — AEM hub HTML with inline per-card JSON; PDF lifted from card `executiveSummary` (`/content/dam/.../*.pdf`), fall back to detail-page regex for Economics stubs | live, ~15/day net ([details](westpac.md)) |
 
 ## Common patterns
 
@@ -67,6 +67,7 @@ once oldest-in-page < since.
 | goldman | `POST /research/search/reports/advanced-search` body `{facets:"()", language:"[\"en\"]", page, size, sort:"time", limitTo:"[\"\"]"}` | 200 (tested up to 500) | ~1000 |
 | ms | `POST /portal-content-service/search` body `{compositeRequest:{search:"(text==*)", sort:"d", size, page}, arRequest:{...}}` | 500 | ~500 |
 | nomura | `POST /research/japi/pub/search/query` Elasticsearch DSL with `range.publicationDate.gte` filter | 1000 | ~100 |
+| barclays | `GET /RSX/content-archive/v1/REST/publication/search` (page-context fetch only — needs SPA origin) — `responseDetailLevel=FULL` ships `eqSecurities`, `eqIndustries`, `restrictions`, full `tags[]` | 200 | ~200 raw → ~135 kept |
 | bnp | `PUT /contentportal/research-service/v1.1/research_documents` body `{domain:"RESEARCH", languages:["English"], startDate:"now-Nd/d", startIdx, numOfEntries}` | 200 (UI default 48) | ~21 (~12 net after chart-pack drop) |
 | anz | `GET /document_data_tiled_all?param_limit=200&position=N` | 200 | ~20 |
 | jpm | `POST /research/controller/graphql/query-v2` (`operationName=research`, facets DSL `researchQueryNodeChildren`, `sortOrder=PUBLICATION_DATE DESCENDING`); custom `janus_user` header threaded from `IMDR_RESEARCH_JPM_USERNAME` | 100 (tested; UI uses 25) | ~150-220 raw |

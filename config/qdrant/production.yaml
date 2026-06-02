@@ -1,0 +1,31 @@
+# Qdrant server config for the IMDR Windows-Service install.
+#
+# Source of truth lives here (tracked in repo). The installer
+# scripts/admin/install_qdrant.ps1 copies this file to
+# C:\ProgramData\Qdrant\config.yaml, where the NSSM-registered service
+# reads it on start. Re-run the installer (or copy by hand) after
+# edits so the running service picks them up.
+#
+# Edit notes:
+#   - Bind 127.0.0.1 only — never 0.0.0.0 on this box.
+#   - Storage paths must exist and be writable by the service account.
+#   - Set service.api_key only if you also bind to a non-loopback addr;
+#     loopback-only deployment is fine without auth.
+
+log_level: INFO
+
+storage:
+  storage_path: C:\IMDR_LOCAL\qdrant\storage
+  snapshots_path: C:\IMDR_LOCAL\qdrant\snapshots
+  on_disk_payload: true
+
+service:
+  host: 127.0.0.1
+  http_port: 6333
+  grpc_port: 6334
+  enable_cors: false
+
+telemetry_disabled: true
+
+cluster:
+  enabled: false

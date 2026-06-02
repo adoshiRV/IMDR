@@ -3,18 +3,18 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 *.egg
-dist/
 build/
+dist/
 .venv/
 
 # Secrets
 .env
 
 # Tool caches
+.claude/
 .mypy_cache/
 .pytest_cache/
 .ruff_cache/
-.claude/
 
 # Test / coverage
 .coverage
@@ -24,11 +24,15 @@ htmlcov/
 .ipynb_checkpoints/
 *.db
 
-# IMDR data outputs (domain-structured, auto-created at runtime)
-data/parquet/
-data/logs/
-data/cache/
-data/browser_profiles/
-data/skew/
+# Runtime data outputs (auto-created; only .gitkeep markers tracked)
+data/*
+!data/gaps/
 data/gaps/*
 !data/gaps/.gitkeep
+
+# SQL migrations — tracked via DBA channel, not git
+migrations/*
+!migrations/.gitkeep
+
+# Playground (exploration / one-off scripts)
+playground/*
