@@ -216,6 +216,31 @@ $env:IMDR_RESEARCH_EMBED = "true"
 python playground/research/ingest_today_ms.py
 ```
 
+## DB cleanup log
+
+### Tier-1 junk sweep (2026-06-02)
+
+The DB audit
+([taxonomy_probe/db_audit_2026_06_02.md](../../../../playground/research/taxonomy_probe/db_audit_2026_06_02.md))
+flagged **5 MS rows** where the classifier wrote a company name (not
+a canonical asset class) into the `asset_class` column:
+
+* `Metlen Energy & Metals PLC` (×2)
+* `Ningbo Ronbay New Energy Techn`
+* `BAIC BluePark New Energy`
+* `India Fuel Retailers`
+
+Double bug: wrong `asset_class` *and* the rows are single-name
+equity that should have dropped at `relevance.is_single_name_equity`.
+Root cause: `classifiers/ms.py` uses `publication_type` (which is
+the company name on single-stock notes) as a tag — the value
+appears to be leaking into `asset_class` somewhere in the persist
+path or via a stale classifier branch. Worth a code audit.
+
+All 5 rows removed by
+[`playground/research/cleanup_tier1_junk.py`](../../../../playground/research/cleanup_tier1_junk.py)
+2026-06-02.
+
 ## Last verified
 
 2026-05-07 — pipeline working end-to-end via the new search-API

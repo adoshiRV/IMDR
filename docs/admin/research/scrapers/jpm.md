@@ -685,3 +685,9 @@ D. **Audit Australia rates coverage** — Deepak's #2 slug, our coverage
    is thin even after the upgrade. Worth a `countries=["AU"]` slice.
 
 E. **Fix the non-ASCII title encoding artefact** in the persist path.
+   3 JPM rows deleted in the 2026-06-02 Tier-1 cleanup (`??????`
+   placeholder runs in titles where Japanese characters were lost).
+   Until root cause is fixed, the post-ingest check
+   `title LIKE '%??????%'` acts as a backstop in
+   `cleanup_tier1_junk.py`. Same root cause as Barclays' 30 broken
+   titles.

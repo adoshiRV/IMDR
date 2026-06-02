@@ -320,6 +320,33 @@ category Deepak's URL pattern touched. No new asset classes to add, no
 URL-scoping shortcut available (the API metadata is more authoritative
 than the URL slug anyway).
 
+## DB cleanup log
+
+### Tier-1 junk sweep (2026-06-02)
+
+DB audit
+([taxonomy_probe/db_audit_2026_06_02.md](../../../../playground/research/taxonomy_probe/db_audit_2026_06_02.md))
+flagged 56 Barclays rows for deletion via
+`cleanup_tier1_junk.py`:
+
+* **30 broken-encoding titles** — Japanese / CJK characters lost on
+  insert showed up as runs of `?` in the title (`??????·??????:
+  ????????????????????`). The source delivered Japanese, the persist
+  path corrupted to cp1252; unreadable for RAG. Root cause not yet
+  fixed — until it is, the post-ingest check
+  `title LIKE '%??????%'` is a defensive backstop.
+* **27 admin / morning-summary / event-invite rows** — `Barclays
+  Americas Morning Research Summary`, `Barclays European Morning
+  Research Summary`, `Barclays Americas Small Cap Research Summary`,
+  `AFX, GN, COLOB *NEXT WEEK* Barclays Conversations with...`,
+  `Amplifon CEO & CFO *TOMORROW* Barclays Conversations with the C...`.
+  No analytical content — should be caught by the discovery filter
+  (extend `EXCLUDED_TITLE_PREFIXES` / non-research detection) so
+  fresh ingests don't re-add them.
+
+Cascade: 1,563 `fact_chunk` rows + 34 `map_report_tag` + 1,563 Qdrant
+points + 56 OneDrive PDFs deleted alongside.
+
 ## Files
 
 * [`login_barclays.py`](../../../../playground/research/ingest/login_barclays.py)
