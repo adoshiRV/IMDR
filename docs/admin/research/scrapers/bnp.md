@@ -525,6 +525,97 @@ the full workflow. Per-phase status for BNP:
   Re-ingested via the orchestrator with embed ON: **26 reports total,
   0 thin, 0 failed, 478 chunks, 180 tag links, all embedded**.
 
+## Hard taxonomy probe + tightening (2026-06-03)
+
+Probe artefacts in
+[`taxonomy_probe/bnp_full.md`](../../../../playground/research/taxonomy_probe/bnp_full.md)
+and
+[`taxonomy_probe/bnp_db_audit.md`](../../../../playground/research/taxonomy_probe/bnp_db_audit.md).
+Re-runnable probe script at
+[`probe_bnp_full.py`](../../../../playground/research/probe_bnp_full.py).
+
+### DB audit (72 rows, 2026-05-24 → 2026-06-01)
+
+BNP is **the cleanest vendor we've audited**: zero NULL/empty
+asset_class, zero non-canonical values, zero encoding corruption,
+zero duplicate titles, zero ticker tags, zero CREDIT rows, zero
+single-name leakage. The only material issue: **9 format-leaks** — 8
+Quant Vault chart-packs (HEXA, MarFA™, iQFS™, G10 FCI, Global FX
+Positioning Tracker) + 1 ``Markets 360 Presentations`` slide deck —
+slipped past the existing summary-prefix filter because their
+summaries didn't start with ``"Update of the latest values"``.
+
+### Structured signals lifted from listing payload (added 2026-06-03)
+
+Crawler now persists 5 additional structured fields on `ReportRef`:
+
+| field | source | use |
+|---|---|---|
+| `quant_models` | `tags.quantModels` | **chart-pack detector** — 17 distinct model names observed (MarFA™, Data Pool, TEi, STEER™, Regime Navigator, FEFA, ComFA™, BEER+, Quant Trades of the Week, Equity Positioning Indicator, FX Positioning Tracker, Commodity Positioning Tracker, Financial Conditions Indicator, Global Macro CTA Tracker, Tactical Equity Indicator (TEi), Data Trackers, Quant Highlights). Non-empty ⇒ drop |
+| `publication_class` | top-level `publicationClass` | "RESEARCH" / "COMMENTARY" — defensive allowlist; 100% coverage on survivors |
+| `tickers` / `issuers` / `industry_groups` | `tags.tickers` / `tags.issuers` / `tags.industryGroups` | always empty on Markets360 today — defensive single-name catch in case CREDIT 360 subdomain is wired in |
+
+### Filter precedence (added 2026-06-03)
+
+`filters/bnp.py` — first-match-wins:
+
+1. Title-prefix admin (`invite:` / `webcast:` / `conference call:` / `expert access:`)
+2. `pubtype:Markets 360 Presentations` (slide decks)
+3. Single-name (`tickers` / `issuers` / `industry_groups` non-empty) — defensive
+4. **`quant-model:<name>`** — `quant_models` non-empty (structured chart-pack signal)
+5. `summary-prefix:'update of the latest values'` (legacy boilerplate-text rule)
+
+### 7-day smoke (2026-06-03)
+
+Read-only via
+[`smoke_bnp_7day.py`](../../../../playground/research/smoke_bnp_7day.py).
+Log at
+[`taxonomy_probe/bnp_smoke_7day.log`](../../../../playground/research/taxonomy_probe/bnp_smoke_7day.log).
+
+| stage | count |
+|---|---|
+| raw cards processed | ~99 |
+| discovery drops | 58 — 51 `quant-model:<name>`, 5 `summary-prefix`, 2 `pubtype:Markets 360 Presentations` |
+| discovery kept | 41 (~6/day) |
+| relevance kept | **41 (100%)** — no single-name to drop |
+
+**Composition (clean macro/rates/fx/commodities):**
+
+| class | count | % |
+|---|---|---|
+| MACRO | 16 | 39% |
+| FX | 8 | 20% |
+| RATES | 8 | 20% |
+| STRATEGY | 5 | 12% |
+| COMMODITIES | 4 | 10% |
+
+Regions: apac 16, global 9, latam 8, emea 6, americas 6.
+
+**Sample kept titles** (macro/rates/fx/commodities stream):
+- MACRO: *"Japan: How the naphtha shortage could play out"* / *"China economic tracker"* / *"South Korea: Inflation accelerates in May"*
+- RATES: *"EM rates: Entering long 2050 Coltes position"* / *"Japan: 10y JGB auction comment"*
+- FX: *"FX vol strategy weekly"* / *"BNPP cross-border flow monitor"*
+- COMMODITIES: *"Energy: Middle East scenarios update"* / *"Gas: Close long Jun26 TTF call spread upon expiry"*
+
+### Trade-off — strict quant-model drop
+
+The `quant_models` filter is broad and catches some borderline
+analytical titles (Regime Navigator, STEER™ signals, Commodity
+positioning, FEFA, Quant Highlights). User decision 2026-06-03:
+**keep the strict rule** — clean macro/rates/fx/commodities stream
+is the goal, and the borderline cases are mostly chart-heavy
+quant-model output anyway. If specific names turn out to be useful,
+add a `_KEEP_QUANT_MODELS` allowlist in `filters/bnp.py`.
+
+### DB cleanup
+
+Bucket 9 added to
+[`cleanup_tier1_junk.py`](../../../../playground/research/cleanup_tier1_junk.py):
+`bnp-chartpacks` — drops rows whose `vendor_pubtype` is `Markets 360
+Presentations` or `Quant Vault`. Sweeps the 9 historical leakers so
+they don't pollute embeddings. They'll be re-discovered cleanly
+under the new filter (then immediately re-dropped).
+
 ## Run
 
 **Canonical daily run — use the orchestrator** (it classifies +
