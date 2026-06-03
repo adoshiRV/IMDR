@@ -1,11 +1,39 @@
 # BofA Securities — Research scraper
 
-**Status: PROBE (Phase 1 complete 2026-06-03 — awaiting Phase 2 sign-off)**
+**Status: PROD-HOLD (2026-06-04)** — code is fully built and tested
+end-to-end (2 reports in DB from manual smoke), but **deliberately
+NOT wired into the orchestrator** pending Phase 8 audit. See
+"PROD-HOLD" section below.
 
 Pattern: **HTML scraping** (Liferay server-rendered portal), NOT a JSON
 listing API. Closest analogue in our stack: HSBC. Document delivery via
 **signed `rsch.baml.com` URLs** embedded in the listing HTML (no
 frontmatter round-trip needed).
+
+## PROD-HOLD — how to re-enable when ready
+
+BofA is held out of the orchestrator pending more confidence on
+fetch-success rate, single-name leakage, and classifier accuracy.
+The crawler / fetcher / classifier code all exist and work; the only
+thing missing is the four-line registration. To re-enable:
+
+1. **`playground/research/ingest_today.py`** — uncomment the
+   `from ingest.crawler_bofa import discover_reports as bofa_discover`
+   line AND the `"bofa": VendorSpec(code="bofa", discover=bofa_discover)`
+   entry in `_load_vendor_registry()`.
+2. **`playground/research/ingest/classifiers/__init__.py`** — add
+   `"bofa"` to `_VENDOR_CODES` AND uncomment the `if vendor_code ==
+   "bofa": from . import bofa; return bofa.classify` block in
+   `get_classifier()`.
+3. **`playground/research/ingest/pipeline.py`** — restore the
+   `_fetch_pdf_dispatch` URL-host router that sends
+   `research1.ml.com` / `rsch.baml.com` URLs through `fetch_bofa`.
+4. Test via `IMDR_RESEARCH_EMBED=false IMDR_RESEARCH_LIMIT=2
+   python ingest_today.py --vendors bofa`.
+
+Until that's done, `--vendors bofa` will fail with "unknown vendor"
+and the default "all vendors" run won't include it. The 2 reports
+already in `research.dim_report` (ids 3134, 3135) remain.
 
 ## Portal
 
@@ -364,8 +392,67 @@ TBD — confirm against 24h of clean ingest after Phase 6 smoke.
 - [x] Phase 5 — Orchestrator wired: `bofa` registered in `_load_vendor_registry()`; `pipeline.fetch_pdf` dispatches by URL host (research1.ml.com / rsch.baml.com → `fetch_bofa.fetch_pdf`).
 - [x] Phase 6 — Migration `076_seed_bofa_dim_vendor.sql` applied 2026-06-04. First DB-write smoke: 2 reports inserted (ids 3134/3135), 22 chunks, 9 tag rows.
 - [ ] Phase 6c — Full-day embed-on smoke + retrieval check.
-- [ ] Phase 7 — Promote in `scrapers/index.md` + flip `vendors.yml` to `production`.
+- [ ] Phase 7 — **PROD-HOLD** (2026-06-04, user decision): not ready to promote. Run periodically from playground to accumulate ~50-100 reports, then re-evaluate. Concerns to clear before promotion:
+  - PDF fetch success rate at scale (only sampled 3; one failed on `/C/?q=...` variant)
+  - Single-name leakage rate on real kept volume
+  - Classifier accuracy (manual review needed on sample of 30 reports)
+  - True daily volume (~250 raw snapshot ≠ daily volume)
 - [ ] Phase 8 — Hard-taxonomy probe + tightening (after ≥1 week live).
+
+## Deep coverage probe (2026-06-04 — partial)
+
+Ran `probe_bofa_coverage.py` (sub-probes A pagination / B rsch.baml /
+C multimedia / D fetch-rates) to characterize true archive depth
+before promotion. Results:
+
+- **A — Series pagination**: `submitMorePage` callback regex matched
+  only 2 of 4 representative series; pagination URL itself returned
+  0 tiles. Needs rework — defer to a focused follow-up probe.
+- **B — rsch.baml.com surface**: `/search` (133KB Liferay
+  PortalSearch with structured filter fields incl. `assetClass`,
+  `mlDiscipline`, `focusRegion`, `analystTeamName`, `productCategory`,
+  `reportPublishDate`, `start`) + `/analyst` (130KB) both exist and
+  are unexplored. **`/search` results are JS-rendered** — all GET
+  query variants returned either the empty filter form (~134KB) or
+  tiny error responses (~1.4KB), never inline result tiles. Would
+  need Playwright force-fill + click + extract to crack — defer.
+- **C — Multimedia**: `/researchlibrary/rlmultimedia_ext` and
+  `/researchlibrary/RLMultimedia` both render full Liferay pages but
+  with **0 `Table_report` tiles** — they use a different tile
+  structure that the current regex doesn't catch. Probably video
+  cards. Defer until we decide whether multimedia is in scope.
+- **D — Fetch success rate**: crashed mid-probe (`discover_reports`
+  re-launched its own Playwright context, conflicting with the
+  parent context's profile lock). Refactor needed to accept an
+  existing ctx, or re-run as a standalone process.
+
+Artefacts: `bofa_explore/coverage_*.md`,
+`bofa_explore/rsch_baml_search.html`, etc.
+
+## Unknowns to resolve before prod
+
+1. **True daily volume** — current per-hub snapshot returns "latest
+   ~25 per series" but a series might publish 1/day or 1/month.
+   Real daily volume is unknown; the 240 raw tiles per run cover a
+   variable historical window per series.
+2. **PDF fetch success rate at scale** — only 3 sample fetches in the
+   smoke (2 OK, 1 FAIL on `/C/?q=...`). 33% fail-rate is alarming
+   but not statistically meaningful at N=3. Need N≥30 to characterize.
+3. **`/C/?q=...` failure rate** — what % of resolver responses return
+   the variant URL? Is there a per-tile signal we missed that
+   predicts it? Unknown.
+4. **Single-name leakage** — the series-name regex (`Ltd|Inc|Corp|SA|
+   PJSC|...`) catches obvious cases (Kosmos Energy Ltd, AA2000)
+   but won't catch names like "Apple", "Tesla", "JPMorgan" as series
+   slots. Audit needed against real volume.
+5. **Drop-set false positives** — current drop rate is ~75% of raw
+   tiles. Spot-check needed to confirm we're not killing legitimate
+   macro/strategy content.
+6. **Classifier accuracy** — the hub→asset_class mapping is
+   deterministic, but no manual audit yet (e.g. does a report from
+   `credit_em_corporate` that survived the corporate drop actually
+   read as sovereign macro? Or could it be a STRATEGY piece
+   mis-classified as CREDIT?).
 - [ ] Phase 4 — Discovery filter + classifier.
 - [ ] Phase 5 — Wire into orchestrator (`ingest_today.py`).
 - [ ] Phase 6 — `dim_vendor` seed migration + first smoke run.
