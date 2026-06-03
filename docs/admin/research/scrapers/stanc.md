@@ -298,20 +298,32 @@ after format drops.
 | `COMMODITY` | 330 |
 | `DIGITALASSETS` | 5 |
 
-**`COMPANY` is sovereign-credit issuer, NOT single-name corporate** —
-confirmed 2026-06-03 by sample inspection of all 12 `primary_company`
-reports in the 30-day window (`probe_stanc_company_samples.py`). Every
-one was sovereign credit: ZAMBIN 53 (Zambia), MLB SRILAN 30 (Sri Lanka),
-SOAF/CDI/MOZAM/REPCAM sovereign switches, MOROC FV (Morocco primary),
-UZBEK / Türkiye / Saudi / Mongolia sovereign coverage. STANC uses
-`COMPANY` as the data-model entity type for sovereign bond issuers.
+**`COMPANY` is sovereign OR corporate** — earlier "always sovereign"
+claim was wrong (it was based on a partial 30-day sample). Phase 8
+deep probe 2026-06-03 (`stanc_explore/sovereign_vs_corporate_probe.md`)
+inspected all 23 primary_company reports in the 90-day window and
+found a precise structured discriminator:
 
-**Implication for the filter**: do NOT drop on `researchObjectCode=COMPANY`.
-Sovereign credit is EM macro/rates/credit and squarely in scope. STANC
-publishes essentially zero single-name corporate research, so no
-single-name drop is needed beyond the existing `relevance.py` defaults
-(which look for equity-asset-class + single ticker — STANC sovereign
-notes don't have either).
+| `derivedSectorId` | Class | Action | Sample issuers |
+|---|---|---|---|
+| `9020` | Sovereign / SSA | **KEEP** | Republic of Zambia, Kingdom of Morocco, DSR Sri Lanka, Federal Republic of Nigeria, Republic of Lebanon, Islamic Republic of Pakistan, Republic of Côte d'Ivoire (17 of 23) |
+| `9021` | Agency / supra | **KEEP** | (1 of 23 — rare) |
+| `9022` | Corporate / SOE | **DROP** | Abu Dhabi Future Energy Company PJSC (Masdar), Aldar Investment Properties, ADNOC Murban RSC LTD, Development Bank of Mongolia (5 of 23) |
+
+`sectorIndex` and `industryId` are always `0` on COMPANY items — NOT
+useful discriminators. Only `derivedSectorId` cleanly splits sovereign
+from corporate.
+
+**Implication for the filter**: drop primary-COMPANY-with-9022 at the
+crawler stage. The rule fires in
+[`crawler_stanc.py:_drop_reason()`](../../../../playground/research/ingest/crawler_stanc.py) when `materialMentioned[0].researchobject.researchObjectCode == "COMPANY"` AND `derivedSectorId in {9022}`,
+logged as `single-name-corporate-credit:<issuer name>`.
+
+Sanity-tested 10/10 PASS at
+[`sanity_stanc_corporate_drop.py`](../../../../playground/research/sanity_stanc_corporate_drop.py)
+against the 5 known corporate IDs (309295, 307205, 306286, 307724,
+305525) + 5 known sovereign IDs (309914, 309714, 308901, 306399,
+306545) on 2026-06-03.
 
 | Top regions (top 30) | Count |
 |---|---:|
@@ -378,6 +390,68 @@ rates, FX, sovereign credit). Quality:volume ratio is very high.
 paginated probe where the marker wasn't honoured, so 615 = 5× the
 same 123 unique reports.)
 
+## Phase 8 — Hard taxonomy probe + tightening (2026-06-03)
+
+Ran the playbook Phase 8 deep probe immediately after Phase 6 (rather
+than waiting for the typical ≥1-week live-ingest window) because the
+user flagged a risk of letting single-name corporate credit through.
+Probe artefacts: `stanc_explore/full_payload_keys.json`,
+`stanc_explore/sovereign_vs_corporate_probe.md`,
+`taxonomy_probe/stanc_full.md`.
+
+### Key win — corporate-credit drop via `derivedSectorId=9022`
+
+The deep probe found that an earlier session's "COMPANY = always
+sovereign" conclusion was wrong. STANC's stream **does** include
+single-name corporate credit (Masdar / Aldar / ADNOC) and the
+vendor-native discriminator is
+`materialMentioned[*].researchobject.derivedSectorId` (9020 sovereign /
+9021 agency / 9022 corporate). Drop wired at
+`crawler_stanc.py:_drop_reason()`; 10/10 sanity PASS.
+
+### Five edits shipped
+
+| Step | File | What changed |
+|---|---|---|
+| A | `crawler_stanc.py` | `material_mentioned` extended from 3-tuple to 4-tuple (added `derived_sector_id`); new ReportRef field `research_reason_codes` extracted from `payload.researchReasonCodes`; new drop rule on primary `(COMPANY, 9022)` |
+| B | `filters/stanc.py` | unchanged (format drops handled in crawler) |
+| C | `classifiers/stanc.py` | adapted to 4-tuple material; emits `researchReasonCodes` (MACRO_STRAT/FLOWS_STRAT/GEOPOLITICS/ML) as `TAG_THEME` |
+| D | cleanup bucket | not needed — DB only has 2 rows (2384/2385, both correctly sovereign-anchored macro+credit) |
+| E | `smoke_stanc_7day.py` | adds `derivedSectorId` survivor tally + `researchReasonCodes` distribution |
+
+### 7-day smoke result (post-Phase-8, 2026-06-03)
+
+| Gate | Target | Result | Status |
+|---|---|---|---|
+| 1 — Endpoint health | hits > 0 | 29 refs | ✅ |
+| 2 — Drop reasons | structured | 0 relevance drops in the 7-day window (corporate drops fire on older reports — out of window) | ✅ |
+| 3 — Kept ratio | ≥ 90% post-discovery | 100% | ✅ |
+| 4 — Asset-class composition | macro-family dominated, EQUITY ≤ 5% | 100% on-target, 0% EQUITY, 0% empty | ✅ |
+| 5 — Geo coverage | ≥ 60% | 72% (21/29 country-anchored) | ✅ |
+
+**Kept asset_class** (canonical, post-classifier): MACRO 17 (59%) ·
+CREDIT 7 (24%) · COMMODITIES 3 (10%) · FX 1 · STRATEGY 1.
+
+**Kept geo** (country codes): US/ZA 3 each, CN/AU 2 each, then
+PK/HK/TH/IN/ZM/ID/MA/LK/VN/NZ/CO 1 each — deep EM Asia/Africa/Mid-
+East exactly as expected.
+
+`derivedSectorId` distribution on surviving COMPANY items: 6×9020
+(sovereign primaries) + 1×9022 (non-primary mention on a
+sovereign-primary report — correctly kept).
+
+`researchReasonCodes` distribution: 1 FLOWS_STRAT, 1 ML — the new
+editorial-pillar themes are now visible to downstream queries.
+
+### Posture decisions (sticky)
+
+- **Sovereign credit (9020)**: KEEP. EM macro/rates/credit is in scope.
+- **Agency / supra (9021)**: KEEP. Only 1 case in 90 days; flagged for
+  re-review if frequency rises.
+- **Corporate (9022)**: DROP. Out of scope per user's "no single-name
+  equity/credit" directive. See
+  [memory/feedback_stanc_derivedsectorid_corporate_drop.md].
+
 ## Phase status
 
 - [x] Phase 0 — Gate check + `vendors.yml` entry (2026-06-03).
@@ -389,8 +463,8 @@ same 123 unique reports.)
 - [x] Phase 6a — Migration `075_seed_stanc_dim_vendor.sql` applied 2026-06-03. `dim_vendor` row confirmed.
 - [x] Phase 6b — Limited DB-write smoke (`--limit 2`, embed off) inserted dim_report ids 2384 (CREDIT) + 2385 (MACRO), 33 chunks, 13 tags. PDFs synced to OneDrive. All classifier output populated.
 - [ ] Phase 6c — Full-day embed-on smoke + `smoke_stanc_audit.py` + `smoke_stanc_retrieval.py`.
-- [ ] Phase 7 — Promote in `scrapers/index.md` Vendors table + flip `vendors.yml` to `production`.
-- [ ] Phase 8 — Hard taxonomy probe + tightening (after ≥1 week live).
+- [x] Phase 7 — Row added to `scrapers/index.md` Vendors + Common Patterns. `vendors.yml` → `production` deferred until Phase 6c.
+- [x] Phase 8 — Hard taxonomy probe + tightening (2026-06-03). Corporate-credit drop wired via `derivedSectorId=9022`; `researchReasonCodes` added as theme tags; 10/10 sanity PASS; 7-day smoke all gates PASS.
 - [ ] Phase 3 — Crawler build (`crawler_stanc.py`).
 - [ ] Phase 4 — Discovery filter + classifier.
 - [ ] Phase 5 — Wire into orchestrator (`ingest_today.py`).
