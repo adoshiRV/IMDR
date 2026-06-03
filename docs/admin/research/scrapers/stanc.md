@@ -1,0 +1,403 @@
+# Standard Chartered — Research scraper
+
+**Status: PROBE (Phase 1 complete 2026-06-03 — awaiting Phase 2 sign-off)**
+
+Pattern: TBD — to be determined via [`probe_listing_apis.py`](../../../../playground/research/probe_listing_apis.py)
+in Phase 2 (see [`scrapers/index.md`](index.md)). Best guess based on the
+URL structure observed in Phase 1: **Listing-API firehose (Pattern A)**
+backed by a JSON search endpoint under `/research/api/application/...`
+with a deterministic PDF render URL.
+
+## Portal
+
+| | |
+|---|---|
+| Hostname | `research.sc.com` |
+| Sign-in URL | `https://research.sc.com/` |
+| Username | `.env: IMDR_RESEARCH_STANC_USERNAME` (`adoshi@rvcapital.com`) |
+| Password | `.env: IMDR_RESEARCH_STANC_PASSWORD` |
+| MFA | **none observed at first login 2026-06-03** — session cookies in persistent profile suffice |
+| API hint from `.env` | `IMDR_RESEARCH_STANC_URL=https://research.sc.com/research/api/application/static/` (UI base, not the API listing) |
+
+## Profile
+
+```
+playground/research/profiles/stanc/
+```
+
+Fresh profile — no inherited Z:\…\playwrights\ Chrome profile observed.
+First interactive login required.
+
+## Expected content focus
+
+Standard Chartered's research desk is strongest in:
+- EM Asia macro (China, India, ASEAN — STANC has deep Asia coverage)
+- EM Africa & Middle East macro / sovereign credit
+- EM FX (Asia-EM, Africa-FX)
+- EM Rates (local-currency rates, EM benchmarks)
+- Global commodities (oil, base metals, gold)
+
+Pre-Phase-1 estimate: ~10-30 reports/day (mid-tier EM-focused vendor).
+Confirm against the listing API after Phase 2.
+
+## URL patterns (confirmed from Phase 1 snapshots, 2026-06-03)
+
+| Type | URL template | Example |
+|---|---|---|
+| Portal landing | `https://research.sc.com/research/api/application/static/` | — |
+| Asset-class hub | `/research/api/application/static/{asset_class}` | `/static/economics`, `/static/fx`, `/static/rates`, `/static/commodities`, `/static/credit`, `/static/digitalassets`, `/static/chart-packs` |
+| Investment-theme hub | `/research/api/application/static/investment-theme/{THEME}` | `MACRO_STRAT`, `THEMATIC`, `GEOPOLITICS`, `FLOWS_STRAT`, `ML`, `OFFSHORE_RMB`, `SESG` (Sustainability & ESG) |
+| Region hub | `/research/api/application/static/regions/{region_id}` | `/regions/7326` (Asia), `/regions/9039` (Americas) |
+| Report landing (HTML) | `/research/api/application/static/reports/{report_id}` | `/reports/310026` |
+| **PDF render (DIRECT)** | **`/research/api/application/protected/rp/api/data/render/{doc_id}`** | `/render/310026`, `/render/309775` |
+| Advanced search UI | `/research/api/application/static/advanced-search/?{facets}` | `?assetClasses=Economics`, `?publicationTypes=PODCAST` |
+| Analyst | `/research/api/application/static/the-team/analyst/{analyst_id}` | `/analyst/677` (Eric Robertsen) |
+| Chart pack | `/research/api/application/static/chart-packs/{CODE}` | `/chart-packs/SMEI`, `/RGI`, `/RAI` |
+
+**Key insight**: the report-landing URL (`/static/reports/{id}`) and the
+PDF-render URL (`/protected/rp/api/data/render/{id}`) **share the same
+`{id}` value**. PDF URLs are therefore deterministic from the listing
+response's report id — no per-doc frontmatter call needed (Pattern B
+of Goldman/Nomura).
+
+## Observed taxonomy (from Phase 1 nav + advanced-search facets)
+
+**Top-level asset classes** (from nav + `?assetClasses=...` facet):
+`Economics`, `FX`, `Rates`, `Commodities`, `Credit`, `DigitalAssets`,
+plus chart-packs as a separate hub.
+
+**Investment themes** (from `/investment-theme/{X}` URLs):
+`MACRO_STRAT`, `THEMATIC`, `GEOPOLITICS`, `FLOWS_STRAT`, `ML`,
+`OFFSHORE_RMB`, `SESG`.
+
+**Publication types** (from `?publicationTypes=...` URLs):
+`PODCAST`, `INVITE` confirmed; more enums TBD from Phase 2 API probe.
+
+**Regions** (from snapshot 0012/0013 + email taxonomy):
+- **Asia** — Greater China (CN/HK/TW), Australasia (AU/NZ),
+  South Asia (BD/IN/NP/LK), Southeast Asia (ID/MY/PH/SG/TH/VN),
+  Northeast Asia (JP/MN/KR).
+- **Africa** — Sub-Saharan (AO/BJ/BW/CM/CI/ET/GA/GH/KE/MU/MZ/NA/NG/SN/ZA/TZ/UG/ZM/ZW), MENAP (BH/EG/IQ/JO/KW/LB/MA/OM/PK/QA/SA/TN/TR/AE).
+- **Europe** — CZ/EUR/HU/PL/RU/CH/UK.
+- **Americas** — LatAm (AR/BR/CL/CO/MX/PE), NorAm (CA/US).
+
+**Coverage signal**: STANC's geographic footprint is the deepest
+EM-Africa / South Asia / MENAP coverage of any vendor onboarded
+to date — direct overlap with our target universe.
+
+## Listing API — confirmed 2026-06-03
+
+### Endpoint
+
+```
+POST https://research.sc.com/research/api/common/global/search/newSearch
+```
+
+Pattern: **Lucene-query-string filter** wrapped in JSON POST body —
+analogous to Elasticsearch DSL but with the filter shipped as a single
+flat string field (`filterExpression`). Sort by `publishedDateTime`
+desc, paginate via `continuationMarker`.
+
+### Authentication
+
+Session cookies from the persistent Playwright profile. No CSRF,
+Bearer, or vendor-injected custom header observed. The captured
+request did include a `correlationid: <uuid>` header (per-call,
+auto-generated by the SPA) and an empty `userid: ""` header — likely
+optional, but cheap to send.
+
+### Request body
+
+```json
+{
+  "expression": "*",
+  "filterExpression": "entityType:report AND NOT payload.indexCodes:GRB AND payload.languageCode:(ENG) AND payload.publishedDateTime:[2026-05-27T00:00:00Z TO *]",
+  "resultSetLimit": 30,
+  "sortBy": [{"fieldName": "payload.publishedDateTime", "direction": "Desc"}],
+  "includePayload": true,
+  "dapPolicy": "NextGen"
+}
+```
+
+Filter sub-expressions observed in the SPA's own queries:
+
+| Sub-expression | Meaning |
+|---|---|
+| `entityType:report` | Match reports (other entity types include `confsession`) |
+| `payload.languageCode:(ENG)` | English only |
+| `payload.publishedDateTime:[<since> TO *]` | Date range (ISO 8601) |
+| `NOT payload.indexCodes:GRB` | Drop Global Research Briefing admin posts |
+| `payload.assetClassCodes:ECONOMICS` | Filter by asset class (`FX`, `RATES`, `COMMODITIES`, `CREDIT`, `DIGITALASSETS`) |
+| `payload.publicationType.code:MORN_STD` | Filter by publication type |
+| `payload.reportId:(123 OR 456)` | Lookup specific reports |
+| `NOT payload.publicationType.code:(INVITE OR TOP_WKLY_RDS)` | Drop admin/digest publication types |
+
+**Sort**: `{"fieldName": "payload.publishedDateTime", "direction": "Desc"}` — note `direction` not `ascending` (the contract differs from some Lucene-JSON variants).
+
+**Page size**: SPA uses `resultSetLimit=30`. Max not yet probed — to be tested in Phase 3. Goldman went up to 500; expect similar headroom.
+
+**Pagination**: response includes `continuationMarker` as a three-tuple `[last_ts_ms, sort_position, has_more]` (semantics inferred — to be confirmed during crawler build). Pass the marker back in the next request to continue.
+
+### Response shape
+
+```json
+{
+  "searchId": "<uuid>",
+  "hits": 4099,
+  "count": 4099,
+  "maxScore": 7.579,
+  "results": [
+    {
+      "id": "309932-report$Research-",
+      "md5hash": "2746874507975393653",
+      "entityType": "report",
+      "identifier": ["309932", "report"],
+      "timestamp": 1780318403,
+      "continuationMarker": [1780318018000, 419, false],
+      "description": "{\"html\":\"<abstract-bullets>\"}",
+      "highlights": {},
+      "payload": {
+        "reportId": 309932,
+        "title": "Botswana – Economic outlook in light of recent geopolitical developments (replay)",
+        "publishedDateTime": "2026-06-01T12:46:58.000Z",
+        "languageCode": "ENG",
+        "pageCount": 5,
+        "assetClassCodes": ["ECONOMICS"],
+        "indexCodes": [],
+        "publicationType": {
+          "code": "VIDEO_VIEW",
+          "name": "Video Views",
+          "isAlert": false
+        },
+        "regionCountryIds": [
+          {"id": 7708, "regionsandcountries": {"name": "Botswana", "isRegion": false, ...}},
+          {"id": 9035, "regionsandcountries": {"name": "Africa", "isRegion": true, ...}}
+        ],
+        "materialMentioned": [
+          {
+            "isMaterial": true,
+            "id": 13012,
+            "assetClassCode": "ECONOMICS",
+            "researchobject": {
+              "researchObjectCode": "MACROCOUNTRY",
+              "name": "Botswana Macro",
+              "countryId": 7708,
+              "analystId1": 506, "analystId2": 749, "analystId3": 557,
+              ...
+            }
+          }
+        ],
+        "authors": [
+          {"isPrimary": true, "id": 550, "authors": {"displayName": "Philippe Dauba-Pantanacce", "jobTitle": "Global Head, Geopolitical Analysis, & Senior Economist", ...}},
+          {"isPrimary": false, "id": 749, "authors": {"displayName": "Emmanuel Kwapong, CFA", ...}}
+        ],
+        "abstract": {"html": "Please click below for the replay..."},
+        "abstractFormatted": {"html": "<p>...</p>"},
+        "externalContentUrl": "https://api.sg.kaltura.com/...",  // empty for normal PDFs; populated for video replays
+        "scoopUrl": "",
+        "resources": [{"name": "309932.pdf", "mimeType": "application/pdf"}],
+        "entitlementInclude": ["ECONOMICS"],
+        "entitlementExclude": ["MEDEX"],
+        "restrictedTopicCodes": ["MEDEX"],
+        "relatedReports": [...]
+      }
+    }
+  ],
+  "aggregations": {...},
+  "suggestions": [...]
+}
+```
+
+### Publication type enum (observed in SPA queries)
+
+```
+MORN_STD       Morning standard
+ECON_WKLY      Economics weekly
+YR_AHEAD       Year ahead outlook
+OTG            On The Ground (country brief)
+CRYPTO_ASSETS  Digital assets
+PODCAST        Podcast (drop — audio)
+SPEC_RPT       Special report
+LOC_MKT_CPDM   Local Markets Compendium
+RATES_STD      Rates standard
+GLANCE         At a glance
+GEM_ALT, COMM_ALT, ECON_ALT, CRED_ALT, RATES_ALT, FX_ALT, LOC_MKT_ALT, MAC_STRAT  (alt variants)
+SCAN           Scan
+TOP_WKLY_RDS   Top weekly reads (drop — digest)
+CTRY_BRF       Country brief
+CV_AFXRC       Africa FX coverage
+INVITE         Invite (drop — admin)
+VIDEO_VIEW     Video views (drop — Kaltura)
+```
+
+Drop set proposed for Phase-3 crawler: `(INVITE, PODCAST, VIDEO_VIEW, TOP_WKLY_RDS)` plus any `externalContentUrl != ""`.
+
+### PDF URL
+
+**Deterministic** from `payload.reportId`:
+
+```
+https://research.sc.com/research/api/application/protected/rp/api/data/render/{reportId}
+```
+
+No frontmatter round-trip needed. Confirmed by direct observation in
+report-landing snapshots (the "DOWNLOAD REPORT" button) and in the
+`abstractFormatted.html` of related-report references.
+
+### Pagination + page-size + enum probe (2026-06-03)
+
+**Max page size**: server returns all results with `resultSetLimit≥hits`;
+no silent clamp at 200 / 500 / 1000. **Recommendation**: use 200 (matches
+ANZ, BNP, Barclays, JPM).
+
+**Pagination via continuationMarker**: ⚠️ broken with current handling
+(pages 1/2/3 all returned the same 100 rows). The captured first result
+had `continuationMarker: [last_ts_ms, sort_position, false]` but sending
+this back as the request's `continuationMarker` field is ignored.
+**Not a blocker for daily ingest** (30 days = 123 reports fit one call).
+Backfill-historical pagination is a follow-up TODO.
+
+**Enum coverage** (615 reports scanned, last 30 days):
+
+| Publication type | Count | Action |
+|---|---:|---|
+| `ECON_ALT` | 145 | keep |
+| `MORN_STD` | 110 | keep |
+| `OTG` (On The Ground) | 110 | keep |
+| `GLANCE` | 40 | keep |
+| `CRED_ALT` | 30 | keep |
+| `INVITE` | 25 | **DROP** — event invites |
+| `ACT` | 25 | keep — trade ideas |
+| `ECON_WKLY` | 20 | keep |
+| `TOP_WKLY_RDS` | 20 | **DROP** — link digest |
+| `VIDEO_VIEW` | 15 | **DROP** — Kaltura video |
+| `SMS` (Strategic Markets Strategy) | 15 | keep |
+| `SC_FIRST` | 10 | keep |
+| `CRYPTO_ASSETS` | 10 | keep |
+| `LOC_MKT_ALT`, `FX_ALT` | 10 each | keep |
+| `PODCAST` | 5 | **DROP** — audio |
+| `SOVE_STD`, `RATES_STD`, `RATES_ALT` | 5 each | keep |
+
+Total drops: 65/615 = **10.5%**. Daily volume estimate **~18 net/day**
+after format drops.
+
+| Asset class (multiplicity) | Count |
+|---|---:|
+| `ECONOMICS` | 435 |
+| `RATES` | 300 |
+| `FX` | 295 |
+| `CREDIT` | 115 |
+| `COMMODITIES` | 70 |
+| `DIGITALASSETS` | 20 |
+
+| Research object code (multiplicity) | Count |
+|---|---:|
+| `MACROCOUNTRY` | 635 |
+| `RATESCOUNTRY` | 500 |
+| `COMPANY` | 395 |
+| `COMMODITY` | 330 |
+| `DIGITALASSETS` | 5 |
+
+**`COMPANY` is sovereign-credit issuer, NOT single-name corporate** —
+confirmed 2026-06-03 by sample inspection of all 12 `primary_company`
+reports in the 30-day window (`probe_stanc_company_samples.py`). Every
+one was sovereign credit: ZAMBIN 53 (Zambia), MLB SRILAN 30 (Sri Lanka),
+SOAF/CDI/MOZAM/REPCAM sovereign switches, MOROC FV (Morocco primary),
+UZBEK / Türkiye / Saudi / Mongolia sovereign coverage. STANC uses
+`COMPANY` as the data-model entity type for sovereign bond issuers.
+
+**Implication for the filter**: do NOT drop on `researchObjectCode=COMPANY`.
+Sovereign credit is EM macro/rates/credit and squarely in scope. STANC
+publishes essentially zero single-name corporate research, so no
+single-name drop is needed beyond the existing `relevance.py` defaults
+(which look for equity-asset-class + single ticker — STANC sovereign
+notes don't have either).
+
+| Top regions (top 30) | Count |
+|---|---:|
+| Global | 265 |
+| China | 105 |
+| South Korea / US / India / Asia / Indonesia | 50–55 |
+| Africa / Japan | 40 |
+| Thailand / MENAP | 35 |
+| South Africa / Singapore / UK / Euro area | 30 |
+| Hong Kong / Saudi Arabia | 25 |
+| Australia / Taiwan / Sri Lanka / ASEAN / Malaysia | 20 |
+| Pakistan / Botswana / Zambia / Philippines / LatAm / Colombia / NZ / G10 | 15 |
+
+**52%** of reports anchor to exactly one country (clean country-anchor
+classifier signal).
+
+**Non-PDF flags**:
+- 20/615 (3.3%) have `payload.externalContentUrl != ""` (Kaltura video)
+- 15/615 (2.4%) have `payload.scoopUrl != ""` (non-PDF "Scoop" content)
+- Combined with `VIDEO_VIEW` publication type — drop on
+  `externalContentUrl != ""` is the cleanest cross-cutting signal.
+
+### Cached probe artefacts (do not re-run)
+
+* `playground/research/stanc_explore/listing_apis.json` — listing-API probe response set
+* `playground/research/stanc_explore/listing_apis_top.txt` — ranked summary
+* `playground/research/stanc_explore/newSearch_capture.json` — 36 request/response pairs with full headers, POST bodies, sample first-result payloads
+* `playground/research/stanc_explore/pagination_probe.json` — max page size + pagination 3-page sequence
+* `playground/research/stanc_explore/enum_coverage.json` — 30-day enum tallies (pubtype, asset class, research object code, regions, format flags)
+* `playground/research/stanc_explore/company_samples.json` — primary-material-bucket distribution + sample titles per bucket (confirms `COMPANY` = sovereign issuer)
+
+## Fetch strategy
+
+**Expected: A + B-deterministic** — listing-API firehose with PDF URL
+deterministic from the report id (no frontmatter round-trip). Confirmed
+from snapshot 0014: the report landing page has a `DOWNLOAD REPORT`
+button pointing directly at the `/render/{id}` URL.
+
+PDF fetch should go through the shared `fetch.py` direct path — single
+`ctx.request.get(render_url)` returns `%PDF-...` bytes (to be
+validated in Phase 6 smoke).
+
+## Watermarks / quirks
+
+TBD.
+
+## Daily volume
+
+**Confirmed 2026-06-03 via crawler smoke (28 kept / 7 days):**
+
+| Stage | Value |
+|---|---|
+| Raw discovered (7-day) | 33 reports = ~4.7/day |
+| Drop (INVITE / PODCAST / VIDEO_VIEW / TOP_WKLY_RDS / external content) | 5 / 33 = 15% |
+| **Net per day** | **~4/day** |
+| Further single-name drop | none — `COMPANY` tag = sovereign issuer, kept |
+
+**Context**: STANC is a smaller-volume but deeply EM-focused vendor.
+Comparable to BNP-net (~12/day) and Westpac (~15/day) in our cohort,
+but every report is squarely on-target (EM Asia/Africa/MENAP macro,
+rates, FX, sovereign credit). Quality:volume ratio is very high.
+
+(Earlier estimate of ~18/day was incorrect — derived from a 5-page
+paginated probe where the marker wasn't honoured, so 615 = 5× the
+same 123 unique reports.)
+
+## Phase status
+
+- [x] Phase 0 — Gate check + `vendors.yml` entry (2026-06-03).
+- [x] Phase 1 — Interactive login + 16 snapshots (2026-06-03). No MFA.
+- [x] Phase 2 — Listing API confirmed (2026-06-03). `POST /research/api/common/global/search/newSearch`, Lucene filter expression, sort by `publishedDateTime` desc, deterministic PDF URL. Pagination via `continuationMarker` returns the same page (not yet wired — daily fits in one call).
+- [x] Phase 3 — `crawler_stanc.py` built + smoke-tested (2026-06-03). 28 kept / 7 days = ~4/day net.
+- [x] Phase 4 — `filters/stanc.py` (empty stub) + `classifiers/stanc.py` (Tier-0 from `assetClassCodes`, 80-name country/region map). End-to-end REPL test passed.
+- [x] Phase 5 — Wired into `ingest_today.py` orchestrator + `classifiers/__init__.py` dispatcher.
+- [x] Phase 6a — Migration `075_seed_stanc_dim_vendor.sql` applied 2026-06-03. `dim_vendor` row confirmed.
+- [x] Phase 6b — Limited DB-write smoke (`--limit 2`, embed off) inserted dim_report ids 2384 (CREDIT) + 2385 (MACRO), 33 chunks, 13 tags. PDFs synced to OneDrive. All classifier output populated.
+- [ ] Phase 6c — Full-day embed-on smoke + `smoke_stanc_audit.py` + `smoke_stanc_retrieval.py`.
+- [ ] Phase 7 — Promote in `scrapers/index.md` Vendors table + flip `vendors.yml` to `production`.
+- [ ] Phase 8 — Hard taxonomy probe + tightening (after ≥1 week live).
+- [ ] Phase 3 — Crawler build (`crawler_stanc.py`).
+- [ ] Phase 4 — Discovery filter + classifier.
+- [ ] Phase 5 — Wire into orchestrator (`ingest_today.py`).
+- [ ] Phase 6 — `dim_vendor` seed migration + first smoke run.
+- [ ] Phase 7 — Promote in `scrapers/index.md` table.
+- [ ] Phase 8 — Hard taxonomy probe + structured tightening (after ≥1 week live).
+
+## Last verified
+
+2026-06-03 — Phase 0 setup only; no portal interaction yet.

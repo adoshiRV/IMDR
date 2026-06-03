@@ -49,6 +49,7 @@ gating, phase 2 listing-API discovery, phase 6 smoke runs, etc.) see
 | `ubs` | neo.ubs.com | TBD | not yet built |
 | `socgen` | insight.sgmarkets.com | API `do-search-publications` (POST, skip/take, Bearer auth) on `api-z.sgmarkets.com`; PDFs via `preview/en` → `doc.sgmarkets.com/*.html?sid=…` with per-Playwright-session OIDC handshake (in-session `fetch_pdfs` like Barclays) | live, ~7-8/day net ([details](socgen.md)) |
 | `cacib` | research.ca-cib.com | TBD | not yet built |
+| `stanc` | research.sc.com | Pattern A — `POST /research/api/common/global/search/newSearch` (Lucene `filterExpression`, sort `payload.publishedDateTime` desc, `resultSetLimit=500`); deterministic PDF at `/protected/rp/api/data/render/{reportId}`; session-cookie auth | live, ~4/day net ([details](stanc.md)) |
 | `westpac` | www.westpaciq.com.au | Pattern D (new) — AEM hub HTML with inline per-card JSON; PDF lifted from card `executiveSummary` (`/content/dam/.../*.pdf`), fall back to detail-page regex for Economics stubs | live, ~15/day net ([details](westpac.md)) |
 
 ## Common patterns
@@ -71,6 +72,7 @@ once oldest-in-page < since.
 | bnp | `PUT /contentportal/research-service/v1.1/research_documents` body `{domain:"RESEARCH", languages:["English"], startDate:"now-Nd/d", startIdx, numOfEntries}` | 200 (UI default 48) | ~21 (~12 net after chart-pack drop) |
 | anz | `GET /document_data_tiled_all?param_limit=200&position=N` | 200 | ~20 |
 | jpm | `POST /research/controller/graphql/query-v2` (`operationName=research`, facets DSL `researchQueryNodeChildren`, `sortOrder=PUBLICATION_DATE DESCENDING`); custom `janus_user` header threaded from `IMDR_RESEARCH_JPM_USERNAME` | 100 (tested; UI uses 25) | ~150-220 raw |
+| stanc | `POST /research/api/common/global/search/newSearch` body `{expression:"*", filterExpression:"<Lucene>", resultSetLimit, sortBy:[{fieldName:"payload.publishedDateTime", direction:"Desc"}], includePayload:true, dapPolicy:"NextGen"}` — payload exposes `assetClassCodes[]`, `regionCountryIds[]`, `materialMentioned[].researchObjectCode` (Phase-8 signals all in v1) | 500 (tested up to 1000) | ~4/day net |
 
 Goldman, MS, Nomura and BNP responses include enough metadata (id +
 title + date + authors + classification) that we can build ReportRefs
