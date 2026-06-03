@@ -690,7 +690,12 @@ E. **Fix the non-ASCII title encoding artefact** in the persist path.
    Until root cause is fixed, the post-ingest check
    `title LIKE '%??????%'` acts as a backstop in
    `cleanup_tier1_junk.py`. Same root cause as Barclays' 30 broken
-   titles.
+   titles. **2026-06-03 update**: superseded by the CJK title filter
+   in `filters/jpm.py` (see [Filter tightening](#filter-tightening-2026-06-03))
+   which drops Japanese editions at discovery before they can be
+   mangled by the `varchar(300)` insert. The mojibake backstop
+   regex `\?{2,}` lives in `cleanup_jpm_irrelevant.py` for
+   sweeping historical rows.
 
 ### 7-day smoke + Tier-0 refinements (2026-06-02)
 
@@ -744,3 +749,111 @@ Final 7-day kept distribution:
   FX            59   7%
   STRATEGY      36   4%
   empty          7   1%
+
+## Filter tightening (2026-06-03)
+
+User audit of the live DB (`research.dim_report` 417 JPM rows) surfaced
+three remaining leak buckets the post-promotion filters didn't catch:
+
+1. **Japanese-language editions** — JPM Tokyo publishes Japanese
+   translations of macro/rates/MBS weeklies through the same listing
+   API. The per-doc GraphQL result has no `language` field (the query
+   declares `LANGUAGE` as an aggregation, but per-result selection
+   doesn't pull it). 10 rows landed with mojibake'd titles like
+   `J.P.???? ???????` and `JP???? ??MBS ??????` because the
+   `varchar(300)` title column lost the CJK characters on insert.
+
+2. **Single-industry EQUITY sector wraps** — `_JPM_EQUITY_KEEP`
+   included bare `sector` / `weekly` / `monthly`, letting through:
+   `Trading Company, Energy Sector`, `Electronic Components Sector`,
+   `Australian Banking Sector`, `Auto Sector`, `Consumer Electronics
+   Sector`, `Cosmetics & Personal Care Sector (Japan)`,
+   `Refining Weekly`, `Renewable Diesel Weekly`,
+   `Energy Infrastructure/MLPs Weekly`,
+   `Large Cap Banks: Fed Weekly`,
+   `U.S. Mid- and Small-Cap Banks: M&A Bi-Weekly Report`,
+   `Monthly Auto Review`,
+   `Global Autos: J.P. Morgan Weekly Research & Events`.
+
+3. **JPM CREDIT had no title filter** — only `n_tickers==1` dropped
+   single-name. Single-industry sector wraps with empty `companies[]`
+   slipped through: `Pet Industry Update`, `Mad Men Walking`,
+   `Technology & Telecom Weekly`,
+   `Train of Thought: European Transportation Credit Update`,
+   `Electric Utilities & Power`, `Latin America Oil & Gas`,
+   `Healthcare Pulse Check: Euro Credit Sector Update`,
+   `High Grade Automotive`, `Dubai real estate update`,
+   `Retail and Consumer Earnings Calendar`, `Indika Energy`,
+   `Italmatch`.
+
+### Changes shipped
+
+A. **CJK title drop at discovery** — added `_HAS_CJK` regex to
+   [`filters/jpm.py`](../../../../playground/research/ingest/filters/jpm.py)
+   `should_exclude`, mirroring `filters/db.py`. Covers Hiragana
+   (U+3040-309F), Katakana (U+30A0-30FF), CJK Unified Ideographs
+   (U+4E00-9FFF), CJK Symbols & Punctuation (U+3000-303F). Fires as
+   `cjk:'japanese'` before the GraphQL title reaches insert.
+
+B. **`_JPM_EQUITY_KEEP` tightened** in
+   [`relevance.py`](../../../../playground/research/ingest/relevance.py)
+   — removed bare `sector` / `weekly` / `monthly`; added compound
+   forms `monthly wrap` / `weekly wrap` / `daily wrap` / `dashboard`
+   and the standalone tokens `derivatives` / `asset allocation`.
+   Regional broad-market wraps (e.g. `Asia Pacific Monthly Wrap`)
+   still survive via the `monthly wrap` token.
+
+C. **`_JPM_INDUSTRY_DROP` blocklist** added — explicit single-industry
+   denylist applied to BOTH EQUITY and CREDIT BEFORE the keep
+   allowlist runs. Covers: pet industry, consumer/electronic
+   components, trading company, banking sector, large/small-cap banks,
+   renewable diesel, refining, energy infrastructure / MLPs,
+   automotive / auto sector, cosmetics / personal care, electric
+   utilities & power, technology & telecom, oil & gas, real estate
+   update, healthcare pulse, transportation credit, sector review,
+   services Qn spotlight, high grade automotive, earnings calendar.
+
+D. **`_JPM_CREDIT_KEEP` allowlist** added — default-drop everything
+   in JPM CREDIT outside the allowlist. Keep: daily/weekly/monthly
+   data products, relval / strategy / outlook, securitisation series
+   (CLO/CMBS/CMBX/RMBS/ABS/MBS), credit indices (CDX/CDS/JULI/JACI/
+   EMBI/CEMBI), basis/spread reports, high-yield / high-grade /
+   leveraged-loan / covered-bond product lines, broad chartbooks /
+   monitors, EM credit / EM corporate themes.
+
+### Cleanup of existing rows
+
+[`cleanup_jpm_irrelevant.py`](../../../../playground/research/cleanup_jpm_irrelevant.py)
+replays the new filter rules against `research.dim_report`, removes
+matching rows from MSSQL (FK-ordered: `fact_chunk_embedding` →
+`fact_chunk` → `map_report_*` → `dim_report`), Qdrant
+(`research_*` collections), and the local OneDrive PDF sync. Adds a
+`_MOJIBAKE_CJK = r"\?{2,}"` heuristic for the 10 already-mangled
+historical titles.
+
+**2026-06-03 commit results** (417 → 372 JPM rows, −45):
+
+| Bucket               |  N | Examples                                         |
+|----------------------|---:|--------------------------------------------------|
+| equity:industry      | 14 | Trading Company / Energy Sector, Refining Weekly |
+| credit:industry      | 11 | Pet Industry Update, Tech & Telecom Weekly       |
+| cjk-mojibake         | 10 | `J.P.???? ???????`, `JP???? ??MBS ??????`        |
+| credit:default-drop  |  9 | Italmatch, Indika Energy, Credit Calls           |
+| equity:default-drop  |  1 | EIA Weekly Data (mis-tagged commodity data)      |
+
+DB cascade: 1,679 chunks, 372 `map_report_tag` rows, 1,679 Qdrant
+points (`research_gemini_embedding_2_3072d`), 43 PDFs from local
+OneDrive sync (2 already gone).
+
+### Coverage limits
+
+Title-only — `n_tickers`-based single-name drops aren't replayed from
+DB rows (the classifier output isn't persisted to `dim_report`).
+Future ingest catches those via `relevance.is_single_name_equity` at
+discovery; only title-pattern survivors needed the cleanup sweep.
+
+Server-side language facet on the GraphQL query (instead of post-hoc
+CJK regex) remains a possible upgrade — would require a probe to
+discover the exact `researchQueryNodeChildren` item name JPM accepts
+for language. Low priority: 10 rows in 30 days suggests <0.5%
+catalog leak.

@@ -16,4 +16,5 @@ Administrative, operational, and reference documentation for the IMDR project. D
 - **[updates/](updates/)** — Consumer-impact migration guides (one file per breaking change).
 - **[qdrant/](qdrant/)** — Qdrant vector-DB server: install, lifecycle, config, schema. Peer of MSSQL.
 - **[research/](research/)** — Research-vendor scraper docs and retrieval concepts.
+- **[summaries/](summaries/)** — Deep-dive playbook + output template for thematic topic reports (e.g. ["Korea capital account outflow"](../topics/korea_capital_outflow.md)). Read **before** answering deep-dive requests.
 - **[vendors/](vendors/)** — Vendor framework docs (BBG, Barclays, Citi) and feed-specific notes.
