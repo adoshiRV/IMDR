@@ -10,16 +10,16 @@
 
 ### `[rates].[dim_curve]` - Curve Dimension
 
-Stores the 60 rate curves tracked by IMDR. One row per (ccy, curve) combination. Seeded from `universe/rates.yml`.
+Stores the 65 rate curves tracked by IMDR (43 from `universe/rates.yml` — 16 OIS, 23 SWAP_LIBOR, 4 BASIS_SWAPS — plus BBG cross-currency basis + xccy curves seeded by separate vendor scripts). One row per (ccy, curve) combination.
 
 | Column | Type | Nullable | Description |
 |---|---|---|---|
 | `id` | `INT IDENTITY` | NO | Auto-increment primary key |
 | `ccy` | `VARCHAR(10)` | NO | ISO currency code, e.g. `USD`, `EUR`, `JPY` |
 | `curve` | `VARCHAR(30)` | NO | Curve name, e.g. `SOFR`, `SONIA`, `EURIBOR`, `LIBOR` |
-| `curve_type` | `VARCHAR(10)` | NO | `rfr` (risk-free rate / OIS) or `ibor` (interbank offered rate) |
+| `curve_type` | `VARCHAR(10)` | NO | `rfr` (OIS), `ibor` (IBOR swap), `basis` (tenor or cross-currency basis), `ccs` (cross-currency swap) |
 | `curve_status` | `VARCHAR(10)` | NO | `active`, `ceased`, or `reformed` |
-| `instrument` | `VARCHAR(20)` | NO | Citi instrument type: `ois` or `swap_libor` |
+| `instrument` | `VARCHAR(20)` | NO | `ois` (Citi OIS), `swap_libor` (Citi IBOR swap), `basis_swaps` (Citi tenor basis), `basis_swap` (BBG x-ccy basis), `xccy_swap` (BBG cross-currency swap) |
 | `citi_prefix` | `VARCHAR(60)` | NO | Citi Velocity tag prefix, e.g. `RATES.OIS.USD_SOFR` |
 | `country_id` | `TINYINT` | NO | FK to `[dbo].[dim_country](id)` |
 | `cessation_date` | `DATE` | YES | Date the rate ceased publication (null if active) |
@@ -48,7 +48,7 @@ The primary fact table. Stores rate observations (par rates, spreads, forwards, 
 | `id` | `INT IDENTITY` | NO | Auto-increment primary key |
 | `curve_id` | `INT` | NO | FK to `[rates].[dim_curve](id)` |
 | `ts` | `DATETIMEOFFSET` | NO | Observation timestamp (UTC) |
-| `quote` | `VARCHAR(10)` | NO | Quote type: `par`, `spread`, `fwd`, `bfly`, `ssw`, `rc` |
+| `quote` | `VARCHAR(10)` | NO | Quote type: `par`, `spread`, `fwd`, `bfly`, `ssw`, `rc`, `basis` |
 | `tenor` | `VARCHAR(30)` | NO | Tenor encoding (see below) |
 | `value` | `FLOAT` | NO | Rate value (percentage points, e.g. 3.85 = 3.85%) |
 | `created_at` | `DATETIMEOFFSET` | NO | Row insertion timestamp |
@@ -58,7 +58,7 @@ The primary fact table. Stores rate observations (par rates, spreads, forwards, 
 - `PK` on `id`
 - `UNIQUE (curve_id, ts, quote, tenor)` as `uq_rates_fact_obs`
 - `FK curve_id → [rates].[dim_curve](id)`
-- `CHECK quote IN ('par','spread','fwd','bfly','ssw','rc')` as `ck_rates_quote`
+- `CHECK quote IN ('par','spread','fwd','bfly','ssw','rc','basis')` as `ck_rates_quote`
 
 **Indexes:**
 - `ix_rates_obs_ts` on `(ts DESC)`

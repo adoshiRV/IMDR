@@ -88,6 +88,33 @@ Source of truth: `src/imdr/universe/rates.yml` → `rates.dim_curve` table.
 
 ---
 
+## BASIS_SWAPS Curves (Tenor Basis)
+
+4 curves wired for 3s6s tenor basis. Tag format reverses quote/tenor order:
+`RATES.BASIS_SWAPS.3S6S_BASIS.{CCY}.SPOT.{TENOR}.BASIS_SPREAD` (quote LAST).
+Stored as `quote='basis'` in `fact_observation`. Discovered 2026-06-03 — see
+[Citi exploration](../vendors/citi/exploration/rates_basis_swaps.md) for full
+coverage notes and sample values.
+
+| # | CCY | Curve | Status | History | Notes |
+|---|-----|-------|--------|---------|-------|
+| 1 | AUD | 3S6S_BASIS | active | 2015-01-02 → current | 19 tenors (no 3M) |
+| 2 | EUR | 3S6S_BASIS | active | 2015-01-02 → current | 20 tenors |
+| 3 | GBP | 3S6S_BASIS | ceased (2025-02-21) | 2015-01-01 → 2025-02-21 | Synthetic GBP LIBOR ceased 2024-03-28 |
+| 4 | USD | 3S6S_BASIS | ceased (2025-02-21) | 2015-01-02 → 2025-02-21 | USD LIBOR ceased 2023-06-30 |
+
+### BASIS_SWAPS Maturities (20 tenors)
+
+3M, 6M, 9M, 1Y, 18M, 2Y–12Y, 15Y, 20Y, 25Y, 30Y
+
+### Supported quote types
+
+| Quote | Citi Tag | Description |
+|-------|----------|-------------|
+| **basis** | BASIS_SPREAD | Tenor basis spread in bps |
+
+---
+
 ## Transition Timeline
 
 ```

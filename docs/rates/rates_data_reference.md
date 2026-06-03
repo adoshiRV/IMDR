@@ -1,10 +1,10 @@
 # Rates Data — Consumer Reference
 
-Last updated: 2026-05-14
+Last updated: 2026-06-03
 
 ## What's in this domain
 
-The rates domain holds four separate datasets. **Swap curves and spreads** (`rates.fact_observation`) cover 60 curves across 26+ currencies — OIS (RFR) and IBOR/SWAP_LIBOR instruments — with par rates, forwards, spreads, butterflies, roll-carry, and swap spreads; sourced from Citi Velocity daily, with history from 2009-08-10 (~19.8M rows). **Swaption ATM vol surfaces** (`rates.fact_swaption_vol`) cover 11 currencies in a 17-expiry × 15-swap-tenor grid across multiple vol metrics (BLACK, NORMAL, FWDPREMIUM, realized, vol-ratio); sourced from Citi Velocity daily from 2005-01-03 (~6.7M rows). **Swaption skew** (`rates.fact_swaption_skew`) covers USD and JPY at 12 strike offsets from ATM for a 3M/6M/9M/1Y expiry × 1Y/2Y/5Y/10Y swap tenor grid; sourced from Barclays and updated by automated email-download; history from 2004-11-30 (~1.4M rows). **Central bank policy rates** (`rates.fact_bench_rates`) hold 8 CB rate series from Citi Velocity from 2000-01-03 (~52K rows).
+The rates domain holds four separate datasets. **Swap curves and spreads** (`rates.fact_observation`) cover 65 curves across 26+ currencies — OIS (RFR), IBOR/SWAP_LIBOR, Citi tenor basis (3s6s), and BBG cross-currency basis instruments — with par rates, forwards, spreads, butterflies, roll-carry, swap spreads, and basis spreads; sourced from Citi Velocity daily, with history from 2009-08-10 (~20M+ rows). **Swaption ATM vol surfaces** (`rates.fact_swaption_vol`) cover 11 currencies in a 17-expiry × 15-swap-tenor grid across multiple vol metrics (BLACK, NORMAL, FWDPREMIUM, realized, vol-ratio); sourced from Citi Velocity daily from 2005-01-03 (~6.7M rows). **Swaption skew** (`rates.fact_swaption_skew`) covers USD and JPY at 12 strike offsets from ATM for a 3M/6M/9M/1Y expiry × 1Y/2Y/5Y/10Y swap tenor grid; sourced from Barclays and updated by automated email-download; history from 2004-11-30 (~1.4M rows). **Central bank policy rates** (`rates.fact_bench_rates`) hold 8 CB rate series from Citi Velocity from 2000-01-03 (~52K rows).
 
 All four datasets use daily granularity and obs_date-keyed schemas. Each has its own dimension table (dim_curve, dim_vol_surface, dim_skew_surface, dim_central_bank) that you must join to resolve human-readable labels — the fact tables carry integer FKs only. Swaption skew is Barclays-sourced and updates on a different schedule from the Citi feeds; it may lag by days if the email download fails.
 
@@ -14,14 +14,15 @@ All four datasets use daily granularity and obs_date-keyed schemas. Each has its
 
 Universe defined in [`src/imdr/universe/rates.yml`](../../src/imdr/universe/rates.yml).
 
-**60 curves in dim_curve** (26 currencies), split by instrument type:
+**65 curves in dim_curve** (26 currencies), split by instrument type:
 
 | curve_type | instrument | Example curves | Status |
 |---|---|---|---|
 | rfr | ois | SOFR, SONIA, EUROSTR, EONIA, TONAR, SARON, AONIA, NZIONA, CORRA, NOWA, STINA, SORA, THOR, MIBOR, SHIR, FEDFUND/FEDFUNDS | Active (EONIA ceased) |
 | ibor | swap_libor | LIBOR, EURIBOR, GBP_LIBOR, JPY_LIBOR, CHF_LIBOR, BBSW, BKBM, CDOR, NIBOR, STIBOR, SOR, THBFIX, CNH_HIBOR, SHIBOR, NDIRS, HIBOR, JIBOR, MIFOR, CD, KLIBOR, PHIREF, TAIBOR, VND_REF | Mixed — some ceased |
 | ccs | xccy_swap | CCS_VS_SOFR (CNH) | Active |
-| basis | basis_swap | BASIS_SHIR_VS_SOFR (ILS), BASIS_SOR_VS_SOFR (SGD) | Active |
+| basis | basis_swap | BASIS_SHIR_VS_SOFR (ILS), BASIS_SOR_VS_SOFR (SGD) | BBG cross-currency basis |
+| basis | basis_swaps | 3S6S_BASIS for EUR/AUD (active) and USD/GBP (ceased 2025-02-21) | Citi tenor basis, 20 tenors |
 
 **Quote types:**
 
@@ -33,9 +34,9 @@ Universe defined in [`src/imdr/universe/rates.yml`](../../src/imdr/universe/rate
 | `spread` | Curve spread (bp) | Two-leg: `2ys10ys` | -35.0 |
 | `fwd` | Forward starting rate (%) | Two-leg: `5ys5ys` | 4.20 |
 | `bfly` | Butterfly (bp) | Three-leg: `2ys5ys10ys` | -5.0 |
-| `basis` | Cross-currency basis (bp) | Single or two-leg | -25.0 |
+| `basis` | Cross-currency basis OR tenor basis (bp) | Single (`5Y`) or two-leg | -25.0 |
 
-**Maturities:** OIS curves have up to 44 tenors (1D through 50Y); IBOR curves have up to 36 tenors (1W through 50Y).
+**Maturities:** OIS curves have up to 44 tenors (1D through 50Y); IBOR curves have up to 36 tenors (1W through 50Y); BASIS_SWAPS curves have 20 tenors (3M through 30Y; AUD missing 3M).
 
 - Date range: 2009-08-10 to 2026-05-13
 - Update cadence: DAILY (Citi EOD), HOURLY (a separate hourly runner samples ~16 curves during market hours)

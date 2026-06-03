@@ -29,7 +29,7 @@ For pipeline operations (setup, running, troubleshooting), see [`rates_operation
 | Module | Purpose |
 |---|---|
 | `src/imdr/connectors/citi_velocity.py` | `CitiVelocityClient` — httpx client for all 5 Citi API endpoints, auto-refreshing OAuth2 token |
-| `src/imdr/universe/rates.py` + `rates.yml` | Universe config: 39 curves, 22 currencies, maturities, instruments, benchmarks, expected ranges |
+| `src/imdr/universe/rates.py` + `rates.yml` | Universe config: 43 curves (16 OIS + 23 SWAP_LIBOR + 4 BASIS_SWAPS), 22 currencies, maturities, instruments, benchmarks, expected ranges |
 | `src/imdr/models/rates.py` | SQLAlchemy ORM: `RatesCurve`, `RatesObservation`, `RatesCacheEmptyCombo` (reserved for future DB cache) |
 | `src/imdr/schemas/rates.py` | Pydantic schemas: `RatesCurveCreate`, `RatesObservationCreate` |
 | `src/imdr/healthchecks/quality.py` | `SymbolRangeCheck` — per-quote-type range validation (shared with FX) |
@@ -100,6 +100,14 @@ python -m scripts.rates.citi.rates_citi_live --quotes par,spread,fwd,bfly
 - Empty combo cache: skips known-empty `(ccy, curve, quote)` combos to avoid wasted API calls. Use `--no-cache` to force-retry all
 - RunReport JSONL: `{run_log_dir}/rates/fact_observation/rates_citi_live_{YYYYMMDD}.jsonl`
 - Called by `scripts/imdr_daily.py` orchestrator
+
+### Daily EOD — `scripts/rates/citi/rates_basis_swaps_citi_live.py`
+
+Sibling daily runner for tenor-basis curves. Pulls only the `basis_swaps`-instrument curves with `status != ceased` (EUR + AUD 3s6s), quote `basis` only, with a 5-trading-day lookback. Registered in `imdr_daily.py` at `estimated_tags: 40`. See [`vendors/citi/exploration/rates_basis_swaps.md`](../vendors/citi/exploration/rates_basis_swaps.md).
+
+### Historical Backfill — `scripts/rates/citi/rates_basis_swaps_citi_historical.py`
+
+Multi-year backfill for all 4 basis-swap curves (incl. ceased USD/GBP for their 2015→2025-02 history). Defaults `USE_HOURLY_CREDS=True` to dodge the daily creds' per-tag 10-call/24h cap when chunking ≥10 years.
 
 ### Historical Backfill — `scripts/rates/citi/rates_citi_historical.py`
 
@@ -241,6 +249,17 @@ RATES.SWAP_LIBOR.{CCY}.{QUOTE_TYPE}.{MATURITY}
 
 No index component. Special case: `CNY_NDIRS` (underscore in currency).
 
+### BASIS_SWAPS Tags
+
+```
+RATES.BASIS_SWAPS.{BASIS}.{CCY}.{START}.{TENOR}.{QUOTE}
+```
+
+Quote is **LAST**, not after the prefix — driven by `instruments.basis_swaps.tag_format: "tenor_first"` in rates.yml.
+
+Example: `RATES.BASIS_SWAPS.3S6S_BASIS.AUD.SPOT.10Y.BASIS_SPREAD` — AUD 3s6s 10Y spread.
+Full exploration: [`vendors/citi/exploration/rates_basis_swaps.md`](../vendors/citi/exploration/rates_basis_swaps.md).
+
 ---
 
 ## Quote Types
@@ -253,6 +272,9 @@ No index component. Special case: `CNY_NDIRS` (underscore in currency).
 | `spread` | `CURVES` | Curve spread (e.g. 2s10s) | 2-tenor: `2ys10ys` | -0.50% |
 | `fwd` | `FWD` | Forward starting swap | 2-tenor: `5ys5ys` | 4.10% |
 | `bfly` | `BFLY` | Butterfly | 3-tenor: `2ys5ys10ys` | 0.12% |
+| `basis` | `BASIS_SPREAD` | Tenor basis (3s6s) / x-ccy basis | Single: `10Y` | 6.88 bps |
+
+`basis` is shared between Citi tenor-basis (via the `basis_swaps` instrument) and BBG cross-currency basis (`extractors_bbg.py`); curve identity disambiguates.
 
 ---
 
@@ -318,15 +340,17 @@ df = read(ccy="USD", annotate_benchmark=True)
 
 ### Coverage
 
-**39 curves** across **22 currencies**, split by type:
+**43 curves** across **22 currencies**, split by instrument:
 
 - **RFR (OIS):** 16 curves — SOFR, FEDFUND, EUROSTR, EONIA, SONIA, TONAR (x3), SARON, AONIA, NZIONA, CORRA, NOWA, STINA, SORA, THOR
 - **IBOR (SWAP_LIBOR):** 23 curves — LIBOR, EURIBOR, GBP_LIBOR, JPY_LIBOR, CHF_LIBOR, BBSW, BKBM, CDOR, NIBOR, STIBOR, SOR, THBFIX, CNH_HIBOR, SHIBOR, NDIRS, HIBOR, JIBOR, MIFOR, CD, KLIBOR, PHIREF, TAIBOR, VND_REF
+- **Basis (BASIS_SWAPS):** 4 curves — 3S6S_BASIS for USD/EUR/GBP/AUD. USD + GBP wired as `ceased` (cessation 2025-02-21 post-LIBOR); EUR + AUD active.
 
 ### Maturities
 
 - **OIS:** 44 tenors — 1D, 1W, 2W, 3W, 1M–11M, 1Y, 15M, 18M, 21M, 2Y–20Y, 25Y, 30Y, 35Y, 40Y, 45Y, 50Y
 - **SWAP_LIBOR:** 36 tenors — 1W, 1M–11M, 1Y–20Y, 25Y, 30Y, 40Y, 50Y
+- **BASIS_SWAPS:** 20 tenors — 3M, 6M, 9M, 1Y, 18M, 2Y–12Y, 15Y, 20Y, 25Y, 30Y (AUD missing 3M)
 
 ### Benchmark Transitions
 
