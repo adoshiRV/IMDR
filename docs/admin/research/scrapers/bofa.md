@@ -241,7 +241,47 @@ form actually submits, so a naive Playwright click times out. Worth
 re-investigating in Phase 8 if per-hub walking becomes a volume
 bottleneck.
 
-## Fetch strategy
+## Fetch strategy — REVISED (2026-06-04)
+
+**Direct GET on the `pdfResourceUrl` endpoint** — the symmetric
+counterpart to `htmlResourceUrl` discovered after the initial probe.
+`pdfResourceUrl` resolves to **`research1.ml.com/C?q=<token>&e=<urlenc-email>&h=<hash>`** which returns `application/pdf` bytes via a single
+authenticated GET. The HMAC `h=` parameter self-authenticates the
+URL — no cookies, no SAML handshake required (verified by fetching
+from a clean unauthenticated context).
+
+Implementation: [`fetch_bofa.py`](../../../../playground/research/ingest/fetch_bofa.py)
+exposes `fetch_pdf(url, profile_dir) → bytes` with the same signature
+as `fetch.py`'s standard fetcher. `pipeline.py` dispatches by URL host
+to route `research1.ml.com` / `rsch.baml.com` URLs through this
+vendor-specific fetcher.
+
+### Expired-report interstitial
+
+For older reports (publication date > ~6 months back), the first GET
+returns a ~2KB ASP.NET interstitial page with a "Proceed" button:
+
+```html
+<form method="post" action="./?q=<token>&e=<email>&h=<hash>">
+  <input type="hidden" name="__VIEWSTATE" value="..." />
+  <input type="hidden" name="__VIEWSTATEGENERATOR" value="..." />
+  <input type="hidden" name="__EVENTVALIDATION" value="..." />
+  <input type="submit" name="Proceed" value="Proceed" />
+</form>
+```
+
+`fetch_bofa.py` parses the form fields and POSTs back to the
+urljoin'd action URL (which collapses to `/?q=...` — the form action
+`./?q=...` resolves to the parent path because Liferay treats `/C`
+as a file, not a directory). The Proceed POST returns a meta-refresh
+to `https://research1.ml.com/C` (no query); after the session cookie
+is set, re-fetching the original `/C?q=...` URL returns the PDF.
+
+### Known failure mode
+
+A small number of tiles surface a variant URL pattern **`research1.ml.com/C/?q=<token>...`** (note the trailing slash before `?`). These return non-PDF HTML even after the Proceed flow and aren't currently recoverable. Empirically these correspond to theme / strategy reports with no PDF rendition. They fail gracefully (one `FAIL` line in the run log) and are dropped from ingest — investigate in Phase 8 if volume is material.
+
+## Fetch strategy — historical (2026-06-03 probe, superseded)
 
 **C. Viewer redirect chain (SAML autopost)** — the resolved signed
 URL on `rsch.baml.com` does NOT serve PDF bytes directly. It goes
@@ -316,7 +356,16 @@ TBD — confirm against 24h of clean ingest after Phase 6 smoke.
 - [x] Phase 2 — 23-hub probe complete (2026-06-03): 256 tiles, 154 series. Per-hub HTML scrape chosen over Advanced Search (latter has a JS-validator submit that requires a force-click probe).
 - [x] Phase 2.5 — URL resolver pattern locked (2026-06-03): `htmlResourceUrl` template + `pidvalue` substitution → POST → signed `rsch.baml.com/r?q=...`. Validated end-to-end at `test_bofa_resolver.py`.
 - [x] Phase 2.6 — PDF fetch identified as SAML autopost (2026-06-03): must use Playwright `page.goto()` for the cross-domain `rsch.baml.com/acs` handshake; subsequent fetches can reuse the session cookie. ANZ-style.
-- [ ] Phase 3 — Crawler build (`crawler_bofa.py` + `fetch_bofa.py`).
+- [x] Phase 2.7 — **PDF endpoint corrected** (2026-06-04): the `htmlResourceUrl` path serves HTML viewer pages (SAML autopost). The symmetric `pdfResourceUrl` resolves to **`research1.ml.com/C?q=<token>&e=<email>&h=<hash>`** which returns `application/pdf` bytes via a single GET — **self-authenticating via HMAC**, no SAML, no cookies required (verified by fetching from a clean unauthenticated context).
+- [x] Phase 3 — `crawler_bofa.py` + `fetch_bofa.py` + `filters/bofa.py` + `classifiers/bofa.py` built (2026-06-04). 22 production hubs walked, tile-level 3-stage drop (admin / hub-blanket / series-regex single-name / MBS data-table), URL resolution via `pdfResourceUrl` POST → `research1.ml.com` PDF endpoint.
+- [x] Phase 3.5 — 2-hub smoke (economics_overview + credit_em_corporate, 2026-06-04): 27 parsed → 4 dropped (single-name corp) → 22 kept → 100% URL resolution.
+- [x] Phase 3.6 — Deep probes A+B+C+D (2026-06-04): confirmed per-tile has no hidden structured signals (no `data-*` attrs), discovered audio/email sibling ResourceUrls, Advanced Search firehose not viable.
+- [x] Phase 4 — Filter + classifier wired + registered in `classifiers/__init__.py` + `canonical.VENDOR_DISPLAY`.
+- [x] Phase 5 — Orchestrator wired: `bofa` registered in `_load_vendor_registry()`; `pipeline.fetch_pdf` dispatches by URL host (research1.ml.com / rsch.baml.com → `fetch_bofa.fetch_pdf`).
+- [x] Phase 6 — Migration `076_seed_bofa_dim_vendor.sql` applied 2026-06-04. First DB-write smoke: 2 reports inserted (ids 3134/3135), 22 chunks, 9 tag rows.
+- [ ] Phase 6c — Full-day embed-on smoke + retrieval check.
+- [ ] Phase 7 — Promote in `scrapers/index.md` + flip `vendors.yml` to `production`.
+- [ ] Phase 8 — Hard-taxonomy probe + tightening (after ≥1 week live).
 - [ ] Phase 4 — Discovery filter + classifier.
 - [ ] Phase 5 — Wire into orchestrator (`ingest_today.py`).
 - [ ] Phase 6 — `dim_vendor` seed migration + first smoke run.
