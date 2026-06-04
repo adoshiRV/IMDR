@@ -124,12 +124,27 @@ It replays the current discovery filter against every persisted title
 in `dim_report` and removes any rows the filter would now reject —
 across the DB, Qdrant, and OneDrive in one transaction.
 
+## Post-ingest `[FAIL]` modes
+
+Per-report `[FAIL]` lines come from the writer in
+[`playground/research/ingest/db.py`](../../../playground/research/ingest/db.py).
+The vendor crawler and classifier already succeeded — the error is
+inside the DB transaction that materialises the report row, chunk rows,
+and tag-map rows.
+
+| Failure | Trigger | Fix |
+|---------|---------|-----|
+| `IntegrityError: uq_research_map_report_tag` (duplicate `(report_id, tag_id)`) | The classifier emitted two `(category, value)` tag pairs that resolved to the **same** `research.dim_tag.id`. `dim_tag` is unique on the `tag` value alone (not on `(category, value)`), so two distinct input categories sharing a value — or two values whose 50-char truncation collides — return the same id. | Fixed in `_bulk_insert_report_tags` by deduping on resolved `tag_id` (not just on input `(category, value)`). If you see this re-emerge, audit the upsert path for any caller that bypasses the dedupe. |
+| `FetchError: HTTP 404 (session likely expired ...)` on `marquee.gs.com/content/markets/...pdf` (Goldman) | The Goldman API populates `downloadPath` with `/content/markets/.../<uuid>.pdf` URLs for MarketView audio/video/blog assets that have no PDF rendition. The fast-path GET hits a hard 404 with `<title>404</title>`. The "session likely expired" hint in the message is misleading for this case — see `probe_goldman_markets_pdf.py`. | Fixed in `_derive_pdf_url` ([crawler_goldman.py](../../../playground/research/ingest/crawler_goldman.py)) by gating the `downloadPath` branch behind `_PDF_PATH_PREFIX = "/content/research/en/reports/"` so these dead URLs are dropped at discovery. |
+| `FetchError: Couldn't extract a PDF URL from viewer page` on HSBC Podcast / Video titles | HSBC Reach lists podcast and video assets in the same feed as PDF research; their viewer URLs (`/R/10/<id>`) have no `.pdf` redirect. | Title-prefix filter at [`filters/hsbc.py`](../../../playground/research/ingest/filters/hsbc.py) excludes `"podcast:"` and `"video:"` at discovery. New non-PDF media types should be added there alongside the existing `invite:` / `webcast:` / `conference call:` / `expert access:` prefixes. |
+| `FetchError: Couldn't extract a PDF URL ... Viewer URL was: about:blank` | Playwright finished navigation before the viewer page's redirect fired; the page object's URL is still `about:blank` when we read it. | Transient — re-runs usually pick it up. If a specific report fails repeatedly, raise the post-navigation settle wait in the affected crawler's viewer-redirect helper. |
+
 ## Per-vendor quirks
 
 - **ANZ** — SingleTrack CMS's tile API returns `{"content":[], "total_count":0}` with a valid session cookie if the SPA hasn't been visited recently. The crawler runs `page.goto(/all_research)` first to warm the session; if it skips that step you get `empty_window` despite healthy auth. Diagnosed via `playground/research/probe_anz_status.py` on 2026-05-24.
-- **Goldman** — per-PDF fetch may return HTTP 401 long after the listing API was happy. Those surface as `[FAIL] ... FetchError: GET ... returned HTTP 401` per-report — not as a category here. Same fix applies (re-run `explore_goldman.py`).
+- **Goldman** — per-PDF fetch may return HTTP 401 long after the listing API was happy. Those surface as `[FAIL] ... FetchError: GET ... returned HTTP 401` per-report — not as a category here. Same fix applies (re-run `explore_goldman.py`). A separate failure mode is the API populating `downloadPath` with dead `/content/markets/...pdf` URLs — see the post-ingest `[FAIL]` table above. Diagnostic harness: `playground/research/probe_goldman_markets_pdf.py` (tries fast-path GET + viewer-redirect against a sample of the failing URLs; both return `text/html` 404).
 - **Barclays** — has its own re-login retry loop inside `_fetch_json_with_relogin` / `_download_pdf_with_relogin`. You'll see `[WARN] barclays.json_fetch:...: auth_expired ... — re-logging in` followed by either success or a final `[ERR]`. The retry is silent in the sense of "no operator action needed" but the diagnostic line is still printed.
-- **HSBC** — uses `page.evaluate` (DOM JS) instead of direct HTTP. Failures surface as `navigation_timeout` or `listing_layout_changed`, not as HTTP status categories. If the vendor changes the JS function name (`rcRedisplayReportsTab`), the crawler can't paginate.
+- **HSBC** — uses `page.evaluate` (DOM JS) instead of direct HTTP. Failures surface as `navigation_timeout` or `listing_layout_changed`, not as HTTP status categories. If the vendor changes the JS function name (`rcRedisplayReportsTab`), the crawler can't paginate. The listing also mixes podcast/video assets in with PDF research; those are dropped at discovery via title-prefix filter — see [`filters/hsbc.py`](../../../playground/research/ingest/filters/hsbc.py).
 - **MS** — frontmatter resolution is per-UUID. Per-UUID failures print one `[ERR] ms.frontmatter_uuid=...` line each but don't abort the whole vendor — that report is just skipped from the ingest queue. Watch the funnel `after_relevance_filter` count vs the original discovered to spot if too many were dropped at the frontmatter step.
 
 ## Files
