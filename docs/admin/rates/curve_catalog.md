@@ -88,30 +88,61 @@ Source of truth: `src/imdr/universe/rates.yml` → `rates.dim_curve` table.
 
 ---
 
-## BASIS_SWAPS Curves (Tenor Basis)
+## BASIS_SWAPS Curves
 
-4 curves wired for 3s6s tenor basis. Tag format reverses quote/tenor order:
-`RATES.BASIS_SWAPS.3S6S_BASIS.{CCY}.SPOT.{TENOR}.BASIS_SPREAD` (quote LAST).
-Stored as `quote='basis'` in `fact_observation`. Discovered 2026-06-03 — see
-[Citi exploration](../vendors/citi/exploration/rates_basis_swaps.md) for full
-coverage notes and sample values.
+5 curves wired across two families: tenor basis (3s6s) and funding-stress
+bases (RFR vs IBOR, RFR vs RFR). Tag format reverses quote/tenor order:
+`RATES.BASIS_SWAPS.{BASE}.{CCY}.SPOT.{TENOR}.BASIS_SPREAD` (quote LAST).
+Stored as `quote='basis'` in `fact_observation`. See
+[Citi exploration](../vendors/citi/exploration/rates_basis_swaps.md) for the
+probe verdict matrix and per-base coverage.
 
-| # | CCY | Curve | Status | History | Notes |
-|---|-----|-------|--------|---------|-------|
-| 1 | AUD | 3S6S_BASIS | active | 2015-01-02 → current | 19 tenors (no 3M) |
-| 2 | EUR | 3S6S_BASIS | active | 2015-01-02 → current | 20 tenors |
-| 3 | GBP | 3S6S_BASIS | ceased (2025-02-21) | 2015-01-01 → 2025-02-21 | Synthetic GBP LIBOR ceased 2024-03-28 |
-| 4 | USD | 3S6S_BASIS | ceased (2025-02-21) | 2015-01-02 → 2025-02-21 | USD LIBOR ceased 2023-06-30 |
+| # | CCY | Curve | Family | Notes |
+|---|-----|-------|--------|-------|
+| 1 | EUR | 3S6S_BASIS | Tenor basis | 3M vs 6M EURIBOR — 20 tenors |
+| 2 | AUD | 3S6S_BASIS | Tenor basis | 3M vs 6M BBSW — 19 tenors (no 3M) |
+| 3 | USD | SOFR_FEDFUND_BASIS | Funding stress | SOFR vs Fed Funds — US repo-vs-unsecured (modern LIBOR-OIS equivalent); 25 tags published, standard grid pulls 20 |
+| 4 | EUR | EUROSTR_EURIBOR_BASIS | Funding stress | ESTR vs EURIBOR — modern EUR RFR-vs-IBOR funding gauge; 25 tags published, standard grid pulls 20 |
+| 5 | AUD | 3S_OIS_BASIS | Funding stress | 3M BBSW vs AONIA OIS — AUD funding stress; 21 tenors |
+
+### Dropped curves (2026-06-05)
+
+The following catalog entries were dropped from the universe because Citi
+no longer returns data for them post-LIBOR cessation, even though tags
+still resolve in the taglisting endpoint:
+
+| CCY | Curve | Why |
+|-----|-------|-----|
+| USD | 3S6S_BASIS | USD LIBOR ceased 2023-06-30; last Citi value 2025-02-21 |
+| GBP | 3S6S_BASIS | Synthetic GBP LIBOR ceased 2024-03-28; last Citi value 2025-02-21 |
+
+Their historical observations (2015–2025-02) remain in `fact_observation`
+under the curve IDs that existed before the drop; only future ingest stops.
+
+### Untenable bases (probed 2026-06-05, no data)
+
+Tag listings exist but Citi returns zero values:
+
+- `3S_OIS_BASIS` USD / EUR / GBP
+- `SOFR_LIBOR_BASIS` USD
+- `3S1S_BASIS` USD / GBP
+
+`3S1S_BASIS` EUR + AUD return data but are tenor microstructure (low macro
+value) — not wired.
 
 ### BASIS_SWAPS Maturities (20 tenors)
 
 3M, 6M, 9M, 1Y, 18M, 2Y–12Y, 15Y, 20Y, 25Y, 30Y
 
+SOFR_FEDFUND_BASIS and EUROSTR_EURIBOR_BASIS publish 5 extra tenors
+(13Y, 14Y, 16Y, 17Y, 19Y) that the standard grid skips — accepted on
+purpose to keep the tag budget tight.
+
 ### Supported quote types
 
 | Quote | Citi Tag | Description |
 |-------|----------|-------------|
-| **basis** | BASIS_SPREAD | Tenor basis spread in bps |
+| **basis** | BASIS_SPREAD | Single-leg basis spread in bps (positive = floating leg of named base pays more) |
 
 ---
 

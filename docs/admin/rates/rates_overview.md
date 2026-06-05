@@ -29,7 +29,7 @@ For pipeline operations (setup, running, troubleshooting), see [`rates_operation
 | Module | Purpose |
 |---|---|
 | `src/imdr/connectors/citi_velocity.py` | `CitiVelocityClient` — httpx client for all 5 Citi API endpoints, auto-refreshing OAuth2 token |
-| `src/imdr/universe/rates.py` + `rates.yml` | Universe config: 43 curves (16 OIS + 23 SWAP_LIBOR + 4 BASIS_SWAPS), 22 currencies, maturities, instruments, benchmarks, expected ranges |
+| `src/imdr/universe/rates.py` + `rates.yml` | Universe config: 44 curves (16 OIS + 23 SWAP_LIBOR + 5 BASIS_SWAPS), 22 currencies, maturities, instruments, benchmarks, expected ranges |
 | `src/imdr/models/rates.py` | SQLAlchemy ORM: `RatesCurve`, `RatesObservation`, `RatesCacheEmptyCombo` (reserved for future DB cache) |
 | `src/imdr/schemas/rates.py` | Pydantic schemas: `RatesCurveCreate`, `RatesObservationCreate` |
 | `src/imdr/healthchecks/quality.py` | `SymbolRangeCheck` — per-quote-type range validation (shared with FX) |
@@ -103,11 +103,28 @@ python -m scripts.rates.citi.rates_citi_live --quotes par,spread,fwd,bfly
 
 ### Daily EOD — `scripts/rates/citi/rates_basis_swaps_citi_live.py`
 
-Sibling daily runner for tenor-basis curves. Pulls only the `basis_swaps`-instrument curves with `status != ceased` (EUR + AUD 3s6s), quote `basis` only, with a 5-trading-day lookback. Registered in `imdr_daily.py` at `estimated_tags: 40`. See [`vendors/citi/exploration/rates_basis_swaps.md`](../vendors/citi/exploration/rates_basis_swaps.md).
+Sibling daily runner for the `basis_swaps` instrument family — 5 active
+curves spanning tenor basis and funding-stress bases:
+
+- EUR / AUD `3S6S_BASIS` (tenor basis)
+- USD `SOFR_FEDFUND_BASIS` (US repo-vs-unsecured funding stress)
+- EUR `EUROSTR_EURIBOR_BASIS` (modern EUR RFR-vs-IBOR funding stress)
+- AUD `3S_OIS_BASIS` (AUD BBSW-vs-OIS funding stress)
+
+Quote `basis` only, 5-trading-day lookback. Registered in `imdr_daily.py`
+at `estimated_tags: 100` (5 curves × 20-tenor standard grid). Subject line
+is `[IMDR] Rates Basis Daily Ingest {OK|ERROR}` so it's visually distinct
+from the regular rates ingest in the inbox. See
+[`vendors/citi/exploration/rates_basis_swaps.md`](../vendors/citi/exploration/rates_basis_swaps.md)
+for the probe verdict matrix that drove the cohort.
 
 ### Historical Backfill — `scripts/rates/citi/rates_basis_swaps_citi_historical.py`
 
-Multi-year backfill for all 4 basis-swap curves (incl. ceased USD/GBP for their 2015→2025-02 history). Defaults `USE_HOURLY_CREDS=True` to dodge the daily creds' per-tag 10-call/24h cap when chunking ≥10 years.
+Multi-year backfill for the basis-swap curves. Originally covered the
+4-curve 3s6s set (incl. ceased USD/GBP for their 2015→2025-02 history);
+after the 2026-06-05 cohort change the active universe is 5 curves (the
+2 surviving 3s6s + 3 funding-stress bases). Defaults `USE_HOURLY_CREDS=True`
+to dodge the daily creds' per-tag 10-call/24h cap when chunking ≥10 years.
 
 ### Historical Backfill — `scripts/rates/citi/rates_citi_historical.py`
 
@@ -340,11 +357,11 @@ df = read(ccy="USD", annotate_benchmark=True)
 
 ### Coverage
 
-**43 curves** across **22 currencies**, split by instrument:
+**44 curves** across **22 currencies**, split by instrument:
 
 - **RFR (OIS):** 16 curves — SOFR, FEDFUND, EUROSTR, EONIA, SONIA, TONAR (x3), SARON, AONIA, NZIONA, CORRA, NOWA, STINA, SORA, THOR
 - **IBOR (SWAP_LIBOR):** 23 curves — LIBOR, EURIBOR, GBP_LIBOR, JPY_LIBOR, CHF_LIBOR, BBSW, BKBM, CDOR, NIBOR, STIBOR, SOR, THBFIX, CNH_HIBOR, SHIBOR, NDIRS, HIBOR, JIBOR, MIFOR, CD, KLIBOR, PHIREF, TAIBOR, VND_REF
-- **Basis (BASIS_SWAPS):** 4 curves — 3S6S_BASIS for USD/EUR/GBP/AUD. USD + GBP wired as `ceased` (cessation 2025-02-21 post-LIBOR); EUR + AUD active.
+- **Basis (BASIS_SWAPS):** 5 curves — EUR/AUD `3S6S_BASIS` (tenor basis), USD `SOFR_FEDFUND_BASIS`, EUR `EUROSTR_EURIBOR_BASIS`, AUD `3S_OIS_BASIS` (the latter three are funding-stress bases added 2026-06-05; the historic USD/GBP 3s6s entries were dropped in the same change — Citi stopped publishing values post-LIBOR even though catalog tags persist).
 
 ### Maturities
 

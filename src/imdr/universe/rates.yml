@@ -161,6 +161,31 @@ maturities:
     - "40Y"
     - "50Y"
 
+  # Tenor basis swaps (e.g. 3s6s). Per-ccy tenor grid below — 3M only exists
+  # on USD/EUR/GBP catalogs (AUD starts at 6M); build_tags filters via
+  # taglisting at runtime, missing tenors return empty without error.
+  basis_swaps:
+    - "3M"
+    - "6M"
+    - "9M"
+    - "1Y"
+    - "18M"
+    - "2Y"
+    - "3Y"
+    - "4Y"
+    - "5Y"
+    - "6Y"
+    - "7Y"
+    - "8Y"
+    - "9Y"
+    - "10Y"
+    - "11Y"
+    - "12Y"
+    - "15Y"
+    - "20Y"
+    - "25Y"
+    - "30Y"
+
 # ── Instruments ───────────────────────────────────────────────────
 
 instruments:
@@ -199,6 +224,16 @@ instruments:
       ILS: SHIR
       MXN: TIIE_FONDEO
       ZAR: ZARONIA
+
+  basis_swaps:
+    tag_prefix: "RATES.BASIS_SWAPS"
+    # Citi tag order: {prefix}.{TENOR}.{QUOTE} (quote LAST), unlike OIS/SWAP_LIBOR.
+    # Example: RATES.BASIS_SWAPS.3S6S_BASIS.AUD.SPOT.10Y.BASIS_SPREAD
+    tag_format: "tenor_first"
+    description: "Tenor basis swaps — single-leg spread in bps"
+    quote_types:
+      basis: "BASIS_SPREAD"
+    maturities: basis_swaps
 
   swap_libor:
     tag_prefix: "RATES.SWAP_LIBOR"
@@ -619,6 +654,63 @@ curves:
     providers:
       citi: { prefix: "RATES.SWAP_LIBOR.VND", instrument: swap_libor }
 
+  # ═══ Basis Swaps — single-leg spreads in bps ═══
+  # Tenor basis (3s6s) + funding-stress bases (RFR vs IBOR, RFR vs RFR).
+  # USD/GBP 3s6s + USD/EUR/GBP IBOR-OIS dropped 2026-06-05: catalog tags
+  # remain but Citi returns no values post-LIBOR cessation.
+  # See playground/rates/probe_basis_swaps_other_bases.py for verdict matrix.
+
+  # 3s6s tenor basis — EUR/AUD only (USD/GBP catalog dead post-LIBOR).
+  - ccy: EUR
+    curve: 3S6S_BASIS
+    type: basis
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.BASIS_SWAPS.3S6S_BASIS.EUR.SPOT", instrument: basis_swaps }
+
+  - ccy: AUD
+    curve: 3S6S_BASIS
+    type: basis
+    status: active
+    maturities: basis_swaps
+    notes: "AUD 3s6s — BBSW market, no cessation planned. 19 tenors (no 3M)."
+    providers:
+      citi: { prefix: "RATES.BASIS_SWAPS.3S6S_BASIS.AUD.SPOT", instrument: basis_swaps }
+
+  # SOFR vs Fed Funds — US repo-vs-unsecured funding stress (Sep-2019 repo spike,
+  # Mar-2023 SVB; modern US equivalent of LIBOR-OIS).
+  - ccy: USD
+    curve: SOFR_FEDFUND_BASIS
+    type: basis
+    status: active
+    maturities: basis_swaps
+    notes: "SOFR vs Fed Funds basis — US funding stress gauge (25 tags published; standard grid pulls 20)."
+    providers:
+      citi: { prefix: "RATES.BASIS_SWAPS.SOFR_FEDFUND_BASIS.USD.SPOT", instrument: basis_swaps }
+
+  # ESTR vs EURIBOR — modern EUR RFR-vs-IBOR funding basis (post-LIBOR EUR
+  # funding-stress gauge).
+  - ccy: EUR
+    curve: EUROSTR_EURIBOR_BASIS
+    type: basis
+    status: active
+    maturities: basis_swaps
+    notes: "ESTR vs EURIBOR basis — EUR funding stress (25 tags published; standard grid pulls 20)."
+    providers:
+      citi: { prefix: "RATES.BASIS_SWAPS.EUROSTR_EURIBOR_BASIS.EUR.SPOT", instrument: basis_swaps }
+
+  # 3M IBOR vs OIS — funding stress. USD/EUR/GBP variants exist in catalog
+  # but Citi no longer returns values post-LIBOR cessation. AUD (BBSW) is live.
+  - ccy: AUD
+    curve: 3S_OIS_BASIS
+    type: basis
+    status: active
+    maturities: basis_swaps
+    notes: "AUD 3M BBSW vs AONIA OIS basis — AUD funding stress (21 tenors)."
+    providers:
+      citi: { prefix: "RATES.BASIS_SWAPS.3S_OIS_BASIS.AUD.SPOT", instrument: basis_swaps }
+
 # ── Provider config ───────────────────────────────────────────────
 
 providers:
@@ -807,3 +899,4 @@ expected_ranges:
   bfly:   { min: -100.0, max: 100.0 }
   ssw:    { min: -500.0, max: 500.0 }
   rc:     { min: -200.0, max: 200.0 }
+  basis:  { min: -300.0, max: 50.0 }

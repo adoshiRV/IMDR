@@ -44,6 +44,7 @@ PIPELINES: list[dict] = [
     {"cmd": ["python", "-m", "scripts.equity.citi.equity_index_citi_live"], "estimated_tags": 24},
     {"cmd": ["python", "-m", "scripts.equity.citi.equity_vix_citi_live"], "estimated_tags": 5},
     {"cmd": ["python", "-m", "scripts.rates.citi.rates_bench_citi_live"], "estimated_tags": 10},
+    {"cmd": ["python", "-m", "scripts.rates.citi.rates_basis_swaps_citi_live"], "estimated_tags": 100},
     # Non-Citi vendor feed (no tag quota).
     {"cmd": ["python", "-m", "scripts.run_vendor_feed", "barclays_skew"], "estimated_tags": 0},
 ]

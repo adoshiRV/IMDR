@@ -22,7 +22,7 @@ Universe defined in [`src/imdr/universe/rates.yml`](../../src/imdr/universe/rate
 | ibor | swap_libor | LIBOR, EURIBOR, GBP_LIBOR, JPY_LIBOR, CHF_LIBOR, BBSW, BKBM, CDOR, NIBOR, STIBOR, SOR, THBFIX, CNH_HIBOR, SHIBOR, NDIRS, HIBOR, JIBOR, MIFOR, CD, KLIBOR, PHIREF, TAIBOR, VND_REF | Mixed — some ceased |
 | ccs | xccy_swap | CCS_VS_SOFR (CNH) | Active |
 | basis | basis_swap | BASIS_SHIR_VS_SOFR (ILS), BASIS_SOR_VS_SOFR (SGD) | BBG cross-currency basis |
-| basis | basis_swaps | 3S6S_BASIS for EUR/AUD (active) and USD/GBP (ceased 2025-02-21) | Citi tenor basis, 20 tenors |
+| basis | basis_swaps | EUR/AUD `3S6S_BASIS` (tenor basis); USD `SOFR_FEDFUND_BASIS`, EUR `EUROSTR_EURIBOR_BASIS`, AUD `3S_OIS_BASIS` (funding stress) | Citi BASIS_SWAPS family, 5 curves × 20-tenor standard grid. Historical USD/GBP `3S6S_BASIS` and the 2015–2025-02 series remain in `fact_observation` from the prior universe |
 
 **Quote types:**
 

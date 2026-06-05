@@ -10,7 +10,7 @@
 
 ### `[rates].[dim_curve]` - Curve Dimension
 
-Stores the 65 rate curves tracked by IMDR (43 from `universe/rates.yml` — 16 OIS, 23 SWAP_LIBOR, 4 BASIS_SWAPS — plus BBG cross-currency basis + xccy curves seeded by separate vendor scripts). One row per (ccy, curve) combination.
+Stores the rate curves tracked by IMDR (44 from `universe/rates.yml` — 16 OIS, 23 SWAP_LIBOR, 5 BASIS_SWAPS — plus BBG cross-currency basis + xccy curves seeded by separate vendor scripts, plus historical `dim_curve` entries for retired curves like USD/GBP `3S6S_BASIS` whose 2015–2025-02 observations remain queryable). One row per (ccy, curve) combination.
 
 | Column | Type | Nullable | Description |
 |---|---|---|---|
