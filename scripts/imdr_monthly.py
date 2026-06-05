@@ -23,7 +23,9 @@ import time
 #     ["python", "-m", "scripts.fx.citi.fx_monthly_aggregates"],
 # ============================================================================
 
-PIPELINES: list[list[str]] = []
+PIPELINES: list[list[str]] = [
+    ["python", "-m", "scripts.econ.kr.kr_monthly"],
+]
 
 # ============================================================================
 
