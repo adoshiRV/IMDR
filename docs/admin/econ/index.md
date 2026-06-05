@@ -25,7 +25,7 @@ Each country has a folder with prod reference docs at the top + a `_playground/`
 
 | Country | Status | Folder | Wiring map | Indicator inventory |
 |---|---|---|---|---|
-| **Korea (KR)** | LIVE — 172 indicators across KOSIS + REB + FRED + BOK-mirror | [korea/](korea/) | [§7.13](macro_economy_wiring_map.md#713-south-korea-kr) | [korea_indicator_inventory.md](korea/korea_indicator_inventory.md) |
+| **Korea (KR)** | LIVE — 172 indicators across KOSIS + REB + FRED + BOK-mirror. **KOSIS + REB auto-load via `kr_weekly`/`kr_monthly` since 2026-06-05.** Ops: [korea_prod_pipeline.md](korea/korea_prod_pipeline.md) | [korea/](korea/) | [§7.13](macro_economy_wiring_map.md#713-south-korea-kr) | [korea_indicator_inventory.md](korea/korea_indicator_inventory.md) |
 | **United States (US)** | LIVE — 133 indicators via FRED | [united_states/](united_states/) | [§7.1](macro_economy_wiring_map.md#71-united-states-us) | — |
 | **Hong Kong (HK)** | LIVE — 29 indicators via HKMA | [hong_kong/](hong_kong/) | [§7.10](macro_economy_wiring_map.md#710-hong-kong-hk) | — |
 | **Australia (AU)** | Discovery only (ABS, RBA) | [australia/](australia/) | [§7.7](macro_economy_wiring_map.md#77-australia-au) | — |
@@ -72,7 +72,7 @@ docs/admin/econ/
 ├── economics_data_ingest.md          ← schema + build log
 └── {country}/
     ├── index.md                      ← country landing (required)
-    ├── *.md                          ← prod reference docs (API ref, coverage plan, indicator inventory, indicator targets)
+    ├── *.md                          ← prod reference docs (API ref, coverage plan, indicator inventory, indicator targets, {country}_prod_pipeline.md once in production)
     └── _playground/                  ← optional: only when playground/econ/{vendor}/ code exists
         ├── index.md                  ← only when multiple vendors
         └── {vendor}.md               ← one per playground/econ/{vendor}/

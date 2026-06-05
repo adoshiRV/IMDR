@@ -1,11 +1,44 @@
 # Korea — Econ Documentation
 
-Last updated: 2026-06-03
+Last updated: 2026-06-05
 
 Korean macroeconomic data source. BOK's Economic Statistics System (ECOS)
 is the authoritative publisher of Korea's Balance of Payments, IIP, FX
 reserves, customs trade, national accounts, and policy rates. Statistics
 Korea (KOSIS) mirrors most BOK series under `orgId=301`.
+
+## Production pipeline (canonical as of 2026-06-05)
+
+Korea econ ingest is fully automated in production. The playground fetchers
+under `playground/econ/kosis/` and `playground/econ/reb/` are preserved as
+the legacy sandbox but are **not** the canonical path — use the prod scripts
+below.
+
+See **[korea_prod_pipeline.md](korea_prod_pipeline.md)** for the full
+operations runbook: architecture, on-demand invocation, CLI flags, data
+archive layout, idempotency, and failure-mode guide.
+
+**Weekly schedule** (`scripts/imdr_weekly.py`, pipeline #3):
+
+```
+python -m scripts.econ.kr.kr_weekly
+```
+
+Fans out to 2 fetchers: `scripts.econ.reb.reb_housing` (REB R-ONE direct,
+4 housing series) + `scripts.econ.kosis.kosis_reb_housing` (KOSIS mirror,
+4 housing series). Total ~22 s.
+
+**Monthly schedule** (`scripts/imdr_monthly.py`, pipeline #1):
+
+```
+python -m scripts.econ.kr.kr_monthly
+```
+
+Fans out to 19 KOSIS fetchers covering all monthly/quarterly/annual
+cadence topics. Total ~170 s. Sequential (KOSIS rate-limits concurrent
+connections).
+
+---
 
 - **[kosis_openapi_reference.md](kosis_openapi_reference.md)** —
   KOSIS 공유서비스 OpenAPI: endpoints, parameters, error codes,
@@ -38,21 +71,23 @@ Korea (KOSIS) mirrors most BOK series under `orgId=301`.
 
 | Path | Auth | Speed | Coverage | Status |
 |---|---|---|---|---|
-| **KOSIS OpenAPI** — `kosis.kr/openapi/Param/...` | KOSIS API key (`IMDR_KOSIS_API_KEY`, free, instant) | Fast (REST) | Full KOSIS catalogue inc. `orgId=301` BOK series | **Live 2026-06-03** |
-| **REB R-ONE OpenAPI** — data.go.kr | REB API key (`IMDR_REB_API_KEY`, 32-char hex) | Fast (REST) | 8 weekly housing tables (apt sale + jeonse) back to 2012-05-07 | **Live** |
-| **FRED mirror** — `KORB6*CXCUM` family | FRED API key | Fast (REST) | Headline + selected sub-aggregates; no full FA decomposition | Live |
-| **KOSIS browser download** | None | Slow (Playwright) | Full table including all `BOPF…` line items | Legacy fallback |
+| **KOSIS OpenAPI** — `kosis.kr/openapi/Param/...` | KOSIS API key (`IMDR_KOSIS_API_KEY`, free, instant) | Fast (REST) | Full KOSIS catalogue inc. `orgId=301` BOK series | **Production — auto-load via `kr_monthly` (2026-06-05)** |
+| **REB R-ONE OpenAPI** — data.go.kr | REB API key (`IMDR_REB_API_KEY`, 32-char hex) | Fast (REST) | 8 weekly housing tables (apt sale + jeonse) back to 2012-05-07 | **Production — auto-load via `kr_weekly` (2026-06-05)** |
+| **FRED mirror** — `KORB6*CXCUM` family | FRED API key | Fast (REST) | Headline + selected sub-aggregates; no full FA decomposition | Live (manual load via `load_econ_indicator_from_playground`) |
+| **KOSIS browser download** | None | Slow (Playwright) | Full table including all `BOPF…` line items | Legacy fallback (playground only) |
 | **BOK ECOS Open API** — `ecos.bok.or.kr/api/` | ECOS API key | Fast (REST) | Full | **BLOCKED — registration requires Korean mobile + citizenship** |
 
 `KORB6*CXCUM` series are wired into the FRED ingest at
 [`playground/econ/fred/seed.yml`](../../../../playground/econ/fred/seed.yml).
-KOSIS Playwright downloader lives at
-[`playground/econ/kosis/fetch_bop.py`](../../../../playground/econ/kosis/fetch_bop.py).
+KOSIS Playwright downloader (legacy) lives at
+[`playground/econ/kosis/fetch_bop.py`](../../../../playground/econ/kosis/fetch_bop.py) —
+superseded by `scripts/econ/kosis/kosis_bop.py` in production.
 
 ## Quick links
 
 | Topic | Doc |
 |---|---|
+| **Production pipeline ops** — architecture, CLI, failure modes | [korea_prod_pipeline.md](korea_prod_pipeline.md) |
 | KOSIS OpenAPI — endpoints, limits, error codes | [kosis_openapi_reference.md](kosis_openapi_reference.md) |
 | KR wiring-map cells → KOSIS tblIds | [kosis_kr_coverage_plan.md](kosis_kr_coverage_plan.md) |
 | KR econ indicator shopping list (121 series) | [kr_indicator_targets.md](kr_indicator_targets.md) |

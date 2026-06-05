@@ -366,6 +366,8 @@ HK score: **0 ✅ / 7 ⚠️ / 9 ❌** (was 0/1/15 before v2). All right-side cl
 
 KOSIS OpenAPI went live 2026-06-03 PM (TLS 1.2 pinned, 40k-cell cap). Expanded 2026-06-05 across 4 rounds to **164 indicators / 47,748 obs end-to-end** across 20 KOSIS fetchers + 4 FRED Korea rate series + 4 REB-direct housing. KOSIS mirrors BOK ECOS 1:1 with `tblId = DT_{STAT_CODE}`, so most Korea series are reachable without the still-blocked ECOS direct API.
 
+**Production status (2026-06-05):** All KOSIS + REB cells below are auto-loaded via the prod orchestrators — no manual load step. Weekly housing cells load via `scripts/imdr_weekly.py` → `kr_weekly`; all other cells load via `scripts/imdr_monthly.py` → `kr_monthly`. Ops runbook: [korea/korea_prod_pipeline.md](korea/korea_prod_pipeline.md).
+
 | Engine | A | B | C | D |
 |---|:---:|:---:|:---:|:---:|
 | **Growth** | ✅ Private Demand *(KOSTAT Retail Sales × 7 types × Value+SA, monthly 2000→)* | ✅ Fiscal Demand *(BOK 200Y154 Public Sector — Revenue / Expenditure / Net Lending / Saving + Direct/Indirect Taxes, annual 2007→)* | ✅ External Demand *(BOK Trade Value+Volume indices monthly 1988→; BOK BoP goods X/M monthly 1980→; GDP exports/imports QoQ+YoY quarterly 1961→)* | ✅ Macro Core *(BOK GDP-Q × 12 components 1961→; KOSTAT EAPS labour 8 series 1999-06→)* |

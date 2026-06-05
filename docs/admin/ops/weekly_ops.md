@@ -1,5 +1,7 @@
 # Weekly Data Operations
 
+Last updated: 2026-06-05
+
 Personal runbook for weekly data quality maintenance. Run from the project root with the `imdr` conda env active.
 
 ---
@@ -21,6 +23,24 @@ registry, in order:
 Each pipeline emits its own confirmation email (where wired); the
 orchestrator itself just prints `OK`/`FAIL` lines for each subprocess. To
 add a new weekly pipeline, append to `PIPELINES` in `scripts/imdr_weekly.py`
+and update the table above.
+
+---
+
+## What runs every month (`scripts/imdr_monthly.py`)
+
+The monthly Task-Scheduler entry walks `PIPELINES` in `scripts/imdr_monthly.py`
+sequentially. Current registry:
+
+| # | Pipeline | Purpose |
+|---|----------|---------|
+| 1 | `scripts.econ.kr.kr_monthly` | Korea econ monthly cadence — fans out to 19 KOSIS fetchers (balance sheets, bank rates, BoP, BSI, consumer survey, corp debt, CPI, fiscal, GDP, industrial, labour, lending, money aggregates, PPI, retail, ToT, trade indices, trade prices, wages). Sequential: KOSIS rate-limits concurrent connections from the same API key. ~170 s total. Each fetcher auto-loads DB on completion via `_runner.invoke_loader`. |
+
+Annual and quarterly KOSIS series are included in `kr_monthly`: MERGE on PK makes
+them idempotent — running monthly catches every release window without needing
+separate quarterly/annual schedulers.
+
+To add a new monthly pipeline, append to `PIPELINES` in `scripts/imdr_monthly.py`
 and update the table above.
 
 ---
@@ -393,7 +413,7 @@ python -m scripts.rates.clean.clean_rates_fact_observation --year 2026 --execute
 | `imdr_hourly.py` | Runs hourly pipelines (FX OHLC from BidFX) | Task Scheduler |
 | `imdr_daily.py` | Runs daily pipelines (Rates from Citi, FX Vol from Citi) | Task Scheduler |
 | `imdr_weekly.py` | Runs weekly pipelines: EIA petroleum → canonical holiday-calendar merge → Korea econ weekly → health dashboard email → data cleanup. See "What runs every week" above. | Task Scheduler |
-| `imdr_monthly.py` | (empty — template for future monthly jobs) | — |
+| `imdr_monthly.py` | Runs monthly pipelines: Korea econ monthly cadence (`kr_monthly` — 19 KOSIS fetchers). | Task Scheduler |
 | `imdr_quarterly.py` | (empty — template for future quarterly jobs) | — |
 | `imdr_clean.py` | Cross-domain cleaning dry-run/execute | Manual |
 | `imdr_health_dashboard.py` | Consolidated health/coverage/quality email for all domains | Via `imdr_weekly.py` |
