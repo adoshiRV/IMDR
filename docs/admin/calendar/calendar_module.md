@@ -100,23 +100,48 @@ After migrations 031 + 034, `calendar.dim_calendar` has **30 rows**. Codes match
 
 > **YO vs NY are deliberately distinct** (see table note above). `YO` is a NY-region commercial banking calendar; `NY` is the NYSE proper. The `US/EQUITY` default points at `NY` (post-m035). Use `YO` only if you specifically need NY-region banking holidays.
 
-## Loading the BBG master spreadsheet
+## Canonical weekly refresh (holiday calendar)
 
-The 2026-05 refresh shipped under a renamed file (`calendar_pasted.xlsx`) with a one-row layout shift and 9 additional calendars; use the v2 loader, which auto-detects the codes / data rows by scanning for the `DATES` header:
+`calendar.market_holidays` is IMDR's canonical holiday calendar. It is
+refreshed weekly by a fixed producer → consumer pair:
+
+| Stage | Where | What | Schedule |
+|-------|-------|------|----------|
+| Producer | `Z:\Business\Personnel\Arjun\IMDR_MANUAL_UPLOADS\Calendar\refresh_calendar.py` | xbbg pull of `CALENDAR_NON_SETTLEMENT_DATES` for every code, written to `…\Calendar\YYYY\MM\calendar_YYYYMMDD.xlsx` | "RV - Weekly Calendar BBG Snapshot" Scheduled Task, Fri 11:00 |
+| Consumer | `scripts/calendar/import_latest_holiday_calendar_snapshot.py` | Picks the file with the greatest `YYYYMMDD` under that tree, parses it via `load_calendar_pasted_xlsx`, idempotently inserts new rows into `calendar.market_holidays` (vendor=BBG), sends a confirmation email | Registered in `scripts/imdr_weekly.py` |
+
+The consumer is the canonical refresh path — do not insert into
+`calendar.market_holidays` via ad-hoc scripts or one-off loaders without
+updating this doc. Re-running on the same snapshot is a no-op.
+
+```bash
+# Standard weekly run (used by imdr_weekly):
+python -m scripts.calendar.import_latest_holiday_calendar_snapshot
+
+# Override snapshot root / inspect without writing:
+python -m scripts.calendar.import_latest_holiday_calendar_snapshot --root <path> --dry-run
+```
+
+The confirmation email (`HolidayCalendarIngestFormatter` →
+`templates/holiday_calendar_ingest.html`) reports OK / PARTIAL / FAIL plus a
+per-calendar inserted/skipped breakdown. Gated by `IMDR_EMAIL_ENABLED` +
+`IMDR_EMAIL_TO`. PARTIAL fires when the snapshot contains a calendar code
+not yet present in `calendar.dim_calendar` — add the row and re-run to
+backfill.
+
+### One-off / historical loads
+
+For manually loading a pre-existing snapshot (e.g. backfilling from an
+archived file, or testing a new template), use the underlying loader
+directly with `--xlsx` pointed at the specific file:
 
 ```bash
 python -m scripts.calendar.load_calendar_pasted_xlsx \
-    --xlsx "Z:\Business\Personnel\Arjun\IMDR_MANUAL_UPLOADS\May 2026\calendar_pasted.xlsx"
+    --xlsx "Z:\Business\Personnel\Arjun\IMDR_MANUAL_UPLOADS\May 2026\calendar_pasted.xlsx" \
+    --load-batch bbg_xlsx_2026_05
 ```
 
-Idempotent — re-running with the same file is a no-op. Use `--load-batch` to tag snapshots for later rollback by batch:
-
-```bash
-python -m scripts.calendar.load_calendar_pasted_xlsx \
-    --xlsx "..." --load-batch bbg_xlsx_2026_05
-```
-
-The original `load_market_holidays_xlsx.py` is preserved for the older `Calendar pasted.xlsx` template (codes on row 9, sheet `master_config`) — only relevant if you need to re-load a pre-2026-05 snapshot.
+`load_market_holidays_xlsx.py` is preserved for the older `Calendar pasted.xlsx` template (codes on row 9, sheet `master_config`) — only relevant if you need to re-load a pre-2026-05 snapshot.
 
 ## Reconciliation
 

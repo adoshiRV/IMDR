@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family: Calibri, Arial, sans-serif; font-size: 11pt; color: #333;">
+
+<!-- Header -->
+<table style="width: 100%; border-collapse: collapse; margin-bottom: 16px;">
+<tr>
+  <td style="padding: 12px 16px; background: {{ banner_color }}; color: #fff; font-size: 14pt; font-weight: bold; border-radius: 4px 4px 0 0;">
+    [IMDR] Holiday Calendar Weekly Load {{ status }} | {{ inserted }} new dates across {{ calendars }} calendars
+  </td>
+</tr>
+</table>
+
+<!-- Summary -->
+<table style="width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 10pt;">
+<tr>
+  <td style="padding: 4px 0; width: 200px; color: #666;">Snapshot file</td>
+  <td style="padding: 4px 0; font-family: Consolas, monospace;">{{ snapshot_path }}</td>
+</tr>
+<tr>
+  <td style="padding: 4px 0; color: #666;">Snapshot date</td>
+  <td style="padding: 4px 0;">{{ snapshot_date }}</td>
+</tr>
+<tr>
+  <td style="padding: 4px 0; color: #666;">Run completed</td>
+  <td style="padding: 4px 0;">{{ run_time_utc }} ({{ run_time_sgt }})</td>
+</tr>
+<tr>
+  <td style="padding: 4px 0; color: #666;">Duration</td>
+  <td style="padding: 4px 0;">{{ duration_s }} s</td>
+</tr>
+<tr>
+  <td style="padding: 4px 0; color: #666;">Calendars in file</td>
+  <td style="padding: 4px 0; font-weight: bold;">{{ calendars }}</td>
+</tr>
+<tr>
+  <td style="padding: 4px 0; color: #666;">Holiday dates parsed</td>
+  <td style="padding: 4px 0;">{{ total_parsed }}</td>
+</tr>
+<tr>
+  <td style="padding: 4px 0; color: #666;">New rows inserted</td>
+  <td style="padding: 4px 0; font-weight: bold; color: #2e7d32;">{{ inserted }}</td>
+</tr>
+<tr>
+  <td style="padding: 4px 0; color: #666;">Already in DB (skipped)</td>
+  <td style="padding: 4px 0;">{{ skipped }}</td>
+</tr>
+<tr>
+  <td style="padding: 4px 0; color: #666;">Load batch tag</td>
+  <td style="padding: 4px 0; font-family: Consolas, monospace;">{{ load_batch }}</td>
+</tr>
+{% if missing %}
+<tr>
+  <td style="padding: 4px 0; color: #666;">Calendars not in dim_calendar</td>
+  <td style="padding: 4px 0; font-weight: bold; color: #d32f2f;">{{ missing|length }}</td>
+</tr>
+{% endif %}
+</table>
+
+<!-- Per-calendar breakdown -->
+{% if rows %}
+<h3 style="font-size: 11pt; margin: 16px 0 8px; color: #1a237e;">Per-calendar load detail</h3>
+<table style="border-collapse: collapse; font-size: 10pt; margin-bottom: 16px;">
+<tr style="background: #f5f5f5;">
+  <th style="padding: 6px 12px; border: 1px solid #e0e0e0; text-align: left;">Calendar</th>
+  <th style="padding: 6px 12px; border: 1px solid #e0e0e0; text-align: right;">In file</th>
+  <th style="padding: 6px 12px; border: 1px solid #e0e0e0; text-align: right;">Inserted</th>
+  <th style="padding: 6px 12px; border: 1px solid #e0e0e0; text-align: right;">Skipped</th>
+</tr>
+{% for r in rows %}
+<tr>
+  <td style="padding: 4px 12px; border: 1px solid #e0e0e0; font-family: Consolas, monospace;">{{ r.code }}</td>
+  <td style="padding: 4px 12px; border: 1px solid #e0e0e0; text-align: right;">{{ r.in_file }}</td>
+  <td style="padding: 4px 12px; border: 1px solid #e0e0e0; text-align: right; {% if r.inserted %}font-weight: bold; color: #2e7d32;{% endif %}">{{ r.inserted }}</td>
+  <td style="padding: 4px 12px; border: 1px solid #e0e0e0; text-align: right; color: #999;">{{ r.skipped }}</td>
+</tr>
+{% endfor %}
+</table>
+{% endif %}
+
+<!-- Missing calendars -->
+{% if missing %}
+<h3 style="font-size: 11pt; margin: 16px 0 8px; color: #d32f2f;">Calendars in snapshot but not in dim_calendar ({{ missing|length }})</h3>
+<table style="border-collapse: collapse; font-size: 10pt; margin-bottom: 16px;">
+<tr style="background: #ffebee;">
+  <th style="padding: 6px 12px; border: 1px solid #e0e0e0; text-align: left;">Calendar code</th>
+</tr>
+{% for code in missing %}
+<tr>
+  <td style="padding: 4px 12px; border: 1px solid #e0e0e0; font-family: Consolas, monospace;">{{ code }}</td>
+</tr>
+{% endfor %}
+</table>
+<p style="font-size: 10pt; color: #666;">
+  Add a row to <code>calendar.dim_calendar</code> for each missing code, then re-run the loader to backfill its holidays.
+</p>
+{% endif %}
+
+<!-- Error -->
+{% if error %}
+<h3 style="font-size: 11pt; margin: 16px 0 8px; color: #d32f2f;">Error</h3>
+<pre style="background: #ffebee; padding: 12px; border: 1px solid #e0e0e0; font-size: 9pt; white-space: pre-wrap;">{{ error }}</pre>
+{% endif %}
+
+<!-- Footer -->
+<p style="font-size: 9pt; color: #999; margin-top: 24px; border-top: 1px solid #eee; padding-top: 8px;">
+  Canonical holiday calendar | Producer: refresh_calendar.py (Fri 11:00) | Loader: scripts.calendar.import_latest_holiday_calendar_snapshot | Table: calendar.market_holidays (vendor=BBG)
+</p>
+
+</body>
+</html>

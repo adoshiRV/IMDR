@@ -1,10 +1,10 @@
 # Admin — Operations
 
-Last updated: 2026-05-13
+Last updated: 2026-06-05
 
 Operational runbooks and playbooks for the IMDR data platform.
 
-- **[weekly_ops.md](weekly_ops.md)** — Weekly operations checklist: data freshness checks, gap fills, vendor credential rotation.
+- **[weekly_ops.md](weekly_ops.md)** — Weekly operations checklist: full `scripts/imdr_weekly.py` pipeline registry (EIA → canonical holiday-calendar merge → Korea econ → health dashboard → cleanup), data freshness checks, gap fills, vendor credential rotation.
 - **[staleness_monitor.md](staleness_monitor.md)** — Staleness monitoring setup and alert thresholds.
 - **[bulk_ingestion.md](bulk_ingestion.md)** — Bulk historical ingestion procedures and rate-limit guidance.
 - **[cleaning_framework.md](cleaning_framework.md)** — Data cleaning pipeline architecture and rule catalog.

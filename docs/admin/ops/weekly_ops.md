@@ -4,6 +4,27 @@ Personal runbook for weekly data quality maintenance. Run from the project root 
 
 ---
 
+## What runs every week (`scripts/imdr_weekly.py`)
+
+The weekly Task-Scheduler entry walks `PIPELINES` in `scripts/imdr_weekly.py`
+sequentially via subprocess (one failure does not block the rest). Current
+registry, in order:
+
+| # | Pipeline | Purpose |
+|---|----------|---------|
+| 1 | `scripts.commodities.citi.cmdty_eia_citi_live` | Weekly EIA petroleum series (16 series × PADD regions) via Citi Velocity. |
+| 2 | `scripts.calendar.import_latest_holiday_calendar_snapshot` | **Canonical** weekly merge of the BBG holiday-calendar snapshot into `calendar.market_holidays`. See [calendar/calendar_module.md](../calendar/calendar_module.md#canonical-weekly-refresh-holiday-calendar). |
+| 3 | `scripts.econ.kr.kr_weekly` | Korea econ weekly cadence — fans out to `scripts.econ.reb.reb_housing` (REB R-ONE direct, 4 series) + `scripts.econ.kosis.kosis_reb_housing` (KOSIS mirror, 4 series). |
+| 4 | `scripts.imdr_health_dashboard` | Consolidated FX OHLC / FX Vol / Rates health, coverage, quality, cleaning dry-run email. |
+| 5 | `scripts.cleanup_old_data --execute` | Prunes `data/parquet/` + `data/logs/` files older than the retention window (default 3 months). |
+
+Each pipeline emits its own confirmation email (where wired); the
+orchestrator itself just prints `OK`/`FAIL` lines for each subprocess. To
+add a new weekly pipeline, append to `PIPELINES` in `scripts/imdr_weekly.py`
+and update the table above.
+
+---
+
 ## All Together
 
 Cross-domain tools that operate on FX OHLC, FX Vol, and Rates in one shot.
@@ -371,7 +392,7 @@ python -m scripts.rates.clean.clean_rates_fact_observation --year 2026 --execute
 |--------|---------|------------|
 | `imdr_hourly.py` | Runs hourly pipelines (FX OHLC from BidFX) | Task Scheduler |
 | `imdr_daily.py` | Runs daily pipelines (Rates from Citi, FX Vol from Citi) | Task Scheduler |
-| `imdr_weekly.py` | Runs weekly pipelines (health dashboard email) | Task Scheduler |
+| `imdr_weekly.py` | Runs weekly pipelines: EIA petroleum → canonical holiday-calendar merge → Korea econ weekly → health dashboard email → data cleanup. See "What runs every week" above. | Task Scheduler |
 | `imdr_monthly.py` | (empty — template for future monthly jobs) | — |
 | `imdr_quarterly.py` | (empty — template for future quarterly jobs) | — |
 | `imdr_clean.py` | Cross-domain cleaning dry-run/execute | Manual |
