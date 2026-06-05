@@ -146,5 +146,5 @@ Pull via [`playground/econ/kosis/fetch_bop.py`](../../../../playground/econ/kosi
 ## Cross-references
 
 - [ecos_api_reference.md](../ecos_api_reference.md) — full STAT_CODE / ITEM_CODE catalog
-- Wiring map cluster: [`docs/admin/development/macro_economy_wiring_map.md`](../../../development/macro_economy_wiring_map.md) §3.3 Capital Account
-- Discovery probe metadata: [`playground/econ/bok_ecos/discovery/discover_bop_20260603T082056Z/bok_metadata_captured.md`](../../../../playground/econ/bok_ecos/discovery/discover_bop_20260603T082056Z/bok_metadata_captured.md)
+- Wiring map cluster: [`docs/admin/econ/macro_economy_wiring_map.md`](../../macro_economy_wiring_map.md) §3.3 Capital Account
+- Discovery probe metadata: [`playground/econ/bok_ecos/discovery/discover_bop_20260603T082056Z/bok_metadata_captured.md`](../../../../../playground/econ/bok_ecos/discovery/discover_bop_20260603T082056Z/bok_metadata_captured.md)

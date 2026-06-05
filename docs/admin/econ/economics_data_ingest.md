@@ -2,35 +2,42 @@
 
 **Canonical doc.** All public economic-data prints — CPI, GDP, labour, balance of payments, central-bank balance sheets, official rates, government-bond auctions and holdings — flow through the schema and pipelines defined here. Schema decisions, source additions, and sign-offs related to economic data live in this file.
 
-- **Date**: 2026-06-03
+- **Date**: 2026-06-05
 - **Owner**: TBD
-- **Status**: **SCHEMA APPLIED + 2 VENDORS LOADED** (FRED 170 indicators / HKMA 29 indicators = 199 total, 272,893 observations). Schema migrations 068–073 + 076 live. Loader is vendor-agnostic. Production scheduling not started; 4 more vendors have parquet on disk ready to load (Stats NZ / RBI FX / RBI Bulletin / RBA / ABS).
+- **Status**: **SCHEMA APPLIED + 4 VENDORS LOADED** (FRED 173 + HKMA 29 + KOSIS 164 + REB 4 = **370 dim total, ~325,579 observation rows**). All loaded indicators have observations. Schema migrations 068–073 + 076 + 077 + 078 live. Loader is vendor-agnostic. Production scheduling not started; 4 more vendors have parquet on disk ready to load (Stats NZ / RBI FX / RBI Bulletin / RBA / ABS). **Korea wiring map = 16/16 covered** (14 ✅ fully + 1 ⚠ partial 4.3 + 1 parked 3.4). Coverage gap-close round added 5 new fetchers: M-aggregates (M2 + Lf), IIP + Mfg Capacity Util, Consumer Survey (CCI components), BSI (Realised + Outlook × All + Mfg), Corporate financial ratios (Mfg × all 13 ratios).
 - **Companion**: [apac_macro_data_gaps.md](apac_macro_data_gaps.md) — what the desk needs and what's already on Citi. This doc covers the **non-Citi public-data** complement.
 - **Coverage map**: [macro_economy_wiring_map.md](macro_economy_wiring_map.md) — 16-cluster macro framework (Growth / Inflation / External-FX / Policy Transmission), used as the per-country coverage checklist. Every indicator we ingest should map to at least one cluster; every cluster should have at least one indicator per country we care about.
+- **Indicator catalogue**: [country_econ_blueprint.md](country_econ_blueprint.md) — exhaustive country-agnostic indicator catalogue (§1-4, the *what*).
+- **Onboarding playbook**: [onboarding_new_country.md](onboarding_new_country.md) — 5-step workflow (fork blueprint → vendor cascade → build order → identity checks → reconcile wiring map). Read first when adding a new country.
 - **Source inventories**: `C:\Users\adoshi\Downloads\whitelisted_websites.md` + `AU NZ PUBLIC DATA.xlsx` (Y/N priority flags per series).
 - **Supersedes**: ad-hoc planning in `playground/macro/funding/design.md` (sandbox) and the econ-schema questions blocking [IMD-15](https://linear.app/imdr/issue/IMD-15) / [IMD-16](https://linear.app/imdr/issue/IMD-16) / [IMD-17](https://linear.app/imdr/issue/IMD-17). Those tickets reference the old `macro` schema name — they'll need updating to `econ` when the schema lands.
 
 ---
 
-## 0. Build status snapshot (2026-06-03)
+## 0. Build status snapshot (2026-06-05)
 
-**Schema live + 2 vendors loaded.** As of 2026-06-03:
+**Schema live + 4 vendors loaded; Korea coverage 16/16.** As of 2026-06-05:
 
-- `econ` schema applied (migrations 068–073 + 076)
-- **199 indicators / 272,893 observations** in `econ.fact_indicator`
-- 2 vendors loaded end-to-end (FRED + HKMA); 4 more have parquet on disk pending DB load
+- `econ` schema applied (migrations 068–073 + 076 + 078)
+- **339 indicators / 320,609 observations** in `econ.fact_indicator`
+- 4 vendors loaded end-to-end (FRED + HKMA + KOSIS + REB); 4 more have parquet on disk pending DB load
 - Loader (`scripts/migrations/load_econ_indicator_from_playground.py`) is vendor-agnostic — `--vendor X` for any source matching `IndicatorRow` / `ObservationRow` shape
+- **KOSIS jumped 19 → 164 indicators across this session** (20 fetchers built — CPI, REB housing, PPI, GDP-Q, ToT, Bank Rates, BoP, EAPS Labour, Retail Sales, Fiscal, Trade Prices, Lending, Balance Sheets, Wages, Trade Indices, **M-Aggregates, IIP+Capacity Util, Consumer Survey, BSI, Corporate Debt**). Shared `_kosis_http.py` helper (TLS 1.2 pin + retry + period parser) used by all. **40k-cap solved** via discovery-first + per-cut iteration for any wide tables (used by PPI, Trade Prices, CCI, BSI, Corp Debt). **BoP refactor closed** — `fetch_bop.py` rewritten from Playwright + single-parquet to OpenAPI + dim/fact split.
+- **REB R-ONE direct vendor + 4 housing series loaded** — migration 078 added `reb` row to `dbo.dim_vendor`. `.REB_DIRECT` imdr_code suffix lets REB-direct (2012→) and KOSIS-mirror (2021→) coexist for the same 4 housing series. YoY % change reconciles 0 bp across overlap.
+- **FRED Korea rates added** — 4 monthly series (Discount Rate / Call Money / 3M Interbank / 10Y Govt) seeded + loaded; fills cell 4.4 Policy Reaction (BOK Base Rate proper not on Citi BENCH_RATES catalogue — only 10 entries there, all G10).
 
 | Source | Path | Parquet | Loaded to DB | Notes |
 |---|---|---|---|---|
-| **FRED** | `playground/econ/fred/fetch.py` (httpx + key) | ✅ 170 indicators × 80,810 obs | ✅ 170 / 80,810 | 9 countries (US deep + EU/UK/JP/CA/AU/CH/DE/NZ headline via OECD mirror). Phase 1 wiring-map cells: 4 ✅ / 11 ⚠️ / 1 ❌ for US. |
+| **FRED** | `playground/econ/fred/fetch.py` (httpx + dual-key rotation) | ✅ 169 indicators × 81,231 obs | ✅ 169 / 169 / 81,231 obs | 9 countries (US deep + EU/UK/JP/CA/AU/CH/DE/NZ headline via OECD mirror). Phase 1 wiring-map cells: 4 ✅ / 11 ⚠️ / 1 ❌ for US. Connector accepts `IMDR_ECON_FRED_KEY` + `IMDR_ECON_FRED_KEY2` (round-robin per request, halves per-key load); throttle bumped to 0.5s for safety after a 429 storm 2026-06-04 AM. |
 | **HKMA** | `playground/econ/hkma/fetch.py` (config-driven, httpx, no auth) | ✅ 29 indicators × 192,083 obs | ✅ 29 / 192,083 | FX rates 1981→today, HIBOR 1996→today, M1/M2/M3 1997→today. v2 (2026-06-03) added 25 series across 6 wiring-map clusters. |
 | **Stats NZ (release pages)** | `playground/econ/statsnz/fetch.py` (headless Playwright) | ✅ 301 indicators × 1,622 obs (Mar-2026 CPI release) | ❌ not yet | One-quarter snapshot per release; multi-release backfill loop pending. |
 | **RBA — bulletin tables** | discovery samples via WebFetch | ⚠️ 5 CSVs sampled (F1 / F2 / F11.1 / G1 / D3) — no production fetcher yet | ❌ | Akamai bot-protected; WebFetch + headed Playwright both work. |
 | **ABS — CPI** | discovery sample only | ⚠️ 1 XLSX format-mapped (~150 series per release) — no production fetcher yet | ❌ | XLSX-with-metadata-sheets pattern. |
 | **RBI — DBIE FX reserves** | `playground/econ/rbi/fetch.py` (httpx + static auth headers) | ✅ 5 indicators × 1,305 obs (5y weekly) | ❌ not yet | Plaintext POST. Sum-of-components matches RBI's published total to the dollar. |
 | **RBI — Bulletin** | `playground/econ/rbi/fetch_bulletin.py` (headed Playwright + per-table parsers) | ✅ 31 indicators × 168 obs (Table 27 Call Money + Table 19C CPI Combined) | ❌ not yet | Akamai TSPD wall; **headed Chrome required**. 10 more priority tables URL-catalogued, parsers pending. |
-| **Korea — MODS press-release PDFs** | `playground/econ/mods/fetch.py` (headless Playwright + in-page `fetch()`) | ✅ 10 CPI PDFs (Sept-2025 → May-2026) on OneDrive | N/A (raw PDFs) | KOSIS + BOK ECOS APIs both require Korean mobile + citizenship. PDFs parsed → `fact_indicator` is a future task. |
+| **Korea — MODS press-release PDFs** | `playground/econ/mods/fetch.py` (headless Playwright + in-page `fetch()`) | ✅ 10 CPI PDFs (Sept-2025 → May-2026) on OneDrive | N/A (raw PDFs) | PDF text parsing → `fact_indicator` is a future task. |
+| **Korea — KOSIS OpenAPI** | `playground/econ/kosis/fetch_{cpi,ppi,gdp,tot,bank_rates,reb_housing,bop,labour,retail,fiscal,trade_prices,lending,balance_sheets,wages,trade_indices}.py` (requests + shared TLS 1.2 helper + API key) | ✅ 133 indicators × 42,778 obs | ✅ 133 / 42,778 | LIVE 2026-06-03; expanded 2026-06-05 across 3 build rounds. Key in `IMDR_KOSIS_API_KEY`. Mirrors BOK ECOS 1:1 via `tblId=DT_{code}`. **15 fetchers** filling: CPI ✅ (15 series 2000-01→), PPI ✅ (6 series 1990-01→), GDP-Q ✅ (24 series 1961-Q1→), ToT ✅ (2 series 1988-01→), Bank Rates ⚠ (6 deposit-side series 1996-01→), REB Housing ✅ (4 series 2021-07→), BoP ✅ (24 series 1980-01→), Labour ✅ (8 EAPS series 1999-06→), Retail ✅ (14 series 2000-01→), Fiscal ✅ (7 series annual 2007→ — Revenue/Expenditure/Net Lending), Trade Prices ✅ (4 series 1980→ — Import/Export × Won/USD), Lending ✅ (5 quarterly stance survey + 3 monthly HH loans), Balance Sheets ⚠ (2 HH credit quarterly 2002→ + 3 FSS NPL — NPL series stale to 2016), Wages ✅ (2 annual national — wage level + YoY growth), Trade Indices ✅ (4 monthly — Export/Import × Value/Volume, 1988→). All fetchers route through `_kosis_http.py` for TLS 1.2 pinning + retry. See §2.6 + [[project-kosis-openapi-live]]. |
+| **Korea — REB R-ONE direct** | `playground/econ/reb/fetch_housing.py` (requests + 32-char hex key, no TLS pin) | ✅ 4 indicators × 2,928 obs (Apartment Sale + Jeonse × KR_NAT + KR_SEOUL, weekly 2012-05-07→) | ✅ 4 / 2,928 | LOADED 2026-06-05. Key `IMDR_REB_API_KEY` via data.go.kr service-id 15134761. Migration 078 added `reb` row to `dbo.dim_vendor` (display_name = "Korea Real Estate Board (R-ONE Open API)"). REB-direct rows use `.REB_DIRECT` imdr_code suffix to coexist with KOSIS-mirror rows of the same series. Reconciles 0 bp YoY drift against KOSIS mirror across 3 anchor weeks. |
 
 Blocked / parked:
 
@@ -46,7 +53,7 @@ Queued for exploration:
 |---|---|---|
 | **HK Census & Statistics Department (cnstat)** | `data.gov.hk` | New vendor needed for HK CPI / GDP / unemployment / trade (left half of HK wiring map). HKMA covers right half (FX / rates / banking / reserves) but not real-economy series. |
 | **RBI CIMS family** | 10 portals (BoP / FLAIR / SMS / FED / CISBI / FIRMS / etc.) | Migration successor to DBIE. No firm deprecation date. |
-| **KOSIS OpenAPI** | `kosis.kr/openapi/Param/statisticsParameterData.do` | **LIVE** (2026-06-03). Key in `.env` as `IMDR_KOSIS_API_KEY`. TLS 1.2 pinning required (handshake reset otherwise). 40k-row per-call cap. Unblocks KOSIS-mirrored series including BOK `orgId=301` BoP/IIP. `playground/econ/kosis/fetch_bop.py` is the first fetcher. Reference: [`docs/admin/vendors/bok/kosis_openapi_reference.md`](../vendors/bok/kosis_openapi_reference.md). See [[project-kosis-openapi-live]]. |
+| **KOSIS OpenAPI** | `kosis.kr/openapi/Param/statisticsParameterData.do` | **LIVE** (2026-06-03). Key in `.env` as `IMDR_KOSIS_API_KEY`. TLS 1.2 pinning required (handshake reset otherwise). 40k-row per-call cap. Unblocks KOSIS-mirrored series including BOK `orgId=301` BoP/IIP. `playground/econ/kosis/fetch_bop.py` is the first fetcher. Reference: [`docs/admin/econ/korea/kosis_openapi_reference.md`](korea/kosis_openapi_reference.md). See [[project-kosis-openapi-live]]. |
 | **BOK ECOS direct API** | `ecos.bok.or.kr` | Still blocked (Korean mobile + citizenship required). Use KOSIS mirror instead — KOSIS carries ECOS 1:1 with `tblId = DT_{STAT_CODE}`. |
 
 Tooling built or improved this session:
@@ -61,6 +68,80 @@ Tooling built or improved this session:
 - `src/imdr/connectors/http.py` — API-key redaction in structured logs (`api_key`, `apikey`, `access_token`, `token`, `secret`, `password` masked); `follow_redirects=True` default.
 - `playground/econ/fred/{connector,validate_and_seed,fetch,search}.py` — `seriess` typo fix on FRED `/series` endpoint; rate-limit throttle (≥0.6s); FRED `/series/search` CLI exists at `search.py` (used to discover the right OECD MEI IIP code pattern when v1 guesses 400'd).
 - Feedback memories added: [`feedback_js_rendered_dont_bail.md`](../../../../memory/feedback_js_rendered_dont_bail.md), [`feedback_slow_down.md`](../../../../memory/feedback_slow_down.md).
+
+### 0.1 DB stock-take (2026-06-05, post-KOSIS-expansion)
+
+Direct counts from `econ.dim_indicator` + `econ.fact_indicator`. Refresh by running the queries in [`scripts/explore/`](../../../../scripts/explore/) — or copy from this section as a starting point.
+
+**Top-line**
+
+| | |
+|---|---|
+| Indicators (dim rows) | **370** |
+| Observations (fact rows) | **325,579** |
+| Vendors loaded | 4 (FRED + HKMA + KOSIS + REB) |
+| Countries with ≥1 indicator | 11 |
+| Categories used | 15 of 17 (`tourism` + `other` unused) |
+| Date range | 1961-01-01 → 2026-06-04 |
+
+**By vendor**
+
+| Vendor | Indicators (dim) | Indicators (with facts) | Observation rows | First obs | Last obs |
+|---|---:|---:|---:|---|---|
+| HKMA  | 29  | 29  | 192,083 | 1981-01-02 | 2026-06-03 |
+| FRED  | 173 | 173 | 82,820  | 1990-01-01 | 2026-06-04 |
+| KOSIS | 164 | 164 | 47,748  | 1961-01-01 | 2026-06-01 |
+| REB   | 4   | 4   | 2,928   | 2012-05-07 | 2026-06-01 |
+
+**Today's deltas vs 2026-06-04:**
+
+- KOSIS: +114 indicators / +37,071 obs across 13 new fetchers — Korea coverage went 1/16 ✅ → **14/16 ✅** in the wiring map.
+- FRED: +4 Korea rate series (INTDSRKRM193N Discount / IRSTCI01KRM156N Call Money / IR3TIB01KRM156N 3M Interbank / IRLTLT01KRM156N 10Y Govt). Fills cell 4.4 Policy Reaction. BOK Base Rate proper is not on Citi BENCH_RATES catalogue (only 10 entries: ECB / FED / JPY / UK / 5 US sub-rates) — gap documented for future addition.
+  - **PPI** (DT_404Y014): 6 series (Total + 5 sectors — Agri / Mining / Mfg / Utilities / Services), monthly, 1990-01 → 2026-04. **40k-cell cap resolved** via discovery-first + per-cut iteration (one call per top-level C1 instead of `obj_l1=ALL`).
+  - **GDP Quarterly** (DT_200Y102): 24 series (GDP + 11 components, each × QoQ-SA + YoY), quarterly, 1961-Q1 → 2026-Q1.
+  - **Terms of Trade** (DT_403Y005): 2 series (Net Barter + Income ToT, 2020=100), monthly, 1988-01 → 2026-04.
+  - **Bank Deposit Rates** (DT_121Y002): 6 series (CD 91d, Time Deposits, Repo, FinDebent, Marketable FI composite, headline ex-debent), monthly, 1996-01 → 2026-04. **NOTE: this is deposit-side rates, NOT the BOK Base Rate** (policy rate is not on KOSIS; obtain via Citi market data).
+  - **BoP** (DT_301Y013): 24 series, monthly USD mn, 1980-01 → 2026-03. CA total + 4 balances (Goods / Services / Primary / Secondary income) + 2 goods sub (X/M) + 3 services sub (Transport / Travel / Construction) + 12 FA components (DI/PI/Deriv/OI/Reserves × net/assets/liab) + E&O. Identity check `CA = FA − E&O` holds within ~$100M of rounding. Refactored from earlier Playwright-based `fetch_bop.py`.
+  - Shared `_kosis_http.py` helper extracted — TLS 1.2 pin + retry + `parse_kosis_period` for M/Q/A/W cycles. Used by all 7 KOSIS fetchers.
+  - Coverage-plan correction: `DT_404Y014` was originally labelled CPI in the coverage plan — it's actually **PPI**. Real CPI lives at KOSTAT `DT_1J22042` (orgId=101, loaded yesterday).
+- REB R-ONE direct: **new vendor row** via migration 078. +4 indicators / +2,928 obs (KR_NAT + KR_SEOUL × Sale + Jeonse, weekly 2012-05-07 → 2026-06-01). Same 4 housing concepts as the KOSIS-mirror set but distinguished via `.REB_DIRECT` imdr_code suffix to satisfy the `uq_dim_indicator_imdr_code` constraint. REB-direct provides 11 extra years of history (2012-05 vs KOSIS's 2021-07 floor).
+- KOSTAT EAPS Labour + Retail Sales: +22 indicators / +6,288 obs.
+  - **Labour** (DT_1DA7001S): 8 series (Population 15+ / Active / Employed / Unemployed / Inactive / LFPR / Unemployment Rate / E-P Ratio), monthly, 1999-06 → 2026-04. Identity check passes (Active + Inactive = Pop15+).
+  - **Retail Sales** (DT_1K41013): 14 series — 7 retail types × Value + SA index, monthly. Earliest start 2000-01 for headline categories; discount/duty-free start 2010-01.
+
+**By country** (indicator count)
+
+```
+KR 172   US 133   HK 29   NZ 7   UK 6   JP 5   DE 5   EU 5   CA 4   AU 3   CH 2
+```
+
+KR jumps from 0 → 141 across three sessions (yesterday: CPI + REB Housing; today round 1: PPI + GDP-Q + ToT + Bank Rates + BoP + REB-direct + EAPS Labour + Retail Sales; today round 2: Fiscal + Trade Prices + FRED Korea rates + Lending + Balance Sheets + Wages + Trade Indices). **KR overtakes the US** as the most-populated country in `econ.dim_indicator`.
+
+**By category** (indicator count, top 10)
+
+```
+rates 44 · gdp 51 · cpi 30 · bop 26 · labour 21 · sentiment 17 ·
+credit 16 · balance_sheet 14 · fx 13 · cb_balance_sheet 10 · housing 4
+```
+
+KR adds (cumulative): cpi +15 (KOSTAT CPI), gdp +24 (BOK GDP-Q), cpi +6 (PPI uses `cpi` category), bop +26 (24 BoP + 2 ToT), rates +6 (Bank Rates), housing +4 (REB).
+
+**By frequency** (rows)
+
+```
+DAILY     258,742  (88.9%)  ← UST yields + HIBOR + HKD spot + BEI spreads (mostly HKMA back to 1981)
+MONTHLY    16,930  (5.8%)   ← CPI, PPI, ToT, bank rates, employment, IIP, M-aggregates
+QUARTERLY   6,936  (2.4%)   ← Real GDP (KR), BoP, household debt-service, ECI wages
+WEEKLY      6,972  (2.4%)   ← US Fed BS items, jobless claims, mortgage rates, REB housing
+ANNUAL          6           ← FYFSGDA188S US federal deficit % of GDP
+```
+
+**Implication for schema decisions**: still 89% DAILY. Indexing `(obs_date, indicator_id)` clustered remains the right call. Columnstore conversion stays deferred (~290k rows still well under the ~50M threshold).
+
+**Known data-quality gaps**:
+- ~~3 FRED dim rows had zero observations~~ — **resolved 2026-06-04**.
+- ~~KOSIS BoP refactor pending~~ — **resolved 2026-06-05**. `fetch_bop.py` rewritten OpenAPI + dim/fact. 24 indicators × 13,234 obs loaded; CA-FA-E&O identity holds within rounding.
+- ~~REB-direct housing not loaded~~ — **resolved 2026-06-05**. Migration 078 added `reb` vendor row; 4 indicators × 2,928 obs loaded with `.REB_DIRECT` imdr_code suffix to coexist with KOSIS-mirror rows. Same 4 series, 11 extra years of history (2012-05 vs 2021-07).
 
 ---
 
@@ -538,7 +619,7 @@ This same explore-first pattern (using the shared `playground/research/portal_ex
 
 **Status (2026-06-03 PM — UPDATED):**
 
-- **KOSIS OpenAPI is LIVE.** Key registered, in `.env` as `IMDR_KOSIS_API_KEY`. First fetcher at `playground/econ/kosis/fetch_bop.py` (BoP series via `orgId=301`). Reference at [`docs/admin/vendors/bok/kosis_openapi_reference.md`](../vendors/bok/kosis_openapi_reference.md). See [[project-kosis-openapi-live]].
+- **KOSIS OpenAPI is LIVE.** Key registered, in `.env` as `IMDR_KOSIS_API_KEY`. First fetcher at `playground/econ/kosis/fetch_bop.py` (BoP series via `orgId=301`). Reference at [`docs/admin/econ/korea/kosis_openapi_reference.md`](korea/kosis_openapi_reference.md). See [[project-kosis-openapi-live]].
 - **MODS press-release PDFs LIVE** (earlier in session) — `playground/econ/mods/fetch.py`, 10 CPI PDFs on OneDrive.
 - **BOK ECOS direct API still blocked** (Korean mobile + citizenship). **KOSIS mirrors ECOS 1:1** with `tblId = DT_{STAT_CODE}` so the block is no longer load-bearing.
 
@@ -1145,7 +1226,8 @@ Only after Phase 0 review:
 25. ~~Migration 076 applied~~ (2026-06-03) — added `hours` + `units_th` to `dbo.dim_unit` (needed by 4 FRED indicators: `LABOUR.HOURS_AVG` + `HOUSING.{STARTS,PERMITS,EXISTING_SALES}`). Original number 074 collided with already-applied research-vendor seed; renumbered.
 26. ~~FRED loaded end-to-end~~ (2026-06-03) — 170 indicators / 80,810 obs. v1 was 129 (US-heavy + 6 non-US headline). v2 expanded with US BoP / PPI / fiscal / HH balance-sheet (+18) and OECD-mirror G10 CPI YoY / Unemployment / Real GDP / Industrial Production (+23 net, after dropping 5 dead OECD codes and 3 collisions with prior NZ/JP/GB OECD CPI series). IIP code pattern discovered via `playground/econ/fred/search.py` — correct slugs are `{ISO3}PROIND{M,Q}ISMEI` for OECD MEI.
 27. ~~HKMA v2 loaded end-to-end~~ (2026-06-03) — 29 indicators / 192,083 obs. Fetcher refactored from hardcoded 2-endpoint dispatch to config-driven N-endpoint loop. New series across 6 clusters: HIBOR ×6, HKD spot vs 6 majors, NEERI 2020 ×3 weights, Composite IR, FX Reserves Total, M1/M2/M3 + Currency in Circulation, NPL/Classified/Overdue ratios ×3, Total Loans in HK. FX history goes back to 1981 (24 years daily). HKMA Open Data API catalogue enumerated via `apidocs.hkma.gov.hk` documentation pages.
-28. ~~Vendor-agnostic loader~~ (2026-06-03) — `scripts/migrations/load_econ_indicator_from_playground.py` works for any vendor whose parquet matches `IndicatorRow` / `ObservationRow`. Used unchanged for FRED v1 → FRED v2 → FRED+IIP → HKMA v2. Pattern: 5 FK lookups via small `dim_*` JOINs, translation maps for vendor-specific spellings (`%`→`pct`, `GB`→`UK`, `FRED`→`fred`), MERGE dim by `(vendor_id, source_code)`, staging-table MERGE fact by PK. Idempotent + loud on FK miss.
+28. ~~Vendor-agnostic loader~~ (2026-06-03) — `scripts/migrations/load_econ_indicator_from_playground.py` works for any vendor whose parquet matches `IndicatorRow` / `ObservationRow`. Used unchanged for FRED v1 → FRED v2 → FRED+IIP → HKMA v2. Pattern: 5 FK lookups via small `dim_*` JOINs, translation maps for vendor-specific spellings (`%`→`pct`, `FRED`→`fred`), MERGE dim by `(vendor_id, source_code)`, staging-table MERGE fact by PK. Idempotent + loud on FK miss.
+29. ~~Migration 079: FRED imdr_code realignment to dim_country~~ (2026-06-05) — 9 imdr_code suffixes realigned: 6 `.GB → .UK` and 3 `.EZ → .EU` to match `dbo.dim_country.country_code` canonical (UK / EU). Companion changes: FRED `seed.yml` + `validate_and_seed.py` updated; loader `_COUNTRY_ALIASES = {"GB": "UK"}` map emptied. Zero string consumers of these imdr_codes existed in `src/`, `scripts/`, tests, or notebooks (fact joins are on integer FK, not the imdr_code string) so the rename was safe.
 
 **Still open**:
 

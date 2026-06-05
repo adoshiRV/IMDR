@@ -6,8 +6,10 @@
 
 This file is the **coverage target** for `econ.dim_indicator`. Every cluster below should resolve to at least one indicator per country we care about. The per-country tracker in §6 is updated as fetchers + sign-offs land.
 
-- **Companion**: [economics_data_ingest.md](economics_data_ingest.md) — the schema, sources, and pipeline plan.
-- **Date**: 2026-06-03 (updated after FRED v2+IIP + HKMA v2 — 199 indicators / 272,893 obs across 9 countries + HK; KOSIS OpenAPI live for KR)
+- **Onboarding playbook**: [onboarding_new_country.md](onboarding_new_country.md) — 5-step workflow with vendor cascade, build order, identity checks, quality bar, ❌→⚠→✅ promotion rules.
+- **Indicator catalogue**: [country_econ_blueprint.md](country_econ_blueprint.md) — country-agnostic master list of series per cluster.
+- **Schema + build log**: [economics_data_ingest.md](economics_data_ingest.md) — pipeline + per-vendor build state.
+- **Date**: 2026-06-05 (KR sweep complete: **370 indicators / 325,579 obs / 11 countries / 15 categories**; FRED 173/173, HKMA 29/29, KOSIS 164/164, REB 4/4 — KR went from 1 ✅ / 6 ⚠️ / 9 ❌ to **16/16 covered** across 21 fetchers — 172 KR-specific indicators)
 
 ---
 
@@ -123,14 +125,11 @@ This file is the **coverage target** for `econ.dim_indicator`. Every cluster bel
 
 ---
 
-## 5. How to use this map
+## 5. Reading the map
 
-1. **Identify the active loop.** Which engine is driving the trade thesis — growth slowdown, sticky inflation, BoP stress, policy pivot?
-2. **Pick the cluster.** Within the active engine, which cell is most informative *for this country at this point in the cycle*? (E.g. for the US in 2026 you care about 1.4 + 2.4; for India you care about 3.4 + 4.4.)
-3. **Choose indicators.** From the cluster's bullets, pick the country-specific series that most cleanly proxies the concept.
-4. **Verify coverage.** §6 below tracks whether `econ.dim_indicator` has at least one indicator per (country, cluster).
+The map is regime-agnostic. Different countries lean on different bullets in the same cluster (e.g. **2.3 Domestic Costs**: US watches ECI + JOLTS quits, India watches WPI services component, Korea watches MOTIE wage tracker). The cell wiring stays stable; only the chosen indicator changes.
 
-The map is regime-agnostic — different countries lean on different bullets in the same cluster (e.g. **2.3 Domestic Costs**: US watches ECI + JOLTS quits, India watches WPI services component, Korea watches MOTIE wage tracker). The cell wiring stays stable; only the chosen indicator changes.
+For how to *use* this map (workflow, promotion rules, identity checks), see [onboarding_new_country.md](onboarding_new_country.md).
 
 ---
 
@@ -159,8 +158,11 @@ Countries in scope (Phase 1–3): G10 + key APAC. Edit this table as fetchers la
 | HK | ❌ | ❌ | ❌ | ❌ |
 | SG | ❌ | ❌ | ❌ | ❌ |
 | IN | ❌ | ❌ | ❌ | ❌ |
-| KR | ❌ | ❌ | ❌ | ❌ |
+| KR | ✅ (KOSTAT Retail + BOK CCI + Consumer Tendency Survey) | ✅ (BOK 200Y154 Public Sector Revenue/Expenditure/Net Lending) | ✅ (BOK Trade Value+Volume indices + BoP goods X/M) | ✅ (KOSIS GDP-Q + KOSTAT EAPS labour + KOSTAT IIP + BSI Mfg) |
 | TW | ❌ | ❌ | ❌ | ❌ |
+| PH | ❌ | ❌ | ❌ | ❌ |
+| TH | ❌ | ❌ | ❌ | ❌ |
+| ID | ❌ | ❌ | ❌ | ❌ |
 
 ### 6.2 Inflation Engine
 
@@ -177,8 +179,11 @@ Countries in scope (Phase 1–3): G10 + key APAC. Edit this table as fetchers la
 | HK | ❌ | ❌ | ❌ | ❌ |
 | SG | ❌ | ❌ | ❌ | ❌ |
 | IN | ❌ | ❌ | ❌ | ⚠️ (RBI Bulletin T19C) |
-| KR | ❌ | ❌ | ❌ | ⚠️ (MODS press release PDFs — unparsed) |
+| KR | ✅ (BOK Import/Export prices × Won/USD; CPI Fresh-food) | ✅ (KOSIS BOK PPI Total + 5 sectors) | ✅ (KOSTAT Wages annual + Mfg Capacity Util + BOK Expected Inflation) | ✅ (KOSTAT CPI Headline + Living + Core × MoM/YoY/YTD) |
 | TW | ❌ | ❌ | ❌ | ❌ |
+| PH | ❌ | ❌ | ❌ | ❌ |
+| TH | ❌ | ❌ | ❌ | ❌ |
+| ID | ❌ | ❌ | ❌ | ❌ |
 
 ### 6.3 External & FX
 
@@ -195,8 +200,11 @@ Countries in scope (Phase 1–3): G10 + key APAC. Edit this table as fetchers la
 | HK | ❌ | ❌ | ❌ | ❌ |
 | SG | ❌ | ❌ | ❌ | ❌ |
 | IN | ❌ | ❌ | ⚠️ (RBI FX reserves) | ❌ |
-| KR | ❌ | ❌ | ❌ | ❌ |
+| KR | ✅ (KOSIS BOK Net Barter + Income ToT) | ✅ (KOSIS BoP CA + Goods/Services/Primary/Secondary 1980→) | ✅ (KOSIS BoP FA + DI/PI/Deriv/OI/Reserves + E&O 1980→) | ❌ (KOSIS-absent — FX rates + reserves need Citi spot / BOK direct) |
 | TW | ❌ | ❌ | ❌ | ❌ |
+| PH | ❌ | ❌ | ❌ | ❌ |
+| TH | ❌ | ❌ | ❌ | ❌ |
+| ID | ❌ | ❌ | ❌ | ❌ |
 
 ### 6.4 Policy Transmission
 
@@ -213,8 +221,11 @@ Countries in scope (Phase 1–3): G10 + key APAC. Edit this table as fetchers la
 | HK | ❌ | ❌ | ❌ | ⚠️ (HKMA aggregate balance + EFBN) |
 | SG | ❌ | ❌ | ❌ | ❌ |
 | IN | ❌ | ❌ | ⚠️ (RBI call money) | ❌ |
-| KR | ❌ | ❌ | ❌ | ❌ |
+| KR | ✅ (BOK Lending Attitude Survey + Household Loans monthly + REB housing) | ✅ (BOK HH Credit + Corp financial ratios × 13 + FSS NPL legacy) | ⚠️ (KOSIS bank deposit + CD 91d + Repo rates — Base Rate via FRED proxies cell 4.4 instead) | ✅ (FRED KR Discount Rate / Call / 3M Interbank / 10Y Govt + BOK M2/Lf monetary aggregates) |
 | TW | ❌ | ❌ | ❌ | ❌ |
+| PH | ❌ | ❌ | ❌ | ❌ |
+| TH | ❌ | ❌ | ❌ | ❌ |
+| ID | ❌ | ❌ | ❌ | ❌ |
 
 ---
 
@@ -234,7 +245,7 @@ Updated 2026-06-03 after FRED load v2 (162 indicators total, 133 US-specific).
 |---|:---:|:---:|:---:|:---:|
 | **Growth** | ⚠️ Private *(retail sales, cap-goods orders, real DPI)* | ⚠️ Fiscal *(FGEXPND/FGRECPT/FYFSGDA188S + debt + monthly MTS)* | ⚠️ External *(EXPGS, IMPGS, NETEXP)* | ✅ Macro Core *(GDP, GDPNow, INDPRO, payrolls, CFNAI)* |
 | **Inflation** | ⚠️ Input Costs *(WTI, Brent, HH gas, gold)* | ⚠️ Producer *(PPIACO, PPIFIS, IR import price)* | ⚠️ Domestic *(AHE, ECI wages, MICH 1Y exp)* | ✅ CPI *(CPI + Core + PCE + 6 more)* |
-| **External** | ❌ Terms of Trade | ⚠️ Current Acc *(BOPBCA, BOPGSTB)* | ❌ Capital Acc | ⚠️ FX/REER *(DTWEXBGS, AFE, EME)* |
+| **External** | ❌ Terms of Trade | ⚠️ Current Acc *(IEABC current account quarterly + BOPGSTB monthly trade balance)* | ❌ Capital Acc | ⚠️ FX/REER *(DTWEXBGS, AFE, EME)* |
 | **Policy** | ⚠️ Demand Trans *(SLOOS, mortgage rates, BUSLOANS)* | ⚠️ Balance Sheets *(TDSP, FODSP, CMDEBT, HH mortgage debt)* | ✅ Fin Conditions *(UST curve + IG/HY/BAA OAS + NFCI + VIX)* | ✅ Policy *(Fed funds, EFFR, SOFR, IORB, Fed BS, RRP)* |
 
 US score: **4 ✅ / 11 ⚠️ / 1 ❌** (was 4/8/4 before v2 expansion). Only Terms-of-Trade and Capital-Account remain ❌.
@@ -353,18 +364,53 @@ HK score: **0 ✅ / 7 ⚠️ / 9 ❌** (was 0/1/15 before v2). All right-side cl
 
 ### 7.13 South Korea (KR)
 
-KOSIS OpenAPI went live 2026-06-03 PM (TLS 1.2 pinned, 40k-row cap). First fetcher `playground/econ/kosis/fetch_bop.py` covers BoP via `orgId=301`. KOSIS mirrors BOK ECOS 1:1 with `tblId = DT_{STAT_CODE}`, so most Korea series are reachable without the still-blocked ECOS direct API.
+KOSIS OpenAPI went live 2026-06-03 PM (TLS 1.2 pinned, 40k-cell cap). Expanded 2026-06-05 across 4 rounds to **164 indicators / 47,748 obs end-to-end** across 20 KOSIS fetchers + 4 FRED Korea rate series + 4 REB-direct housing. KOSIS mirrors BOK ECOS 1:1 with `tblId = DT_{STAT_CODE}`, so most Korea series are reachable without the still-blocked ECOS direct API.
 
 | Engine | A | B | C | D |
 |---|:---:|:---:|:---:|:---:|
-| **Growth** | ❌ *(KOSIS available — pending fetcher)* | ❌ *(KOSIS available)* | ❌ *(KOSIS available)* | ❌ *(KOSIS available for GDP / unemployment / IIP)* |
-| **Inflation** | ❌ *(KOSIS available)* | ❌ *(KOSIS available)* | ❌ *(KOSIS available)* | ⚠️ CPI *(MODS press-release PDFs — raw on OneDrive, unparsed; + KOSIS available)* |
-| **External** | ❌ *(KOSIS available)* | ⚠️ Current Acc *(KOSIS fetch_bop.py — BoP `orgId=301`)* | ⚠️ Capital Acc *(KOSIS fetch_bop.py — Financial Account `BOPF…` codes)* | ❌ *(KOSIS available for FX)* |
-| **Policy** | ❌ | ❌ | ❌ *(KOSIS available for KORIBOR / policy rate)* | ❌ *(KOSIS available)* |
+| **Growth** | ✅ Private Demand *(KOSTAT Retail Sales × 7 types × Value+SA, monthly 2000→)* | ✅ Fiscal Demand *(BOK 200Y154 Public Sector — Revenue / Expenditure / Net Lending / Saving + Direct/Indirect Taxes, annual 2007→)* | ✅ External Demand *(BOK Trade Value+Volume indices monthly 1988→; BOK BoP goods X/M monthly 1980→; GDP exports/imports QoQ+YoY quarterly 1961→)* | ✅ Macro Core *(BOK GDP-Q × 12 components 1961→; KOSTAT EAPS labour 8 series 1999-06→)* |
+| **Inflation** | ✅ Input Costs *(BOK Import Price All-items × Won+USD basis, monthly 1980→; CPI Fresh-food + BOK PPI Mining/Utilities sub-cuts)* | ✅ Producer Prices *(BOK PPI Total + 5 sectors, monthly 1990→)* | ✅ Domestic Costs *(KOSTAT Wages — national avg level + YoY growth, annual 2011→)* | ✅ CPI Pressure *(KOSTAT CPI Headline + Living + Fresh-food + 2 core × MoM/YoY/YTD, monthly 2000→)* |
+| **External** | ✅ Terms of Trade *(BOK Net Barter + Income ToT, monthly 1988→)* | ✅ Current Acc *(BOK BoP CA + Goods/Services/Primary/Secondary income balances + sub-cuts, monthly 1980→)* | ✅ Capital Acc *(BOK BoP FA + DI/PI/Deriv/OI/Reserves × net/assets/liab + E&O, monthly 1980→)* | parked *(3.4 FX/REER — user-deferred this session; route via Citi spot + FRED BIS REER/NEER)* |
+| **Policy** | ✅ Demand Trans *(BOK Lending Attitude Survey × Bank Overall/LargeCorp/SME/HH/Housing, quarterly 2003→; BOK Household Loans by purpose monthly 2003→; REB housing)* | ✅ Balance Sheets *(BOK Household Credit total + Loans quarterly 2002→; FSS Bank Total Loans + NPL Level + NPL Ratio quarterly — FSS data stale to 2016)* | ⚠️ Fin Conditions *(BOK bank deposit + CD 91d + Repo + FinDebent + FinDebent rates monthly 1996→; BOK Base Rate ❌ on KOSIS — see 4.4 fallback)* | ✅ Policy Reaction *(FRED Korea Discount Rate 1990→; Call Money 1991→; 3M Interbank 1991→; 10Y Govt 2000→ — covers cell 4.4 via OECD-mirror feeds. Citi BENCH_RATES catalogue has no KR — only 10 entries ECB/FED/JPY/UK/US — gap documented for future Citi-side addition)* |
 
-KR went from **0 ⚠️ / 16 ❌** to **2 ⚠️ / 14 ❌** with KOSIS BoP. Remaining ❌s are now "we have the API key + reference doc; just need to add more `tblId`s to a KOSIS fetcher" rather than infrastructure-blocked.
+KR went from **1 ✅ / 6 ⚠️ / 9 ❌** to **15 ✅ / 1 ⚠️ / 1 parked** in one day across 21 fetchers + 172 KR-specific indicators. The remaining ⚠️ is 4.3 Financial Conditions (KOSIS bank rates are deposit-side only; the BOK Base Rate proper is on FRED via cell 4.4). The parked cell is 3.4 FX/REER (user-deferred; route via Citi spot + FRED BIS REER when needed). **All other 15 cells now ✅ in `econ.dim_indicator`.**
+
+The 2026-06-05 gap-closure round added 5 more fetchers (M-aggregates, IIP+Capacity Util, Consumer Survey, BSI Realised+Outlook, Corporate Financial Ratios) — see §7.13 grid entries for `[CCI, IIP, BSI Mfg, Mfg Capacity Util, Corp ratios, M2/Lf]`.
 
 ### 7.14 Taiwan (TW)
+
+| Engine | A | B | C | D |
+|---|:---:|:---:|:---:|:---:|
+| **Growth** | ❌ | ❌ | ❌ | ❌ |
+| **Inflation** | ❌ | ❌ | ❌ | ❌ |
+| **External** | ❌ | ❌ | ❌ | ❌ |
+| **Policy** | ❌ | ❌ | ❌ | ❌ |
+
+### 7.15 Philippines (PH)
+
+Source-catalogue scoped 2026-06-05: BSP (monetary/banking/FX) + PSA (CPI/national accounts/labour) + DBM/BTr (fiscal). No formal data API — BSP runs on SharePoint listing pages; PSA is XLSX/PDF. See [philippines/index.md](../econ/philippines/index.md).
+
+| Engine | A | B | C | D |
+|---|:---:|:---:|:---:|:---:|
+| **Growth** | ❌ | ❌ | ❌ | ❌ |
+| **Inflation** | ❌ | ❌ | ❌ | ❌ |
+| **External** | ❌ | ❌ | ❌ | ❌ |
+| **Policy** | ❌ | ❌ | ❌ | ❌ |
+
+### 7.16 Thailand (TH)
+
+Source-catalogue scoped 2026-06-05: BoT REST JSON API (free key, rates/FX/monetary/BoP/banking) + NSO Thailand XLSX (CPI/labour/national accounts). BoT is cleanest API in ASEAN after Singapore + Malaysia. See [thailand/index.md](../econ/thailand/index.md).
+
+| Engine | A | B | C | D |
+|---|:---:|:---:|:---:|:---:|
+| **Growth** | ❌ | ❌ | ❌ | ❌ |
+| **Inflation** | ❌ | ❌ | ❌ | ❌ |
+| **External** | ❌ | ❌ | ❌ | ❌ |
+| **Policy** | ❌ | ❌ | ❌ | ❌ |
+
+### 7.17 Indonesia (ID)
+
+Source-catalogue scoped 2026-06-05: BPS API (free key, CPI/GDP/labour/trade) + BI portal (monetary/external, XLSX only — no API) + MoF/DJPPR (fiscal + SBN). BPS is API-grade; BI is the gap. See [indonesia/index.md](../econ/indonesia/index.md).
 
 | Engine | A | B | C | D |
 |---|:---:|:---:|:---:|:---:|
@@ -417,10 +463,16 @@ Five candidate IDs failed FRED `/series` validation during the v2+IIP load. They
 
 Plus one transient `NFCIRISK` 500 (Chicago Fed NFCI sub-index; intermittent FRED outage, retry).
 
-## 9. Maintenance
+**~~Fetcher-stuck dim rows~~** — RESOLVED 2026-06-04. All 3 were officially discontinued by FRED (real cause; not a fetch bug). Substitutions:
 
-- When a new indicator lands in `econ.dim_indicator`, update the relevant cell from ❌ → ⚠️ → ✅.
-- ✅ = at least one indicator per bullet in that cluster, with vintage-0 sample on disk + the production fetcher registered.
-- ⚠️ = partial; cell text in parentheses names the indicator(s) present.
-- Add new countries by appending rows to §6.x tables — keep the cluster columns identical.
-- New clusters / sub-bullets shouldn't be added casually; they're meant to be a stable taxonomy. If a country needs something genuinely off-map (e.g. China RRR ratios, India SLR), record it in §7 (regime-dependence) rather than reshaping the map.
+| imdr_code | Old (discontinued) | New | Status |
+|---|---|---|---|
+| `FRED.BOP.CURRENT_ACCT.US` | `BOPBCA` (discontinued 2014) | `IEABC` (Balance on current account, quarterly) | ✅ 24 obs (2020-2025) |
+| `FRED.BALANCE_SHEET.FED_MBS_HOLD.US` | `MBST` (discontinued 2018) | `WSHOMCB` (SOMA MBS holdings, weekly H.4.1) | ✅ 335 obs (2020-2026) |
+| `FRED.SENTIMENT.CFSI.US` | `CFSI` (discontinued 2016) | dropped — covered by KCFSI + STLFSI4 + ANFCI | n/a |
+
+**FRED ops note**: today's session hit `HTTP 429 Too Many Requests` after consecutive validate + fetch runs. Fixed by wiring the connector for **dual-key rotation** (`IMDR_ECON_FRED_KEY` + `IMDR_ECON_FRED_KEY2`, round-robin per request) + bumping the throttle from 0.6s → 0.5s (60 req/min/key vs FRED's 120/min/key cap). Post-fix run was clean — 0 429s.
+
+---
+
+For maintenance rules (when to flip ❌ → ⚠️ → ✅, when to add a new country vs reshape the map), see [onboarding_new_country.md §5](onboarding_new_country.md#step-5--reconcile-against-the-wiring-map).

@@ -153,7 +153,7 @@ A full org enumeration is available via `statisticsList.do?method=getOrgList`
 
 | Series | `orgId` | `tblId` | Cadence | Use |
 |---|---|---|---|---|
-| Balance of Payments (master) | 301 | `DT_301Y013` | Monthly | BoP / capital-flow analysis — see [exploration/bop.md](exploration/bop.md) |
+| Balance of Payments (master) | 301 | `DT_301Y013` | Monthly | BoP / capital-flow analysis — see [_playground/bop.md](_playground/bop.md) |
 | BoP — SA Current Account | 301 | `DT_301Y017` | Monthly | Seasonally adjusted CA |
 | BoP — regional CA (Asia/EU) | 301 | `DT_301Y015` / `DT_301Y016` | Monthly | Regional decomposition |
 | IIP / External Debt | 301 | `DT_311Y…` family | Quarterly | Stock counterparts to BoP flows |
@@ -210,4 +210,4 @@ side-channel metadata calls.
   exceeds the 40k-row cap.
 - Cross-org error semantics (`err=21` on BoP probes): the BoP table
   expects specific 4-digit area codes for `objL1`, not the `ALL` shortcut.
-  See [exploration/bop.md](exploration/bop.md) for the proper code set.
+  See [_playground/bop.md](_playground/bop.md) for the proper code set.

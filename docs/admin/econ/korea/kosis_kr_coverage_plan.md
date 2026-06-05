@@ -3,7 +3,7 @@
 Last updated: 2026-06-03
 
 Maps every Korea (KR) cell of the
-[macro_economy_wiring_map.md §7.13](../../development/macro_economy_wiring_map.md#713-south-korea-kr)
+[macro_economy_wiring_map.md §7.13](../macro_economy_wiring_map.md#713-south-korea-kr)
 to specific KOSIS `(orgId, tblId)` candidates.
 
 This is the **plan** for filling `econ.dim_indicator` Korea rows — today
@@ -211,52 +211,85 @@ live) and FX reserves from FRED mirror.
 
 | Concept | orgId | tblId | Cadence | Status |
 |---|:---:|---|:---:|:---:|
-| **Market interest rates (incl. base rate, KORIBOR, KTB yields)** | 301 | **`DT_121Y002`** | M | ✅ confirmed — `13102134588ACC_ITEM.BEABAA1` returned 2.88% |
-| Money market rates (call money, CD) | 301 | `DT_121Y002` (same table, different items) | M | ✅ |
+| **Bank deposit-side rates (CD 91d, time deposits, repo, FinDebent)** | 301 | **`DT_121Y002`** | M | ✅ **loaded 2026-06-05** — 6 indicators 1996→ |
+| Money market rates (call money, CD) | 301 | `DT_121Y002` (same table) | M | ✅ loaded (CD 91d, repo) |
 | KORIBOR / CD curve detail | 301 | `DT_121Y…` family | D/M | ⚠ |
 | Corporate bond credit spreads | 301 | `DT_121Y…` corporate yields | M | ⚠ |
+
+> **Correction (2026-06-05)**: An earlier draft listed `DT_121Y002` as
+> "market interest rates incl. base rate". After loading, the table is
+> actually **DEPOSIT-SIDE bank rates** (예금은행 수신금리) — Time Deposits,
+> CDs, Repos, Financial Debentures. The 2.88% return that looked like
+> a "policy rate" was Time & Savings Deposits ex-debentures. The actual
+> BOK Base Rate is NOT in KOSIS — it's only accessible via the BOK
+> website or via Citi market data.
 
 ### 4.4 Policy Reaction (BOK Base Rate, fiscal stance, macropru)
 
 | Concept | orgId | tblId | Cadence | Status |
 |---|:---:|---|:---:|:---:|
-| **BOK Base Rate** | 301 | **`DT_121Y002`** (`ACC_ITEM.BEABAA1`) | M | ✅ confirmed |
-| **M1 / M2 / M3 / Lf money supply** | 301 | **`DT_101Y004`** | M | ✅ confirmed |
-| Currency in circulation | 301 | `DT_101Y…` (same family) | M | ⚠ |
+| **BOK Base Rate** | — | NOT IN KOSIS | M | ❌ — use BOK direct page or Citi `RATES.BENCH_RATES.KR` (TBD) |
+| **M2 components** | 301 | **`DT_101Y004`** | M | ⚠ — table confirmed, 16 sub-cuts; not yet built |
+| Money supply M1/M2/Lf headline | 301 | `DT_102Y…` family (monetary base) or similar — needs probing | M | ❓ |
+| Currency in circulation | 301 | `DT_102Y…` family | M | ⚠ |
 | Macroprudential ratios (LTV, DTI) | n/a | not in BOK / KOSTAT standard catalogue — likely FSC press releases | event | ❓ |
 
 ---
 
-## 5. Summary — what KOSIS covers vs gaps
+## 5. Summary — what KOSIS covers vs gaps (refreshed 2026-06-05)
 
-After this probe round (2026-06-03 PM), KR cells in
-[macro_economy_wiring_map.md §7.13](../../development/macro_economy_wiring_map.md#713-south-korea-kr)
+After two build rounds (2026-06-03 housing+CPI, 2026-06-05 PPI+GDP-Q+ToT+Bank Rates),
+KR cells in [macro_economy_wiring_map.md §7.13](../macro_economy_wiring_map.md#713-south-korea-kr)
 break down as:
 
 | Status | Count | Cells |
 |---|:---:|---|
-| **✅ Confirmed KOSIS path** | 6 | 1.4 Macro Core · 2.4 CPI · 3.1 ToT · 3.2 CA (existing) · 3.3 Capital Acc (existing) · 4.3 Fin Conds · 4.4 Policy |
-| **⚠ Strong KOSIS candidate (probe needed)** | 7 | 1.1 Private Demand · 1.2 Fiscal · 1.3 External (SNA cut only) · 2.1 Input Costs · 2.2 PPI · 4.1 Demand Trans · 4.2 Balance Sheets |
-| **❓ Concept exists, table unknown** | 2 | 2.3 Domestic Costs (wages survey) · 4.1 BOK lending survey |
-| **❌ KOSIS-absent — fallback required** | 1 | 3.4 FX / REER (use Citi + FRED for now) |
+| **✅ Loaded in `econ.dim_indicator`** | 14 | 1.1 Retail · 1.2 Fiscal · 1.3 External · 1.4 Macro Core · 2.1 Input Costs · 2.2 PPI · 2.3 Wages · 2.4 CPI · 3.1 ToT · 3.2 CA · 3.3 Capital Acc · 4.1 Demand Trans · 4.2 Balance Sheets · 4.4 Policy Reaction (FRED side) |
+| **⚠ Partial — KOSIS deposit-side only** | 1 | 4.3 Fin Conds (BOK Base Rate proper is in cell 4.4 via FRED; KOSIS DT_121Y002 carries deposit-side rates) |
+| **parked — user-deferred** | 1 | 3.4 FX/REER (route via Citi spot + FRED BIS REER/NEER when needed) |
+| **❓ Concept exists, table unknown** | 0 | — |
+| **❌ KOSIS-absent — fallback required** | 0 | (4.4 now ✅ via FRED; original "BOK Base Rate via Citi" route remains a documented gap — Citi BENCH_RATES catalogue has no KR entry) |
 
-Net: of the 14 ❌ cells called out as "KOSIS available" in the wiring
-map, **all 14 have a credible KOSIS path** identified here. One (FX/REER)
-needs the BOK Currency/Finance branch mapped first or a Citi/FRED
-fallback. Two (wages, FSC macropru) sit outside the BOK/KOSTAT statistical
-catalogue and need alternative sources.
+Net: KR is at **14 ✅ / 1 ⚠ partial / 1 parked**. All cells either filled or
+explicitly deferred. Citi BENCH_RATES side of cell 4.4 is the only outstanding
+"future-add" item (would require a Citi-side request to add KR_BASE).
 
-## 6. Recommended sequencing
+**Closed 2026-06-05:**
+- BoP refactor: `fetch_bop.py` rewritten Playwright → OpenAPI; 24 BoP indicators loaded; cells 3.2 + 3.3 ⚠ → ✅.
+- REB-direct vendor: migration 078 added `reb` row to `dbo.dim_vendor`; 4 REB-direct housing indicators loaded under `.REB_DIRECT` imdr_code suffix to coexist with KOSIS-mirror rows. REB-direct adds 11 years of history (2012-05 vs KOSIS-mirror's 2021-07).
 
-Build order, ranked by data value × ease:
+## 6. Recommended sequencing (refreshed 2026-06-05)
 
-1. **Macro core quarterly** — `DT_200Y102` (Key Indicators Q) → fills 1.4 cell fully. Already confirmed.
-2. **CPI monthly** — `DT_404Y014` → fills 2.4, removes MODS-PDF fallback. Already confirmed.
-3. **Policy rate + KORIBOR** — `DT_121Y002` → fills 4.3 + 4.4 in one fetcher. Already confirmed.
-4. **M1/M2/M3** — `DT_101Y004` → fills 4.4 money-supply leg.
-5. **Terms of Trade** — `DT_403Y005` → fills 3.1.
-6. **IIP + External Debt** — `DT_311Y001` … `DT_311Y006` → fills 3.3 stock counterpart.
-7. **National accounts decomposition** — `DT_200Y103…126` → fills 1.1/1.2/1.3 + growth-contribution detail.
+**DONE (loaded into `econ.dim_indicator`):**
+
+1. ✅ **CPI monthly** — `KOSTAT DT_1J22042` → 15 series. Cell 2.4. Loaded 2026-06-03.
+2. ✅ **REB Housing weekly** — KOSIS-mirror + REB-direct → 4 series. Cells 4.1/4.2 partial. Loaded 2026-06-03 (KOSIS mirror) + parquet on disk for REB-direct.
+3. ✅ **PPI monthly** — `BOK DT_404Y014` → 6 series. Cell 2.2. Loaded 2026-06-05 (40k-cap solved).
+4. ✅ **GDP quarterly** — `BOK DT_200Y102` → 24 series. Cell 1.4 + parts of 1.3. Loaded 2026-06-05.
+5. ✅ **Terms of Trade monthly** — `BOK DT_403Y005` → 2 series. Cell 3.1. Loaded 2026-06-05.
+6. ✅ **Bank Rates monthly** — `BOK DT_121Y002` → 6 series. Cell 4.3 partial. Loaded 2026-06-05.
+
+7. ✅ **KOSIS BoP** — `BOK DT_301Y013` → 24 series (CA total + Goods/Services/Primary/Secondary balances + sub-cuts + 12 FA components + E&O), monthly 1980-01→. Cells 3.2 + 3.3 ⚠ → ✅. `fetch_bop.py` rewritten Playwright → OpenAPI. Loaded 2026-06-05.
+
+8. ✅ **REB-direct vendor + housing load** — migration 078 added `reb` row to `dbo.dim_vendor`; 4 housing series loaded with `.REB_DIRECT` imdr_code suffix to coexist with KOSIS-mirror rows. 2012-05 → present (11 yr deeper than KOSIS mirror). Loaded 2026-06-05.
+9. ✅ **KOSTAT EAPS Labour** — `DT_1DA7001S` → 8 series, monthly 1999-06→. Cell 1.4 labour leg ⚠ → ✅. Loaded 2026-06-05.
+10. ✅ **KOSTAT Retail Sales** — `DT_1K41013` → 14 series, monthly 2000-01→. Cell 1.1 ⚠ → ✅. Loaded 2026-06-05.
+11. ✅ **BOK Fiscal** — `DT_200Y154` (2-axis) → 7 series annual 2007→ (Revenue / Expenditure / Net Lending / Saving / Direct + Indirect Taxes / Final Cons). Cell 1.2 ❌ → ✅. Loaded 2026-06-05.
+12. ✅ **BOK Trade Prices** — `DT_401Y015` + `DT_402Y014` (2-axis) → 4 series monthly 1980→ (Import/Export × Won/USD). Cell 2.1 ⚠ → ✅. Loaded 2026-06-05.
+13. ✅ **FRED Korea Rates** — added 4 series to FRED seed (Discount / Call / 3M Interbank / 10Y Govt). Cell 4.4 ❌ → ✅. Loaded 2026-06-05. Citi BENCH_RATES gap (no KR) documented for future addition.
+14. ✅ **BOK Lending** — `DT_514Y001` + `DT_151Y005` → 8 series (5 lending stance survey Q + 3 HH loans M, 2003→). Cell 4.1 ⚠ → ✅. Loaded 2026-06-05.
+15. ✅ **BOK Balance Sheets** — `DT_151Y001` HH Credit + `DT_376_10_SDMA051V_3` FSS NPL → 5 series (2 HH credit Q 2002→ + 3 FSS NPL Q 2000-2016 stale). Cell 4.2 ⚠ → ✅. Loaded 2026-06-05.
+16. ✅ **KOSTAT Wages** — `DT_1YL15006` → 2 annual national series. Cell 2.3 ❓ → ✅. Loaded 2026-06-05.
+17. ✅ **BOK Trade Indices** — `DT_403Y001-004` → 4 monthly series (Export/Import × Value/Volume, 1988→). Cell 1.3 ⚠ → ✅. Loaded 2026-06-05.
+
+**NEXT (build order — remaining gaps):**
+9. **KOSTAT labour / EAPS** — Employment, unemployment rate, LFPR. Cell 1.4 ⚠ → ✅. Needs catalogue browse to pin `tblId`.
+10. **KOSTAT retail sales + industrial production** — Cell 1.1 + 1.3 ⚠ → ✅. Needs catalogue browse.
+11. **KOSTAT customs trade** — Cell 1.3 ⚠ → ✅ at goods level. ~`orgId=101` mirror of `901Y…`.
+12. **IIP + External Debt** — `BOK DT_311Y001` … `DT_311Y006` → stock counterpart to BoP. Cell 3.3 deeper.
+13. **Import/Export price indices** — `BOK DT_401Y…` + `DT_402Y…` → fills 2.1 Input Costs.
+14. **BOK Base Rate via Citi** — add `RATES.BENCH_RATES.KR` to Citi (not KOSIS). Cell 4.4 ❌ → ✅.
+15. **BIS REER/NEER via FRED** — `RBKRBIS` + `NBKRBIS`. Cell 3.4 ❌ → ⚠.
 8. **Customs trade via orgId=101** — fills 1.3 with M-frequency goods trade.
 9. **PPI + import/export prices** — `DT_404Y…` family → fills 2.1 + 2.2.
 10. **FX/REER** — defer pending BOK Currency/Finance branch exploration; bridge via Citi spot in the meantime.
@@ -272,6 +305,6 @@ Build order, ranked by data value × ease:
 
 - KOSIS OpenAPI mechanics: [kosis_openapi_reference.md](kosis_openapi_reference.md)
 - BOK STAT_CODE inventory (source for `tblId` candidates): [playground inventory](../../../../playground/econ/bok_ecos/stat_code_inventory.md)
-- Cluster definitions / KR coverage state: [macro_economy_wiring_map.md §7.13](../../development/macro_economy_wiring_map.md#713-south-korea-kr)
+- Cluster definitions / KR coverage state: [macro_economy_wiring_map.md §7.13](../macro_economy_wiring_map.md#713-south-korea-kr)
 - Existing BoP fetcher: [`playground/econ/kosis/fetch_bop.py`](../../../../playground/econ/kosis/fetch_bop.py)
-- Econ schema: `econ.dim_indicator` / `econ.fact_indicator` (see [economics_data_ingest.md](../../development/economics_data_ingest.md))
+- Econ schema: `econ.dim_indicator` / `econ.fact_indicator` (see [economics_data_ingest.md](../economics_data_ingest.md))

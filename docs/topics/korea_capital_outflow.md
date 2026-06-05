@@ -93,7 +93,7 @@ residents' acquisition of foreign claims = outflow) and Liabilities
 
 For the full item-code structure (`BOPF…` 12-char keys, counterparty
 encoding, etc.), see
-[`docs/admin/vendors/bok/ecos_api_reference.md`](../admin/vendors/bok/ecos_api_reference.md).
+[`docs/admin/econ/korea/ecos_api_reference.md`](../admin/econ/korea/ecos_api_reference.md).
 
 ### Terminology gotchas
 
@@ -245,7 +245,7 @@ fragility of EM-bucketed Korea.
 |---|---|---|---|
 | **FRED** `KORB6FATC01CXCUM` | Headline FA Assets (outflow) | T+15 mo | Through Mar 2025; 8 KR BoP series in [`playground/econ/fred/seed.yml`](../../playground/econ/fred/seed.yml) Bucket 11b |
 | **KOSIS** `DT_301Y013` | Master monthly BoP, full 284-item hierarchy | T+2 mo | Through Mar 2026; pulled via [`playground/econ/kosis/fetch_bop.py`](../../playground/econ/kosis/fetch_bop.py); default download is 6 mo only — expand period selector for full history |
-| **BOK ECOS API** (blocked) | Same as above, via REST | T+2 mo | Requires Korean mobile + citizenship for API key — see [`docs/admin/vendors/bok/ecos_api_reference.md`](../admin/vendors/bok/ecos_api_reference.md) |
+| **BOK ECOS API** (blocked) | Same as above, via REST | T+2 mo | Requires Korean mobile + citizenship for API key — see [`docs/admin/econ/korea/ecos_api_reference.md`](../admin/econ/korea/ecos_api_reference.md) |
 | **KOSIS** `DT_301Y016` | Capital + Financial Account by counterparty region | T+12 mo (annual) | 2006-2024; bilateral outflow decomposition by country/region — not yet pulled |
 | **KOSIS** `DT_311Y001` etc. | International Investment Position | Quarterly | Stock counterparts to BoP financial-account flows |
 | **FRED** `KORB6CATT00CXCUM` | Narrow Capital Account balance | T+15 mo | The BPM6 narrow line (transfers + non-produced assets) |
@@ -258,7 +258,7 @@ fragility of EM-bucketed Korea.
 - [`playground/econ/kosis/capture_download.py`](../../playground/econ/kosis/capture_download.py) — Endpoint-discovery harness for new KOSIS tables
 - [`playground/econ/bok_ecos/discover_bop.py`](../../playground/econ/bok_ecos/discover_bop.py) — ECOS tree explorer
 - [`playground/econ/bok_ecos/stat_code_inventory.md`](../../playground/econ/bok_ecos/stat_code_inventory.md) — Full ECOS STAT_CODE inventory by branch
-- [`docs/admin/vendors/bok/`](../admin/vendors/bok/) — full vendor documentation tree
+- [`docs/admin/econ/korea/`](../admin/econ/korea/) — full Korea econ documentation tree
 
 ### Desk research used in Appendix B
 

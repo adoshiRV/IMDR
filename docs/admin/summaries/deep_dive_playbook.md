@@ -268,7 +268,8 @@ These all came up during the Korea deep-dive. Don't repeat them.
 ## 6. Reference materials
 
 - **Worked example**: [`docs/topics/korea_capital_outflow.md`](../../topics/korea_capital_outflow.md)
-- **Vendor docs convention**: [`docs/admin/vendors/index.md`](../vendors/index.md), [`docs/admin/vendors/citi/`](../vendors/citi/), [`docs/admin/vendors/bok/`](../vendors/bok/)
+- **Vendor docs convention**: [`docs/admin/vendors/index.md`](../vendors/index.md), [`docs/admin/vendors/citi/`](../vendors/citi/)
+- **Country econ docs convention**: [`docs/admin/econ/`](../econ/), [`docs/admin/econ/korea/`](../econ/korea/)
 - **Research store schema**: `research.dim_report` (2.4k rows), `research.fact_chunk` (60k rows). See [`docs/admin/research/`](../research/).
 - **Playground convention**: CLAUDE.md memory entry "PLAYGROUND-ONLY FOR EXPLORATION".
 - **Output skeleton**: [output_template.md](output_template.md)

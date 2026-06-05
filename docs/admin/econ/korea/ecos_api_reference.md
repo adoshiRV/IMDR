@@ -27,7 +27,7 @@ ECOS classifies tables under broad numeric prefixes. From discovery
 | `732Y…` | Foreign Exchange Reserves | Stock — counterpart to BoP Reserve Assets flow |
 | `901Y…` | Customs Trade Statistics | Korea Customs Service basis (≠ BoP-basis goods trade) |
 
-Full per-branch inventory: see [exploration/bop.md](exploration/bop.md) and
+Full per-branch inventory: see [_playground/bop.md](_playground/bop.md) and
 the playground inventory file
 [playground/econ/bok_ecos/stat_code_inventory.md](../../../../playground/econ/bok_ecos/stat_code_inventory.md).
 
