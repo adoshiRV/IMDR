@@ -1,6 +1,6 @@
 # Citi Velocity — Research scraper
 
-**Status: LIVE (Phase 6 complete 2026-06-06 — daily orchestrator wiring deferred)**
+**Status: LIVE through Phase 8 (2026-06-06) — daily orchestrator wiring deferred**
 
 Pattern: **A. Listing-API firehose** with **B. deterministic PDF URL**.
 A single POST to the publication-query service returns all docs in a
@@ -219,42 +219,122 @@ Three reports inserted with `IMDR_RESEARCH_EMBED=false`:
 | 4130 | 30436011 | Uncomfortably neutral (Canada Economics Weekly)  | MACRO       | Veronica Clark      |
 | 4131 | 30436007 | Payroll acceleration but dovish catalysts ahead  | MACRO       | Andrew Hollenhorst  |
 
+## Phase 8 — Hard taxonomy probe + tightening (2026-06-06)
+
+**Done same-day as Phase 0–6** (below the playbook's "≥1 week of ingest"
+threshold, but the listing API exposes enough native signal to tighten
+without DB history). Key win: **`companies[]` array gives us the
+canonical primary-subject signal that `productFocus` only approximates**.
+
+### Deep probe finds
+
+Top-level keys we were ignoring:
+
+| field | coverage | what it carries |
+|---|---|---|
+| `companies[]` | 60/99 | `{id, isSubject:"Y"/"N", refType:"PRI"/"SEC", ticker, name:{en,...}}`. `refType=PRI` + `isSubject=Y` is THE primary-subject signal. |
+| `tickers[]` | 60/99 | parallel bare-string array (`["BOLSAA.MX"]`, `["FR"]`). Same length as companies[]. |
+| `sectors[]` | 74/99 | Citi `B{NNNN}` sector IDs with multilingual `{en,ja,...}` names. Equity-sector / GICS-flavoured (Airlines, Diversified Banks, Steel, Aluminum, etc.). |
+| `metadata.{TemplateCode,EventDetails,DistHeadline}` | 99/99 | More granular than `templateName` (`REPORT`/`NOTE`/`CWNOTE`); EventDetails is empty in current sample. |
+| `relatedPublications[]` | 91/99 | Series cross-refs — could feed periodical-detection. |
+| `periodical` | 15/99 | Series cadence marker. |
+| `excludeFromAnalystPage` | 100/99 | Universal `true` — NOT a filter signal. |
+| `isClientPerspective`/`isComposerCP` | 100/99 each | Universal `true` — NOT filter signals. |
+
+`productId` has only 8 distinct prefix values (ACTION / ANALYTICAL /
+BLOG / COMPENDIUM / ESSENTIALS / FYI / NONRSCHREPLAY / VWPOINT) — all
+share the `@10~5860@10` suffix, so 5860 is a platform constant, not
+a desk code. No additional Tier-1 signal beyond `productType`.
+
+### Tier-0 signal (post-tightening)
+
+`companies[].refType=PRI` + `isSubject=Y` is the canonical
+primary-subject signal. Cross-tab against `productFocus` on the
+99-doc sample:
+
+| productFocus | n_pri=0 | n_pri=1 | n_pri≥2 |
+|---|---:|---:|---:|
+| COMPANY (49) | 0 | 48 | 1 |
+| MULTICOMPANY (4) | 0 | 0 | 4 |
+| INDUSTRY (22) | 15 | 0 | 7 |
+| DISCIPLINE (16) | 16 | 0 | 0 |
+| OTHER (6) | 6 | 0 | 0 |
+| UNFOCUSED (2) | 2 | 0 | 0 |
+
+All single-name research lives in `n_pri=1`. `DISCIPLINE/OTHER/UNFOCUSED`
+docs always have `n_pri=0` — these are pure macro/strategy.
+
+### Five edits shipped 2026-06-06
+
+| step | file | change |
+|---|---|---|
+| A | `crawler_citi.py` | `ReportRef` extended with `companies: tuple[tuple[ticker,name_en,ref_type,is_subject], ...]`, `tickers_arr: tuple[str, ...]`, `sectors: tuple[tuple[id, name_en], ...]`. New helpers `_extract_companies()` + `_extract_sectors()` populate them from the listing response. |
+| B | `filters/citi.py` | No change — format/restriction drops at crawler stage are already sufficient (8/99 = 8% drop rate). Title-prefix tuples stay empty per playbook. |
+| C | `classifiers/citi.py` | Tier-0 asset class: `_has_primary_company()` now overrides `productFocus` — any doc with `refType=PRI` + `isSubject=Y` is EQUITY (unless `subjects[].id=CMD` flips to COMMODITIES). New tag emissions: `TAG_TICKER` from `companies[].ticker` (PRI subjects only, also backfills from `tickers[]`), `TAG_COMPANY` from `companies[].name.en` (PRI only), `TAG_INDUSTRY` from `sectors[].name.en`. |
+| D | (cleanup) | Skipped — only 3 reports in DB (IDs 4129–4131), no historical leakers to delete. |
+| E | `smoke_citi_7day.py` | New 7-day smoke harness with 5 acceptance gates. |
+
+The relevance.py `citi` branch from Phase 5 still applies, but with
+ticker tags now emitted, the generic `n_tickers == 1` check on line
+417 fires BEFORE the citi branch's title-keep allowlist — single-name
+drops are now caught even when the title would have hit the allowlist.
+
+### 7-day smoke results (2026-06-06)
+
+```
+discovered 473 raw, 125 kept (26%); kept rate ~18/day net
+
+drop reasons:
+  243  equity-vendor-default-drop:1-ticker    (single-name PRI subject)
+  106  equity-vendor-default-drop:citi        (sector wraps without PRI)
+
+[GATE 1] PASS — listing endpoint returned 200 + 473 hits
+[GATE 2] PASS — drop reasons clean, samples match category
+[GATE 3] PASS — kept ratio 26% (target >=15% for equity-heavy vendor)
+[GATE 4] PASS — composition: 98% macro-family, 2% EQUITY
+                (target >=80% macro-family, <=20% EQUITY)
+[GATE 5] PASS — single-name ticker leakage on kept set: 1/125 (1%)
+                (target <=5%)
+
+kept asset_class distribution:
+  74 (59%)  STRATEGY
+  43 (34%)  MACRO
+   5 (4%)   COMMODITIES
+   3 (2%)   EQUITY
+
+kept region distribution (multiplicity):
+  36 americas | 24 apac | 22 emea | 13 global | 7 latam
+```
+
+The 22 `equity-vendor-default-drop:citi` reason drops on the 99-doc
+audit are all sector wraps (Airlines, Diversified Banks, Steel,
+Aluminum, Restaurants, Auto, Health Care) — correctly dropped per
+"no single-name equity / credit, trends ok" posture.
+
+### Sticky decisions captured in memory
+
+- [`memory/feedback_citi_listing_api_no_sortby.md`](../../../../memory/feedback_citi_listing_api_no_sortby.md)
+  — sortBy gotcha on the listing API
+- [`memory/project_citi_onboarding.md`](../../../../memory/project_citi_onboarding.md)
+  — Phase 0–8 state
+
 ## Phase progress
 
-- [x] Phase 0 — registered in `vendors.yml` (`profile_status: probe`)
-- [x] Phase 1 — interactive login (persistent profile authenticated 2026-06-06)
-- [x] Phase 2 — listing API discovery (`publications.json` + `callerId: CVR`)
-- [x] Phase 3 — `crawler_citi.py` (paginated POST, 200/day raw)
-- [x] Phase 4 — `filters/citi.py` (empty title-prefix tuples) + `classifiers/citi.py` (Tier-0 productFocus + subjects[])
-- [x] Phase 5 — wired into `ingest_today.py` + `classifiers/__init__.py` + relevance branch
-- [x] Phase 6 — first embed-off smoke (3/3 inserted, IDs 4129–4131)
+- [x] Phase 0 — registered in `vendors.yml`
+- [x] Phase 1 — interactive login (persistent profile 2026-06-06)
+- [x] Phase 2 — listing API discovery
+- [x] Phase 3 — `crawler_citi.py`
+- [x] Phase 4 — `filters/citi.py` + `classifiers/citi.py`
+- [x] Phase 5 — wired into orchestrator + relevance branch
+- [x] Phase 6 — embed-off smoke (3 reports inserted, IDs 4129–4131)
 - [ ] Phase 6b — embed-on full-day ingest (deferred per user)
 - [ ] Phase 7 — daily orchestrator wiring in `scripts/imdr_daily.py` (deferred — needs explicit OK per project policy)
-- [ ] Phase 8 — hard taxonomy probe + tightening (after ≥1 week ingest)
-
-## Notes for Phase 8
-
-The first 5-day sample already exposes Phase-8 hooks:
-
-- **Subject-based RATES/FX discrimination**: `DISCIPLINE` docs with
-  `productId` prefixes like `VWPOINT@10~5860@…` may map to specific
-  desks (5860 appears on EGB rates strategy). Worth probing whether
-  `productId` carries a stable desk/discipline code we can leverage
-  as a Tier-0 signal for RATES vs FX vs STRATEGY.
-- **Country resolution drift**: a US Econ Weekly note got country=NL
-  (Netherlands) in the smoke because Citi's `countries[]` orders
-  alphabetically rather than by editorial priority. Phase 8 should
-  re-rank by joining with `regions[]` ("Western Europe" + "Netherlands"
-  is consistent; "North America" + "United States" is the right pair).
-- **Subject-based theme allowlist**: subjects like `CPT` (Target Price
-  Change), `EPS` (Estimate Change), `INI` (Initiation of Coverage),
-  `REC` (Rating Change), `TOC` (Transfer of Coverage), `CSA`
-  (Management Change) are pure single-name signals. We could elevate
-  these to crawler-stage drops if they slip through `productFocus`.
+- [x] Phase 8 — hard taxonomy probe + tightening (`companies[]/tickers[]/sectors[]` → Tier-0 single-name + industry signals, smoke 5/5 gates pass)
 
 ## Last verified
 
-2026-06-06 — Phase 0–6 complete. 3 reports in `research.dim_report`
-(IDs 4129–4131). Crawler / filter / classifier / relevance live and
-working. Daily orchestrator wiring pending user OK per
-[`memory/feedback_no_prod_wiring_without_permission`](../../../../memory/feedback_no_prod_wiring_without_permission.md).
+2026-06-06 — Phase 0–8 complete. 3 reports in `research.dim_report`
+(IDs 4129–4131, written pre-Phase-8 so they lack the new ticker /
+company / industry tags — backfill not needed at this volume). 7-day
+smoke shows ~18/day net with 1% single-name leakage. Daily orchestrator
+wiring pending user OK per [`memory/feedback_no_prod_wiring_without_permission`](../../../../memory/feedback_no_prod_wiring_without_permission.md).
