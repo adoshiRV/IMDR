@@ -2,22 +2,27 @@
 
 Output layout::
 
-    data/research_summaries/
+    data/daily_research_summary/
       weekly/{YYYY}/{MM}/{DD}/
         weekly_preview.html
-        config.yml          (the input — copied here for reproducibility)
+        assets/             (rv_theme.css + RV_Logo_Colour.png, copied for portability)
         charts/
         bank_pdfs/
         _report_links.json
         _audit.json
       daily/{YYYY}/{MM}/{DD}/
         daily_brief.html
-        config.yml
+        assets/
         charts/
+        _report_links.json
         _audit.json
 
 Date is the *period anchor* — the Friday-prior for a weekly brief, or
 today for a daily brief.
+
+The folder name is a holdover from when this directory only held the
+ad-hoc daily-research markdown. Both weekly and daily briefs now live
+under it as ``weekly/`` and ``daily/`` siblings.
 """
 from __future__ import annotations
 
@@ -28,7 +33,7 @@ from typing import Literal
 BriefType = Literal["weekly", "daily"]
 
 # Repo-relative root; deliberately not absolute so the module is portable.
-_OUTPUT_ROOT = Path("data/research_summaries")
+_OUTPUT_ROOT = Path("data/daily_research_summary")
 
 # Local OneDrive mirror of TradeKnowledgeCore/ResearchData1/IMDR/.
 # Same root the ingest pipeline writes to (see playground/research/ingest/upload.py).

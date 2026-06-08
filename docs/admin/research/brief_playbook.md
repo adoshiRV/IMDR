@@ -31,7 +31,7 @@ python -m imdr.research.brief validate \
   --config path/to/config.yml
 ```
 
-Output lands at `data/research_summaries/{weekly|daily}/{YYYY}/{MM}/{DD}/`.
+Output lands at `data/daily_research_summary/{weekly|daily}/{YYYY}/{MM}/{DD}/`.
 
 ---
 
@@ -286,7 +286,7 @@ density. The old script remains a useful pattern reference.
 ## Output layout
 
 ```
-data/research_summaries/weekly/2026/06/08/
+data/daily_research_summary/weekly/2026/06/08/
 ├── weekly_preview.html
 ├── assets/                         # rv_theme.css + RV_Logo_Colour.png (copied)
 ├── charts/                         # 10 PNGs
