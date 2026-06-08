@@ -361,10 +361,13 @@ embedding model is `gemini-embedding-2`.
 Research rows land in `research.dim_report` + `research.fact_chunk`.
 What consumes them downstream:
 
-* **[Macro brief generator](brief_playbook.md)** — `imdr.research.brief`
-  produces RV-styled weekly/daily HTML briefs from the ingested research
-  plus IMDR cross-asset data. Includes bank PDF page embeds and
-  SharePoint links on every cited report ID.
+* **[Macro brief author spec](weekly_brief_spec.md)** — the canonical
+  instruction set for producing RV-Capital-styled weekly + daily HTML
+  briefs from ingested research + cross-asset IMDR data. Includes the
+  design system pointer, per-section content rubric, data-source
+  recipes, hard rules, and a pre-ship checklist. **[Lois sub-agent](../../../.claude/agents/lois.md)**
+  reads this and ships briefs end-to-end. Assets (CSS + logo + reference
+  HTML example) under [`brief_assets/`](brief_assets/).
 * **Research MCP** — owner-only Qdrant MCP for ad-hoc semantic search
   (see project memory `project_research_mcp_owner_only`).
 

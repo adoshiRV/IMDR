@@ -1,8 +1,0 @@
-{# Numbered tail-risk list — what breaks the consensus. #}
-<h2 id="risks">{{ section_num }} · {{ title }}</h2>
-
-<ol style="font-size:15px;line-height:1.6;">
-{%- for r in risks %}
-  <li>{{ r.text | safe }}</li>
-{%- endfor %}
-</ol>
