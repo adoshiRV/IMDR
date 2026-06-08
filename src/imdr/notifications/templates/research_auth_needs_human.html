@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family: Calibri, Arial, sans-serif; font-size: 11pt; color: #333;">
+
+<!-- Header -->
+<table style="width: 100%; border-collapse: collapse; margin-bottom: 16px;">
+<tr>
+  <td style="padding: 12px 16px; background: #f57c00; color: #fff; font-size: 14pt; font-weight: bold; border-radius: 4px 4px 0 0;">
+    IMDR — {{ n }} research session(s) need human re-auth
+  </td>
+</tr>
+</table>
+
+<!-- Summary -->
+<table style="width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 10pt;">
+<tr>
+  <td style="padding: 4px 0; width: 160px; color: #666;">Found at</td>
+  <td style="padding: 4px 0;">{{ run_time_utc }} ({{ run_time_sgt }})</td>
+</tr>
+<tr>
+  <td style="padding: 4px 0; color: #666;">Triggered by</td>
+  <td style="padding: 4px 0;"><code>scripts.imdr_session_heartbeat</code></td>
+</tr>
+</table>
+
+<!-- Vendor table -->
+<h3 style="font-size: 11pt; margin: 16px 0 8px; color: #1a237e;">Vendors needing re-auth</h3>
+<table style="border-collapse: collapse; font-size: 10pt; margin-bottom: 16px; width: 100%;">
+<thead>
+<tr style="background: #f5f5f5;">
+  <th style="padding: 6px 12px; border: 1px solid #e0e0e0; text-align: left;">Vendor</th>
+  <th style="padding: 6px 12px; border: 1px solid #e0e0e0; text-align: left;">Mode</th>
+  <th style="padding: 6px 12px; border: 1px solid #e0e0e0; text-align: left;">Healthcheck URL</th>
+  <th style="padding: 6px 12px; border: 1px solid #e0e0e0; text-align: left;">Detail</th>
+</tr>
+</thead>
+<tbody>
+{% for o in outcomes %}
+<tr style="background: {% if loop.index0 is even %}#fff{% else %}#fafafa{% endif %};">
+  <td style="padding: 4px 12px; border: 1px solid #e0e0e0; font-weight: bold;">{{ o.vendor }}</td>
+  <td style="padding: 4px 12px; border: 1px solid #e0e0e0;"><code>{{ o.mode }}</code></td>
+  <td style="padding: 4px 12px; border: 1px solid #e0e0e0;"><a href="{{ o.healthcheck_url }}" style="color: #1a237e;">{{ o.healthcheck_url }}</a></td>
+  <td style="padding: 4px 12px; border: 1px solid #e0e0e0; color: #666;">{{ o.detail }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+
+<!-- Action -->
+<h3 style="font-size: 11pt; margin: 16px 0 8px; color: #1a237e;">Action — copy-paste these commands</h3>
+<pre style="background: #fafafa; border: 1px solid #e0e0e0; padding: 12px; font-size: 10pt; white-space: pre-wrap;">
+{%- for o in outcomes -%}
+python -m imdr.research.auth login --vendor {{ o.vendor }}
+{% endfor -%}
+</pre>
+<p style="font-size: 10pt; margin-top: 8px;">
+  Each command opens a headed Chrome on the vendor's landing URL. Complete SSO
+  in the window; the CLI polls every 2s and snapshots <code>storage_state.json</code>
+  once the session is LIVE.
+</p>
+
+<!-- Footer -->
+<p style="font-size: 9pt; color: #999; margin-top: 24px; border-top: 1px solid #eee; padding-top: 8px;">
+  Re-verify after re-auth: <code>python -m imdr.research.auth check --vendor all</code><br>
+  Runbook: <code>docs/admin/research/auth.md</code>
+</p>
+
+</body>
+</html>

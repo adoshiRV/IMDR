@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family: Calibri, Arial, sans-serif; font-size: 11pt; color: #333;">
+
+<!-- Header -->
+<table style="width: 100%; border-collapse: collapse; margin-bottom: 16px;">
+<tr>
+  <td style="padding: 12px 16px; background: #d32f2f; color: #fff; font-size: 14pt; font-weight: bold; border-radius: 4px 4px 0 0;">
+    IMDR — Research auth FAILED: {{ vendor }}
+  </td>
+</tr>
+</table>
+
+<!-- Summary -->
+<table style="width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 10pt;">
+<tr>
+  <td style="padding: 4px 0; width: 160px; color: #666;">Vendor</td>
+  <td style="padding: 4px 0; font-weight: bold;">{{ vendor }}</td>
+</tr>
+<tr>
+  <td style="padding: 4px 0; color: #666;">Mode</td>
+  <td style="padding: 4px 0;"><code>{{ mode }}</code></td>
+</tr>
+<tr>
+  <td style="padding: 4px 0; color: #666;">Error Type</td>
+  <td style="padding: 4px 0;"><code>{{ error_type }}</code>{% if mfa_kind %} — <span style="background:#fff3e0; color:#e65100; padding: 2px 6px; border-radius: 3px; font-weight: bold;">MFA: {{ mfa_kind }}</span>{% endif %}</td>
+</tr>
+<tr>
+  <td style="padding: 4px 0; color: #666;">Recoverable</td>
+  <td style="padding: 4px 0;">{% if recoverable %}<span style="color: #2e7d32;">yes — a retry may succeed</span>{% else %}<span style="color: #d32f2f;">no — operator action required</span>{% endif %}</td>
+</tr>
+<tr>
+  <td style="padding: 4px 0; color: #666;">Healthcheck URL</td>
+  <td style="padding: 4px 0;"><a href="{{ healthcheck_url }}" style="color: #1a237e;">{{ healthcheck_url }}</a></td>
+</tr>
+<tr>
+  <td style="padding: 4px 0; color: #666;">Run Time</td>
+  <td style="padding: 4px 0;">{{ run_time_utc }} ({{ run_time_sgt }})</td>
+</tr>
+</table>
+
+<!-- Error Message -->
+<h3 style="font-size: 11pt; margin: 16px 0 8px; color: #1a237e;">Error Detail</h3>
+<pre style="background: #fafafa; border: 1px solid #e0e0e0; padding: 12px; font-size: 10pt; white-space: pre-wrap; word-break: break-word;">{{ error_message }}</pre>
+
+<!-- Next steps -->
+<h3 style="font-size: 11pt; margin: 16px 0 8px; color: #1a237e;">Next steps</h3>
+<ul style="font-size: 10pt;">
+  <li>Re-seed the session via headed Chrome:
+    <code>python -m imdr.research.auth login --vendor {{ vendor }}</code></li>
+  <li>Verify after re-auth:
+    <code>python -m imdr.research.auth check --vendor {{ vendor }}</code></li>
+  {% if recoverable %}
+  <li>For programmatic vendors, a fresh credential refresh may suffice:
+    <code>python -m imdr.research.auth refresh --vendor {{ vendor }}</code></li>
+  {% endif %}
+  {% if mfa_kind %}
+  <li>MFA gate detected — if MFA is now persistent, revert the registry
+    entry for <b>{{ vendor }}</b> back to <code>PROFILE_ONLY</code> in
+    <code>src/imdr/research/auth/registry.py</code>.</li>
+  {% endif %}
+</ul>
+
+<!-- Footer -->
+<p style="font-size: 9pt; color: #999; margin-top: 24px; border-top: 1px solid #eee; padding-top: 8px;">
+  Module: <code>imdr.research.auth.context</code> | Runbook: <code>docs/admin/research/auth.md</code>
+</p>
+
+</body>
+</html>

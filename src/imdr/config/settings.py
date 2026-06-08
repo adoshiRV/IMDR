@@ -75,6 +75,24 @@ class Settings(BaseSettings):
     barclays_username: str = ""
     barclays_password: str = ""
 
+    # Research portal auth (consumed by src/imdr/research/auth/).
+    # JPM Janus portal needs a per-user "janus_user" GraphQL header in
+    # addition to SSO cookies — username only, no password.
+    research_jpm_username: str = ""
+
+    # Programmatic-login credential pairs for the auth registry's
+    # PROGRAMMATIC vendors. Loginflows at
+    # src/imdr/research/auth/loginflows/{vendor}.py read these via
+    # context._run_programmatic_login.cred_map.
+    research_ubs_username: str = ""
+    research_ubs_password: str = ""
+    research_anz_username: str = ""
+    research_anz_password: str = ""
+    research_nomura_username: str = ""
+    research_nomura_password: str = ""
+    research_stanc_username: str = ""
+    research_stanc_password: str = ""
+
     # Vendors framework
     browser_profile_root: Path = _PROJECT_ROOT / "data" / "browser_profiles"
     vendor_drop_root: Path = _PROJECT_ROOT / "data"

@@ -314,6 +314,15 @@ gates). See [`scrapers/`](scrapers/) for one doc per vendor. When
 | BNP Paribas Markets360 | live | [scrapers/bnp.md](scrapers/bnp.md) |
 | J.P. Morgan Markets | TBD | [scrapers/jpm.md](scrapers/jpm.md) |
 
+## Vendor authentication
+
+See [`auth.md`](auth.md) — the central operator runbook for
+[`src/imdr/research/auth/`](../../../src/imdr/research/auth/):
+per-vendor auth mode table, CLI reference (`check` / `refresh` /
+`login` / `status` / `validate`), typed error catalogue, email
+triggers + recipient routing, heartbeat operator notes, and
+troubleshooting.
+
 ## Running the daily ingest
 
 **Canonical command** — always use the multi-vendor orchestrator with
