@@ -7,7 +7,11 @@ catches every release window without per-cadence scheduling overhead.
 
 Excludes the weekly fetchers (see scripts.econ.kr.kr_weekly).
 
-Wired into scripts/imdr_monthly.py:PIPELINES — runs on the monthly schedule.
+After all fetchers finish, the shared country runner queries econ.fact_indicator
+for MONTHLY/QUARTERLY/ANNUAL KR rows touched in this run and emails a
+consolidated report.
+
+Wired into scripts/imdr_monthly.py:PIPELINES.
 
 Usage:
     python -m scripts.econ.kr.kr_monthly
@@ -15,9 +19,9 @@ Usage:
 
 from __future__ import annotations
 
-import subprocess
 import sys
-import time
+
+from scripts.econ._country_runner import run
 
 
 # Order is by topic alpha; the runner is sequential because KOSIS rate-limits
@@ -46,22 +50,15 @@ PIPELINES: list[list[str]] = [
 
 
 def main() -> int:
-    failed: list[str] = []
-    for cmd in PIPELINES:
-        name = cmd[-1]
-        t0 = time.perf_counter()
-        rc = subprocess.call(cmd)
-        elapsed = time.perf_counter() - t0
-        if rc != 0:
-            print(f"FAIL  {name}  rc={rc}  ({elapsed:.1f}s)")
-            failed.append(name)
-        else:
-            print(f"OK    {name}  ({elapsed:.1f}s)")
-
-    if failed:
-        print(f"\n{len(failed)} pipeline(s) failed: {', '.join(failed)}")
-        return 1
-    return 0
+    return run(
+        run_name="Monthly",
+        country_code="KR",
+        country_label="KR",
+        country_name="Korea",
+        orchestrator_path="scripts.econ.kr.kr_monthly",
+        pipelines=PIPELINES,
+        frequency_scope=["MONTHLY", "QUARTERLY", "ANNUAL"],
+    )
 
 
 if __name__ == "__main__":

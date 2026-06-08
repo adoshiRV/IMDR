@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;font-family:Calibri,Arial,sans-serif;font-size:14px;color:#222;">
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- HEADER -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#0d2137;">
+  <tr>
+    <td style="padding:18px 24px;">
+      <span style="color:#ffffff;font-size:20px;font-weight:bold;">IMDR &mdash; {{ country_name }} Econ Ingest ({{ run_name }})</span>
+      <span style="background:{{ banner_color }};color:#fff;padding:4px 12px;border-radius:4px;font-size:13px;font-weight:bold;margin-left:16px;">{{ status }}</span>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:0 24px 14px 24px;">
+      <span style="color:#7ba4c7;font-size:14px;">{{ run_started_utc }} ({{ run_started_sgt }}) | scope: {{ frequency_scope }}</span>
+    </td>
+  </tr>
+</table>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- EXECUTION -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;">
+  <tr><td style="padding:0 24px;"><span style="font-size:16px;font-weight:bold;color:#0d2137;">EXECUTION</span></td></tr>
+</table>
+<table width="96%" cellpadding="6" cellspacing="0" style="margin:8px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;">
+  <tr style="background:#f5f5f5;"><td style="border:1px solid #ddd;font-weight:bold;width:200px;">Orchestrator</td><td style="border:1px solid #ddd;font-family:Consolas,monospace;">{{ orchestrator_path }}</td></tr>
+  <tr><td style="border:1px solid #ddd;font-weight:bold;">Started</td><td style="border:1px solid #ddd;">{{ run_started_utc }} / {{ run_started_sgt }}</td></tr>
+  <tr style="background:#f5f5f5;"><td style="border:1px solid #ddd;font-weight:bold;">Completed</td><td style="border:1px solid #ddd;">{{ run_completed_utc }}</td></tr>
+  <tr><td style="border:1px solid #ddd;font-weight:bold;">Duration</td><td style="border:1px solid #ddd;">{{ duration_s }} s</td></tr>
+  <tr style="background:#f5f5f5;"><td style="border:1px solid #ddd;font-weight:bold;">Country</td><td style="border:1px solid #ddd;">{{ country_label }} ({{ country_name }})</td></tr>
+  <tr><td style="border:1px solid #ddd;font-weight:bold;">Frequency scope</td><td style="border:1px solid #ddd;">{{ frequency_scope }}</td></tr>
+  <tr style="background:#f5f5f5;"><td style="border:1px solid #ddd;font-weight:bold;">Pipelines</td>
+    <td style="border:1px solid #ddd;">
+      {% if n_failed == 0 %}
+      <span style="color:#27ae60;font-weight:bold;">{{ n_pipelines }} OK</span>
+      {% else %}
+      <span style="color:#e74c3c;font-weight:bold;">{{ n_failed }} FAILED</span> / {{ n_pipelines }} total
+      {% endif %}
+    </td>
+  </tr>
+  <tr><td style="border:1px solid #ddd;font-weight:bold;">DB Write</td>
+    <td style="border:1px solid #ddd;">
+      {% if new_rows > 0 %}
+      <span style="color:#27ae60;font-weight:bold;">SUCCESS</span> &mdash; {{ new_rows }} new observations across {{ indicators_updated }} indicators
+      {% else %}
+      <span style="color:#888;">NO NEW ROWS</span> (all observations already in DB)
+      {% endif %}
+    </td>
+  </tr>
+</table>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- SUMMARY -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;">
+  <tr><td style="padding:0 24px;"><span style="font-size:16px;font-weight:bold;color:#0d2137;">SUMMARY</span></td></tr>
+</table>
+<table width="96%" cellpadding="6" cellspacing="0" style="margin:8px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;">
+  <tr style="background:#f5f5f5;"><td style="border:1px solid #ddd;font-weight:bold;width:280px;">Active indicators in scope</td><td style="border:1px solid #ddd;">{{ indicators_total }}</td></tr>
+  <tr><td style="border:1px solid #ddd;font-weight:bold;">Indicators updated this run</td>
+    <td style="border:1px solid #ddd;">
+      {% if indicators_updated > 0 %}
+      <span style="color:#27ae60;font-weight:bold;">{{ indicators_updated }}</span>
+      {% else %}
+      <span style="color:#888;">0</span>
+      {% endif %}
+    </td>
+  </tr>
+  <tr style="background:#f5f5f5;"><td style="border:1px solid #ddd;font-weight:bold;">New observations written</td><td style="border:1px solid #ddd;font-weight:bold;">{{ new_rows }}</td></tr>
+  <tr><td style="border:1px solid #ddd;font-weight:bold;">Stale indicators (&gt;2x cadence)</td>
+    <td style="border:1px solid #ddd;">
+      {% if n_stale > 0 %}
+      <span style="color:#e74c3c;font-weight:bold;">{{ n_stale }}</span>
+      {% else %}
+      <span style="color:#27ae60;">0</span>
+      {% endif %}
+    </td>
+  </tr>
+</table>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- FETCHER PIPELINES -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;">
+  <tr><td style="padding:0 24px;"><span style="font-size:16px;font-weight:bold;color:#0d2137;">FETCHER PIPELINES ({{ n_pipelines }})</span></td></tr>
+</table>
+<table width="96%" cellpadding="5" cellspacing="0" style="margin:8px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;font-size:13px;">
+  <tr style="background:#0d2137;color:#fff;">
+    <th style="border:1px solid #555;padding:6px;text-align:left;">Pipeline</th>
+    <th style="border:1px solid #555;padding:6px;text-align:left;">Status</th>
+    <th style="border:1px solid #555;padding:6px;text-align:right;">Elapsed</th>
+    <th style="border:1px solid #555;padding:6px;text-align:right;">Return code</th>
+  </tr>
+  {% for p in pipelines %}
+  <tr style="background:{{ '#fdecea' if p.rc != 0 else ('#f0f7ff' if loop.index is odd else '#ffffff') }};">
+    <td style="border:1px solid #ddd;padding:5px;font-family:Consolas,monospace;">{{ p.name }}</td>
+    <td style="border:1px solid #ddd;padding:5px;">
+      {% if p.rc == 0 %}
+      <span style="color:#27ae60;font-weight:bold;">OK</span>
+      {% else %}
+      <span style="color:#e74c3c;font-weight:bold;">FAIL</span>
+      {% endif %}
+    </td>
+    <td style="border:1px solid #ddd;padding:5px;text-align:right;font-family:Consolas,monospace;">{{ "%.1f"|format(p.elapsed_s) }} s</td>
+    <td style="border:1px solid #ddd;padding:5px;text-align:right;font-family:Consolas,monospace;">{{ p.rc }}</td>
+  </tr>
+  {% endfor %}
+</table>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- PER-CATEGORY BREAKDOWN -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+{% for cat in categories %}
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;">
+  <tr><td style="padding:0 24px;">
+    <span style="font-size:16px;font-weight:bold;color:#0d2137;">{{ cat.code|upper }}</span>
+    <span style="font-size:12px;color:#666;margin-left:8px;">
+      {{ cat.n_indicators }} indicators &middot;
+      {{ cat.n_with_new }} updated &middot;
+      {{ cat.n_new_rows }} new rows
+      {% if cat.n_stale %}&middot; <span style="color:#e74c3c;font-weight:bold;">{{ cat.n_stale }} stale</span>{% endif %}
+    </span>
+  </td></tr>
+</table>
+<table width="96%" cellpadding="5" cellspacing="0" style="margin:8px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;font-size:12px;">
+  <tr style="background:#0d2137;color:#fff;">
+    <th style="border:1px solid #555;padding:6px;text-align:left;">IMDR code</th>
+    <th style="border:1px solid #555;padding:6px;text-align:left;">Vendor</th>
+    <th style="border:1px solid #555;padding:6px;text-align:left;">Freq</th>
+    <th style="border:1px solid #555;padding:6px;text-align:right;">N obs</th>
+    <th style="border:1px solid #555;padding:6px;text-align:left;">First obs</th>
+    <th style="border:1px solid #555;padding:6px;text-align:left;">Last obs</th>
+    <th style="border:1px solid #555;padding:6px;text-align:right;">Latest value</th>
+    <th style="border:1px solid #555;padding:6px;text-align:right;">Age (d)</th>
+    <th style="border:1px solid #555;padding:6px;text-align:right;">New rows</th>
+  </tr>
+  {% for r in cat.rows %}
+  <tr style="background:{{ '#fdecea' if r.is_stale else ('#f0f7ff' if loop.index is odd else '#ffffff') }};">
+    <td style="border:1px solid #ddd;padding:5px;font-family:Consolas,monospace;">{{ r.imdr_code }}</td>
+    <td style="border:1px solid #ddd;padding:5px;">{{ r.vendor }}</td>
+    <td style="border:1px solid #ddd;padding:5px;">{{ r.frequency }}</td>
+    <td style="border:1px solid #ddd;padding:5px;text-align:right;font-family:Consolas,monospace;">{{ r.n_obs }}</td>
+    <td style="border:1px solid #ddd;padding:5px;font-family:Consolas,monospace;">{{ r.first_obs }}</td>
+    <td style="border:1px solid #ddd;padding:5px;font-family:Consolas,monospace;">{{ r.last_obs }}</td>
+    <td style="border:1px solid #ddd;padding:5px;text-align:right;font-family:Consolas,monospace;">{{ r.last_value|safe }}</td>
+    <td style="border:1px solid #ddd;padding:5px;text-align:right;font-family:Consolas,monospace;{% if r.is_stale %}color:#c0392b;font-weight:bold;{% endif %}">{{ r.days_since if r.days_since is not none else '&mdash;'|safe }}</td>
+    <td style="border:1px solid #ddd;padding:5px;text-align:right;font-family:Consolas,monospace;">
+      {% if r.new_obs > 0 %}
+      <span style="color:#27ae60;font-weight:bold;">{{ r.new_obs }}</span>
+      {% else %}
+      <span style="color:#aaa;">0</span>
+      {% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% endfor %}
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- STALE INDICATORS -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+{% if n_stale > 0 %}
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;">
+  <tr><td style="padding:0 24px;"><span style="font-size:16px;font-weight:bold;color:#0d2137;">STALE INDICATORS ({{ n_stale }})</span></td></tr>
+</table>
+<table width="96%" cellpadding="5" cellspacing="0" style="margin:8px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;font-size:13px;">
+  <tr style="background:#c0392b;color:#fff;">
+    <th style="border:1px solid #922b21;padding:6px;text-align:left;">IMDR code</th>
+    <th style="border:1px solid #922b21;padding:6px;text-align:left;">Category</th>
+    <th style="border:1px solid #922b21;padding:6px;text-align:left;">Freq</th>
+    <th style="border:1px solid #922b21;padding:6px;text-align:left;">Last obs</th>
+    <th style="border:1px solid #922b21;padding:6px;text-align:right;">Days late</th>
+  </tr>
+  {% for s in stale_rows %}
+  <tr style="background:#fdecea;">
+    <td style="border:1px solid #ddd;padding:5px;font-family:Consolas,monospace;">{{ s.imdr_code }}</td>
+    <td style="border:1px solid #ddd;padding:5px;">{{ s.category }}</td>
+    <td style="border:1px solid #ddd;padding:5px;">{{ s.frequency }}</td>
+    <td style="border:1px solid #ddd;padding:5px;font-family:Consolas,monospace;">{{ s.last_obs }}</td>
+    <td style="border:1px solid #ddd;padding:5px;text-align:right;font-weight:bold;color:#c0392b;">{{ s.days_since }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- FAILED PIPELINES -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+{% if failed_pipelines %}
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;">
+  <tr><td style="padding:0 24px;"><span style="font-size:16px;font-weight:bold;color:#e74c3c;">FAILED PIPELINES ({{ n_failed }})</span></td></tr>
+</table>
+<table width="96%" cellpadding="5" cellspacing="0" style="margin:8px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;font-size:13px;">
+  <tr style="background:#e74c3c;color:#fff;">
+    <th style="border:1px solid #c0392b;padding:6px;text-align:left;">Pipeline</th>
+  </tr>
+  {% for name in failed_pipelines %}
+  <tr style="background:#fdecea;">
+    <td style="border:1px solid #ddd;padding:5px;font-family:Consolas,monospace;">{{ name }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- FOOTER -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:24px;background-color:#f0f0f0;border-top:2px solid #ddd;">
+  <tr>
+    <td style="padding:12px 24px;color:#888;font-size:12px;">
+      Generated by IMDR | {{ orchestrator_path }} | {{ run_completed_utc }} | data: econ.dim_indicator + econ.fact_indicator
+    </td>
+  </tr>
+</table>

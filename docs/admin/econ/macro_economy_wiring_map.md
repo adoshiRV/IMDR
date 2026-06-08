@@ -412,14 +412,20 @@ Source-catalogue scoped 2026-06-05: BoT REST JSON API (free key, rates/FX/moneta
 
 ### 7.17 Indonesia (ID)
 
-Source-catalogue scoped 2026-06-05: BPS API (free key, CPI/GDP/labour/trade) + BI portal (monetary/external, XLSX only — no API) + MoF/DJPPR (fiscal + SBN). BPS is API-grade; BI is the gap. See [indonesia/index.md](../econ/indonesia/index.md).
+**Prod-promoted 2026-06-09 via `scripts/econ/id/id_monthly.py`; wired into `scripts/imdr_monthly.py:PIPELINES` 2026-06-09. `scripts.econ.bis.bis_indonesia` additionally registered in `scripts/imdr_daily.py:PIPELINES` for same-day BI policy-rate capture.**
+Source-catalogue scoped 2026-06-05; Phases A+B+C+C2+D+D2+D3+D4+D5+D6+F+G complete 2026-06-09 — **250 indicators × 26,757 observations live in `econ.fact_indicator`** (BPS 82 + BI 162 + BIS 6). 25 prod fetchers: 10 BPS + 14 BI (9 SEKI + 3 Survey publications + SKDU macro + bank rates) + 1 BIS SDMX. See [indonesia/index.md](../econ/indonesia/index.md), [prod-pipeline](../econ/indonesia/indonesia_prod_pipeline.md), [indicator-inventory](../econ/indonesia/indonesia_indicator_inventory.md), [coverage-plan](../econ/indonesia/id_coverage_plan.md), [bps_api_reference](../econ/indonesia/bps_api_reference.md), [_playground/bps.md](../econ/indonesia/_playground/bps.md), [_playground/bi.md](../econ/indonesia/_playground/bi.md), [_playground/bis.md](../econ/indonesia/_playground/bis.md).
+
+`*` denotes partial coverage at the cell. **All 16 cells covered; 13 of 16 are full ✅.** Three cells still ⚠ partial:
+- 2.1 Input Costs — BPS import prices only (2/7 sub-bullets)
+- 3.1 Terms of Trade — NBToT + Income ToT derivable in analytics (2/5 in DB)
+- 3.4 FX/REER — NEER+REER+reserves; intervention proxy + composition derivable (8/11)
 
 | Engine | A | B | C | D |
 |---|:---:|:---:|:---:|:---:|
-| **Growth** | ❌ | ❌ | ❌ | ❌ |
-| **Inflation** | ❌ | ❌ | ❌ | ❌ |
-| **External** | ❌ | ❌ | ❌ | ❌ |
-| **Policy** | ❌ | ❌ | ❌ | ❌ |
+| **Growth** (1.1 Private / 1.2 Fiscal / 1.3 External / 1.4 Macro) | ✅ | ✅ | ✅ | ✅ |
+| **Inflation** (2.1 Input / 2.2 Producer / 2.3 Domestic / 2.4 CPI) | ⚠* | ✅ | ✅ | ✅ |
+| **External** (3.1 ToT / 3.2 CA / 3.3 FA / 3.4 FX) | ⚠* | ✅ | ✅ | ⚠* |
+| **Policy** (4.1 Demand / 4.2 BS / 4.3 FinCond / 4.4 PolReaction) | ✅ | ✅ | ✅ | ✅ |
 
 ---
 

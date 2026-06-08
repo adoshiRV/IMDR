@@ -45,8 +45,13 @@ PIPELINES: list[dict] = [
     {"cmd": ["python", "-m", "scripts.equity.citi.equity_vix_citi_live"], "estimated_tags": 5},
     {"cmd": ["python", "-m", "scripts.rates.citi.rates_bench_citi_live"], "estimated_tags": 10},
     {"cmd": ["python", "-m", "scripts.rates.citi.rates_basis_swaps_citi_live"], "estimated_tags": 100},
-    # Non-Citi vendor feed (no tag quota).
+    # Non-Citi vendor feeds (no tag quota).
+    {"cmd": ["python", "-m", "scripts.econ.bis.bis_indonesia"], "estimated_tags": 0},
+    {"cmd": ["python", "-m", "scripts.prediction.polymarket.streaming", "cleanup"], "estimated_tags": 0},
+    # {"cmd": ["python", "-m", "scripts.prediction.polymarket.teams_post", "--slot", "AM"], "estimated_tags": 0},
     {"cmd": ["python", "-m", "scripts.run_vendor_feed", "barclays_skew"], "estimated_tags": 0},
+    {"cmd": ["python", "-m", "scripts.run_vendor_feed", "bbg_fx_daily"], "estimated_tags": 0},
+    {"cmd": ["python", "-m", "scripts.run_vendor_feed", "bbg_rates_daily"], "estimated_tags": 0},
 ]
 
 # ============================================================================
@@ -104,6 +109,14 @@ def main() -> int:
     staleness_result = subprocess.run(["python", "-m", "scripts.imdr_staleness_check"])
     if staleness_result.returncode != 0:
         print("WARN  staleness check found stale keys (see email)")
+
+    # ── Polymarket watchlist hygiene (auto-apply) ──────────────────
+    # Flips `pruned: true` on DEAD/MISSING slugs in watchlist.yml. .bak written
+    # first for rollback. ERROR slugs are kept (transient API failures shouldn't
+    # delete real entries). Idempotent — already-pruned entries are skipped.
+    print("\n── Polymarket watchlist prune (--apply) ──")
+    subprocess.run(["python", "-m", "scripts.prediction.polymarket.streaming",
+                    "prune", "--apply"])
 
     if failed or skipped:
         return 1
