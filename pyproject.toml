@@ -36,6 +36,9 @@ dependencies = [
 
     # --- Templating ---
     "jinja2>=3.1",
+
+    # --- Concurrency primitives ---
+    "filelock>=3.12",             # research ingest: orchestrator lock + LLM cache lock
 ]
 
 [project.optional-dependencies]

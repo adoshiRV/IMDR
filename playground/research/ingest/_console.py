@@ -33,7 +33,15 @@ def force_utf8_stdout() -> None:
     """
     for stream in (sys.stdout, sys.stderr):
         try:
-            stream.reconfigure(encoding="utf-8", errors="replace")
+            # line_buffering=True is critical for parallel-vendor mode:
+            # without it, stdout is block-buffered when piped (e.g. via
+            # Tee-Object), so prints from one vendor pile up in the
+            # buffer while another vendor's prints stream through, and
+            # the operator sees scrambled order. Line buffering flushes
+            # on every '\n', giving deterministic per-line interleave.
+            stream.reconfigure(
+                encoding="utf-8", errors="replace", line_buffering=True,
+            )
         except (AttributeError, ValueError):
             # AttributeError: stream isn't a TextIOWrapper (e.g. a
             # pytest capture wrapper, or stdout already wrapped).
