@@ -1,6 +1,6 @@
 # Onboarding a new country — econ data playbook
 
-Last updated: 2026-06-05
+Last updated: 2026-06-09
 
 The 5-step workflow for adding a new country to `econ.dim_indicator`. Korea ([korea/](korea/)) is the worked reference example.
 
@@ -236,9 +236,116 @@ If the country needs something genuinely off-map (e.g. China RRR ratios, India S
 
 ---
 
+---
+
+## Phase G — Promote to production
+
+> Lessons from the Korea (2026-06-05) and Indonesia (2026-06-09) promotions. Both countries followed this sequence; it is now the stable playbook.
+
+### G.1 Hard rule — zero playground imports in prod
+
+`scripts/econ/{vendor}/` and `src/imdr/domains/econ/` must have **zero `playground.*` imports**. Playground stays as the development surface; production is its own tree. Verify with a grep before any docs step:
+
+```
+grep -r "playground" scripts/econ/{vendor}/ src/imdr/domains/econ/
+```
+
+No matches = safe to proceed.
+
+### G.2 Promotion sequence
+
+**Step 1 — Promote helpers to `src/`.**
+Copy `playground/econ/{vendor}/_{vendor}_*.py` to `src/imdr/domains/econ/{vendor}_*.py` (drop the leading underscore — they become first-class library modules). Update `_REPO_ROOT = Path(__file__).resolve().parents[N]` to match the new depth (typically `parents[4]` for `src/imdr/domains/econ/`).
+
+**Step 2 — Re-implement fetchers as prod scripts.**
+For each `playground/econ/{vendor}/fetch_*.py`, create `scripts/econ/{vendor}/{vendor}_{topic}.py`. Reference pattern: `scripts/econ/kosis/kosis_cpi.py`.
+
+Required structure:
+- Short docstring (1-2 paragraphs; trim playground exploration commentary)
+- Imports from `imdr.domains.econ.{helper}` + `imdr.domains.econ.schema` + `scripts.econ._runner`
+- `run_fetch(since, until) -> (indicators, observations)` — body lifted from playground, import paths swapped
+- `main()` delegates to `scripts.econ._runner.run_main(vendor, topic, fetch_fn, description)`
+- Strip: `sys.stdout = io.TextIOWrapper(...)`, `sys.path.insert(0, str(_REPO_ROOT))`, leftover `cli_main(...)` stubs
+
+**Step 3 — Build the country orchestrator.**
+`scripts/econ/{cc}/{cc}_monthly.py` calls `scripts.econ._country_runner.run(...)`. Do NOT fork a per-country `_runner.py` — `_country_runner.py` is parametrised by `country_code`, `country_label`, `country_name`, `orchestrator_path`, `pipelines`, `frequency_scope`. Reuse it.
+
+**Step 4 — Register into the scheduler (gated).**
+Add the orchestrator to `scripts/imdr_monthly.py:PIPELINES`. **Requires explicit user sign-off** per the no-prod-wiring rule before this line is flipped. Build the code first; let the user flip the switch.
+
+### G.3 One orchestrator, many cadences
+
+`frequency_scope` accepts `["MONTHLY","QUARTERLY","SEMIANNUAL","ANNUAL","DAILY"]` in one bundle. Idempotent MERGE makes over-running cheap. Default: a single `{cc}_monthly.py`. Only add `{cc}_weekly.py` if the country actually has weekly-cadence data (Korea has REB; Indonesia doesn't).
+
+For policy-rate-style series that change rarely (e.g. BIS `WS_CBPOL`), wire the fetcher into `scripts/imdr_daily.py:PIPELINES` *in addition to* the monthly bundle when 24h-latency matters. The same fetcher in both schedulers is fine — MERGE-on-PK makes daily re-runs free; monthly stays as backstop. Indonesia BIS uses this pattern.
+
+### G.4 Schema additions land in two places
+
+If the country needs a new `frequency_code` (e.g. `SEMIANNUAL` for BPS Sakernas), add to both:
+- `src/imdr/domains/econ/schema.py:VALID_FREQUENCIES`
+- `src/imdr/notifications/econ_snapshot.py:_STALE_DAYS`
+
+A migration to seed `dbo.dim_frequency` is also required.
+
+### G.5 Category placeholder pattern
+
+If a vendor emits a topic that doesn't fit an existing `dim_indicator_category` code, bucket it under `"other"` with a named constant + comment pointing at the follow-on work:
+
+```python
+# Bucketed under "other" until a dedicated "fiscal" code is added to
+# econ.dim_indicator_category + VALID_CATEGORIES in
+# src/imdr/domains/econ/schema.py. Tracked in
+# docs/admin/econ/{country}/{cc}_coverage_plan.md (Phase E follow-on).
+_FISCAL_CATEGORY_PLACEHOLDER = "other"
+```
+
+Also: avoid `if/elif` on a prefix string when building `imdr_code` — encode variable dimensions (suffix, category) as columns in your `_TABLES` row tuples instead.
+
+### G.6 Code-review gate (HARD GATE)
+
+Run `imdr-code-reviewer` on the new prod tree before touching docs. Hard checklist (8 items max):
+
+1. Zero `playground.*` imports in `scripts/econ/{vendor}/` and `src/imdr/domains/econ/`
+2. No back-compat shims for files deleted during generalisation
+3. Existing countries (Korea) still pass their smoke tests
+4. Fetcher structure matches `scripts/econ/kosis/kosis_cpi.py`
+5. `imdr_code` built via dimension columns in `_TABLES`, not `if/elif` on a prefix string
+6. Placeholder constants carry their rationale comment
+7. `_REPO_ROOT` depth correct for new file location
+8. No `sys.path` manipulation in prod scripts
+
+Address all IMPORTANT findings before the docs step.
+
+### G.7 Docs to update on prod-promotion
+
+| Doc | What to do |
+|---|---|
+| NEW `docs/admin/econ/{country}/{country}_prod_pipeline.md` | Create mirroring `korea_prod_pipeline.md` section-by-section (architecture → library code table → cadence → invocation → CLI flags → archive layout → idempotency → failure modes → smoke tests → playground footer) |
+| `docs/admin/econ/{country}/index.md` | Flip Phase G row to ✅; add Quick Links row to new prod-pipeline doc |
+| `docs/admin/econ/{country}/{cc}_coverage_plan.md` | Strike "Phase G pending"; add prod-live timestamp |
+| `docs/admin/econ/{country}/{country}_indicator_inventory.md` | Add a "Production fetchers" section listing the N prod fetcher modules |
+| `docs/admin/econ/macro_economy_wiring_map.md` §{country} | Extend with prod-wiring sentence |
+| `docs/admin/econ/economics_data_ingest.md` | Add country roster row referencing the orchestrator(s) |
+
+Canonical prod-live wording for any of these docs:
+> "Wired into `scripts/imdr_monthly.py:PIPELINES` YYYY-MM-DD"
+Extend with `+ scripts/imdr_daily.py` if the country has a daily-bound fetcher.
+
+### G.8 Email formatter
+
+The country orchestrator's email report is produced by `imdr.notifications.formatters.country_econ_ingest.CountryEconIngestFormatter` (template at `templates/country_econ_ingest.html`). No per-country formatter needed — it's parametrised.
+
+### G.9 Worked examples
+
+- **Korea** — `docs/admin/econ/korea/korea_prod_pipeline.md`, `scripts/econ/kr/kr_monthly.py`, `scripts/econ/kosis/`
+- **Indonesia** — `docs/admin/econ/indonesia/indonesia_prod_pipeline.md`, `scripts/econ/id/id_monthly.py`, `scripts/econ/{bps,bi,bis}/`
+
+---
+
 ## Cross-refs
 
 - [country_econ_blueprint.md](country_econ_blueprint.md) — the indicator catalogue (§1-4, the *what*)
 - [macro_economy_wiring_map.md](macro_economy_wiring_map.md) — the 16-cell coverage tracker
 - [economics_data_ingest.md](economics_data_ingest.md) — schema + loader + per-vendor build log
-- [korea/](korea/) — worked reference example (172 indicators across 4 vendors)
+- [korea/](korea/) — worked reference example (Korea prod pipeline: [korea/korea_prod_pipeline.md](korea/korea_prod_pipeline.md))
+- [indonesia/](indonesia/) — second worked example (Indonesia prod pipeline: [indonesia/indonesia_prod_pipeline.md](indonesia/indonesia_prod_pipeline.md))
