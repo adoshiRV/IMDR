@@ -1,0 +1,49 @@
+{# Base layout — shared head, brand bar, sticky nav, footer.
+   Children override the `body_main` block. #}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{{ page_title }} · RV Capital</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+{{ theme_css }}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <nav class="nav-bar" aria-label="Section navigation">
+    <div class="nav-inner">
+      {%- for anchor, label in nav_items %}
+      <a href="#{{ anchor }}">{{ label }}</a>
+      {%- endfor %}
+    </div>
+  </nav>
+
+  <div class="brand-bar">
+    <img class="logo" src="assets/RV_Logo_Colour.png" alt="RV Capital">
+    <div class="brand-meta">
+      <strong>{{ brand_meta_strong }}</strong><br>
+      {{ brand_meta_sub }}
+    </div>
+  </div>
+
+  <div class="hero">
+    <h1>{{ hero_title }}</h1>
+    <p>{{ hero_subtitle_html | safe }}</p>
+  </div>
+
+  {% block body_main %}{% endblock %}
+
+  <div class="footer-rule">
+    <span>RV Capital · Internal · {{ footer_date }}</span>
+    <span class="brand-mark">{{ footer_brand }}</span>
+  </div>
+
+</div>
+</body>
+</html>

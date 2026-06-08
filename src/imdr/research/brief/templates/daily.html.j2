@@ -1,0 +1,69 @@
+{# Daily brief — forward-looking, econ-based, terse. Today + yesterday recap. #}
+{% extends "_base.html.j2" %}
+
+{% block body_main %}
+
+  {# §0 Today at a glance #}
+  <h2 id="today">§0 · Today at a Glance</h2>
+  <div class="callout">{{ cfg.story_callout | safe }}</div>
+
+  {%- with kpis=cfg.kpis, heading="Markets snapshot · overnight change, verified vs IMDR" %}
+  {%- include "_components/kpi_mini.html.j2" %}
+  {%- endwith %}
+
+  {# §1 Today's prints #}
+  {%- if cfg.events %}
+  <h2 id="prints">§1 · Today's Prints</h2>
+  {%- with events=cfg.events %}
+  {%- include "_components/event_calendar.html.j2" %}
+  {%- endwith %}
+  {%- endif %}
+
+  {# §2..N — per-event lite sections #}
+  {%- for s in cfg.sections %}
+  {%- with s=s %}
+  {%- include "_components/medium_section.html.j2" %}
+  {%- endwith %}
+  {%- endfor %}
+
+  {# Yesterday's recap #}
+  {%- if cfg.yesterday_recap or cfg.yesterday_table %}
+  <h2 id="yesterday">§N · Yesterday's Surprises</h2>
+  {%- if cfg.yesterday_recap %}<p>{{ cfg.yesterday_recap | safe }}</p>{% endif %}
+  {%- if cfg.yesterday_table %}
+  <div class="tbl-scroll">
+    <table>
+      <thead>
+        <tr><th class="left">Print</th><th class="left">Actual</th><th class="left">Consensus</th><th class="left">Surprise</th><th class="left">Reaction</th></tr>
+      </thead>
+      <tbody>
+      {%- for row in cfg.yesterday_table %}
+        <tr>{% for c in row %}<td class="left">{{ c | safe }}</td>{% endfor %}</tr>
+      {%- endfor %}
+      </tbody>
+    </table>
+  </div>
+  {%- endif %}
+  {%- endif %}
+
+  {# Top conviction trades for the day #}
+  {%- if cfg.top_trades %}
+  {%- with trades=cfg.top_trades, section_num=trades_section_num, title="Top Conviction Today", lead="2-3 trades aligned to today's print risk. Reaction matrices in §2-N drive entry/stop placement." %}
+  {%- include "_components/trade_table.html.j2" %}
+  {%- endwith %}
+  {%- endif %}
+
+  {# Watch-for #}
+  {%- if cfg.watch_list %}
+  {%- with risks=cfg.watch_list, section_num=watch_section_num, title="Watch For" %}
+  {%- include "_components/tail_risks.html.j2" %}
+  {%- endwith %}
+  {%- endif %}
+
+  {%- if cfg.appendix %}
+  {%- with title="Appendix · Reports Cited", appendix=cfg.appendix, build_sources=build_sources %}
+  {%- include "_components/appendix.html.j2" %}
+  {%- endwith %}
+  {%- endif %}
+
+{% endblock %}

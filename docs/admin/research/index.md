@@ -355,3 +355,16 @@ embedding model is `gemini-embedding-2`.
 * **Migration helper**: [`migrate_paths.py`](../../../playground/research/migrate_paths.py)
   rewrites paths in DB + moves OneDrive files. Default is dry-run;
   pass ``--apply`` to execute.
+
+## Downstream — research consumption
+
+Research rows land in `research.dim_report` + `research.fact_chunk`.
+What consumes them downstream:
+
+* **[Macro brief generator](brief_playbook.md)** — `imdr.research.brief`
+  produces RV-styled weekly/daily HTML briefs from the ingested research
+  plus IMDR cross-asset data. Includes bank PDF page embeds and
+  SharePoint links on every cited report ID.
+* **Research MCP** — owner-only Qdrant MCP for ad-hoc semantic search
+  (see project memory `project_research_mcp_owner_only`).
+

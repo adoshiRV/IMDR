@@ -1,0 +1,56 @@
+{# Medium-depth section — narrative + optional callout + table + optional charts + PDF embeds. #}
+<h2 id="{{ s.section_id }}">{{ s.section_num }} · {{ s.title }}</h2>
+
+{%- if s.callout %}
+<div class="callout{% if s.callout_kind != 'default' %} {{ s.callout_kind }}{% endif %}">{{ s.callout | safe }}</div>
+{%- endif %}
+
+<p>{{ s.lead | safe }}</p>
+
+{%- if s.table_headers %}
+<div class="tbl-scroll">
+  <table>
+    <thead>
+      <tr>
+      {%- for h in s.table_headers %}
+        <th class="left">{{ h }}</th>
+      {%- endfor %}
+      </tr>
+    </thead>
+    <tbody>
+    {%- for row in s.table_rows %}
+      <tr>{% for cell in row %}<td class="left">{{ cell | safe }}</td>{% endfor %}</tr>
+    {%- endfor %}
+    </tbody>
+  </table>
+</div>
+{%- endif %}
+
+{%- if s.chart_files %}
+{%- if s.chart_files | length == 1 %}
+<div class="chart-card">
+  <img src="charts/{{ s.chart_files[0] }}" alt="chart">
+  {%- if chart_captions and s.chart_files[0] in chart_captions %}
+  <div class="chart-caption">{{ chart_captions[s.chart_files[0]] | safe }}</div>
+  {%- endif %}
+</div>
+{%- else %}
+<div class="chart-grid-2">
+  {%- for cf in s.chart_files %}
+  <div class="chart-card">
+    <img src="charts/{{ cf }}" alt="chart">
+    {%- if chart_captions and cf in chart_captions %}
+    <div class="chart-caption">{{ chart_captions[cf] | safe }}</div>
+    {%- endif %}
+  </div>
+  {%- endfor %}
+</div>
+{%- endif %}
+{%- endif %}
+
+{%- for em in s.pdf_embeds %}
+  {%- set rl = report_links[em.report_id|string] %}
+  {%- with eyebrow=em.eyebrow, title=rl.title, report_id=em.report_id, pages=em.pages, image_paths=pdf_embed_paths[em.report_id|string], report_link=rl.sp_url, look_at=em.look_at %}
+  {%- include "_components/pdf_augment.html.j2" %}
+  {%- endwith %}
+{%- endfor %}

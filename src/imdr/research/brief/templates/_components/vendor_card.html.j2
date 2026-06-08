@@ -1,0 +1,21 @@
+{# Per-bank thesis card with verbatim quotes + optional trade/risk callouts.
+   `report_link` is the SharePoint URL string (resolved by the linker stage). #}
+<div class="vendor-card">
+  <div class="vc-head">
+    <span class="vc-bank">{{ card.bank }}</span>
+    <span class="vc-id"><a href="{{ report_link }}" target="_blank" rel="noopener">{{ card.report_id }} ↗</a></span>
+  </div>
+  <div class="vc-thesis">{{ card.thesis }}</div>
+  {%- if card.forecast %}
+  <div class="vc-fcst">{{ card.forecast }}</div>
+  {%- endif %}
+  {%- for q in card.quotes %}
+  <blockquote>{{ q.text }}</blockquote>
+  {%- endfor %}
+  {%- if card.trade %}
+  <div class="vc-trade"><strong>Trade idea</strong> · {{ card.trade | safe }}</div>
+  {%- endif %}
+  {%- if card.risk %}
+  <div class="vc-risk"><strong>Risk</strong> · {{ card.risk | safe }}</div>
+  {%- endif %}
+</div>

@@ -1,0 +1,23 @@
+{# 3-scenario × N-asset reaction matrix. Stacks on mobile via data-label. #}
+<div class="rxn-grid">
+  <div class="rg-head">Print scenario</div>
+  {%- for col in matrix.columns %}
+  <div class="rg-head">{{ col }}</div>
+  {%- endfor %}
+
+  {%- macro scenario_row(s, css_class) %}
+  <div class="{{ css_class }}" data-label="Scenario">
+    <span class="rg-label">{{ s.label }}<span class="rg-prob">~{{ s.prob }}%</span></span>{{ s.trigger | safe }}
+  </div>
+  {%- for col in matrix.columns %}
+  <div class="{{ css_class }}" data-label="{{ col }}">{{ s.cells.get(col, "—") | safe }}</div>
+  {%- endfor %}
+  {%- endmacro %}
+
+  {%- if matrix.bull %}{{ scenario_row(matrix.bull, "rg-cell-bull") }}{% endif %}
+  {{ scenario_row(matrix.base, "rg-cell-base") }}
+  {%- if matrix.bear %}{{ scenario_row(matrix.bear, "rg-cell-bear") }}{% endif %}
+</div>
+{%- if caption %}
+<p class="chart-caption">{{ caption | safe }}</p>
+{%- endif %}

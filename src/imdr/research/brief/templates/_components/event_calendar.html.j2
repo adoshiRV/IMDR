@@ -1,0 +1,63 @@
+{# Desktop event table + mobile day-cards. Mobile day-cards are grouped by `day`
+   from the same event list. #}
+<div class="events-table-wrap">
+  <div class="tbl-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th class="left">Day</th>
+          <th class="left">Time</th>
+          <th class="left">Event</th>
+          <th class="left">Consensus</th>
+          <th class="left">Prior</th>
+          <th class="left">Vendor lean</th>
+          <th>Tier</th>
+        </tr>
+      </thead>
+      <tbody>
+      {%- for ev in events %}
+        {%- set tier_class = "hot" if ev.tier == 1 else ("warm" if ev.tier == 2 else "calm") %}
+        {%- set tier_text = "Tier 1" if ev.tier == 1 else ("Mid" if ev.tier == 2 else "Low") %}
+        {%- set highlight = ev.tier == 1 %}
+        <tr>
+          <td class="left">{{ ev.day }}</td>
+          <td class="left time{% if highlight %} hi-strong{% endif %}">{{ ev.time_utc }}</td>
+          <td class="left event{% if highlight %} hi-strong{% endif %}">{{ ev.name }}</td>
+          <td class="left{% if highlight %} hi-strong{% endif %}">{{ ev.consensus }}</td>
+          <td class="left">{{ ev.prior }}</td>
+          <td class="left">{{ ev.vendor_lean | safe }}</td>
+          <td><span class="tag {{ tier_class }}">{{ tier_text }}</span></td>
+        </tr>
+      {%- endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="day-cards">
+{%- set ns = namespace(prev=None) %}
+{%- for ev in events %}
+  {%- if ev.day != ns.prev %}
+    {%- if ns.prev is not none %}
+      </div>
+    {%- endif %}
+    <div class="day">
+      <div class="day-header"><span class="day-title">{{ ev.day }}</span></div>
+    {%- set ns.prev = ev.day %}
+  {%- endif %}
+  {%- set tier_class = "hot" if ev.tier == 1 else ("warm" if ev.tier == 2 else "calm") %}
+  {%- set tier_text = "Tier 1" if ev.tier == 1 else ("Mid" if ev.tier == 2 else "Low") %}
+  <div class="day-row">
+    <span class="day-time">{{ ev.time_utc }}</span>
+    <div class="day-event">
+      <div class="event-name">{{ ev.name }}</div>
+      {%- if ev.consensus %}<div class="event-cons">{{ ev.consensus }}</div>{% endif %}
+      {%- if ev.vendor_lean %}<div class="event-lean">{{ ev.vendor_lean | safe }}</div>{% endif %}
+    </div>
+    <span class="tag {{ tier_class }}">{{ tier_text }}</span>
+  </div>
+{%- endfor %}
+{%- if ns.prev is not none %}
+  </div>
+{%- endif %}
+</div>

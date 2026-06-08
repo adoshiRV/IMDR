@@ -1,0 +1,23 @@
+{# Bank PDF page embed as content augmentation. Always *after* text/tables.
+   Supports 1-page or 2-page paired layout. #}
+<div class="pdf-augment">
+  <div class="pa-head">
+    <div>
+      <div class="pa-eyebrow">{{ eyebrow }}</div>
+      <div class="pa-title">{{ title }} <span style="color:var(--muted);font-weight:400;">· id {{ report_id }}, p.{{ pages | join("/") }}</span></div>
+    </div>
+    <div class="pa-link"><a href="{{ report_link }}" target="_blank" rel="noopener">Open PDF ↗</a></div>
+  </div>
+  {%- if pages | length > 1 %}
+  <div class="pa-pair">
+    {%- for img in image_paths %}
+    <div><img src="{{ img }}" alt="page render"></div>
+    {%- endfor %}
+  </div>
+  {%- else %}
+  <img src="{{ image_paths[0] }}" alt="page render">
+  {%- endif %}
+  {%- if look_at %}
+  <div class="pa-note">{{ look_at | safe }}</div>
+  {%- endif %}
+</div>

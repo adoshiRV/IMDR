@@ -1,0 +1,75 @@
+{# Full deep-dive section (US CPI, ECB). Renders:
+   lead -> consensus banner -> forecast table -> vendor cards ->
+   component drivers -> reaction matrix -> PDF embeds. #}
+<h2 id="{{ s.section_id }}">{{ s.section_num }} · {{ s.title }}{% if s.label %} · {{ s.label }}{% endif %}</h2>
+
+<p>{{ s.lead | safe }}</p>
+
+{% include "_components/consensus_banner.html.j2" with context %}
+{# Caller passes ``number`` and ``text`` from the deep-dive into context #}
+
+{%- if s.forecast_table_headers %}
+<h3>Vendor forecasts at a glance</h3>
+<div class="tbl-scroll">
+  <table>
+    <thead>
+      <tr>
+      {%- for h in s.forecast_table_headers %}
+        <th{% if loop.first %} class="left"{% endif %}>{{ h }}</th>
+      {%- endfor %}
+      </tr>
+    </thead>
+    <tbody>
+    {%- for row in s.forecast_table_rows %}
+      <tr>
+      {%- for cell in row %}
+        <td{% if loop.first %} class="left"{% endif %}>{{ cell | safe }}</td>
+      {%- endfor %}
+      </tr>
+    {%- endfor %}
+    </tbody>
+  </table>
+</div>
+{%- endif %}
+
+{%- if s.vendor_cards %}
+<h3>How each bank sees it (direct quotes)</h3>
+<div class="vendor-grid">
+  {%- for c in s.vendor_cards %}
+    {%- with card=c, report_link=report_links[c.report_id|string].sp_url %}
+    {%- include "_components/vendor_card.html.j2" %}
+    {%- endwith %}
+  {%- endfor %}
+</div>
+{%- endif %}
+
+{%- if s.component_drivers %}
+<h3>Component drivers</h3>
+<div class="tbl-scroll">
+  <table>
+    <thead><tr><th class="left">Component</th><th class="left">Direction</th><th class="left">Vendor view</th></tr></thead>
+    <tbody>
+    {%- for row in s.component_drivers %}
+      <tr>{% for cell in row %}<td class="left">{{ cell | safe }}</td>{% endfor %}</tr>
+    {%- endfor %}
+    </tbody>
+  </table>
+</div>
+{%- endif %}
+
+{%- if s.reaction_matrix %}
+<h3>Scenario reaction matrix</h3>
+{%- with matrix=s.reaction_matrix, caption=reaction_caption %}
+{%- include "_components/reaction_matrix.html.j2" %}
+{%- endwith %}
+{%- endif %}
+
+{%- if s.pdf_embeds %}
+<h3>Source material — bank PDFs</h3>
+{%- for em in s.pdf_embeds %}
+  {%- set rl = report_links[em.report_id|string] %}
+  {%- with eyebrow=em.eyebrow, title=rl.title, report_id=em.report_id, pages=em.pages, image_paths=pdf_embed_paths[em.report_id|string], report_link=rl.sp_url, look_at=em.look_at %}
+  {%- include "_components/pdf_augment.html.j2" %}
+  {%- endwith %}
+{%- endfor %}
+{%- endif %}
