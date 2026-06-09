@@ -140,9 +140,24 @@ def _print_report(report: list[dict]) -> None:
 # Upsert with provenance
 # ---------------------------------------------------------------------------
 
+def _load_country_id_map(session: Session) -> dict[str, int]:
+    """Build country_code → country_id map from dbo.dim_country."""
+    rows = session.execute(
+        text("SELECT country_code, id FROM [dbo].[dim_country]"),
+    ).fetchall()
+    return {str(cc).upper(): int(cid) for cc, cid in rows}
+
+
 def _upsert_scraped_events(session: Session, events: list[dict], dry_run: bool) -> int:
-    """Upsert scraped/generated CB events with source tracking."""
+    """Upsert scraped/generated CB events with source tracking.
+
+    Phase H sub-step 5.3 (2026-05-13): switched dedupe + INSERT to use
+    ``country_id`` rather than the soon-to-be-dropped ``country_code`` column.
+    """
     added = 0
+    country_id_map: dict[str, int] = {} if dry_run else _load_country_id_map(session)
+    unknown_country_codes: set[str] = set()
+
     for e in events:
         dt = str(e["event_date"])
         country = e["country_code"]
@@ -159,29 +174,36 @@ def _upsert_scraped_events(session: Session, events: list[dict], dry_run: bool) 
             added += 1
             continue
 
+        country_id = country_id_map.get(country.upper())
+        if country_id is None:
+            if country not in unknown_country_codes:
+                unknown_country_codes.add(country)
+                print(f"  [SKIP] unknown country_code {country!r} for cb_event {dt}: {name}")
+            continue
+
         if ticker:
             result = session.execute(
                 text("""
                     IF NOT EXISTS (
                         SELECT 1 FROM [calendar].[cb_events]
-                        WHERE event_date = :dt AND country_code = :country
+                        WHERE event_date = :dt AND country_id = :country_id
                           AND ticker = :ticker
                     )
                     INSERT INTO [calendar].[cb_events]
-                        (event_date, country_code, category, event_name,
+                        (event_date, country_id, category, event_name,
                          ticker, relevance, source, is_estimated)
-                    VALUES (:dt, :country, :category, :name,
+                    VALUES (:dt, :country_id, :category, :name,
                             :ticker, :relevance, :source, :is_estimated)
                     ELSE
                     UPDATE [calendar].[cb_events]
                     SET source = COALESCE(:source, source),
                         is_estimated = :is_estimated,
                         updated_at = SYSDATETIMEOFFSET()
-                    WHERE event_date = :dt AND country_code = :country
+                    WHERE event_date = :dt AND country_id = :country_id
                       AND ticker = :ticker
                       AND (source IS NULL OR source = 'estimated')
                 """),
-                {"dt": dt, "country": country, "category": category,
+                {"dt": dt, "country_id": country_id, "category": category,
                  "name": name, "ticker": ticker, "relevance": relevance,
                  "source": source, "is_estimated": is_estimated},
             )
@@ -190,24 +212,24 @@ def _upsert_scraped_events(session: Session, events: list[dict], dry_run: bool) 
                 text("""
                     IF NOT EXISTS (
                         SELECT 1 FROM [calendar].[cb_events]
-                        WHERE event_date = :dt AND country_code = :country
+                        WHERE event_date = :dt AND country_id = :country_id
                           AND event_name = :name
                     )
                     INSERT INTO [calendar].[cb_events]
-                        (event_date, country_code, category, event_name,
+                        (event_date, country_id, category, event_name,
                          relevance, source, is_estimated)
-                    VALUES (:dt, :country, :category, :name,
+                    VALUES (:dt, :country_id, :category, :name,
                             :relevance, :source, :is_estimated)
                     ELSE
                     UPDATE [calendar].[cb_events]
                     SET source = COALESCE(:source, source),
                         is_estimated = :is_estimated,
                         updated_at = SYSDATETIMEOFFSET()
-                    WHERE event_date = :dt AND country_code = :country
+                    WHERE event_date = :dt AND country_id = :country_id
                       AND event_name = :name
                       AND (source IS NULL OR source = 'estimated')
                 """),
-                {"dt": dt, "country": country, "category": category,
+                {"dt": dt, "country_id": country_id, "category": category,
                  "name": name, "relevance": relevance,
                  "source": source, "is_estimated": is_estimated},
             )

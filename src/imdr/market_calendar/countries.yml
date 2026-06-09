@@ -1,12 +1,21 @@
-# Market definitions — globally extensible across domains.
-# Each market has a timezone, associated currencies, exchanges, holiday calendar type,
+# Country definitions — globally extensible across domains.
+# Each country has a timezone, associated currencies, exchanges, holiday calendar type,
 # weekend days, ISDA financial center codes, and optional equity-style trading hours.
 #
+# Top-level keys are the canonical country_code values used in dbo.dim_country
+# (post country-anchor restructure 2026-05-13). The nested `country_code` field
+# is the ISO alpha-2 code used by the upstream `holidays` library (which sometimes
+# differs from our canonical code — e.g. our "UK" → holidays-lib "GB").
+#
 # weekend_days: Python weekday integers (0=Mon, 4=Fri, 5=Sat, 6=Sun). Default [5, 6].
+#   ⚠ DEPRECATED 2026-05-13 (Phase D Step 1). The library reads weekend_days
+#     from dbo.dim_country.weekend_days now — this field is retained ONLY for
+#     reference. Editing it has no effect on is_weekend() / the calendar API.
+#     To change a country's weekend convention, update dbo.dim_country.weekend_days.
 # isda_centers: ISDA financial center codes supported by the holidays library.
 # trading_hours: Equity-style open/close in local time. Omit for 24h/OTC markets.
 
-markets:
+countries:
   # ═══ Americas ═══════════════════════════════════════════════════════
 
   US:

@@ -254,6 +254,14 @@ def filter_date_window(
     return filtered
 
 
+def _load_country_id_map(session: Session) -> dict[str, int]:
+    """Build country_code → country_id map from dbo.dim_country (52 rows)."""
+    rows = session.execute(
+        text("SELECT country_code, id FROM [dbo].[dim_country]"),
+    ).fetchall()
+    return {str(cc).upper(): int(cid) for cc, cid in rows}
+
+
 def upsert_events(session: Session, df: pd.DataFrame) -> int:
     """Upsert events to calendar.cb_events using MERGE.
 
@@ -263,12 +271,26 @@ def upsert_events(session: Session, df: pd.DataFrame) -> int:
         log.info("no_events_to_upsert")
         return 0
 
+    # Resolve all country codes up-front; reuse for every row.
+    country_id_map = _load_country_id_map(session)
+    unknown_country_codes: set[str] = set()
+
     inserted = 0
     updated = 0
+    skipped = 0
 
     for _, row in df.iterrows():
         event_date = row["event_date"]
         country_code = _safe_str(row.get("country_code")) or "XX"
+        country_id = country_id_map.get(country_code.upper())
+        if country_id is None:
+            # Country isn't in dim_country; skip this row and log once per code.
+            if country_code not in unknown_country_codes:
+                unknown_country_codes.add(country_code)
+                log.warning("unknown_country_code_in_cb_events", country_code=country_code)
+            skipped += 1
+            continue
+
         event_text = _safe_str(row.get("event_name")) or ""
         ticker = row.get("ticker")
         if pd.isna(ticker):
@@ -295,33 +317,34 @@ def upsert_events(session: Session, df: pd.DataFrame) -> int:
             event_dt_str = event_datetime.isoformat()
         period_str = str(period_value) if period_value else None
 
-        # Check if row exists (by ticker if present, else by event text)
+        # Check if row exists (by ticker if present, else by event text).
+        # Dedupe key uses country_id, matching the unique indexes on cb_events.
         if ticker:
             existing = session.execute(
                 text("""
                     SELECT id FROM [calendar].[cb_events]
                     WHERE event_date = :event_date
-                      AND country_code = :country_code
+                      AND country_id = :country_id
                       AND ticker = :ticker
                 """),
-                {"event_date": event_date_str, "country_code": country_code, "ticker": ticker},
+                {"event_date": event_date_str, "country_id": country_id, "ticker": ticker},
             ).fetchone()
         else:
             existing = session.execute(
                 text("""
                     SELECT id FROM [calendar].[cb_events]
                     WHERE event_date = :event_date
-                      AND country_code = :country_code
+                      AND country_id = :country_id
                       AND event_name = :event_name
                       AND ticker IS NULL
                 """),
-                {"event_date": event_date_str, "country_code": country_code, "event_name": event_text},
+                {"event_date": event_date_str, "country_id": country_id, "event_name": event_text},
             ).fetchone()
 
         params = {
             "event_date": event_date_str,
             "event_datetime": event_dt_str,
-            "country_code": _safe_str(country_code) or "XX",
+            "country_id": country_id,
             "category": _safe_str(row.get("category")) or "Unknown",
             "event_name": _safe_str(event_text) or "",
             "ticker": _safe_str(ticker),
@@ -363,11 +386,11 @@ def upsert_events(session: Session, df: pd.DataFrame) -> int:
             session.execute(
                 text("""
                     INSERT INTO [calendar].[cb_events]
-                        (event_date, event_datetime, country_code, category, event_name,
+                        (event_date, event_datetime, country_id, category, event_name,
                          ticker, period_value, survey, actual, prior_value, revised, relevance, frequency,
                          source, is_estimated)
                     VALUES
-                        (:event_date, :event_datetime, :country_code, :category, :event_name,
+                        (:event_date, :event_datetime, :country_id, :category, :event_name,
                          :ticker, :period_value, :survey, :actual, :prior_value, :revised, :relevance, :frequency,
                          :source, :is_estimated)
                 """),
@@ -376,7 +399,7 @@ def upsert_events(session: Session, df: pd.DataFrame) -> int:
             inserted += 1
 
     session.commit()
-    log.info("upsert_complete", inserted=inserted, updated=updated)
+    log.info("upsert_complete", inserted=inserted, updated=updated, skipped=skipped)
     return inserted + updated
 
 

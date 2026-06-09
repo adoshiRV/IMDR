@@ -1,74 +1,32 @@
-"""ORM models for the calendar schema — dim_market, dim_market_currency, cb_events."""
+"""ORM models for the calendar schema — cb_events, dim_calendar, market_holidays.
+
+Phase D Step 11 / Block 5 sub-step 5.1 (2026-05-13): the legacy ``dim_market``,
+``dim_market_currency``, ``dim_market_calendar``, and ``dim_trading_day`` ORM
+models were deleted here ahead of the table rename in migration 050. Nothing
+in the codebase referenced these classes any more (the calendar API moved to
+``dbo.dim_country`` + ``calendar.dim_calendar`` + ``calendar.market_holidays``
+during Phase D Steps 1–11).
+"""
 
 from __future__ import annotations
 
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, String
+from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.dialects.mssql import TINYINT
 from sqlalchemy.orm import Mapped, mapped_column
 
 from imdr.models.base import Base
 
 
-class DimMarket(Base):
-    """Shared market dimension — the central hub linking all domains.
+class CBEvent(Base):
+    """Central-bank / macroeconomic event row.
 
-    Post migration 026: market_code remains the PK (original, to preserve
-    existing FK compat); `id TINYINT IDENTITY UNIQUE` is the new surrogate
-    target for domain-dim FKs per schema_conventions.md §3.5.
+    Phase H sub-step 5.3 (2026-05-13): the ``country_code`` varchar(5) column
+    was dropped in migration 051. Use ``country_id`` (FK to ``dbo.dim_country.id``)
+    and JOIN to ``dim_country`` if you need the string code.
     """
 
-    __tablename__ = "dim_market"
-    __table_args__ = {"schema": "calendar"}
-
-    market_code: Mapped[str] = mapped_column(String(5), primary_key=True)
-    # Surrogate id added by migration 026 — TINYINT IDENTITY + UNIQUE (not PK).
-    id: Mapped[int] = mapped_column(TINYINT, unique=True, nullable=False, autoincrement=True)
-    market_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    timezone: Mapped[str] = mapped_column(String(50), nullable=False)
-    country_code_iso: Mapped[str] = mapped_column(String(2), nullable=False)
-    weekend_days: Mapped[str] = mapped_column(String(10), nullable=False, default="5,6")
-    trading_open: Mapped[str | None] = mapped_column(String(5), nullable=True)
-    trading_close: Mapped[str | None] = mapped_column(String(5), nullable=True)
-    lunch_start: Mapped[str | None] = mapped_column(String(5), nullable=True)
-    lunch_end: Mapped[str | None] = mapped_column(String(5), nullable=True)
-
-
-class DimMarketCurrency(Base):
-    """Bridge table: market_code ↔ currency. Join key for cross-domain queries."""
-
-    __tablename__ = "dim_market_currency"
-    __table_args__ = {"schema": "calendar"}
-
-    # Override Base auto-increment PK
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    market_code: Mapped[str] = mapped_column(
-        String(5), ForeignKey("calendar.dim_market.market_code"), nullable=False,
-    )
-    ccy: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
-    is_primary: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-
-
-class DimTradingDay(Base):
-    """Pre-computed calendar grid — one row per market per date."""
-
-    __tablename__ = "dim_trading_day"
-    __table_args__ = {"schema": "calendar"}
-
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    market_code: Mapped[str] = mapped_column(
-        String(5), ForeignKey("calendar.dim_market.market_code"), nullable=False,
-    )
-    calendar_date: Mapped[date] = mapped_column(Date, nullable=False)
-    is_weekend: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    is_holiday: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    is_trading_day: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    holiday_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
-    is_custom: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-
-
-class CBEvent(Base):
     __tablename__ = "cb_events"
     __table_args__ = {"schema": "calendar"}
 
@@ -76,7 +34,9 @@ class CBEvent(Base):
     event_datetime: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True,
     )
-    country_code: Mapped[str] = mapped_column(String(5), nullable=False)
+    country_id: Mapped[int] = mapped_column(
+        TINYINT, ForeignKey("dbo.dim_country.id"), nullable=False,
+    )
     category: Mapped[str] = mapped_column(String(50), nullable=False)
     event_name: Mapped[str] = mapped_column(String(500), nullable=False)
     ticker: Mapped[str | None] = mapped_column(String(50), nullable=True)
@@ -89,3 +49,57 @@ class CBEvent(Base):
     frequency: Mapped[str | None] = mapped_column(String(5), nullable=True)
     is_estimated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     source: Mapped[str | None] = mapped_column(String(200), nullable=True)
+
+
+class DimCalendar(Base):
+    """Named holiday calendar — e.g. 'YO' (NYSE), 'GT' (US Govt Bond / SIFMA),
+    'TE' (TARGET2), 'RB' (RBI). One country can have several (rates vs equity
+    vs settlement).
+
+    Migration history:
+    - Seeded by migration 031
+    - Migration 040: added country_id FK -> dbo.dim_country(id);
+      dropped country_code_iso
+    - Migration 041: dropped calendar_segment (segment moved to caller-side
+      config; callers pick calendar_code directly)
+    - Migration 042: description backfilled from BBG xlsx
+    """
+
+    __tablename__ = "dim_calendar"
+    __table_args__ = {"schema": "calendar"}
+
+    # TINYINT IDENTITY PK — small dim, max 255 calendars
+    id: Mapped[int] = mapped_column(TINYINT, primary_key=True, autoincrement=True)
+    calendar_code: Mapped[str] = mapped_column(String(5), nullable=False, unique=True)
+    calendar_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    country_id: Mapped[int] = mapped_column(
+        TINYINT, ForeignKey("dbo.dim_country.id"), nullable=False, index=True,
+    )
+    description: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class MarketHoliday(Base):
+    """One holiday date for one calendar from one vendor.
+
+    Multi-vendor: BBG, MANUAL, HOLIDAYS_LIB, EXCHANGE_CALENDARS coexist for the
+    same (calendar_id, holiday_date). The calendar API picks the trusted vendor
+    via the ``trusted_vendor`` parameter on ``is_holiday_db`` /
+    ``resolve_holiday_set``, falling back through ``GLOBAL_VENDOR_PRIORITY`` if
+    the trusted vendor has no coverage for the calendar.
+    """
+
+    __tablename__ = "market_holidays"
+    __table_args__ = {"schema": "calendar"}
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    calendar_id: Mapped[int] = mapped_column(
+        TINYINT, ForeignKey("calendar.dim_calendar.id"), nullable=False,
+    )
+    vendor_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("dbo.dim_vendor.id"), nullable=False,
+    )
+    holiday_date: Mapped[date] = mapped_column(Date, nullable=False)
+    holiday_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    is_custom: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    load_batch: Mapped[str | None] = mapped_column(String(50), nullable=True)

@@ -1,4 +1,14 @@
-"""Query helpers for calendar.cb_events — upcoming and recent CB events."""
+"""Query helpers for calendar.cb_events — upcoming and recent CB events.
+
+Phase H sub-step 5.3 (2026-05-13): the legacy ``cb_events.country_code``
+varchar(5) column is being dropped (migration 051). All filter helpers now
+resolve ``country_code`` → ``country_id`` via ``dbo.dim_country`` and filter
+on the FK column. An unknown country_code returns ``[]`` rather than
+matching zero rows silently.
+
+:func:`events_for_currency` was rewritten on the country-anchor chain in
+Step 4 (Phase D) and already used ``country_id``; no change here.
+"""
 
 from __future__ import annotations
 
@@ -10,23 +20,48 @@ from sqlalchemy.orm import Session
 from imdr.models.calendar import CBEvent
 
 
+def _resolve_country_id(session: Session, country_code: str) -> int | None:
+    """Return ``dbo.dim_country.id`` for the given country_code, or None if unknown.
+
+    Case-insensitive on input — the canonical column is uppercase
+    (``US``, ``UK``, ``EU``, …).
+    """
+    row = session.execute(
+        text("SELECT id FROM [dbo].[dim_country] WHERE country_code = :cc"),
+        {"cc": country_code.upper()},
+    ).first()
+    return int(row[0]) if row else None
+
+
 def upcoming_cb_events(
     session: Session,
-    market_code: str | None = None,
+    country_code: str | None = None,
     days_ahead: int = 30,
     confirmed_only: bool = False,
 ) -> list[CBEvent]:
-    """Query DB for upcoming CB events, optionally filtered by market code."""
+    """Query DB for upcoming CB events, optionally filtered by country code.
+
+    ``country_code`` is the canonical business key (``US``, ``UK``, ``EU``,
+    etc.). It's resolved to ``dim_country.id`` and the filter runs on
+    ``cb_events.country_id``. An unknown country code returns ``[]``.
+    """
     today = date.today()
     end = today + timedelta(days=days_ahead)
+
+    if country_code:
+        country_id = _resolve_country_id(session, country_code)
+        if country_id is None:
+            return []
+    else:
+        country_id = None
 
     query = (
         session.query(CBEvent)
         .filter(CBEvent.event_date >= today)
         .filter(CBEvent.event_date <= end)
     )
-    if market_code:
-        query = query.filter(CBEvent.country_code == market_code)
+    if country_id is not None:
+        query = query.filter(CBEvent.country_id == country_id)
     if confirmed_only:
         query = query.filter(CBEvent.is_estimated == False)  # noqa: E712
 
@@ -35,27 +70,34 @@ def upcoming_cb_events(
 
 def recent_cb_events(
     session: Session,
-    market_code: str | None = None,
+    country_code: str | None = None,
     days_back: int = 30,
 ) -> list[CBEvent]:
-    """Query DB for recent CB events, optionally filtered by market code."""
+    """Query DB for recent CB events, optionally filtered by country code."""
     today = date.today()
     start = today - timedelta(days=days_back)
+
+    if country_code:
+        country_id = _resolve_country_id(session, country_code)
+        if country_id is None:
+            return []
+    else:
+        country_id = None
 
     query = (
         session.query(CBEvent)
         .filter(CBEvent.event_date >= start)
         .filter(CBEvent.event_date < today)
     )
-    if market_code:
-        query = query.filter(CBEvent.country_code == market_code)
+    if country_id is not None:
+        query = query.filter(CBEvent.country_id == country_id)
 
     return query.order_by(CBEvent.event_date.desc(), CBEvent.event_datetime.desc()).all()
 
 
 def rate_decisions(
     session: Session,
-    market_code: str | None = None,
+    country_code: str | None = None,
     days_back: int = 90,
     days_ahead: int = 90,
     confirmed_only: bool = False,
@@ -65,6 +107,13 @@ def rate_decisions(
     start = today - timedelta(days=days_back)
     end = today + timedelta(days=days_ahead)
 
+    if country_code:
+        country_id = _resolve_country_id(session, country_code)
+        if country_id is None:
+            return []
+    else:
+        country_id = None
+
     query = (
         session.query(CBEvent)
         .filter(CBEvent.event_date >= start)
@@ -72,8 +121,8 @@ def rate_decisions(
         .filter(CBEvent.ticker.isnot(None))
         .filter(CBEvent.relevance > 50.0)
     )
-    if market_code:
-        query = query.filter(CBEvent.country_code == market_code)
+    if country_id is not None:
+        query = query.filter(CBEvent.country_id == country_id)
     if confirmed_only:
         query = query.filter(CBEvent.is_estimated == False)  # noqa: E712
 
@@ -88,65 +137,80 @@ def events_for_currency(
 ) -> list[dict]:
     """Find CB events for a currency, including affected FX pairs and rates curves.
 
-    Joins through dim_market_currency to find the market, then returns
-    CB events plus lists of affected instruments.
+    Resolves the currency to its owning country via ``dim_currency.country_id``
+    (a country may own several currencies — e.g. ``CN`` owns ``CNY``, ``CNH``,
+    ``CNO``; this query uses the country derived from the currency the caller
+    passed in). Then:
 
-    Returns list of dicts:
+    * filters ``cb_events`` rows whose ``country_id`` matches that country;
+    * finds FX pairs where either leg's currency is the input ccy
+      (``base_currency_id`` or ``quote_currency_id`` matches);
+    * finds rates curves anchored to that country
+      (``dim_curve.country_id``).
+
+    Returns list of dicts::
+
         {
             "event": CBEvent,
-            "affected_fx_pairs": list[str],  # e.g. ["USD/JPY"]
-            "affected_curves": list[str],    # e.g. ["JPY TONAR (OIS)"]
+            "affected_fx_pairs": list[str],   # e.g. ["USD/JPY"]
+            "affected_curves": list[str],     # e.g. ["JPY TONAR (rfr)"]
         }
+
+    Empty list if the currency is unknown or no events match.
     """
     today = date.today()
     end = today + timedelta(days=days_ahead)
 
-    # Find market codes for this currency
-    rows = session.execute(
+    # 1. Resolve currency → (currency_id, country_id) via dim_currency.
+    row = session.execute(
         text("""
-            SELECT market_code FROM [calendar].[dim_market_currency]
-            WHERE ccy = :ccy
+            SELECT id, country_id
+            FROM [dbo].[dim_currency]
+            WHERE code = :ccy
         """),
-        {"ccy": ccy},
-    ).fetchall()
-    market_codes = [r[0] for r in rows]
-
-    if not market_codes:
+        {"ccy": ccy.upper()},
+    ).first()
+    if row is None:
         return []
+    currency_id, country_id = row
 
-    # Get CB events for these markets
+    # 2. CB events for the country.
     query = (
         session.query(CBEvent)
         .filter(CBEvent.event_date >= today)
         .filter(CBEvent.event_date <= end)
-        .filter(CBEvent.country_code.in_(market_codes))
+        .filter(CBEvent.country_id == country_id)
     )
     if confirmed_only:
         query = query.filter(CBEvent.is_estimated == False)  # noqa: E712
 
     events = query.order_by(CBEvent.event_date).all()
-
     if not events:
         return []
 
-    # Find affected FX pairs
+    # 3. FX pairs with this currency on either leg.
     fx_rows = session.execute(
         text("""
-            SELECT base_ccy, quote_ccy, market_code
+            SELECT base_ccy, quote_ccy
             FROM [fx].[dim_currency_pair]
-            WHERE market_code IN :mcs
-        """).bindparams(mcs=tuple(market_codes)),
-    ).fetchall() if market_codes else []
+            WHERE base_currency_id = :cid OR quote_currency_id = :cid
+            ORDER BY base_ccy, quote_ccy
+        """),
+        {"cid": currency_id},
+    ).fetchall()
     fx_pairs = [f"{r[0]}/{r[1]}" for r in fx_rows]
 
-    # Find affected rates curves
+    # 4. Rates curves anchored to this country (country owns multiple currencies;
+    #    the original semantics filtered to the country, not the specific ccy).
     curve_rows = session.execute(
         text("""
             SELECT ccy, curve, curve_type
             FROM [rates].[dim_curve]
-            WHERE market_code IN :mcs
-        """).bindparams(mcs=tuple(market_codes)),
-    ).fetchall() if market_codes else []
+            WHERE country_id = :cid
+            ORDER BY ccy, curve
+        """),
+        {"cid": country_id},
+    ).fetchall()
     curves = [f"{r[0]} {r[1]} ({r[2]})" for r in curve_rows]
 
     return [

@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 
 import structlog
 
-from imdr.market_calendar.markets import get_market, markets_for_currency
+from imdr.market_calendar.countries import countries_for_currency, get_country
 
 log = structlog.get_logger(__name__)
 
@@ -25,10 +25,10 @@ except ImportError:
 
 @dataclass
 class HolidayHit:
-    """A holiday match for a currency/market."""
+    """A holiday match for a currency/country."""
 
     currency: str
-    market_code: str
+    country_code: str
     date: date
     name: str
 
@@ -82,9 +82,9 @@ def isda_holidays(center_code: str, year: int) -> dict[date, str]:
 
 
 def is_settlement_holiday(market_code: str, d: date) -> bool:
-    """Check if date is a settlement holiday for any of the market's ISDA centers."""
-    market = get_market(market_code)
-    for center in market.isda_centers:
+    """Check if date is a settlement holiday for any of the country's ISDA centers."""
+    country = get_country(market_code)
+    for center in country.isda_centers:
         hols = isda_holidays(center, d.year)
         if d in hols:
             return True
@@ -97,27 +97,27 @@ def holiday_hits_for_date(currencies: list[str], check_date: date) -> list[Holid
     year = check_date.year
 
     for ccy in currencies:
-        market_codes = markets_for_currency(ccy)
-        for mc in market_codes:
-            market = get_market(mc)
+        country_codes = countries_for_currency(ccy)
+        for cc in country_codes:
+            country = get_country(cc)
 
             # Special handling for TARGET2 (EUR)
-            if market.calendar_type == "target2":
+            if country.calendar_type == "target2":
                 t2 = _target2_holidays(year)
                 if check_date in t2:
                     hits.append(HolidayHit(
                         currency=ccy,
-                        market_code=mc,
+                        country_code=cc,
                         date=check_date,
                         name=t2[check_date],
                     ))
                 continue
 
-            country_hols = _get_country_holidays(market.country_code, year)
+            country_hols = _get_country_holidays(country.country_code, year)
             if check_date in country_hols:
                 hits.append(HolidayHit(
                     currency=ccy,
-                    market_code=mc,
+                    country_code=cc,
                     date=check_date,
                     name=country_hols[check_date],
                 ))
@@ -137,28 +137,28 @@ def holiday_hits_for_timestamp(
     year = utc_dt.year
 
     for ccy in currencies:
-        market_codes = markets_for_currency(ccy)
-        for mc in market_codes:
-            market = get_market(mc)
-            tz = ZoneInfo(market.timezone)
+        country_codes = countries_for_currency(ccy)
+        for cc in country_codes:
+            country = get_country(cc)
+            tz = ZoneInfo(country.timezone)
             local_date = utc_dt.astimezone(tz).date()
 
-            if market.calendar_type == "target2":
+            if country.calendar_type == "target2":
                 t2 = _target2_holidays(year)
                 if local_date in t2:
                     hits.append(HolidayHit(
                         currency=ccy,
-                        market_code=mc,
+                        country_code=cc,
                         date=local_date,
                         name=t2[local_date],
                     ))
                 continue
 
-            country_hols = _get_country_holidays(market.country_code, year)
+            country_hols = _get_country_holidays(country.country_code, year)
             if local_date in country_hols:
                 hits.append(HolidayHit(
                     currency=ccy,
-                    market_code=mc,
+                    country_code=cc,
                     date=local_date,
                     name=country_hols[local_date],
                 ))
