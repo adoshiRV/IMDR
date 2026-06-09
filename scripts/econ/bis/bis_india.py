@@ -12,8 +12,13 @@ Cell mapping for India (see docs/admin/econ/india/in_coverage_plan.md):
   4.2 Balance Sheets  — DSR for Private NFS + Credit-to-GDP ratio + gap
   4.4 Policy Reaction — RBI Repo Rate (CBPOL)
 
-BIS publishes 6 of the 8 candidate India series; DSR.HOUSEHOLDS and DSR.NFC
-return HTTP 404 (EM coverage gap). The fetcher logs and skips silently.
+Confirmed BIS coverage gaps for India (verified 2026-06-10, BIS returns
+HTTP 404 — these series are NOT in `_TARGETS` to avoid burning HTTP
+round-trips):
+  WS_DSR  Q.IN.H   DSR Households       — not published for IN
+  WS_DSR  Q.IN.N   DSR Non-fin corps    — not published for IN
+Aggregate DSR.PNFS (Private NFS) is the only DSR series BIS publishes
+for India.
 """
 
 from __future__ import annotations
@@ -36,14 +41,9 @@ _TARGETS: list[tuple[str, str, str, str, str, str, str, str]] = [
      "BIS.REER.BROAD.IN",
      "India Real Effective Exchange Rate — broad basket (BIS, index, 2020=100)",
      "index", "fx"),
-    ("WS_DSR", "1.0", "Q.IN.H", "QUARTERLY",
-     "BIS.DSR.HOUSEHOLDS.IN",
-     "India Debt Service Ratio — Households & NPISHs (BIS, %)",
-     "pct", "balance_sheet"),
-    ("WS_DSR", "1.0", "Q.IN.N", "QUARTERLY",
-     "BIS.DSR.NFC.IN",
-     "India Debt Service Ratio — Non-financial corporates (BIS, %)",
-     "pct", "balance_sheet"),
+    # Q.IN.H (Households) and Q.IN.N (Non-fin corps) omitted — BIS HTTP 404
+    # for both; only the aggregate Private NFS series is published for India.
+    # See module docstring + docs/admin/econ/india/in_coverage_plan.md §4.2.
     ("WS_DSR", "1.0", "Q.IN.P", "QUARTERLY",
      "BIS.DSR.PNFS.IN",
      "India Debt Service Ratio — Private non-financial sector (BIS, %)",
