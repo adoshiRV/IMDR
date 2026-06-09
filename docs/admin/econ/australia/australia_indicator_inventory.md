@@ -88,6 +88,27 @@ which is reset by the corp firewall on `*.gov.au/sites/default/files/*.xlsx`. Ed
 2. Stabilise RBA live-refresh via Playwright (current load is CSV snapshot for all 5 RBA fetchers; see [`_playground/rba.md`](_playground/rba.md)).
 3. Derive ToT (3.1) from ITPI export/import price ratio (analytics-side, no new fetcher).
 
+## Macro-signal backlog (what a real desk would still ask for)
+
+Honest gap analysis from a rates / macro desk perspective. Current 412
+indicators cover the official-publisher core (ABS / RBA / AOFM) but
+miss several high-signal **non-official** surveys and a few derived
+official series. Prioritised by signal-per-effort:
+
+| # | Source | Why | Cadence | Transport | Est. effort |
+|---|---|---|---|---|---|
+| 1 | **AiG Performance Indexes** (PMI / PSI / PCI) | Australia's PMIs. Manufacturing / Services / Construction. Free, traded-on, classical leading indicator. Closes cell 1.4 sub-bullet. | Monthly | plain httpx (aigroup.com.au) | ~1 hr (likely 3 series × headline + sub-indices) |
+| 2 | **NAB Business Survey** (BSI) | The flagship AU business conditions / confidence indicator. Free press release on NAB site. | Monthly | plain httpx | ~1 hr |
+| 3 | **Westpac–Melbourne Institute Consumer Sentiment** (CCI) | The flagship AU consumer-side confidence indicator. Free press release on Westpac site. | Monthly | plain httpx | ~1 hr |
+| 4 | **TIBs breakeven-inflation curve** | We have AGB nominal yields (RBA F2). Need indexed yields to compute breakeven (nominal − real). Possibly already in F2 as "capital indexed bonds" — **verify first**, then load if absent. | Daily (RBA F2 snapshot) | RBA CSV snapshot pattern | ~30 min (verify) or ~1 hr (load) |
+| 5 | **RBA Index of Commodity Prices** (ICP, I-series stat tables) | AU is the textbook commodity FX; ToT is the dominant AUD driver. RBA's own export-weighted index covers bulks / rural / base metals. | Monthly | RBA CSV snapshot (same pattern as F1/F2/D3) | ~1 hr |
+| 6 | **CoreLogic Daily Home Value Index** | ABS RPPI is quarterly. CoreLogic is daily, RBA cites it every FSR. | Daily | plain httpx (CoreLogic site) | ~1 hr |
+| 7 | **ABS New Motor Vehicle Sales + Building Approvals** | Both monthly, both classical leading indicators (retail + construction). Free SDMX — same shape as existing 16 ABS fetchers. | Monthly | ABS SDMX (extends `_abs_common.py`) | ~30 min each |
+| 8 | **State govt bonds** (TCV / NSWTC / QTC / WATC / SAFA — semis curve) | Semis trade as their own curve vs Commonwealth. Each state treasury publishes benchmark yields. | Daily | Per-state probe; fragmented | ~half-day (5 sources) |
+| 9 | **China macro panel** (CPI / credit impulse / PMI / iron ore) | China is AU's #1 trade partner; China data moves AUD as much as RBA does. Currently China is "source catalogue only" in IMDR. | Various | Separate country buildout | Major (separate scope) |
+
+Items 1–6 should land first. Items 7–8 round out the coverage; item 9 is its own country project.
+
 ## Build order (historical reference)
 
 Completed in this order:
