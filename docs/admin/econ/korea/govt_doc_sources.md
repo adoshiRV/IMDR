@@ -835,3 +835,133 @@ TOTAL: 4 new items
 
 The "may not have data" days are the point: empty days for FSC/KCS/KDI/MOEF
 between cadence windows are evidence, not a bug.
+
+---
+
+## Per-agency body + PDF resolution recipes (probed 2026-06-10)
+
+Each fetcher emits a `FilingItem` with `source_url`. The ingest step needs
+to convert that into **either** PDF bytes (preferred — full document for
+chunking) **or** body text (HTML-only or PDF-blocked sources). Recipes
+below are confirmed by [`probe_resolve.py`](../../../../playground/econ/kr/govt/probe_resolve.py)
++ [`probe_resolve_v2.py`](../../../../playground/econ/kr/govt/probe_resolve_v2.py); samples saved under
+[`playground/econ/kr/govt/data/resolve_samples/{vendor}/`](../../../../playground/econ/kr/govt/data/resolve_samples/).
+
+### Summary
+
+| vendor | path | body container | PDF download | first-page text preview |
+|---|---|---|---|---|
+| bok | view.do → `<a href=".pdf">` | (PDF) | direct `/fileSrc/eng/{h1}/{i}/{h2}.pdf` (47 KB sample) | "Monetary Stabilization Bond 02900-2705-0101 Issuance Notice" ✅ |
+| fss | view.do → `<dl class="file-list">` | (PDF) | `/eng/cmmn/file/fileDown.do?menuNo={m}&atchFileId={hash}&fileSn={n}&bbsId=` (225 KB sample) | "Corporate Debt and Equity Issues, April 2026" ✅ |
+| moef | detail.do → body div | `div.board-view-cont` or largest body div (3.7 KB) | none (HTML-only releases) | — |
+| fsc | /eng/pr010101/{id} | `div.board-view-wrap > div.body` (9.6 KB) | `/comm/getFile?srvcId=BBSTY1&upperNo={article_id}&fileTy=ATTACH&fileNo=1` (318 KB sample) | "NETWORK SEPARATION RULES TO BE EASED IN FINANCIAL SECTOR…" ✅ |
+| kcs | selectNttInfo.do | — | attached files are typically **JPG images** (1.5 MB sample), not PDFs — for text use title only | (would need OCR) |
+| motir | `/eng/article/{cat}/{bbsSeqN}/view?bbsCdN={type}` | `div.detail-cont` | `/attach/down/{h1}/{h2}/{h3}` — **TLS-blocks our Python session** even with Referer + cookies | body path only for v1 |
+| kdi | `?pub_no={id}` (static) | (PDF) | `<button onclick="location.href='/eng/file/download?atch_no={url-encoded-base64}'">` — parse onclick attribute | "kdi ECONOMIC OUTLOOK Vol.43 No.2 2026-1st Half" ✅ |
+
+### Recipe details
+
+**BoK** ([fetch_bok.py](../../../../playground/econ/kr/govt/fetch_bok.py) → resolve):
+```python
+detail = session.get(item.source_url)   # view.do?nttId=…
+soup = BeautifulSoup(detail.text, "html.parser")
+pdf_href = next(
+    a["href"] for a in soup.find_all("a", href=True)
+    if ".pdf" in a["href"].lower() and "hwp" not in a["href"].lower()
+)
+pdf_bytes = session.get(urljoin("https://www.bok.or.kr", pdf_href)).content
+```
+URLs look like `/fileSrc/eng/{hash1}/2/{hash2}.pdf` — direct file path, no
+intermediate download.do. Anchor text discriminates `.pdf` from `.hwp`
+(BoK attaches both; we want the PDF).
+
+**FSS** ([fetch_fss.py](../../../../playground/econ/kr/govt/fetch_fss.py) → resolve):
+```python
+soup = BeautifulSoup(detail.text, "html.parser")
+file_list = soup.find("dl", class_="file-list")
+pdf_href = file_list.find("a")["href"]   # only attachment per release
+pdf_bytes = session.get("https://www.fss.or.kr" + pdf_href).content
+```
+URL pattern includes the per-release `atchFileId` hash + `fileSn`.
+
+**MOEF** — HTML-only, use body_text. Container is one of
+`board-view-cont` / `view_cont` / largest body `<div>`. Bodies run
+3-10 KB of clean press text. No PDF resolution step.
+
+**FSC** ([fetch_fsc.py](../../../../playground/econ/kr/govt/fetch_fsc.py) → resolve):
+```python
+soup = BeautifulSoup(detail.text, "html.parser")
+wrap = soup.find("div", class_="board-view-wrap")
+body_text = wrap.find("div", class_="body").get_text()    # 9-15 KB body
+pdf_url = f"https://www.fsc.go.kr/comm/getFile?srvcId=BBSTY1&upperNo={article_id}&fileTy=ATTACH&fileNo=1"
+pdf_bytes = session.get(pdf_url).content
+```
+**Both** body and PDF are available. `article_id` is the last path
+segment of the source_url (`/eng/pr010101/{article_id}`).
+
+**KCS** — attachments are commonly **JPG images** of program documents,
+not PDFs. For v1, ingest title + listing metadata only (no body, no
+PDF). When live boards are mapped (Korean-side press releases), revisit.
+
+**MOTIR** ([fetch_motir.py](../../../../playground/econ/kr/govt/fetch_motir.py) → resolve):
+```python
+detail_url = (
+    f"https://english.motir.go.kr/eng/article/{category_hash}/{article_id}/view"
+    f"?pageIndex=1&bbsCdN={article_type}"
+)
+session.get(detail_url)   # seeds cookies + JSESSIONID
+soup = BeautifulSoup(detail.text, "html.parser")
+body_text = soup.find("div", class_="detail-cont").get_text()
+# PDF download via /attach/down/{h1}/{h2}/{h3} is **TLS-blocked** from this
+# network even with Referer + session cookies. Use body_text path for v1.
+```
+The body container is `div.detail-cont` (NOT `div.board-detail` — that
+wraps the attachment list, not the article text). Body runs ~5-10 KB
+of release prose, which is the main signal for Mycroft/Lois.
+
+**KDI** ([fetch_kdi.py](../../../../playground/econ/kr/govt/fetch_kdi.py) → resolve):
+```python
+detail = session.get(item.source_url)   # /eng/research/economy?pub_no=19180
+m = re.search(r"onclick=\"location\.href='(/eng/file/download[^']+)'\"", detail.text)
+pdf_url = "https://www.kdi.re.kr" + m.group(1)
+pdf_bytes = session.get(pdf_url).content
+# Each KDI detail has multiple download buttons (Summary EN + Full Korean).
+# Pick the first; both yield 100-700 KB text-based PDFs.
+```
+`atch_no` query is url-encoded base64 (`%3D%3D` padding) — pass through
+verbatim, don't double-decode.
+
+### What this means for `filings.py` impl
+
+The skeleton already accepts EITHER `pdf_bytes` OR `body_text` on `FilingInput`.
+At wiring time, each fetcher gets a `resolve(item) -> bytes | str` helper:
+
+| vendor | resolve returns | downstream path |
+|---|---|---|
+| bok | `pdf_bytes` | parse_pdf → chunk_doc → embed → write |
+| fss | `pdf_bytes` | same |
+| fsc | `pdf_bytes` | same |
+| kdi | `pdf_bytes` | same |
+| moef | `body_text` | synth single-page Document → chunk → embed → write |
+| motir | `body_text` | same |
+| kcs | (defer — image attachments need OCR or skip) | skip until live boards mapped |
+
+### Open items before first ingest
+
+1. **MOTIR PDF download is the only true regression** — the body-text
+   path is solid (5-10 KB of release prose per item, 8 items/day, 60/month)
+   but full PDF would have any annexed tables / formatting we lose. If the
+   Mycroft outputs eventually flag "missing chart context on MOTIR items",
+   revisit with a Playwright-rendered ingest path (slower but works).
+2. **KCS-on-this-board is image-only** — not a code problem, the board
+   genuinely publishes JPG scans. The high-value KCS 10-day trade
+   estimates live on a different (Korean-side) URL not yet mapped.
+   Defer KCS to phase 2.
+3. **MOEF detail-page `#fn_download` anchors** — the press-release detail
+   pages have 4 anchor placeholders that JS turns into download buttons.
+   Body text alone is sufficient for v1; if Mycroft starts asking for
+   appendix tables, follow up.
+
+All other agencies (BoK, FSS, FSC, KDI) are **fully wireable** with
+requests + BeautifulSoup. No new dependencies, no OCR, no Gemini extra
+calls. PyMuPDF parses every sampled PDF cleanly with real first-page text.

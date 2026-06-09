@@ -380,3 +380,35 @@ What consumes them downstream:
 * **Research MCP** — owner-only Qdrant MCP for ad-hoc semantic search
   (see project memory `project_research_mcp_owner_only`).
 
+## Adjacent corpus: government policy filings
+
+Starting 2026-06-10, the same `research.dim_report` + Qdrant + SharePoint
+stack will also hold **official-source policy filings** (central bank,
+ministries, regulators, statistical agencies). These do NOT touch the
+sell-side scraper scaffold described above — no per-vendor crawlers,
+no classifiers, no relevance filter. They're discovered by per-country
+prod scripts (Korea first: [`playground/econ/kr/govt/`](../../../playground/econ/kr/govt/))
+and pass through the same parse → chunk → embed → write pipeline via
+a thin helper at [`src/imdr/research/filings.py`](../../../src/imdr/research/filings.py)
+(skeleton; impl follows migrations 086/087).
+
+Discrimination is by `dbo.dim_vendor.vendor_category`:
+
+* `sell_side` — JPM, MS, Goldman, BNP, Barclays, ANZ, Westpac, Nomura,
+  HSBC, DB, SocGen, Standard Chartered, BofA, UBS, Citi (this doc's
+  domain).
+* `official_cb` / `official_ministry` / `official_regulator` /
+  `official_thinktank` / `official_statistics` / `official_market_infra` /
+  `official_supranational` — see [`migrations/086_add_dim_vendor_category.sql`](../../../migrations/086_add_dim_vendor_category.sql).
+
+Mycroft and Lois blend both corpora by default; users can filter
+via the payload field. See per-country docs for the official-source
+inventory + URL recipes:
+
+* [Korea — govt_doc_sources.md](../econ/korea/govt_doc_sources.md) —
+  70+ Korean streams, 5 URL-shape clusters (RSS-fan, egov GET, egov POST,
+  dt-list, JS-handler), per-agency PDF/body resolution recipes proven
+  2026-06-10. Daily pull at [`playground/econ/kr/govt/daily_pull.py`](../../../playground/econ/kr/govt/daily_pull.py).
+* Other countries (AU/ID/JP/IN/TH/PH): pending the Korea ingest going
+  live then replication.
+

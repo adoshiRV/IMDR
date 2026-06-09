@@ -666,9 +666,9 @@ New rows added after cross-checking the 12-cluster India Macro Read map (see [Ap
 - [ ] **B23** **Customs notifications (CBIC)** — BCD changes, tariff revisions. `cbic.gov.in`. Trade-policy event corpus.
 - [ ] **B24** **DEA Mid-Year Economic Analysis** (already in B11) — confirmed within cluster-11 coverage.
 
-### A26 — 8-Core Industries (added 2026-06-10)
+### A45 — 8-Core Industries (added 2026-06-10; previously mis-numbered A26)
 
-- [x] **A26 (playground)** 8-Core Industries Index — same `eaindustry.nic.in` vendor as A12 WPI. One XLSX (`/eight_core_infra/Core_Industries_2011_12_{YYYYMMDD}.xlsx`) carries full history Apr 2011 → Apr 2026 (180 months). 9 sectors (Overall + Coal/Crude/NG/Petroleum/Fertilizers/Steel/Cement/Electricity) × LEVEL + YOY = **18 indicators × 3,150 obs** in playground 2026-06-10. ICI leads the IIP by ~10 days each month — important high-frequency activity indicator. Shares `dpiit` vendor migration with A12.
+- [x] **A45 (playground)** 8-Core Industries Index — same `eaindustry.nic.in` vendor as A12 WPI. One XLSX (`/eight_core_infra/Core_Industries_2011_12_{YYYYMMDD}.xlsx`) carries full history Apr 2011 → Apr 2026 (180 months). 9 sectors (Overall + Coal/Crude/NG/Petroleum/Fertilizers/Steel/Cement/Electricity) × LEVEL + YOY = **18 indicators × 3,150 obs** in playground 2026-06-10. ICI leads the IIP by ~10 days each month — important high-frequency activity indicator. Shares `dpiit` vendor migration with A12. (Numbered A45 to avoid collision with original A26 = DAC crop sowing.)
 
 ### Reachability findings (2026-06-10) for vendors NOT yet decoded
 

@@ -98,20 +98,31 @@ superseded by `scripts/econ/kosis/kosis_bop.py` in production.
 
 ## Policy & fiscal document sources
 
-Time-series APIs above; the table below covers **document-style** sources for Bank of Korea, Ministry of Economy & Finance (MOEF), and National Pension Service. Not `econ.fact_indicator` material — feeds the policy-document / research pipeline.
+Time-series APIs above; **document-style** sources for Korean ministries,
+regulators, central bank, and quasi-govt agencies are catalogued separately
+in [**govt_doc_sources.md**](govt_doc_sources.md) — 70+ streams across 10
+categories (CB / ministries / regulators / statistical / think-tanks / etc.),
+URL recipes proven end-to-end as of 2026-06-10, daily-pull discovery
+running in [`playground/econ/kr/govt/`](../../../../playground/econ/kr/govt/).
 
-| Source | URL | Cadence | Notes |
-|---|---|:---:|---|
-| **BoK Monetary Policy Decision & Opening Remarks** | bok.or.kr/eng/singl/newsDataEng/list.do (search "Monetary Policy Decision") | per meeting | Policy decision text. AJAX listing — search-backed crawl path. |
-| **BoK MPC minutes** | (same search hub, kwd "Minutes of the Monetary Policy Board Meeting") | per meeting | Minutes archive. |
-| **BoK Korea Economic Outlook** | (same, kwd "Korea Economic Outlook") | quarterly | Forecast revisions. |
-| **BoK Monetary Policy Report** | (same, kwd "Monetary Policy Report") | semi-annual | Forecast layer. |
-| **BoK Recent Economic Developments** | (same, kwd "Recent Economic Developments") | quarterly | High-freq state-of-economy snapshot. |
-| **BoK speeches** | (same, kwd "Speech") | regular | Governor / deputy / board members. |
-| **MOEF press releases (RSS)** | english.moef.go.kr/pc/engmosfrss.do?boardCd=N0001 | regular | Cross-cutting fiscal/FX/macro policy. |
-| **MOEF budget/fiscal management (RSS)** | english.moef.go.kr/ec/engmosfpolicyrss.do?boardCd=E0002 | event-driven | Supplementary budgets — first-class regime input. |
-| **MOEF treasury/debt RSS** | english.moef.go.kr/ec/engmosfpolicyrss.do?boardCd=E0009 | regular | Bond issuance + borrowing plans. |
-| **NPS Investment Management** | fund.nps.or.kr/eng/main.do | regular | Pension flows — rates / KRW demand context. |
+These feed `research.dim_report` + Qdrant + SharePoint — the same corpus
+Mycroft/Lois already pull from for sell-side research. Not
+`econ.fact_indicator` material.
+
+Tier-1 streams currently wired into daily discovery (317 baseline items
+captured on 2026-06-10, ~9 new items/day expected):
+
+| Vendor | Streams | Cadence | Body type |
+|---|---|---|---|
+| `bok` | News + Publications (all 8 menus — MPC Decision, MPR, FSR, Issue Notes, OMO, Speeches, etc.) | daily | PDF |
+| `moef` | 10 RSS boards — press, budget, treasury_debt, international, tax, … | daily | HTML body (no PDFs) |
+| `motir` | Press releases (Trade/Industry/Resources, renamed from MOTIE) | daily | HTML body (PDF blocked) |
+| `fsc` | Press releases | weekly cadence, daily polling | PDF + HTML body |
+| `fss` | Press releases (financial supervision) | weekly cadence | PDF |
+| `kcs` | Customs News + FAQ/Notice | quarterly (stale), live boards TBD | JPG attachments |
+| `kdi` | Monthly Economic Trends + Outlook + Bulletin (featured cards) | weekly cadence | PDF via base64 `atch_no` URL |
+| **MoDS** (alias `mods`) | KOSTAT/Ministry of Data & Statistics — already in `dim_vendor` (id=24) | TBD | TBD |
+| **NPS** | Investment Management (pension flows) | TBD | TBD |
 
 ## Source-agency contact
 
