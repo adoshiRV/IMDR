@@ -28,7 +28,7 @@ Each country has a folder with prod reference docs at the top + a `_playground/`
 | **Korea (KR)** | LIVE — 172 indicators across KOSIS + REB + FRED + BOK-mirror. **KOSIS + REB auto-load via `kr_weekly`/`kr_monthly` since 2026-06-05.** Ops: [korea_prod_pipeline.md](korea/korea_prod_pipeline.md) | [korea/](korea/) | [§7.13](macro_economy_wiring_map.md#713-south-korea-kr) | [korea_indicator_inventory.md](korea/korea_indicator_inventory.md) |
 | **United States (US)** | LIVE — 133 indicators via FRED | [united_states/](united_states/) | [§7.1](macro_economy_wiring_map.md#71-united-states-us) | — |
 | **Hong Kong (HK)** | LIVE — 29 indicators via HKMA | [hong_kong/](hong_kong/) | [§7.10](macro_economy_wiring_map.md#710-hong-kong-hk) | — |
-| **Australia (AU)** | DB-LIVE (manual load) — **379 indicators / 339,631 obs**; ABS 15 fetchers / 18 dataflows (141 indicators) + RBA 5 fetchers via CSV snapshot (78 indicators) + AOFM 5 fetchers (157 indicators) + FRED-mirror (3); 14 of 16 cells ✅. Phase G blocker lifted (AOFM in DB). IIP probed 2026-06-10. Production promotion pending user sign-off. | [australia/](australia/) | [§7.7](macro_economy_wiring_map.md#77-australia-au) | [australia_indicator_inventory.md](australia/australia_indicator_inventory.md) |
+| **Australia (AU)** | DB-LIVE (manual load) — **412 indicators / 344,582 obs**; ABS 16 fetchers / 19 dataflows (174 indicators incl. IIP) + RBA 5 fetchers via CSV snapshot (78 indicators) + AOFM 5 fetchers (157 indicators) + FRED-mirror (3); **15 of 16 cells ✅** (3.3 stock-side closed via IIP 2026-06-10; 3.1 ToT remains derivable from ITPI ratio, analytics-only). Phase G blocker lifted (AOFM in DB). Production promotion pending user sign-off. | [australia/](australia/) | [§7.7](macro_economy_wiring_map.md#77-australia-au) | [australia_indicator_inventory.md](australia/australia_indicator_inventory.md) |
 | **New Zealand (NZ)** | Discovery only (RBNZ, Stats NZ) | [new_zealand/](new_zealand/) | [§7.8](macro_economy_wiring_map.md#78-new-zealand-nz) | — |
 | **India (IN)** | Discovery only (RBI DBIE → CIMS) | [india/](india/) | [§7.12](macro_economy_wiring_map.md#712-india-in) | — |
 | **Japan (JP)** | Source catalogue only (e-Stat, BOJ, BoJ docs) | [japan/](japan/) | [§7.4](macro_economy_wiring_map.md#74-japan-jp) | — |
@@ -87,3 +87,22 @@ docs/admin/econ/
 - Country-econ topic deep-dives (one-off analytical write-ups) live under [`docs/topics/`](../../topics/) and link back here.
 - Vendor-framework feeds (Barclays email-linked, Citi Velocity, BBG) — the *non-econ* market-data side — stay under [`../vendors/`](../vendors/).
 - [[project-econ-loaded]] — current live counts in `econ.fact_indicator` (drifts; query the DB before quoting numbers).
+
+## Adjacent: government policy filings (text corpus)
+
+A country's macro picture has two distinct data shapes:
+
+| Shape | Storage | Doc |
+|---|---|---|
+| **Numeric time-series** — CPI, GDP, BoP, FX reserves, etc. | `econ.fact_indicator` | this index + per-country docs above |
+| **Policy text** — CB minutes, ministry press, regulator releases | `research.dim_report` + Qdrant + SharePoint | [`../research/index.md`](../research/index.md) — see "Adjacent corpus" |
+
+The two share `dim_country` and `dbo.dim_vendor`. The `vendor_category`
+column (added by [migration 086](../../../migrations/086_add_dim_vendor_category.sql))
+discriminates sell-side research from official sources. A central bank
+like `rba` is one row used as the source for both its indicator data
+feed AND its policy minutes.
+
+**Per-country filings inventories** (as completed):
+- Korea — [`korea/govt_doc_sources.md`](korea/govt_doc_sources.md) (70+ streams; daily-pull discovery live in playground 2026-06-10).
+- Australia / Indonesia / Japan / India / Thailand / Philippines — pending the Korea pattern replicating.

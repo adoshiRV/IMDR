@@ -2,7 +2,7 @@
 
 Last updated: 2026-06-10
 
-AU macroeconomic data. **Status: DB-LIVE (manual load) — 379 indicators / 339,631 obs. ABS 15 fetchers across 18 dataflows (141 indicators) + RBA 5 fetchers via CSV snapshot (78 indicators) + AOFM 5 fetchers (157 indicators) + FRED OECD mirror (3 indicators). 14 of 16 wiring-map cells ✅. Second-most-populated country after Indonesia.**
+AU macroeconomic data. **Status: DB-LIVE (manual load) — 412 indicators / 344,582 obs. ABS 16 fetchers across 19 dataflows (174 indicators, incl. IIP loaded 2026-06-10) + RBA 5 fetchers via CSV snapshot (78 indicators) + AOFM 5 fetchers (157 indicators) + FRED OECD mirror (3 indicators). 15 of 16 wiring-map cells ✅ (3.3 stock-side closed via IIP; 3.1 ToT derivable from ITPI ratio). Second-most-populated country after Indonesia.**
 
 > **Phase G blocker lifted 2026-06-10.** AOFM data is now in DB (157 indicators / 268,195 obs). Production promotion can proceed with explicit user sign-off. AOFM refresh is manual-monthly via Edge (corp TLS-inspection blocks Chrome/Playwright on `*.gov.au/sites/default/files/*.xlsx`; Edge uses Schannel and is unaffected). See [`_playground/aofm.md`](_playground/aofm.md).
 
@@ -15,7 +15,7 @@ Some AU coverage is already filled via FRED's OECD-mirror feeds (see [`../united
 
 | Path | Auth | Speed | Coverage | Status |
 |---|---|---|---|---|
-| **ABS SDMX API** | None | Fast | Real-economy series (CPI, GDP, Labour Force + Underutilisation, WPI, PPI_FD, Retail Trade, BOP, BOP_GOODS, ITPI, ANA_EXP, Job Vacancies, CAPEX, Lending, RPPI) | **DB-LIVE** — 18 dataflows, 141 indicators. IIP probed 2026-06-10, load pending. See [`_playground/abs.md`](_playground/abs.md). |
+| **ABS SDMX API** | None | Fast | Real-economy series (CPI, GDP, Labour Force + Underutilisation, WPI, PPI_FD, Retail Trade, BOP, BOP_GOODS, ITPI, ANA_EXP, Job Vacancies, CAPEX, Lending, RPPI, IIP) | **DB-LIVE** — 19 dataflows, 174 indicators (IIP 33-series loaded 2026-06-10 closes cell 3.3 stock-side). See [`_playground/abs.md`](_playground/abs.md). |
 | **RBA statistical tables** — CSV snapshots in `playground/econ/rba/discovery/samples/` | None | Static snapshot (Akamai blocks live HTTP) | F1+F2 rates (11 series), F11.1 FX/TWI (19 series), D3 monetary aggregates (14 series), D2 credit aggregates (14 series), E1+E2 balance-sheet ratios (16 series), A2 cash-rate event log (4 series) | **DB-LIVE** — 5 fetchers, 78 indicators via CSV snapshot. Live refresh deferred (Playwright required). See [`_playground/rba.md`](_playground/rba.md). |
 | **RBA statistical tables** — `rba.gov.au/statistics/tables/` (live) | None | Slow (Playwright) | Full RBA stats coverage: balance sheet, OMO, AGS holdings, forecasts, Chart Pack, E-tables | **Discovery only** — live refresh of the 3 loaded tables + E-tables / A2 pending Playwright stabilisation. |
 | **RBA historical data** — `rba.gov.au/statistics/historical-data.html` | None | Slow (Playwright) | Long-run series back to 1969 / 1949 | **Discovery only** |
@@ -25,11 +25,11 @@ Some AU coverage is already filled via FRED's OECD-mirror feeds (see [`../united
 
 ## Playground
 
-- [`_playground/abs.md`](_playground/abs.md) — ABS SDMX playground: 15 fetchers live across 18 dataflows (CPI, GDP, Labour + LF_UNDER, WPI, PPI_FD, Retail, BOP, BOP_GOODS, ITPI imp+exp, ANA_EXP, JV, CAPEX, Lending, RPPI). 141 indicators DB-loaded. IIP probed 2026-06-10 (`discovery/probe_iip.py`); load is the next econ-side build.
+- [`_playground/abs.md`](_playground/abs.md) — ABS SDMX playground: 16 fetchers live across 19 dataflows (CPI, GDP, Labour + LF_UNDER, WPI, PPI_FD, Retail, BOP, BOP_GOODS, ITPI imp+exp, ANA_EXP, JV, CAPEX, Lending, RPPI, **IIP**). 174 indicators DB-loaded (IIP 33-series loaded 2026-06-10, category=`instr_outstand`, 1988 Q3 → 2026 Q1).
 - [`_playground/rba.md`](_playground/rba.md) — RBA playground: 5 fetchers (rates F1+F2, FX F11.1, monetary D3, credit/balance-sheet D2+E1+E2+A2) reading CSV snapshots. 78 indicators DB-loaded. Live-refresh pending Playwright stabilisation.
 - [`_playground/aofm.md`](_playground/aofm.md) — AOFM playground: **DB-LIVE**. 5 fetchers, 157 indicators. Manual monthly refresh via Edge (Chrome blocked by corp TLS-inspection). Phase G blocker lifted.
 - [`australia_indicator_inventory.md`](australia_indicator_inventory.md) — 4×4 wiring-map tracker, ABS dataflow inventory, RBA table inventory, identity checks, quality bar.
-- [`au_cb_documents.md`](au_cb_documents.md) — download checklist for RBA / AOFM / Treasury / APRA / ABS document-style sources (Board minutes, SMP, FSR, Budget Papers, etc.). Document pipeline (not data pipeline). Discovery-only — none auto-ingested yet.
+- [`au_cb_documents.md`](au_cb_documents.md) — download checklist for RBA / AOFM / Treasury / APRA / ABS document-style sources (Board minutes, SMP, FSR, Budget Papers, etc.). Document pipeline (not data pipeline). Discovery scaffold + **full Tier-1 RBA stack** LIVE 2026-06-10 at [`playground/econ/au/govt/`](../../../playground/econ/au/govt/): Governor's Statement + Board Minutes + SMP + FSR (~22 docs/yr). Reachability re-probed: Treasury + APRA are accessible via plain httpx (no Playwright needed) and are Tier-2 build candidates; AOFM remains corp-firewall-blocked (host-specific). Manifest-only — no DB writes until research-doc pipeline absorbs filings.
 
 ## Policy & fiscal document sources
 

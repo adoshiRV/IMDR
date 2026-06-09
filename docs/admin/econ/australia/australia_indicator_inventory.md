@@ -4,7 +4,7 @@ Last updated: 2026-06-10
 
 Tracker forked from [`../country_econ_blueprint.md`](../country_econ_blueprint.md) §1-4 per the [onboarding playbook](../onboarding_new_country.md#step-1--fork-the-blueprint-into-a-country-tracker).
 
-**Status (2026-06-10):** DB-LIVE — **379 indicators / 339,631 obs** (verified against `econ.fact_indicator`). ABS **15 fetchers across 18 dataflows (141 indicators)** + RBA 5 fetchers via CSV snapshot (78 indicators) + AOFM 5 fetchers (157 indicators) + FRED-mirror (3 indicators). 14 of 16 wiring-map cells ✅. Second-most-populated country after Indonesia. Phase G blocker lifted (AOFM in DB). Production promotion can proceed with user sign-off.
+**Status (2026-06-10):** DB-LIVE — **412 indicators / 344,582 obs** (verified against `econ.fact_indicator`). ABS **16 fetchers across 19 dataflows (174 indicators)** + RBA 5 fetchers via CSV snapshot (78 indicators) + AOFM 5 fetchers (157 indicators) + FRED-mirror (3 indicators). **15 of 16 wiring-map cells ✅** — 3.3 stock-side closed via IIP load 2026-06-10; 3.1 ToT remains derivable from ITPI ratio. Second-most-populated country after Indonesia. Phase G blocker lifted (AOFM in DB). Production promotion can proceed with user sign-off.
 
 ## Status markers
 
@@ -29,18 +29,18 @@ Tracker forked from [`../country_econ_blueprint.md`](../country_econ_blueprint.m
 | 2.4 CPI Pressure      | ✅ | ABS CPI — headline (INDEX=10001, Q NSA) + Trimmed Mean + Weighted Median M | 16/13 | 16 indicators including subcategory breakdown. |
 | 3.1 Terms of Trade    | ❌ | AU.TOT.NET_BARTER (ABS ANA derived)                      | 0/4   | Derivable from ITPI export/import price ratio; not yet computed. |
 | 3.2 Current Account   | ✅ | ABS BOP — CA + primary income + secondary income + capital | 14/10 | Full BOP flow loaded via `fetch_bop.py`. |
-| 3.3 Capital Account   | ✅ | ABS BOP financial account + AOFM non-resident AGS holdings | 47/16 | BOP financial account 13 series + ITPI 6 + AOFM foreign holdings 34 series (quarterly since 2003; Mar-2026: AUD 469bn = 50.9% of outstanding). IIP (`BOP_FACTOR`) deferred. |
+| 3.3 Capital Account   | ✅ | ABS BOP financial account + AOFM non-resident AGS holdings + **ABS IIP stocks** | 80/16 | BOP financial account 13 series + ITPI 6 + AOFM foreign holdings 34 series (quarterly since 2003; Mar-2026: non-resident AGS holdings AUD 469bn = 50.9% of outstanding) + **ABS IIP 33 series** (Q stock 1988-Q3 → 2026-Q1; Net IIP Mar-2026 = AUD +707bn net liability, Total FL = AUD 5.27tn, Gross External Debt = AUD 2.76tn). |
 | 3.4 FX / REER         | ✅ | RBA F11.1 — AUD/USD + TWI + 17 AUD crosses               | 19/9  | 19 indicators. REER (BIS WS_EER) deferred. |
 | 4.1 Demand Trans      | ✅ | RBA D2 — 14 credit aggregates (owner-occupier housing / investor housing / business / personal / total credit / narrow credit × NSA + SA) | 14/12 | Owner-occupier housing credit Apr-2026: AUD 1,747bn; investor housing credit Apr-2026: AUD 863bn. No RBA SLOOS-equivalent; D2 loan-growth as proxy. |
 | 4.2 Balance Sheets    | ✅ | RBA E1+E2 — 16 series (household total assets/liabilities/net worth + business loans/total liabilities + 8 E2 ratios) | 16/15 | Household net worth Q4-2025: AUD 17,783bn; dwellings Q4-2025: AUD 11,821bn; debt-to-income 177.0%; housing-debt-to-income 133.7%; owner-occupier housing DTI 99.6%. |
 | 4.3 Fin Conditions    | ✅ | RBA F1+F2 rates + AOFM term premium + AOFM turnover      | 108/15 | 11 RBA rates + 30 AOFM term premium (FY/TP/RNY × 1Y..10Y, daily since 1992; 10Y Mar-2026: 95bp) + 67 AOFM turnover by region/tenor. |
 | 4.4 Policy Reaction   | ✅ | RBA D3 — M1/M3/Broad money/Money base NSA+SA + RBA A2 — cash-rate event log (4 series) | 18/16 | D3: 14 indicators. A2: Cash Rate Target + administered rates event log, 4 series. Cash Rate Target May-2026: 4.35%. |
 
-**Score (2026-06-10):** **14 of 16 cells ✅, 1 ❌ Input-Costs-by-product-detail nuance (2.1 SITC 1-digit loaded, blueprint sub-bullets exceeded), 1 ❌-carried (3.1 ToT — derivable from ITPI export/import ratio, analytics-only, no fetcher needed).** 379 indicators / 339,631 obs in DB. AOFM fills 1.2 (Fiscal Demand), 3.3 (Capital Account — bond-holders-by-investor), and supplements 4.3 (term premium + turnover). RBA D2+E1+E2+A2 close 4.1, 4.2, and supplements 4.4.
+**Score (2026-06-10):** **15 of 16 cells ✅, 1 ❌-carried (3.1 ToT — derivable from ITPI export/import ratio, analytics-only, no fetcher needed).** 412 indicators / 344,582 obs in DB. ABS IIP (33 series) closes cell 3.3 stock-side. AOFM fills 1.2 (Fiscal Demand), 3.3 (Capital Account — bond-holders-by-investor), and supplements 4.3 (term premium + turnover). RBA D2+E1+E2+A2 close 4.1, 4.2, and supplements 4.4.
 
 ## Playground fetcher inventory
 
-All 25 playground fetchers as of 2026-06-10. All loaded into DB.
+All 26 playground fetchers as of 2026-06-10. All loaded into DB.
 
 | Fetcher | Vendor | Dataflow / Table | Cell | Indicators |
 |---|---|---|:---:|:---:|
@@ -59,6 +59,7 @@ All 25 playground fetchers as of 2026-06-10. All loaded into DB.
 | `fetch_trade_prices.py` | ABS | `ITPI_IMP` + `ITPI_EXP` (export 3 + import headline 3 + 18 SITC 1-digit) | 2.1 / 3.3 | 24 |
 | `fetch_gdp_expenditure.py` | ABS | `ANA_EXP` | 1.3 / 1.4 | 10 |
 | `fetch_job_vacancies.py` | ABS | `JV` | 1.4 | 3 |
+| `fetch_iip.py` | ABS | `IIP` (International Investment Position — stocks, 33 series: headline + Direct/Portfolio Inv FA/FL × equity/debt + Other Inv + Derivatives + Reserve Asset sub-decomp) | 3.3 | 33 |
 | `fetch_rates.py` | RBA | F1 + F2 | 4.3 | 11 |
 | `fetch_fx.py` | RBA | F11.1 | 3.4 | 19 |
 | `fetch_monetary.py` | RBA | D3 | 4.4 | 14 |
@@ -70,7 +71,7 @@ All 25 playground fetchers as of 2026-06-10. All loaded into DB.
 | `fetch_turnover.py` | AOFM | Turnover XLSX | 4.3 | 67 |
 | `fetch_issuance_buybacks.py` | AOFM | Issuance/buybacks XLSX | 1.2 | 10 |
 
-**Total: 379 indicators (ABS 141 + RBA 78 + AOFM 157 + FRED-mirror 3) / 339,631 obs.** ABS sub-totals reconcile: CPI 16 + GDP 7 + Labour 6 + LF_UNDER 3 + WPI 6 + PPI_FD 3 + Retail 10 + CAPEX 4 + Lending 11 + RPPI 17 + BOP 14 + BOP_GOODS 7 + Trade Prices 24 + GDP_EXP 10 + JV 3 = 141.
+**Total: 412 indicators (ABS 174 + RBA 78 + AOFM 157 + FRED-mirror 3) / 344,582 obs.** ABS sub-totals reconcile: CPI 16 + GDP 7 + Labour 6 + LF_UNDER 3 + WPI 6 + PPI_FD 3 + Retail 10 + CAPEX 4 + Lending 11 + RPPI 17 + BOP 14 + BOP_GOODS 7 + Trade Prices 24 + GDP_EXP 10 + JV 3 + IIP 33 = 174.
 
 ## Phase G — BLOCKER LIFTED
 
@@ -83,10 +84,9 @@ which is reset by the corp firewall on `*.gov.au/sites/default/files/*.xlsx`. Ed
 
 ## Next moves (in priority order)
 
-1. **[READY]** Sign off on production promotion — register AU into `scripts/imdr_{daily,monthly}.py:PIPELINES` (explicit user OK required per `feedback_no_prod_wiring_without_permission.md`). AOFM will be a manual monthly step (Edge download + re-run fetchers) until automation is possible.
+1. **[READY]** Sign off on production promotion — register AU into `scripts/imdr_{daily,monthly}.py:PIPELINES` (explicit user OK required per `feedback_no_prod_wiring_without_permission.md`). AOFM + IIP are quarterly/manual-monthly cadence; ABS daily fetchers + RBA monthly refresh need scheduling.
 2. Stabilise RBA live-refresh via Playwright (current load is CSV snapshot for all 5 RBA fetchers; see [`_playground/rba.md`](_playground/rba.md)).
-3. Load proper `IIP` dataflow — probed 2026-06-10 via `playground/econ/abs/discovery/probe_iip.py`. Confirmed 8 dimensions (`MEASURE.DATA_ITEM.SECTOR.MATURITY.INDUSTRY.CURRENCY.TSEST.FREQ`), 129 DATA_ITEM codes, 22 sectors, live data through Q1-2026. Next step: pick headline keys (Net IIP / Foreign Assets / Foreign Liabilities by sector, MEASURE=6 end-of-period stock) + write `fetch_iip.py`. Fills cell 3.3 stock-side.
-4. Derive ToT (3.1) from ITPI export/import price ratio (analytics-side, no new fetcher).
+3. Derive ToT (3.1) from ITPI export/import price ratio (analytics-side, no new fetcher).
 
 ## Build order (historical reference)
 
@@ -113,6 +113,7 @@ Completed in this order:
 20. Trade prices extended (2.1) — ABS ITPI import-side SITC 1-digit, 18 indicators added to `fetch_trade_prices.py`. [✓ loaded]
 21. RBA D2 credit aggregates (4.1) — `fetch_credit_balsheet.py`, 14 indicators. [✓ loaded]
 22. RBA E1+E2 balance-sheet ratios (4.2) + A2 cash-rate event log (4.4) — `fetch_credit_balsheet.py`, 16 + 4 indicators. [✓ loaded]
+23. ABS IIP International Investment Position (3.3 stock-side) — `fetch_iip.py`, 33 indicators, category `instr_outstand`, quarterly 1988-Q3 → 2026-Q1. [✓ loaded 2026-06-10]
 
 ## Expected ❌ cells
 
@@ -124,7 +125,7 @@ Completed in this order:
 
 ## Vendor / dataflow inventory (ABS SDMX)
 
-All 18 dataflows verified and loaded as of 2026-06-10 (CPI, ANA_AGG, ANA_EXP, BOP, BOP_GOODS, CAPEX, ITPI_IMP, ITPI_EXP, JV, LEND_BUSINESS, LEND_HOUSING, LEND_PERSONAL, LF, LF_UNDER, PPI_FD, RPPI, RT, WPI). Full enumeration of all 1,223 ABS dataflows in `playground/econ/abs/discovery/dataflows_full.json`. IIP probed (`probe_iip.py`); load pending.
+All 19 dataflows verified and loaded as of 2026-06-10 (CPI, ANA_AGG, ANA_EXP, BOP, BOP_GOODS, CAPEX, **IIP**, ITPI_IMP, ITPI_EXP, JV, LEND_BUSINESS, LEND_HOUSING, LEND_PERSONAL, LF, LF_UNDER, PPI_FD, RPPI, RT, WPI). Full enumeration of all 1,223 ABS dataflows in `playground/econ/abs/discovery/dataflows_full.json`.
 
 | Dataflow | Topic | National headline key | Loaded |
 |---|---|---|:---:|

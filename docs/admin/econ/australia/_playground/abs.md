@@ -2,7 +2,9 @@
 
 Last updated: 2026-06-10
 
-**Status:** DB-LIVE — 15 fetchers, **141 indicators / 10,665 obs** loaded (verified against `econ.fact_indicator` 2026-06-10). Australian Bureau of Statistics SDMX API (public, unauthenticated). 1,223 dataflows enumerated.
+**Status:** DB-LIVE — 16 fetchers, **174 indicators / 15,616 obs** loaded (verified against `econ.fact_indicator` 2026-06-10). Australian Bureau of Statistics SDMX API (public, unauthenticated). 1,223 dataflows enumerated.
+
+IIP loaded 2026-06-10 (+33 indicators / +4,951 obs; quarterly 1988 Q3 → 2026 Q1). Last gap closed for the AU 4×4 wiring map's stock side.
 
 ## Contents
 
@@ -24,8 +26,12 @@ Last updated: 2026-06-10
 | `fetch_lending.py` | ABS `LEND_HOUSING` + `LEND_BUSINESS` + `LEND_PERSONAL` — new lending commitments. 11 indicators (2 business + 4 housing + 5 personal). Cell 4.1 Demand Transmission supplement. |
 | `fetch_lf_under.py` | ABS `LF_UNDER` — sibling LF dataflow for underemployment / underutilisation (M21/M23/M24). 3 indicators (cell 1.4 labour slack). |
 | `fetch_rppi.py` | ABS `RPPI` — residential property price index, weighted 8-capital + per-city (Sydney/Melbourne/Brisbane/…/Canberra) × Index/QoQ/YoY. 17 indicators (cells 4.2 housing wealth / 1.1 private demand). |
+| `fetch_iip.py` | **NEW 2026-06-10** — ABS `IIP` International Investment Position. 33 indicators across headline (Net IIP, FA/FL totals, External Debt), Direct + Portfolio Investment (FA/FL × equity/debt), Other Investment (FA/FL), Financial Derivatives (FA/FL), Reserve Asset sub-decomp (gold, SDRs, debt securities short/long, currency & deposits, other). Quarterly stock since 1988 Q3. Cell 3.3 stock-side. **Sign convention:** Foreign Assets are recorded as negative in MEASURE=6 (BoP debit convention preserved into stocks); analytics layer must `abs()` for reader-facing display. |
 | `discovery/probe_codelist.py` | Probe ABS codelists via `?references=all` — used to find real INDEX/MEASURE codes. |
-| `discovery/probe_iip.py` | **NEW 2026-06-10** — IIP (International Investment Position) dataflow probe: 8 dimensions (`MEASURE.DATA_ITEM.SECTOR.MATURITY.INDUSTRY.CURRENCY.TSEST.FREQ`), 129 DATA_ITEM codes, 22 sectors. Wildcard data live (Q1-2026 obs confirmed). |
+| `discovery/probe_iip.py` | IIP dataflow probe: 8 dimensions (`MEASURE.DATA_ITEM.SECTOR.MATURITY.INDUSTRY.CURRENCY.TSEST.FREQ`), 129 DATA_ITEM codes, 22 sectors. Wildcard data live (Q1-2026 obs confirmed). |
+| `discovery/probe_iip_keys.py` | Live-validates the 17-key headline IIP set with `CURRENCY=700` (AUD); `1704` (Total) returns 404. |
+| `discovery/probe_iip_sectors.py` | Confirms SECTOR/MATURITY/INDUSTRY axes collapse to TOT at the headline DATA_ITEM level; sub-decomp lives in DATA_ITEM instead. |
+| `discovery/iip_findings.md` | IIP probe findings + final 33-key proposal. |
 | `discovery/probe_remaining.py` | Discovery probe for remaining dataflows. |
 | `discovery/probe_failed_keys.py` | Probe for keys that failed initial enumeration. |
 | `discovery/findings.md` | "ABS Source-Discovery Findings" — endpoint inventory. |
@@ -58,7 +64,7 @@ API-based. `httpx` client + SDMX XML parsing (`xml.etree`). No auth, no rate lim
 | `LEND_BUSINESS` | `FIN_VAL.NEWCOMMITS.DV8270.…` | ~2002 → present | 2 |
 | `LEND_PERSONAL` | `FIN_VAL.NEWCOMMITS.DV8270.…` | ~2002 → present | 5 |
 | `RPPI` | `{1\|2\|3}.{1\|2\|3}.{100\|1GSYD\|…}.Q` | ~2003 Q3 → present | 17 |
-| `IIP` (probed, not loaded) | 8 dims: `{MEASURE}.{DATA_ITEM}.{SECTOR}.{MATURITY}.{INDUSTRY}.{CURRENCY}.{TSEST}.{FREQ}` | data live; ~1985 Q3 → present | 0 (pending) |
+| `IIP` | `6.{DATA_ITEM}.TOT.TOT.T.700.10.Q` (CURRENCY=700 AUD; `1704` Total 404s) | 1988 Q3 → present | 33 |
 
 ## Next moves
 
@@ -70,9 +76,9 @@ Production promotion / Phase G:
 
 ## Coverage
 
-ABS provides the source-of-truth for AU real-economy series (replaces FRED-OECD mirrors). 15 fetchers across 18 dataflows loaded (CPI, ANA_AGG, ANA_EXP, BOP, BOP_GOODS, CAPEX, ITPI_IMP, ITPI_EXP, JV, LEND_BUSINESS, LEND_HOUSING, LEND_PERSONAL, LF, LF_UNDER, PPI_FD, RPPI, RT, WPI).
+ABS provides the source-of-truth for AU real-economy series (replaces FRED-OECD mirrors). **16 fetchers across 19 dataflows loaded** (CPI, ANA_AGG, ANA_EXP, BOP, BOP_GOODS, CAPEX, IIP, ITPI_IMP, ITPI_EXP, JV, LEND_BUSINESS, LEND_HOUSING, LEND_PERSONAL, LF, LF_UNDER, PPI_FD, RPPI, RT, WPI).
 
-**Remaining gap — `IIP` (International Investment Position).** Probed 2026-06-10 via `discovery/probe_iip.py`: 8 dimensions, 129 DATA_ITEM codes, 22 sectors, live data through Q1-2026. The earlier `BOP_FACTOR` attempt was on the wrong dataflow (it carries only SA adjustment factors, not levels). Next step: pick a headline key set (Net IIP / Foreign Assets / Foreign Liabilities by sector) and write `fetch_iip.py`.
+The IIP add (2026-06-10) closes the cell-3.3 stock-side gap. The earlier `BOP_FACTOR` attempt was on the wrong dataflow (carries only SA adjustment factors, not levels).
 
 ## Related
 
