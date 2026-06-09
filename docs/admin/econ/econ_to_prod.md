@@ -121,9 +121,70 @@ Canonical prod-live wording for any of these docs:
 
 Extend with `+ scripts/imdr_daily.py` if the country has a daily-bound fetcher.
 
-### G.8 Email formatter
+### G.8 Email + error logging (shared runtime — Track A)
 
-The country orchestrator's email report is produced by `imdr.notifications.formatters.country_econ_ingest.CountryEconIngestFormatter` (template at `templates/country_econ_ingest.html`). No per-country formatter needed — it's parametrised.
+The `scripts.econ._country_runner.run(...)` helper that every country orchestrator calls handles email + error logging the same way for all countries. **Do not fork**; configure via `Settings`.
+
+#### Email — what fires and when
+
+| Aspect | Detail |
+|---|---|
+| Sender | `imdr.notifications.email.send_outlook_email` — local Outlook COM via `win32com.client` (no SMTP, no Graph). Fails silently with a `win32com_not_available` warning if pywin32 isn't installed (e.g. in CI). |
+| Recipient | `Settings.email_to` (semicolon-separated). Anomaly-style alerts use `Settings.email_anomaly_to` — not used by `_country_runner` itself but available for fetcher-level alerts. |
+| Gate | `Settings.email_enabled=True` AND `Settings.email_to` non-empty. Otherwise logs `email_disabled_skipping_country_econ_summary` and returns 0/1 silently. |
+| Formatter | `imdr.notifications.formatters.country_econ_ingest.CountryEconIngestFormatter` (template at `imdr/notifications/templates/country_econ_ingest.html`). Parametrised by `country_label` / `country_name` / `orchestrator_path` — no per-country formatter needed for Track A. |
+| Subject | Built by `formatter.format_subject(run_name, new_rows, indicators_updated, stale_count, failed_pipelines)`. Convention: `[{country_label}] {run_name} econ ingest — {new_rows} new / {stale_count} stale[ / FAILED]`. |
+| Body | `formatter.format_body(...)` — per-pipeline rc + elapsed, per-indicator new-rows-this-run, staleness flags, run duration, frequency scope. |
+| Importance | `1` (normal) on full success, `2` (high) when any pipeline rc≠0. Outlook surfaces the red-bang badge for `2`. |
+| Failure mode | Whole email-render-and-send wrapped in `try/except` — a broken template or COM failure logs `country_econ_email_failed` and prints the traceback but does NOT change the orchestrator exit code. |
+
+One email per orchestrator run. If a country has both `{cc}_monthly.py` and `{cc}_daily.py`, expect two emails on the days both fire.
+
+#### Error logging — structlog + run_log_dir
+
+| Aspect | Detail |
+|---|---|
+| Library | `structlog` (configured in `imdr.utils.logging.configure_logging`). All log events are key-value structured. |
+| Format | `Settings.log_format` = `"json"` (machine-parseable, prod default) or `"console"` (dev). |
+| Level | `Settings.log_level` (default `"INFO"`). `log.exception(...)` always emits with traceback regardless of level. |
+| Context | Use `structlog.contextvars.bind_contextvars(country=..., vendor=..., topic=...)` at the top of `run_fetch` — `merge_contextvars` will fold these into every event downstream. |
+| Canonical events emitted by `_country_runner` | `country_econ_snapshot` (DB snapshot of post-run state — indicators / new rows / stale count) · `country_econ_snapshot_failed` (snapshot raised; email still attempts) · `country_econ_email_failed` (email render or send raised) · `email_disabled_skipping_country_econ_summary` (config gate not met) · `email_sent` (success, from `send_outlook_email`) |
+| Fetcher-level | Each prod fetcher (`scripts/econ/{vendor}/{vendor}_{topic}.py`) is run as a **subprocess** — its stdout/stderr go straight to the parent's stdout/stderr. The orchestrator captures the rc and elapsed; it does NOT parse fetcher output. So per-fetcher structlog events land in console/cron logs, not in the email body. |
+| Run-log archive | `Settings.run_log_dir` — used by the **vendors framework** (`src/imdr/vendors/runner.py`) for per-feed jsonl `RunReport` flush (`{run_log_dir}/vendors/{feed}/{feed}_{ts}.jsonl`). `_country_runner` does NOT write run-logs itself; if you need archived per-run state for an econ pipeline, route through the vendors framework or write jsonl explicitly from the fetcher. |
+
+#### Failure-isolation semantics
+
+`_country_runner` runs fetchers via `subprocess.call(cmd)` in a sequential loop, capturing rc + elapsed per pipeline. One fetcher's non-zero exit **does NOT abort** the loop — the orchestrator still:
+
+1. Runs the remaining fetchers
+2. Snapshots the DB for indicators in the country + frequency scope (this is the "what's actually in the database now" view — independent of fetcher rc)
+3. Sends the consolidated email with `failed_pipelines=[...]` listed
+4. Returns exit code `1` (so cron / `imdr_monthly.py` sees the run as failed)
+
+Snapshot itself is `try/except` — DB outage logs `country_econ_snapshot_failed` but the email still goes out (with empty snapshots and an unhappy subject). Same for the email-send step. The principle: **partial visibility beats no visibility**.
+
+#### `Settings` keys you'll touch
+
+```
+email_enabled         bool   default False
+email_to              str    default ""   (semicolon-separated)
+email_anomaly_to      str    default ""   (anomaly-style alerts; not used by _country_runner)
+log_level             str    default "INFO"
+log_format            str    default "console"   ("json" in prod)
+run_log_dir           str    default ""          (vendors-framework artifact archive)
+```
+
+Set in `.env` (loaded by `pydantic-settings` via `imdr.config.settings.get_settings`). Never hard-code in scripts.
+
+#### Smoke-test checklist before scheduler wiring
+
+| Check | How |
+|---|---|
+| Email actually arrives | Set `email_enabled=True` + `email_to=<yourself>`, run the orchestrator manually with a fast subset, confirm the message lands in Outlook with the expected subject + body. |
+| Subject reflects failure | Force one fetcher to fail (e.g. wrong env var), re-run, confirm `Importance=High` + `FAILED` in subject. |
+| Snapshot survives DB outage | Disconnect / block the DB temporarily, run, confirm email still arrives with `country_econ_snapshot_failed` in console logs and empty snapshot section in body. |
+| structlog JSON parses | `log_format=json`, pipe stdout to `jq` — should be one JSON object per line. |
+| No secrets in body | The CountryEconIngestFormatter body is HTML; confirm no env-var values or connection strings appear. |
 
 ### G.9 Worked examples
 
@@ -210,7 +271,23 @@ Run `imdr-code-reviewer` on the new prod tree. Track-B-specific checklist:
 6. Migrations 086/{NNN} drafted with backfill assertions
 7. No `dim_vendor` insert that omits `vendor_category`
 
-### J.6 Docs to update on Track B prod-promotion
+### J.6 Email + error logging (shared runtime — Track B)
+
+Same `Settings`-driven stack as G.8: structlog with `log_format=json` + `log_level` for everything, `send_outlook_email` for the consolidated daily report, `run_log_dir` for any per-feed jsonl archive. Three Track-B-specific deltas:
+
+| Aspect | Track A (G.8) | Track B (J.6) |
+|---|---|---|
+| Orchestrator runtime | `scripts.econ._country_runner.run(...)` — DB snapshot of `econ.fact_indicator` rows + `CountryEconIngestFormatter` | **`scripts.econ._country_runner` doesn't fit** — Track B writes to `research.dim_report` + Qdrant + SharePoint, not `econ.fact_indicator`. Build `scripts.econ._country_govt_runner.run(...)` mirroring the same shape but with a filings-aware snapshot (`SELECT COUNT(*) FROM research.dim_report WHERE vendor_id IN (...) AND ingested_at >= run_started_at`). |
+| Formatter | `CountryEconIngestFormatter` (parametrised — one for all countries) | NEW `CountryGovtFilingsIngestFormatter` (template at `imdr/notifications/templates/country_govt_filings_ingest.html`). Same parametrisation — `country_label` / `country_name` / `orchestrator_path` — but body shape is per-agency `FilingItem` counts + Qdrant chunks ingested + SharePoint upload status, not per-indicator new rows. |
+| Subject line | `[{cc}] {run_name} econ ingest — {new_rows} new / {stale} stale` | `[{cc}] {run_name} govt filings — {filings_new} new / {qdrant_chunks} chunks / {sharepoint_uploaded} mirrored[ / FAILED]` |
+| Failure-isolation | Per-fetcher subprocess; one fetcher's rc≠0 doesn't abort others; partial DB snapshot still emails | Same per-fetcher pattern. **Additionally**: per-`FilingItem` failures inside `ingest_filing()` (PDF parse error, Qdrant write timeout, SharePoint auth refresh) MUST be caught at the item level so one bad filing doesn't poison the whole run. Failed items log `filing_ingest_failed` with `vendor_code` + `source_url` + traceback and are listed in the email body's "Failures" table. |
+| Importance | `1` normal, `2` on any pipeline rc≠0 | Same, plus `2` if any item raised inside `ingest_filing()` even when fetcher rc==0 |
+| Anomaly channel | Optional, via `email_anomaly_to` | Use `email_anomaly_to` for items where ingest succeeded but content looks degenerate (zero-page PDF, body_text < 200 chars, OCR-failure markers). Separate from the per-run summary so it doesn't drown in noise. |
+| Smoke checks (see G.8 list) | All apply | All apply, plus: confirm Qdrant rollback is clean when an item fails partway (point-write succeeded but SharePoint mirror raised) — Track B writes to three sinks per item, so partial-write recovery has to be tested. |
+
+`Settings` keys are the same as G.8 — no new env vars unless the filings runtime needs a separate recipient list (don't add one unless asked).
+
+### J.7 Docs to update on Track B prod-promotion
 
 | Doc | What to do |
 |---|---|
@@ -223,7 +300,7 @@ Run `imdr-code-reviewer` on the new prod tree. Track-B-specific checklist:
 Canonical prod-live wording:
 > "Wired into `scripts/imdr_daily.py:PIPELINES` YYYY-MM-DD. Migrations 086 + {NNN} applied YYYY-MM-DD."
 
-### J.7 Worked examples
+### J.8 Worked examples
 
 - **Korea** — `docs/admin/development/kr_govt_filings.md` (execution tracker) + `docs/admin/econ/korea/govt_doc_sources.md` (inventory). 7 fetchers built in `playground/econ/kr/govt/`; migrations 086/087 drafted but **not yet applied**. Phase J **not yet entered.**
 - **Australia** — 6 fetchers built in `playground/econ/au/govt/` (RBA × 4 via Playwright + Treasury + APRA via plain httpx). No execution tracker yet; no migrations drafted yet. Phase J **not yet entered.**
