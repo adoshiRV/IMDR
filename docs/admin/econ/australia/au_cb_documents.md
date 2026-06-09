@@ -4,9 +4,9 @@ Last updated: 2026-06-10
 
 The data-time-series side of AU econ is in [`australia_indicator_inventory.md`](australia_indicator_inventory.md). This doc inventories the **document-style sources** — Board minutes, SMP, FSR, Budget Papers, etc. These feed the research-document pipeline (PDF → research store), **not** `econ.fact_indicator`.
 
-Status: discovery scaffold + **6 fetchers** landed 2026-06-10 at [`playground/econ/au/govt/`](../../../../playground/econ/au/govt/) (mirror of the proven Korea pattern). Live fetchers cover the full **RBA Tier-1 stack** (Governor's Statement, Board Minutes, SMP, FSR — Playwright-based, Akamai-bypass) plus **Treasury** publications and **APRA** quarterly stats (plain httpx, no gating). Daily snapshots at `playground/econ/au/govt/data/snapshots/{YYYY-MM-DD}.json` with rolling dedup via `data/seen.json`. **NO DB writes yet** — manifest-only until the research-doc pipeline (`research.dim_report` / `research.fact_chunk`) absorbs filings.
+Status: discovery scaffold + **8 fetchers** landed 2026-06-10 at [`playground/econ/au/govt/`](../../../../playground/econ/au/govt/) (mirror of the proven Korea pattern). Live fetchers cover the full **RBA stack** (Governor's Statement, Board Minutes, SMP, FSR, Speeches — Playwright-based, Akamai-bypass) plus **Treasury** publications, **APRA** quarterly stats, and **ABS** release commentary (plain httpx, no gating). Daily snapshots at `playground/econ/au/govt/data/snapshots/{YYYY-MM-DD}.json` with rolling dedup via `data/seen.json`. **NO DB writes yet** — manifest-only until the research-doc pipeline (`research.dim_report` / `research.fact_chunk`) absorbs filings.
 
-**Daily run shape (2026-06-10 baseline):** 33 items captured across the 6 streams. Plain-httpx fetchers (Treasury + APRA) complete in ~1.2 sec combined; the 4 Playwright RBA fetchers add ~50 sec. Full daily run ≈ 1 minute.
+**Daily run shape (2026-06-10 baseline):** 53 items captured across the 8 streams. Plain-httpx fetchers (Treasury + APRA + ABS) complete in ~1.9 sec combined; the 5 Playwright RBA fetchers add ~55 sec. Full daily run ≈ 1 minute.
 
 **Reachability finding (2026-06-10):** Treasury, Budget, and APRA hosts all return 200 OK over plain HTTPS, including PDF/XLSX downloads from `apra.gov.au/sites/default/files/*`. The corp TLS-inspection block on AOFM is **host-specific to `aofm.gov.au`** — not a generic `*.gov.au/sites/default/files/*` pattern as previously assumed.
 
@@ -93,19 +93,21 @@ ABS plays nicely with our existing pipeline — these are an easy add when we wa
 
 Honest signal/effort ranking for a macro hedge-fund desk that already pulls AU rates, FX, curve, inflation, and credit data:
 
-- ✅ **Built (Tier 1, 6 fetchers, ~33 items in seen.json):** RBA stack (Governor's Statement + Board Minutes + SMP + FSR) + Treasury (`treasury.gov.au/publication` listing) + APRA (ADI + GI quarterly performance stats). Covers the decision (T+0), the deliberation (T+14), the quarterly forecast revision, the semi-annual stability review, the fiscal events, and the supervisor's bank/insurance sector reports. Highest signal sources available on AU.
-- 🟡 **Build candidates (Tier 2):** Speeches (Akamai, needs filter design), ABS commentary (low signal).
+- ✅ **Built (Tier 1, 8 fetchers, 53 items in seen.json):** RBA stack (Governor's Statement + Board Minutes + SMP + FSR + Speeches-filtered) + Treasury (`treasury.gov.au/publication`) + APRA (ADI + GI quarterly performance stats) + ABS commentary (CPI + Labour Force + National Accounts release pages). Covers the decision (T+0), the deliberation (T+14), the quarterly forecast revision, the semi-annual stability review, the speech-level forward guidance, the fiscal events, the supervisor's bank/insurance sector reports, and the ABS narrative around each print. Highest signal sources available on AU.
+- 🟡 **Build candidates (Tier 2):** none currently — every Tier-2 source has been built.
 - 🔴 **Manual / skip (Tier 3):** AOFM (host-specific corp-firewall block, manual Edge), RBA Bulletin/Annual Report/Chart Pack/Conference papers (low desk signal).
 
 Concretely **what we read first** when something happens on AU rates / macro:
-1. **RBA Governor's Statement** (T+0 — `data/snapshots/`) — the decision itself
-2. **RBA Board Minutes** (T+14 — `data/snapshots/`) — what the Board actually argued about
-3. **RBA SMP** (`data/snapshots/`) — latest quarterly forecast revision (GDP / CPI / unemployment)
-4. **RBA FSR** (`data/snapshots/`) — housing / banking / macro-financial stability
-5. **Treasury MYEFO / Budget Papers** (`data/snapshots/`) — fiscal stance + debt path
-6. **APRA quarterly ADI** (`data/snapshots/`) — bank-sector NPL / capital / profitability
+1. **RBA Governor's Statement** (T+0) — the decision itself
+2. **RBA Board Minutes** (T+14) — what the Board actually argued about
+3. **RBA SMP** — latest quarterly forecast revision (GDP / CPI / unemployment)
+4. **RBA Governor / Deputy Governor speeches** — forward-guidance hints
+5. **RBA FSR** — housing / banking / macro-financial stability
+6. **Treasury MYEFO / Budget Papers** — fiscal stance + debt path
+7. **APRA quarterly ADI** — bank-sector NPL / capital / profitability
+8. **ABS release commentary** — the narrative around CPI / Labour Force / GDP prints
 
-That stack is the 80/20 for an AU macro view.
+All 8 sources are already in `data/snapshots/` post-2026-06-10. That stack is the 80/20 for an AU macro view.
 
 ## Implementation notes
 
@@ -117,7 +119,7 @@ That stack is the 80/20 for an AU macro view.
 
 ## Build order
 
-### Tier 1 — LIVE (6 fetchers, ~33 items in current seen.json)
+### Tier 1 — LIVE (8 fetchers, 53 items in current seen.json)
 
 | # | Source | Fetcher | Transport | Status |
 |---|---|---|---|---|
@@ -127,13 +129,15 @@ That stack is the 80/20 for an AU macro view.
 | 4 | RBA FSR (Financial Stability Review) | `fetch_rba_fsr.py` | Playwright (Akamai) | ✅ LIVE 2026-06-10 — 2 FSRs since 2024 (2/yr) |
 | 5 | Treasury publications (all types — Budget Papers / MYEFO / Round-Up / Senate responses / etc.) | `fetch_treasury.py` | plain httpx | ✅ LIVE 2026-06-10 — 17 publications across 2 pages of `treasury.gov.au/publication`. Coarse `doc_type` classifier (`report` for Budget/MYEFO/IGR; `release` for everything else). |
 | 6 | APRA quarterly performance stats (ADI + GI) | `fetch_apra_quarterly.py` | plain httpx | ✅ LIVE 2026-06-10 — 2 streams (ADI Performance + GI Performance), one FilingItem per stream per release. ADI Property Exposures consolidated into ADI Performance page. |
+| 7 | RBA Speeches (filtered) | `fetch_rba_speeches.py` | Playwright (Akamai) | ✅ LIVE 2026-06-10 — 17 speeches kept out of 31 for 2026 (45% filter rate). Keep-rule: all `gov` + `dg` regardless of title; `ag` + `mpb` only if title matches macro keywords (monetary policy / inflation / cash rate / outlook / labour market / financial stability / household / wages / credit / housing / interest rates / yield curve / policy framework / productivity). Q&A transcripts always dropped. Pass `include_all=True` to disable filter for backfill. |
+| 8 | ABS release commentary (CPI / Labour Force / National Accounts) | `fetch_abs_commentary.py` | plain httpx | ✅ LIVE 2026-06-10 — 3 streams, one FilingItem per stream per release. Each captures the ABS narrative around the latest print (data already loaded via `playground/econ/abs/` SDMX fetchers). Reference period and release date both captured. |
 
-### Tier 2 — Build when needed
+### Tier 2 — empty for now
 
-| # | Source | Fetcher (planned) | Status |
-|---|---|---|---|
-| 7 | RBA Speeches | `fetch_rba_speeches.py` | Akamai-gated (Playwright). High-volume noise (~80-120/yr) — build only after a topic-filter design (e.g. Governor + Deputy only, or speeches with "monetary policy" / "inflation" / "labour market" in title). Otherwise drowns the daily snapshot. |
-| 8 | ABS commentary releases (CPI / Labour Force / National Accounts) | `fetch_abs_commentary.py` | Plain HTTPS — easy to build. Low signal (ABS narrative around prints we already track quantitatively). Add when the research-doc pipeline ingests filings. |
+Every source originally tagged Tier-2 is now LIVE in Tier-1. Future
+additions would be new agencies (e.g. PBO Parliamentary Budget Office,
+RBA Bulletin if we change our mind on the academic-research signal),
+not gaps in the current AU coverage.
 
 ### Tier 3 — Manual / skip
 
