@@ -30,6 +30,9 @@ data/*
 data/gaps/*
 !data/gaps/.gitkeep
 
+# Runtime logs (research-ingest etc.)
+logs/
+
 # SQL migrations — tracked via DBA channel, not git
 migrations/*
 !migrations/.gitkeep
