@@ -4,9 +4,11 @@ Last updated: 2026-06-10
 
 The data-time-series side of AU econ is in [`australia_indicator_inventory.md`](australia_indicator_inventory.md). This doc inventories the **document-style sources** — Board minutes, SMP, FSR, Budget Papers, etc. These feed the research-document pipeline (PDF → research store), **not** `econ.fact_indicator`.
 
-Status: discovery scaffold + **4 fetchers** landed 2026-06-10 at [`playground/econ/au/govt/`](../../../../playground/econ/au/govt/) (mirror of the proven Korea pattern). Live fetchers cover the full **RBA Tier-1 stack** — Governor's Statement (decision, T+0), Board Minutes (T+14), SMP (quarterly forecasts), FSR (semi-annual stability review). Daily snapshots at `playground/econ/au/govt/data/snapshots/{YYYY-MM-DD}.json` with rolling dedup via `data/seen.json`. **NO DB writes yet** — manifest-only until the research-doc pipeline (`research.dim_report` / `research.fact_chunk`) absorbs filings.
+Status: discovery scaffold + **6 fetchers** landed 2026-06-10 at [`playground/econ/au/govt/`](../../../../playground/econ/au/govt/) (mirror of the proven Korea pattern). Live fetchers cover the full **RBA Tier-1 stack** (Governor's Statement, Board Minutes, SMP, FSR — Playwright-based, Akamai-bypass) plus **Treasury** publications and **APRA** quarterly stats (plain httpx, no gating). Daily snapshots at `playground/econ/au/govt/data/snapshots/{YYYY-MM-DD}.json` with rolling dedup via `data/seen.json`. **NO DB writes yet** — manifest-only until the research-doc pipeline (`research.dim_report` / `research.fact_chunk`) absorbs filings.
 
-**Reachability finding (2026-06-10 probe):** Treasury, Budget, and APRA hosts all return 200 OK over plain HTTPS — including a verified PDF download from `apra.gov.au/sites/default/files/*` (the same Drupal path pattern that's blocked for AOFM). The corp TLS-inspection block on AOFM is **host-specific, not path-based**. This promotes Treasury + APRA out of the Tier-3 manual-skip bucket and into Tier-2 build candidates with plain httpx (no Playwright needed).
+**Daily run shape (2026-06-10 baseline):** 33 items captured across the 6 streams. Plain-httpx fetchers (Treasury + APRA) complete in ~1.2 sec combined; the 4 Playwright RBA fetchers add ~50 sec. Full daily run ≈ 1 minute.
+
+**Reachability finding (2026-06-10):** Treasury, Budget, and APRA hosts all return 200 OK over plain HTTPS, including PDF/XLSX downloads from `apra.gov.au/sites/default/files/*`. The corp TLS-inspection block on AOFM is **host-specific to `aofm.gov.au`** — not a generic `*.gov.au/sites/default/files/*` pattern as previously assumed.
 
 ---
 
@@ -91,17 +93,19 @@ ABS plays nicely with our existing pipeline — these are an easy add when we wa
 
 Honest signal/effort ranking for a macro hedge-fund desk that already pulls AU rates, FX, curve, inflation, and credit data:
 
-- ✅ **Built (Tier 1, 4 fetchers, ~22 docs/yr):** Governor's Statement + Board Minutes + SMP + FSR. Covers the decision (T+0), the deliberation (T+14), the quarterly forecast revision, and the semi-annual stability review. Highest signal of the entire RBA publication catalogue.
-- 🟡 **Build candidates (Tier 2):** Treasury (reachable, no Playwright) + APRA (reachable, no Playwright) + Speeches (Akamai, needs filter design) + ABS commentary (low signal). The Treasury + APRA reachability finding (2026-06-10 probe) is new — they were previously assumed firewall-blocked but aren't.
+- ✅ **Built (Tier 1, 6 fetchers, ~33 items in seen.json):** RBA stack (Governor's Statement + Board Minutes + SMP + FSR) + Treasury (`treasury.gov.au/publication` listing) + APRA (ADI + GI quarterly performance stats). Covers the decision (T+0), the deliberation (T+14), the quarterly forecast revision, the semi-annual stability review, the fiscal events, and the supervisor's bank/insurance sector reports. Highest signal sources available on AU.
+- 🟡 **Build candidates (Tier 2):** Speeches (Akamai, needs filter design), ABS commentary (low signal).
 - 🔴 **Manual / skip (Tier 3):** AOFM (host-specific corp-firewall block, manual Edge), RBA Bulletin/Annual Report/Chart Pack/Conference papers (low desk signal).
 
-Concretely **what we read first** when something happens on AU rates:
-1. Governor's Statement (T+0 — already in `data/snapshots/`)
-2. Board Minutes (T+14 — already in `data/snapshots/`)
-3. SMP for the latest quarterly forecast revision (already in `data/snapshots/`)
-4. FSR if the question is housing/banking/macro-financial stability (already in `data/snapshots/`)
+Concretely **what we read first** when something happens on AU rates / macro:
+1. **RBA Governor's Statement** (T+0 — `data/snapshots/`) — the decision itself
+2. **RBA Board Minutes** (T+14 — `data/snapshots/`) — what the Board actually argued about
+3. **RBA SMP** (`data/snapshots/`) — latest quarterly forecast revision (GDP / CPI / unemployment)
+4. **RBA FSR** (`data/snapshots/`) — housing / banking / macro-financial stability
+5. **Treasury MYEFO / Budget Papers** (`data/snapshots/`) — fiscal stance + debt path
+6. **APRA quarterly ADI** (`data/snapshots/`) — bank-sector NPL / capital / profitability
 
-That stack is the 80/20 for an RBA view.
+That stack is the 80/20 for an AU macro view.
 
 ## Implementation notes
 
@@ -113,21 +117,21 @@ That stack is the 80/20 for an RBA view.
 
 ## Build order
 
-### Tier 1 — LIVE (full RBA Tier-1 stack, ~22 docs/yr)
+### Tier 1 — LIVE (6 fetchers, ~33 items in current seen.json)
 
-| # | Source | Fetcher | Status |
-|---|---|---|---|
-| 1 | RBA Governor's Statement (cash-rate decisions) | `fetch_rba_governors_statement.py` | ✅ LIVE 2026-06-10 — 3 decisions for 2026 (~8/yr cadence) |
-| 2 | RBA Board Minutes | `fetch_rba_board_minutes.py` | ✅ LIVE 2026-06-10 — 3 minutes for 2026 (~8/yr cadence) |
-| 3 | RBA SMP (Statement on Monetary Policy) | `fetch_rba_smp.py` | ✅ LIVE 2026-06-10 — 6 SMPs since 2025 (4/yr cadence) |
-| 4 | RBA FSR (Financial Stability Review) | `fetch_rba_fsr.py` | ✅ LIVE 2026-06-10 — 2 FSRs since 2024 (2/yr cadence) |
+| # | Source | Fetcher | Transport | Status |
+|---|---|---|---|---|
+| 1 | RBA Governor's Statement (cash-rate decisions) | `fetch_rba_governors_statement.py` | Playwright (Akamai) | ✅ LIVE 2026-06-10 — 3 decisions for 2026 (~8/yr) |
+| 2 | RBA Board Minutes | `fetch_rba_board_minutes.py` | Playwright (Akamai) | ✅ LIVE 2026-06-10 — 3 minutes for 2026 (~8/yr) |
+| 3 | RBA SMP (Statement on Monetary Policy) | `fetch_rba_smp.py` | Playwright (Akamai) | ✅ LIVE 2026-06-10 — 6 SMPs since 2025 (4/yr) |
+| 4 | RBA FSR (Financial Stability Review) | `fetch_rba_fsr.py` | Playwright (Akamai) | ✅ LIVE 2026-06-10 — 2 FSRs since 2024 (2/yr) |
+| 5 | Treasury publications (all types — Budget Papers / MYEFO / Round-Up / Senate responses / etc.) | `fetch_treasury.py` | plain httpx | ✅ LIVE 2026-06-10 — 17 publications across 2 pages of `treasury.gov.au/publication`. Coarse `doc_type` classifier (`report` for Budget/MYEFO/IGR; `release` for everything else). |
+| 6 | APRA quarterly performance stats (ADI + GI) | `fetch_apra_quarterly.py` | plain httpx | ✅ LIVE 2026-06-10 — 2 streams (ADI Performance + GI Performance), one FilingItem per stream per release. ADI Property Exposures consolidated into ADI Performance page. |
 
-### Tier 2 — Build when needed (reachability re-confirmed 2026-06-10)
+### Tier 2 — Build when needed
 
 | # | Source | Fetcher (planned) | Status |
 |---|---|---|---|
-| 5 | Treasury Budget Papers / MYEFO / PEFO / Final Budget Outcome / IGR | `fetch_treasury_publications.py` | **Reachability ✅** — `treasury.gov.au/publication` + `budget.gov.au/{YYYY-YY}/` both 200 OK over plain httpx. Build with plain httpx (no Playwright). Cadence is twice-a-year (May Budget + Dec MYEFO) — high signal per event, low daily volume. |
-| 6 | APRA Quarterly ADI / Property Exposures / GI Performance | `fetch_apra_quarterly.py` | **Reachability ✅** — PDF + XLSX download confirmed at `apra.gov.au/sites/default/files/*`. Build with plain httpx (no Playwright). Largely overlaps RBA E1+E2 which we already load — supplementary detail. |
 | 7 | RBA Speeches | `fetch_rba_speeches.py` | Akamai-gated (Playwright). High-volume noise (~80-120/yr) — build only after a topic-filter design (e.g. Governor + Deputy only, or speeches with "monetary policy" / "inflation" / "labour market" in title). Otherwise drowns the daily snapshot. |
 | 8 | ABS commentary releases (CPI / Labour Force / National Accounts) | `fetch_abs_commentary.py` | Plain HTTPS — easy to build. Low signal (ABS narrative around prints we already track quantitatively). Add when the research-doc pipeline ingests filings. |
 
@@ -135,7 +139,7 @@ That stack is the 80/20 for an RBA view.
 
 | # | Source | Why skipped |
 |---|---|---|
-| 9 | AOFM Annual Report / Issuance Calendar / Investor presentations | Corp TLS-inspection on `*.gov.au/sites/default/files/*` is **host-specific to `aofm.gov.au`** — NOT blocked for APRA's same path pattern (probed 2026-06-10). Workaround = manual Edge per [`_playground/aofm.md`](_playground/aofm.md). ~5 docs/yr; manual capture acceptable. |
+| 9 | AOFM Annual Report / Issuance Calendar / Investor presentations | Corp TLS-inspection on `aofm.gov.au/sites/default/files/*` blocks downloads from RV's network — host-specific, NOT a generic `.gov.au` pattern (APRA's same Drupal layout works fine; probed 2026-06-10). Workaround = manual Edge per [`_playground/aofm.md`](_playground/aofm.md). ~5 docs/yr; manual capture acceptable. |
 | 10 | RBA Bulletin / Annual Report / Chart Pack / Conference papers | Low-signal for a rates desk: Bulletin is academic, Annual Report is institutional, Chart Pack is charts-over-data-we-have, Conference is research-grade. Not worth automating. |
 
 ## Related
