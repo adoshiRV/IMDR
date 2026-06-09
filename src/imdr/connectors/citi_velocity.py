@@ -17,6 +17,15 @@ import structlog
 from imdr.config.settings import Settings
 
 
+class CitiAPIError(RuntimeError):
+    """Citi Velocity HTTP error with parsed status code for retry decisions."""
+
+    def __init__(self, message: str, status_code: int, path: str = "") -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.path = path
+
+
 def _yyyymmdd(dt: datetime) -> int:
     return int(dt.astimezone(timezone.utc).strftime("%Y%m%d"))
 
@@ -88,10 +97,10 @@ class CitiVelocityClient:
 
         try:
             data = resp.json()
-        except Exception:
+        except Exception as e:
             raise RuntimeError(
                 f"Token response not JSON (status={resp.status_code}): {resp.text[:500]}"
-            )
+            ) from e
 
         if "access_token" not in data:
             raise RuntimeError(f"Token response missing access_token: {data}")
@@ -211,16 +220,20 @@ class CitiVelocityClient:
         self._rate_limit_remaining = int(raw_remaining) if raw_remaining else None
 
         if resp.status_code >= 400:
-            raise RuntimeError(
-                f"Citi API error (status={resp.status_code}, path={path}): {resp.text[:500]}"
+            raise CitiAPIError(
+                f"Citi API error (status={resp.status_code}, path={path}): {resp.text[:500]}",
+                status_code=resp.status_code,
+                path=path,
             )
 
         try:
             return resp.json()
-        except Exception:
-            raise RuntimeError(
-                f"Citi API response not JSON (status={resp.status_code}, path={path}): {resp.text[:500]}"
-            )
+        except Exception as e:
+            raise CitiAPIError(
+                f"Citi API response not JSON (status={resp.status_code}, path={path}): {resp.text[:500]}",
+                status_code=resp.status_code,
+                path=path,
+            ) from e
 
     # ── Lifecycle ────────────────────────────────────────────────
 

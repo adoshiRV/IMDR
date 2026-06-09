@@ -24,6 +24,7 @@ from imdr.config.settings import get_settings
 from imdr.connectors.citi_helpers import TagQuotaExceeded
 from imdr.connectors.mssql import MSSQLConnector
 from imdr.market_calendar.calendar import last_business_day, last_trading_day
+from imdr.market_calendar.countries import default_calendar
 from imdr.market_calendar.holidays import holiday_hits_for_timestamp
 from imdr.domains.rates.pipeline_vol import RatesVolPipeline
 from imdr.notifications.email import send_outlook_email
@@ -58,8 +59,9 @@ def parse_args() -> argparse.Namespace:
 def _start_of_window(target: datetime, n_trading_days: int, market: str = "US") -> datetime:
     """Walk back `n_trading_days` trading days from target (exclusive of target)."""
     d = target.date()
+    cal = default_calendar(market)
     for _ in range(n_trading_days):
-        d = last_trading_day(market, before=d)
+        d = last_trading_day(market, cal, before=d)
     return datetime(d.year, d.month, d.day, tzinfo=timezone.utc)
 
 
@@ -75,7 +77,7 @@ def main() -> int:
     if args.date:
         target = datetime.strptime(args.date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
     else:
-        target = last_business_day("US")
+        target = last_business_day("US", "GT")
 
     start = _start_of_window(target, args.lookback)
     end = target.replace(hour=23, minute=59)
@@ -160,7 +162,7 @@ def main() -> int:
         holiday_hits = holiday_hits_for_timestamp(vol_ccys, target)
         if holiday_hits:
             report.info("holidays", f"Holiday hits: {len(holiday_hits)}", details={
-                "hits": [{"currency": h.currency, "market_code": h.market_code,
+                "hits": [{"currency": h.currency, "country_code": h.country_code,
                           "name": h.name} for h in holiday_hits],
             })
 
@@ -261,7 +263,7 @@ def _send_report_email(
         ccy_data=ccy_data,
         missing_ccys=missing_ccys,
         holiday_hits=[
-            {"currency": h.currency, "market_code": h.market_code, "name": h.name}
+            {"currency": h.currency, "country_code": h.country_code, "name": h.name}
             for h in holiday_hits
         ],
         quality_flags=pipeline._quality_results,

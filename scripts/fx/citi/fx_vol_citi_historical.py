@@ -36,8 +36,8 @@ log = structlog.get_logger(__name__)
 MODE = "range"  # "range" | "catchup" | "gaps"
 
 # range: start and end dates (YYYY-MM-DD)
-START = "2026-03-24"
-END = "2026-03-24"
+START = "2016-01-04"
+END = "2025-08-31"
 
 # catchup: how many calendar days back from today
 LOOKBACK_DAYS = 30
@@ -47,6 +47,19 @@ GAPS_FILE = "data/gaps/fx_vol_gaps.txt"
 
 # 0 = unlimited (for gaps mode, limits number of dates processed)
 MAX_DAYS = 0
+
+# Optional: restrict to specific (ccy1, ccy2) pairs. None = all vol pairs in fx.yml.
+PAIRS: list[tuple[str, str]] | None = [
+    # G10
+    ("EUR", "USD"), ("GBP", "USD"), ("USD", "JPY"), ("AUD", "USD"),
+    ("NZD", "USD"), ("USD", "CAD"), ("USD", "CHF"), ("USD", "NOK"),
+    ("USD", "SEK"), ("USD", "CNH"),
+    # EM NDF
+    ("USD", "INR"), ("USD", "KRW"), ("USD", "TWD"), ("USD", "THB"),
+    ("USD", "IDR"), ("USD", "PHP"),
+    # EM Deliverable (USDHKD already backfilled)
+    ("USD", "SGD"),
+]
 
 # ============================================================================
 
@@ -81,6 +94,7 @@ def _run_pipeline(
     end: datetime,
     label: str,
     chunk_size: int | None = None,
+    pairs: list[tuple[str, str]] | None = None,
 ) -> tuple[int, list[dict]]:
     """Run a single pipeline call and return (rows_loaded, quality_results)."""
     log.info("processing", label=label, start=str(start.date()), end=str(end.date()))
@@ -90,6 +104,7 @@ def _run_pipeline(
         universe=universe,
         start=start,
         end=end,
+        pairs=pairs,
         chunk_size=chunk_size,
     )
     rows = pipeline.run()
@@ -121,12 +136,13 @@ def main() -> int:
             start, end = _skip_weekends(start, end)
             total_rows, all_quality = _run_pipeline(
                 connector, settings, universe, start, end,
-                label=f"range {START}\u2192{END}",
+                label=f"range {START} to {END}",
                 chunk_size=settings.bulk_batch_size,
+                pairs=PAIRS,
             )
 
         elif MODE == "catchup":
-            end = last_business_day("US").replace(
+            end = last_business_day("US", "GT").replace(
                 hour=23, minute=59, second=0, microsecond=0,
             )
             start = (end - timedelta(days=LOOKBACK_DAYS)).replace(
@@ -137,6 +153,7 @@ def main() -> int:
                 connector, settings, universe, start, end,
                 label=f"catchup {LOOKBACK_DAYS}d",
                 chunk_size=settings.bulk_batch_size,
+                pairs=PAIRS,
             )
 
         elif MODE == "gaps":
@@ -161,6 +178,7 @@ def main() -> int:
                         end=dt.replace(hour=23, minute=59),
                         label=f"gap {i + 1}/{len(dates)} ({dt.date()})",
                         chunk_size=settings.bulk_batch_size,
+                        pairs=PAIRS,
                     )
                     total_rows += rows
                     all_quality.extend(qr)

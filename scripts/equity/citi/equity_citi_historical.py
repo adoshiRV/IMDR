@@ -121,7 +121,10 @@ def main() -> int:
             )
 
         elif MODE == "catchup":
-            end = last_business_day("US").replace(hour=23, minute=59, second=0, microsecond=0)
+            # Provisional: anchors on US/GT (SIFMA Govt Bond) per project-wide default.
+            # Equity intent suggests "NY" (NYSE); follow-up tracked in
+            # docs/admin/development/per_script_calendar_intent.md.
+            end = last_business_day("US", "GT").replace(hour=23, minute=59, second=0, microsecond=0)
             start = (end - timedelta(days=LOOKBACK_DAYS)).replace(hour=0, minute=0, second=0, microsecond=0)
             start, end = _skip_weekends(start, end)
             total_rows = _run_pipeline(

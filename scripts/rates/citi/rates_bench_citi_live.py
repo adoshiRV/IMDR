@@ -23,6 +23,7 @@ from imdr.connectors.citi_helpers import TagQuotaExceeded
 from imdr.connectors.mssql import MSSQLConnector
 from imdr.domains.rates.pipeline_bench import BenchRatesPipeline
 from imdr.market_calendar.calendar import last_business_day, last_trading_day
+from imdr.market_calendar.countries import default_calendar
 from imdr.market_calendar.holidays import holiday_hits_for_timestamp
 from imdr.notifications.email import send_outlook_email
 from imdr.notifications.formatters.rates_bench_ingest import RatesBenchIngestFormatter
@@ -47,8 +48,9 @@ def parse_args() -> argparse.Namespace:
 def _start_of_window(target: datetime, n_trading_days: int, market: str = "US") -> datetime:
     """Walk back `n_trading_days` trading days from target (exclusive of target)."""
     d = target.date()
+    cal = default_calendar(market)
     for _ in range(n_trading_days):
-        d = last_trading_day(market, before=d)
+        d = last_trading_day(market, cal, before=d)
     return datetime(d.year, d.month, d.day, tzinfo=timezone.utc)
 
 
@@ -62,7 +64,7 @@ def main() -> int:
     if args.date:
         target = datetime.strptime(args.date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
     else:
-        target = last_business_day("US")
+        target = last_business_day("US", "GT")
 
     start = _start_of_window(target, args.lookback)
     end = target.replace(hour=23, minute=59)
@@ -96,7 +98,7 @@ def main() -> int:
                         "cb_code": entry.cb_code,
                         "display_name": entry.display_name,
                         "currency": entry.currency,
-                        "market_code": entry.market_code,
+                        "country_code": entry.country_code,
                         "rate": f"{last_row['value']:.4f}",
                         "obs_date": str(last_row["ts"].date()) if hasattr(last_row["ts"], "date") else str(last_row["ts"]),
                     })
@@ -139,7 +141,7 @@ def main() -> int:
         holiday_hits = holiday_hits_for_timestamp(cb_currencies, target)
         if holiday_hits:
             report.info("holidays", f"Holiday hits: {len(holiday_hits)}", details={
-                "hits": [{"currency": h.currency, "market_code": h.market_code,
+                "hits": [{"currency": h.currency, "country_code": h.country_code,
                           "name": h.name} for h in holiday_hits],
             })
 
@@ -243,7 +245,7 @@ def _send_report_email(
         cb_data=cb_data,
         missing_cbs=missing_cbs,
         holiday_hits=[
-            {"cb_code": h.currency, "market_code": h.market_code, "name": h.name}
+            {"cb_code": h.currency, "country_code": h.country_code, "name": h.name}
             for h in holiday_hits
         ],
         has_errors=has_errors,

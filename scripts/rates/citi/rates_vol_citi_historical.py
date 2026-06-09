@@ -38,8 +38,8 @@ log = structlog.get_logger(__name__)
 MODE = "range"  # "range" | "catchup" | "gaps"
 
 # range: start and end dates (YYYY-MM-DD)
-START = "2026-04-01"
-END = "2026-04-13"
+START = "2005-01-01"
+END = "2025-12-31"
 
 # catchup: how many calendar days back from today
 LOOKBACK_DAYS = 30
@@ -52,7 +52,16 @@ MAX_DAYS = 0
 
 # Optional: limit to specific currencies (None = all 11)
 # CURRENCIES: list[str] | None = None
-CURRENCIES = ["USD"]
+CURRENCIES = None
+
+# Use service-principal credentials (IMDR_SP_CLIENT_ID / IMDR_SP_CLIENT_SECRET)
+# which have an independent Citi quota bucket from the main daily pipeline.
+USE_SP_CREDS = True
+
+# Loop range mode per-currency to keep each DataFrame manageable (~14M rows).
+# Total quota cost is unchanged (38K tags across 11 currencies).
+# Set to True to enable per-currency looping; False = single call (all currencies).
+PER_CURRENCY = True
 
 # ============================================================================
 
@@ -88,6 +97,9 @@ def _run_pipeline(
     currencies: list[str] | None,
     label: str,
     chunk_size: int | None = None,
+    client_id: str | None = None,
+    client_secret: str | None = None,
+    quota_file: str | None = None,
 ) -> int:
     """Run a single pipeline call and return rows loaded."""
     log.info("processing", label=label, start=str(start.date()), end=str(end.date()))
@@ -99,6 +111,9 @@ def _run_pipeline(
         end=end,
         currencies=currencies,
         chunk_size=chunk_size,
+        client_id=client_id,
+        client_secret=client_secret,
+        quota_file=quota_file,
     )
     return pipeline.run()
 
@@ -110,7 +125,24 @@ def main() -> int:
     connector = MSSQLConnector(settings)
     report = RunReport(pipeline_name="rates.vol_citi_historical")
 
+    sp_client_id = settings.sp_client_id or None
+    sp_client_secret = settings.sp_client_secret or None
+    sp_quota_file = "data/cache/citi_sp_quota.json" if USE_SP_CREDS else None
+    if USE_SP_CREDS:
+        if not sp_client_id or not sp_client_secret:
+            print("ERROR: USE_SP_CREDS=True but IMDR_SP_CLIENT_ID/IMDR_SP_CLIENT_SECRET not set")
+            return 1
+        log.info("using_sp_credentials", client_id=sp_client_id[:8] + "...")
+
     log.info("historical_start", mode=MODE)
+
+    cred_kwargs: dict = {}
+    if USE_SP_CREDS:
+        cred_kwargs = {
+            "client_id": sp_client_id,
+            "client_secret": sp_client_secret,
+            "quota_file": sp_quota_file,
+        }
 
     try:
         t0 = time.perf_counter()
@@ -122,14 +154,27 @@ def main() -> int:
                 hour=23, minute=59, tzinfo=timezone.utc,
             )
             start, end = _skip_weekends(start, end)
-            total_rows = _run_pipeline(
-                connector, settings, universe, start, end, CURRENCIES,
-                label=f"range {START} -> {END}",
-                chunk_size=settings.bulk_batch_size,
-            )
+
+            if PER_CURRENCY:
+                ccys = CURRENCIES or universe.vol_currencies()
+                for i, ccy in enumerate(ccys):
+                    rows = _run_pipeline(
+                        connector, settings, universe, start, end, [ccy],
+                        label=f"ccy {i + 1}/{len(ccys)} ({ccy}) {START} -> {END}",
+                        chunk_size=settings.bulk_batch_size,
+                        **cred_kwargs,
+                    )
+                    total_rows += rows
+            else:
+                total_rows = _run_pipeline(
+                    connector, settings, universe, start, end, CURRENCIES,
+                    label=f"range {START} -> {END}",
+                    chunk_size=settings.bulk_batch_size,
+                    **cred_kwargs,
+                )
 
         elif MODE == "catchup":
-            end = last_business_day("US").replace(
+            end = last_business_day("US", "GT").replace(
                 hour=23, minute=59, second=0, microsecond=0,
             )
             start = (end - timedelta(days=LOOKBACK_DAYS)).replace(
@@ -140,6 +185,7 @@ def main() -> int:
                 connector, settings, universe, start, end, CURRENCIES,
                 label=f"catchup {LOOKBACK_DAYS}d",
                 chunk_size=settings.bulk_batch_size,
+                **cred_kwargs,
             )
 
         elif MODE == "gaps":
@@ -163,6 +209,7 @@ def main() -> int:
                         currencies=CURRENCIES,
                         label=f"gap {i + 1}/{len(dates)} ({dt.date()})",
                         chunk_size=settings.bulk_batch_size,
+                        **cred_kwargs,
                     )
                     total_rows += rows
                 except Exception:

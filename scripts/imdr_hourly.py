@@ -5,6 +5,11 @@ Each pipeline is isolated — one failure does not block others.
 
 Schedule: Hourly (via Windows Task Scheduler or cron)
 
+Citi-sourced intraday pipelines moved to scripts.imdr_snapshots_citi
+(9 invocations/day) to stay under Citi's 10 calls/tag/24h hourly-OAuth
+limit. Only vendors with no equivalent rate ceiling remain on the
+true-hourly cadence here.
+
 Usage:
     python -m scripts.imdr_hourly
 """
@@ -21,9 +26,7 @@ import time
 # ============================================================================
 
 PIPELINES: list[list[str]] = [
-    ["python", "-m", "scripts.fx.bidfx.fx_bidfx_live"],
-    ["python", "-m", "scripts.rates.citi.rates_citi_live_hourly"],
-    ["python", "-m", "scripts.fx.citi.fx_rate_citi_live_hourly"],
+    # ["python", "-m", "scripts.fx.bidfx.fx_bidfx_live"],
 ]
 
 # ============================================================================

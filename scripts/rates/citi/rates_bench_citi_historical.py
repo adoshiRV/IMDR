@@ -39,8 +39,8 @@ log = structlog.get_logger(__name__)
 MODE = "range"  # "range" | "catchup" | "gaps"
 
 # range: start and end dates (YYYY-MM-DD)
-START = "2025-04-01"
-END = "2026-04-15"
+START = "2000-01-01"
+END = "2025-03-31"
 
 # catchup: how many calendar days back from today
 LOOKBACK_DAYS = 30
@@ -121,7 +121,7 @@ def main() -> int:
             )
 
         elif MODE == "catchup":
-            end = last_business_day("US").replace(
+            end = last_business_day("US", "GT").replace(
                 hour=23, minute=59, second=0, microsecond=0,
             )
             start = (end - timedelta(days=LOOKBACK_DAYS)).replace(

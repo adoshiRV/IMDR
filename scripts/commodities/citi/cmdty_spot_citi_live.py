@@ -49,7 +49,10 @@ def main() -> int:
     if args.date:
         target = datetime.strptime(args.date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
     else:
-        target = last_business_day("US")
+        # Provisional: anchors on US/GT (SIFMA Govt Bond) per project-wide default.
+        # NYMEX/COMEX intent suggests "NY" (NYSE); follow-up tracked in
+        # docs/admin/development/per_script_calendar_intent.md.
+        target = last_business_day("US", "GT")
 
     start = target
     end = target.replace(hour=23, minute=59)
@@ -82,7 +85,7 @@ def main() -> int:
         holiday_hits = holiday_hits_for_timestamp(["USD"], target)
         if holiday_hits:
             report.info("holidays", f"Holiday hits: {len(holiday_hits)}", details={
-                "hits": [{"currency": h.currency, "market_code": h.market_code,
+                "hits": [{"currency": h.currency, "country_code": h.country_code,
                           "name": h.name} for h in holiday_hits],
             })
 
@@ -165,7 +168,7 @@ def _send_report_email(
         rows_loaded=result,
         n_products=1,
         holiday_hits=[
-            {"currency": h.currency, "market_code": h.market_code, "name": h.name}
+            {"currency": h.currency, "country_code": h.country_code, "name": h.name}
             for h in holiday_hits
         ],
         has_errors=has_errors,

@@ -35,8 +35,8 @@ log = structlog.get_logger(__name__)
 MODE = "range"  # "range" | "catchup" | "gaps"
 
 # range: start and end dates (YYYY-MM-DD)
-START = "2020-01-01"
-END = "2025-01-01"
+START = "2024-05-05"
+END = "2025-05-05"
 
 # catchup: how many calendar days back from today
 LOOKBACK_DAYS = 30
@@ -50,10 +50,25 @@ MAX_DAYS = 0
 # Quote types (None = read from pipelines.yml default_quotes; or comma-separated override)
 # QUOTES: str | None = None
 
-QUOTES = "fwd"
+QUOTES = "par,fwd"
 
 # Data frequency
-FREQUENCY = "DAILY"
+FREQUENCY = "HOURLY"
+
+# When True, route through the dedicated hourly Citi OAuth client + tag-quota
+# bucket so a HOURLY backfill doesn't eat into the daily pipelines' budget.
+USE_HOURLY_CREDS = True
+HOURLY_QUOTA_FILE = "data/cache/citi_tag_quota_hourly.json"
+
+# Chunk a long range into N-month windows. Citi's HOURLY API silently
+# downsamples to ~1 point/day when a single request spans >~6 months;
+# probed thresholds: 1/2/3/4/6M preserve 12 hrs/day; 12M collapses.
+# Set to 0 to disable chunking (one bulk call across full range).
+CHUNK_MONTHS = 3
+
+# Per-MERGE batch size for the DB load phase. 0 = use settings.bulk_batch_size
+# (5000). Smaller value = lower TempDB peak, more frequent commits.
+MERGE_BATCH_SIZE = 2500
 
 # ============================================================================
 
@@ -103,6 +118,9 @@ def _run_pipeline(
         frequency=frequency,
         use_cache=False,
         chunk_size=chunk_size,
+        client_id=settings.citi_hourly_client_id if USE_HOURLY_CREDS else None,
+        client_secret=settings.citi_hourly_client_secret if USE_HOURLY_CREDS else None,
+        quota_tracker_path=HOURLY_QUOTA_FILE if USE_HOURLY_CREDS else None,
     )
     return pipeline.run()
 
@@ -132,14 +150,36 @@ def main() -> int:
                 hour=23, minute=59, tzinfo=timezone.utc,
             )
             start, end = _skip_weekends(start, end)
-            total_rows = _run_pipeline(
-                connector, settings, universe, start, end, quotes, FREQUENCY,
-                label=f"range {START}→{END}",
-                chunk_size=settings.bulk_batch_size,
-            )
+
+            if CHUNK_MONTHS and CHUNK_MONTHS > 0:
+                step = timedelta(days=int(CHUNK_MONTHS * 30.4375))
+                chunks: list[tuple[datetime, datetime]] = []
+                cur = start
+                while cur <= end:
+                    chunk_end = min(cur + step - timedelta(days=1), end)
+                    chunk_end = chunk_end.replace(hour=23, minute=59)
+                    chunks.append((cur, chunk_end))
+                    cur = chunk_end + timedelta(minutes=1)
+                    cur = cur.replace(hour=0, minute=0, second=0, microsecond=0)
+
+                log.info("chunked_range", n_chunks=len(chunks), chunk_months=CHUNK_MONTHS)
+                for i, (cs, ce) in enumerate(chunks, start=1):
+                    cs2, ce2 = _skip_weekends(cs, ce)
+                    rows = _run_pipeline(
+                        connector, settings, universe, cs2, ce2, quotes, FREQUENCY,
+                        label=f"chunk {i}/{len(chunks)} {cs2.date()} -> {ce2.date()}",
+                        chunk_size=(MERGE_BATCH_SIZE or settings.bulk_batch_size),
+                    )
+                    total_rows += rows
+            else:
+                total_rows = _run_pipeline(
+                    connector, settings, universe, start, end, quotes, FREQUENCY,
+                    label=f"range {START} -> {END}",
+                    chunk_size=settings.bulk_batch_size,
+                )
 
         elif MODE == "catchup":
-            end = last_business_day("US").replace(
+            end = last_business_day("US", "GT").replace(
                 hour=23, minute=59, second=0, microsecond=0,
             )
             start = (end - timedelta(days=LOOKBACK_DAYS)).replace(
@@ -173,7 +213,7 @@ def main() -> int:
                         quotes=quotes,
                         frequency=FREQUENCY,
                         label=f"gap {i + 1}/{len(dates)} ({dt.date()})",
-                        chunk_size=settings.bulk_batch_size,
+                        chunk_size=(MERGE_BATCH_SIZE or settings.bulk_batch_size),
                     )
                     total_rows += rows
                 except Exception:

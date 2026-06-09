@@ -30,11 +30,11 @@ log = structlog.get_logger(__name__)
 # CONFIGURE HERE
 # ============================================================================
 
-MODE = "catchup"  # "range" | "catchup" | "gaps"
+MODE = "range"  # "range" | "catchup" | "gaps"
 
 # range mode
-START = "2026-04-01"
-END = "2026-04-21"
+START = "2007-01-01"
+END = "2026-05-04"
 
 # catchup mode
 LOOKBACK_DAYS = 5
@@ -43,6 +43,13 @@ LOOKBACK_DAYS = 5
 GAPS_FILE = "data/gaps/fx_rate_gaps.txt"
 
 MAX_DAYS = 0  # 0 = unlimited
+
+# Optional: restrict to specific (ccy1, ccy2) pairs. None = all fx_rate pairs in fx.yml.
+PAIRS: list[tuple[str, str]] | None = None  # None = all Citi-eligible (excludes bbg_only)
+
+# In range mode, run the full date span as a single pipeline call rather than
+# day-by-day. Much faster for multi-year backfills (one Citi POST per tag-batch).
+BULK_RANGE = True
 
 # ============================================================================
 
@@ -92,38 +99,64 @@ def main() -> int:
     if MAX_DAYS:
         days = days[:MAX_DAYS]
 
-    log.info("fx_rate_historical_start", mode=MODE, n_days=len(days))
+    log.info("fx_rate_historical_start", mode=MODE, n_days=len(days), bulk=(MODE == "range" and BULK_RANGE))
 
     total_rows = 0
     connector = MSSQLConnector(settings)
     try:
-        for i, day in enumerate(days, start=1):
+        if MODE == "range" and BULK_RANGE and days:
             t0 = time.perf_counter()
             pipeline = FXRatePipeline(
                 connector=connector,
                 settings=settings,
                 universe=universe,
-                start=day,
-                end=day.replace(hour=23, minute=59),
+                start=days[0],
+                end=days[-1].replace(hour=23, minute=59),
+                pairs=PAIRS,
                 chunk_size=settings.bulk_batch_size,
             )
             try:
-                rows = pipeline.run()
-            except Exception as e:
-                report.warning(
-                    "day_failed", f"Day {day.date()} failed: {e}",
-                    details={"date": str(day.date()), "error": str(e)},
+                total_rows = pipeline.run()
+                log.info(
+                    "bulk_range_complete",
+                    start=str(days[0].date()), end=str(days[-1].date()),
+                    rows=total_rows, n_days=len(days),
+                    elapsed=f"{time.perf_counter() - t0:.1f}s",
                 )
-                log.exception("day_failed", date=str(day.date()))
-                continue
+            except Exception as e:
+                report.error("range", f"Bulk range failed: {e}",
+                             details={"error": str(e)})
+                log.exception("bulk_range_failed")
+                return 1
+        else:
+            for i, day in enumerate(days, start=1):
+                t0 = time.perf_counter()
+                pipeline = FXRatePipeline(
+                    connector=connector,
+                    settings=settings,
+                    universe=universe,
+                    start=day,
+                    end=day.replace(hour=23, minute=59),
+                    pairs=PAIRS,
+                    chunk_size=settings.bulk_batch_size,
+                )
+                try:
+                    rows = pipeline.run()
+                except Exception as e:
+                    report.warning(
+                        "day_failed", f"Day {day.date()} failed: {e}",
+                        details={"date": str(day.date()), "error": str(e)},
+                    )
+                    log.exception("day_failed", date=str(day.date()))
+                    continue
 
-            total_rows += rows
-            log.info(
-                "day_complete",
-                date=str(day.date()), rows=rows,
-                elapsed=f"{time.perf_counter() - t0:.1f}s",
-                progress=f"{i}/{len(days)}",
-            )
+                total_rows += rows
+                log.info(
+                    "day_complete",
+                    date=str(day.date()), rows=rows,
+                    elapsed=f"{time.perf_counter() - t0:.1f}s",
+                    progress=f"{i}/{len(days)}",
+                )
 
         report.info(
             "pipeline",

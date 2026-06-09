@@ -27,8 +27,8 @@ citi_velocity_fx catalog).
 
 Sanitation / quality gates (in order):
   1. Pre-flight: IMDR_CITI_HOURLY_CLIENT_* must be non-empty.
-  2. FX-open gate: FXUniverse.is_fx_open(window.start) skips Sat all-day
-     and Fri 22:00 UTC → Sun 22:00 UTC weekend gap.
+  2. FX-open gate: FXUniverse.is_fx_open(now) skips runs while the FX
+     market is closed (Fri 22:00 UTC → Sun 22:00 UTC weekend gap).
   3. Pre-extract tag-quota budget check (extractor-level).
   4. Pre-insert Pydantic validation via FXRateCreate.
   5. Post-load quality checks (PositiveValueCheck, PercentageChangeCheck,
@@ -47,13 +47,13 @@ from __future__ import annotations
 import argparse
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import structlog
 
 from imdr.config.settings import get_settings
-from imdr.connectors.citi_helpers import TagQuotaExceeded
+from imdr.connectors.citi_helpers import TagQuotaExceeded, summarize_tag_errors
 from imdr.connectors.mssql import MSSQLConnector
 from imdr.domains.fx.pipeline_rate import FXRatePipeline
 from imdr.market_calendar.holidays import holiday_hits_for_timestamp
@@ -89,18 +89,31 @@ def parse_args() -> argparse.Namespace:
 
 
 def _target_window(date_arg: str | None) -> tuple[datetime, datetime]:
-    """Full-day UTC window for the target date (defaults to today UTC).
+    """Pull window for the run.
 
-    Citi returns empty responses for narrow sub-hour windows, so we always
-    pull the whole day at HOURLY frequency and rely on MERGE idempotency.
+    Default (no --date): yesterday 00:00 UTC → now (current UTC moment).
+    Spanning the UTC day boundary catches the prior day's late hours
+    (22:00 + 23:00) that wouldn't otherwise be fetched — each scheduled
+    fire only sees Citi data up to "now", so the last fire of day N
+    (~21:00 UTC) misses 22:00/23:00, and day N+1's narrower windows
+    would skip them permanently. End is `now`, not today 23:59 UTC, so
+    we ask Citi for everything up to the current moment instead of a
+    future timestamp — needed to surface the freshest hourly bar each
+    fire on a truly live cadence.
+
+    With --date: that single calendar day's 00:00 → 23:59 UTC window —
+    used for explicit backfills.
+
+    Citi returns empty responses for narrow sub-hour windows, so we
+    always pull a full multi-hour span and rely on MERGE idempotency.
     """
     if date_arg:
         day = datetime.strptime(date_arg, "%Y-%m-%d").replace(tzinfo=timezone.utc)
-    else:
-        day = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-    start = day
-    end = day.replace(hour=23, minute=59)
-    return start, end
+        return day, day.replace(hour=23, minute=59)
+
+    now = datetime.now(timezone.utc)
+    yesterday = now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=1)
+    return yesterday, now
 
 
 def main() -> int:
@@ -117,18 +130,23 @@ def main() -> int:
     universe = get_fx_universe()
 
     # FX-aware weekend gate — FX market closes Fri 22:00 UTC through Sun 22:00 UTC.
-    # Catches Sun 22:00+ UTC Asia opens correctly.
-    if not universe.is_fx_open(start):
+    # Gate on "now", not window.start: the 48h pull window's left edge is
+    # always yesterday 00:00 UTC (often inside the closed weekend zone),
+    # but the window itself spans into live hours. Checking now correctly
+    # lets Mon SGT runs (Sun ~22:00 UTC onward) through.
+    now_utc = datetime.now(timezone.utc)
+    if not universe.is_fx_open(now_utc):
         log.info("fx_market_closed",
-                 date=start.date().isoformat(),
-                 weekday=start.strftime("%A"))
+                 now=now_utc.isoformat(),
+                 weekday=now_utc.strftime("%A"))
         return 0
 
     # Pairs override
     pairs: list[tuple[str, str]] | None = None
     if args.pairs:
         pairs = [tuple(p.strip().split("/")) for p in args.pairs.split(",")]  # type: ignore[misc]
-    all_pairs = pairs or universe.fx_rate_pairs()
+    bbg_only = universe.fx_rate_bbg_only_pairs()
+    all_pairs = pairs or [p for p in universe.fx_rate_pairs() if p not in bbg_only]
 
     log.info(
         "fx_rate_citi_hourly_start",
@@ -194,6 +212,28 @@ def main() -> int:
                 details={"errors": pipeline._extraction_errors},
             )
 
+        # Surface anything Citi told us at the per-tag level: ERROR responses
+        # (e.g. per-tag 10/24h cap, unsupported frequency) and EMPTY payloads
+        # that the extractor would otherwise drop silently.
+        api_messages = summarize_tag_errors(pipeline._tag_errors)
+        n_errors = sum(m["count"] for m in api_messages if m["type"] in ("ERROR", "RESPONSE", "MALFORMED"))
+        if n_errors > 0:
+            report.error(
+                "citi_api",
+                f"Citi returned {n_errors} per-tag error(s); see CITI API MESSAGES in body",
+                details={"summary": api_messages[:10]},
+            )
+        elif rows == 0 and api_messages:
+            # All-EMPTY response across the request — likely the per-tag
+            # 10/24h rolling bucket is exhausted. Promote to ERROR so the
+            # subject prefix flips and the run is visible.
+            report.error(
+                "citi_api",
+                f"Citi returned 0 rows with {len(api_messages)} EMPTY tag(s) — "
+                "likely per-tag rate limit exhausted",
+                details={"summary": api_messages[:10]},
+            )
+
         # Unlike the daily runner, hourly treats zero-row pairs as informational
         # — early-morning UTC runs routinely have partial coverage.
         if missing_pairs_list:
@@ -208,7 +248,7 @@ def main() -> int:
         if holiday_hits:
             report.info("holidays", f"Holiday hits: {len(holiday_hits)}", details={
                 "hits": [
-                    {"currency": h.currency, "market_code": h.market_code, "name": h.name}
+                    {"currency": h.currency, "country_code": h.country_code, "name": h.name}
                     for h in holiday_hits
                 ],
             })
@@ -226,6 +266,8 @@ def main() -> int:
                 elapsed_secs=elapsed,
                 n_pairs=len(all_pairs),
                 rows_extracted=len(pipeline._raw_df) if pipeline._raw_df is not None else 0,
+                api_messages=api_messages,
+                quota_status=None,
             )
 
         report.finish()
@@ -257,6 +299,37 @@ def main() -> int:
         report.error("tag_quota", f"Tag quota exceeded: {e}",
                      details={"current_usage": getattr(e, "current_usage", None),
                               "available": getattr(e, "available", None)})
+
+        # Email the quota failure — previously this branch was silent.
+        # `pipeline` is bound (the exception fires inside pipeline.run()),
+        # and its _tag_errors list aliases the extractor's, so any per-tag
+        # signals collected before the quota tripped are still available.
+        if settings.email_enabled and settings.email_to:
+            try:
+                quota_status = {
+                    "current_usage": getattr(e, "current_usage", None),
+                    "available": getattr(e, "available", None),
+                    "message": str(e),
+                }
+                api_messages = summarize_tag_errors(getattr(pipeline, "_tag_errors", []))
+                _send_report_email(
+                    pipeline=pipeline,
+                    settings=settings,
+                    report=report,
+                    target=start,
+                    result=0,
+                    pair_data=[],
+                    missing_pairs=[f"{c1}/{c2}" for c1, c2 in all_pairs],
+                    holiday_hits=[],
+                    elapsed_secs=0.0,
+                    n_pairs=len(all_pairs),
+                    rows_extracted=0,
+                    api_messages=api_messages,
+                    quota_status=quota_status,
+                )
+            except Exception:
+                log.exception("fx_rate_citi_hourly_quota_email_failed")
+
         report.finish()
         if settings.run_log_dir:
             log_path = (
@@ -288,6 +361,8 @@ def _send_report_email(
     elapsed_secs: float,
     n_pairs: int,
     rows_extracted: int,
+    api_messages: list[dict] | None = None,
+    quota_status: dict | None = None,
 ) -> None:
     """Build and send the hourly FX rate ingest report email."""
     formatter = FXRateIngestFormatter()
@@ -300,6 +375,9 @@ def _send_report_email(
         has_errors=has_errors,
         mode="Hourly",
     )
+    if quota_status is not None:
+        # Make the subject unmistakable when the aggregate quota tripped.
+        subject = f"[QUOTA] {subject}"
     body = formatter.format_body(
         pipeline_name=PIPELINE_NAME,
         run_date=target,
@@ -309,10 +387,12 @@ def _send_report_email(
         pair_data=pair_data,
         missing_pairs=missing_pairs,
         holiday_hits=[
-            {"currency": h.currency, "market_code": h.market_code, "name": h.name}
+            {"currency": h.currency, "country_code": h.country_code, "name": h.name}
             for h in holiday_hits
         ],
         quality_flags=pipeline._quality_results,
+        api_messages=api_messages or [],
+        quota_status=quota_status,
         has_errors=has_errors,
         elapsed_secs=elapsed_secs,
         mode="Hourly",
