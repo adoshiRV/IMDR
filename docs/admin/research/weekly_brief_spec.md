@@ -26,8 +26,8 @@ renders, and SharePoint links on every cited report ID.
 
 | Field | Value |
 |---|---|
-| Path (weekly) | `data/daily_research_summary/weekly/{YYYY}/{MM}/{DD}/weekly_preview.html` |
-| Path (daily)  | `data/daily_research_summary/daily/{YYYY}/{MM}/{DD}/daily_brief.html` |
+| Path (weekly) | `data/research_summary/weekly/{YYYY}/{MM}/{DD}/weekly_preview.html` |
+| Path (daily)  | `data/research_summary/daily/{YYYY}/{MM}/{DD}/daily_brief.html` |
 | Format | Single self-contained HTML file |
 | Sub-assets | `charts/`, `bank_pdfs/`, `assets/` (logo + theme.css) — same dir |
 | Theme | Inline `<style>` block, sourced from [`brief_assets/rv_theme.css`](brief_assets/rv_theme.css) |
@@ -343,7 +343,7 @@ is the v3 build for week of 8-14 Jun 2026. Open it to see:
 - Appendix with 60 SharePoint-linked report IDs
 
 The chart `<img>` and `bank_pdfs/<img>` refs in that file won't resolve in the
-repo (the binary PNGs are gitignored at `data/daily_research_summary/_legacy_v1_v3/`).
+repo (the binary PNGs are gitignored at `data/research_summary/_legacy_v1_v3/`).
 The value of the committed example is the **structure, copy, and CSS hookup**.
 
 ---

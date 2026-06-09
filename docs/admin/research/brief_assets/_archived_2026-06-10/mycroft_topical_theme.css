@@ -1,0 +1,158 @@
+/* mycroft-topical v2 — small delta on lois-weekly.
+ * Inherits rv_theme.css; overrides only the differentiators below.
+ * See docs/admin/research/picasso_design_spec.md §4.3.
+ *
+ * Differentiators vs lois-weekly:
+ *   1. Brand-bar label reads "Mycroft · Topical Brief"
+ *   2. Hero carries a small conviction badge (no KPI strip)
+ *   3. h2 sections numbered §1-§9 via a "§N · " prefix span
+ *   4. §1 wrapped in a cream tldr-callout (variant of master .callout)
+ *   5. §7 wrapped in an amber-tinted mycroft-view-panel — the ONLY place amber appears
+ *   6. §8 numbered list uses change-my-mind-ol with slightly larger numerals
+ *   7. §9 sources presented as collapsed <details class="sources-details">
+ *   8. §10 backfill-notes block uses the same sources-details treatment
+ * Everything else inherits from rv_theme.css.
+ */
+
+@import url("rv_theme.css");
+
+/* ---------- Conviction badge in hero ---------- */
+.conviction-badge {
+  display: inline-block;
+  margin-top: 14px;
+  padding: 5px 11px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- TL;DR callout — cream variant of master .callout ---------- */
+.tldr-callout {
+  background: var(--panel-2);
+  border-left: 4px solid var(--accent);
+  padding: 20px 24px;
+  margin: 14px 0 22px;
+  font-size: 15.5px;
+  line-height: 1.62;
+  border-radius: 0 2px 2px 0;
+}
+.tldr-callout ul { margin: 4px 0 2px; padding-left: 1.3em; }
+.tldr-callout li { margin: 8px 0; }
+.tldr-callout strong { color: var(--accent); }
+
+/* ---------- h2 section-number prefix (§1-§9) ---------- */
+/* Render via inline <span class="section-num">§N · </span> inside the h2.
+ * Kept inline (not ::before) so author controls anchor + text. */
+.section-num {
+  color: var(--accent);
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  font-variant-numeric: tabular-nums;
+  margin-right: 4px;
+}
+
+/* ---------- Mycroft's view panel (§7) — the ONE amber component ---------- */
+.mycroft-view-panel {
+  margin: 16px 0 22px;
+  padding: 20px 24px 22px;
+  background: #FBF3E2;            /* amber-tinted cream, matches .callout.warn */
+  border-left: 4px solid var(--warn);
+  border-radius: 0 2px 2px 0;
+}
+.mycroft-view-panel > :first-child { margin-top: 0; }
+.mycroft-view-panel > :last-child  { margin-bottom: 0; }
+.mycroft-view-panel strong { color: var(--accent); }
+.mycroft-view-panel ul { padding-left: 1.25em; }
+.mycroft-view-panel ul li { margin: 8px 0; }
+
+/* ---------- "What would change my mind" ordered list ---------- */
+.change-my-mind-ol {
+  padding-left: 1.6em;
+  font-size: 15px;
+  line-height: 1.62;
+}
+.change-my-mind-ol li {
+  margin: 10px 0;
+  padding-left: 4px;
+}
+.change-my-mind-ol li::marker {
+  font-size: 1.15em;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+/* ---------- Sources / backfill collapsibles ---------- */
+.sources-details {
+  margin: 10px 0;
+  border: 1px solid var(--border-soft);
+  border-radius: 2px;
+  background: var(--panel-2);
+}
+.sources-details + .sources-details { margin-top: 8px; }
+.sources-details > summary {
+  font-weight: 600;
+  color: var(--accent);
+  font-size: 13.5px;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  list-style: none;
+  padding: 12px 16px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.sources-details > summary::-webkit-details-marker { display: none; }
+.sources-details > summary::before {
+  content: "▸";
+  color: var(--accent);
+  font-size: 11px;
+  transition: transform 0.15s ease;
+  display: inline-block;
+}
+.sources-details[open] > summary::before {
+  content: "▾";
+}
+.sources-details > summary:hover { background: var(--panel); }
+.sources-details[open] > summary {
+  border-bottom: 1px solid var(--border-soft);
+}
+.sources-details .sd-body {
+  padding: 14px 18px 18px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.sources-details .sd-body pre {
+  background: var(--bg);
+  border: 1px solid var(--border-soft);
+  border-radius: 2px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  font-size: 12.5px;
+  line-height: 1.5;
+  font-family: 'SF Mono','Cascadia Mono','Consolas','Menlo',monospace;
+  color: var(--accent);
+  margin: 8px 0;
+}
+.sources-details .sd-body code {
+  font-size: 12.5px;
+}
+.sources-details .sd-body ul { padding-left: 1.3em; }
+.sources-details .sd-body li { margin: 8px 0; }
+
+/* ---------- Topical chart-ref placeholder (used since the MD has no chart-spec PNGs) ---------- */
+.chart-ref {
+  margin: 12px 0 18px;
+  padding: 10px 14px;
+  background: var(--panel-2);
+  border-left: 3px solid var(--border);
+  font-size: 13px;
+  color: var(--muted);
+  font-style: italic;
+  border-radius: 0 2px 2px 0;
+}

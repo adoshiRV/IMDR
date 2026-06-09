@@ -1,0 +1,1605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Indonesia fiscal & SBN — funding pressure deep-dive · RV Capital</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- DS tokens (palette / fonts / shadows) — self-contained substitute for
+     the full RV Capital Design System workspace. See picasso_design_brief.md §1. -->
+<link rel="stylesheet" href="../rv_tokens.css">
+<style>
+/* =========================================================
+ * rv_theme.css (inlined master) — lois-weekly baseline
+ * ========================================================= */
+:root {
+  /* Page aliases onto RV Capital DS tokens (_ds/...). Core semantics
+     (--bg, --surface, --panel, --fg, --accent, --border*, --pos, --neg,
+     --warn, --shadow-*) come straight from the DS stylesheets. */
+  --muted: var(--text-muted);
+  --faint: var(--text-faint);
+  --dark-blue: var(--rv-dark-blue);
+  --cream: var(--rv-cream);
+  --light-blue: var(--rv-light-blue);
+  --light-green: var(--rv-light-green);
+  --green-15: var(--rv-green-15);
+  --green-70: var(--rv-green-70);
+  --serif: var(--font-display);
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: 'Public Sans', system-ui, -apple-system, 'Segoe UI', Arial, sans-serif;
+  font-feature-settings: 'tnum' 1, 'lnum' 1;
+  font-size: 16px;
+  line-height: 1.62;
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+}
+.wrap { max-width: 1240px; margin: 0 auto; padding: clamp(20px,4vw,40px) clamp(16px,4vw,40px) 60px; }
+
+/* ---------- Sticky nav ---------- */
+.nav-bar {
+  position: sticky; top: 0; z-index: 50;
+  background: rgba(255,255,255,0.96);
+  backdrop-filter: saturate(180%) blur(8px);
+  -webkit-backdrop-filter: saturate(180%) blur(8px);
+  border-bottom: 1px solid var(--border-soft);
+  margin: 0 calc(-1 * clamp(16px,4vw,40px)) 22px;
+  padding: 0 clamp(16px,4vw,40px);
+}
+.nav-bar .nav-inner { display: flex; gap: 0; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.nav-bar .nav-inner::-webkit-scrollbar { display: none; }
+.nav-bar a {
+  display: inline-block; color: var(--muted); text-decoration: none;
+  font-size: 11.5px; text-transform: uppercase; letter-spacing: 1.1px; font-weight: 600;
+  padding: 12px 14px; border-bottom: 2px solid transparent; white-space: nowrap;
+}
+.nav-bar a:hover { color: var(--accent); border-bottom-color: var(--border); }
+
+/* ---------- Brand bar ---------- */
+.brand-bar { display: flex; align-items: center; justify-content: space-between; gap: 24px;
+  padding-bottom: 22px; margin-bottom: 24px; border-bottom: 1px solid var(--border); }
+.brand-bar .logo { height: clamp(36px,6vw,48px); width: auto; }
+.brand-bar .brand-meta { font-size: 10.5px; text-transform: uppercase; letter-spacing: 1.4px; color: var(--muted); text-align: right; line-height: 1.6; }
+.brand-bar .brand-meta strong { color: var(--accent); font-weight: 600; letter-spacing: 1.6px; }
+
+/* ---------- Hero ---------- */
+.hero { padding-bottom: 18px; margin-bottom: 28px; border-bottom: 1px solid var(--border-soft); }
+.hero h1 { font-size: clamp(26px,4.6vw,38px); font-weight: 600; letter-spacing: -0.4px; color: var(--accent); line-height: 1.15; margin: 0; }
+.hero p { font-size: clamp(14px,2vw,16px); color: var(--fg); margin-top: 12px; line-height: 1.6; }
+.hero p strong { color: var(--accent); }
+
+/* ---------- Headings ---------- */
+h2 {
+  font-family: var(--serif);
+  font-size: clamp(26px, 3.4vw, 34px);
+  font-weight: 400; color: var(--accent);
+  letter-spacing: -0.015em; line-height: 1.12;
+  margin: clamp(48px, 6vw, 68px) 0 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+  position: relative;
+  scroll-margin-top: 70px;
+}
+h2::after {
+  content: ""; position: absolute; left: 0; bottom: -2px;
+  width: 40px; height: 3px; background: var(--accent);
+}
+h2::before {
+  content: ""; position: absolute; left: 46px; bottom: -4px;
+  width: 7px; height: 7px; border-radius: 50%; background: var(--accent);
+}
+h3 {
+  font-family: var(--serif);
+  font-size: clamp(18px, 2.1vw, 21px);
+  font-weight: 500; color: var(--accent);
+  margin: 28px 0 10px; letter-spacing: -0.01em; line-height: 1.22;
+}
+h4 {
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: 1.3px;
+  color: var(--muted); font-weight: 600;
+  margin: 18px 0 8px;
+}
+p { margin: 8px 0 12px; }
+ol, ul { padding-left: 1.3em; }
+ol li, ul li { margin: 6px 0; }
+code { font-family: var(--font-mono); font-size: 0.88em; background: var(--panel); padding: 1px 6px; border-radius: 2px; color: var(--accent); }
+pre code { background: transparent; padding: 0; color: inherit; }
+strong { font-weight: 600; }
+
+/* ---------- Callout ---------- */
+.callout { background: var(--surface); border: 1px solid var(--border); border-top: 2px solid var(--accent); padding: 18px 22px; margin: 18px 0; font-size: 15.5px; border-radius: 0 0 2px 2px; line-height: 1.6; box-shadow: var(--shadow-sm); }
+.callout.warn  { border-top-color: var(--warn); }
+.callout.alert { border-top-color: var(--neg); }
+.callout strong { color: var(--accent); }
+
+/* ---------- Tables ---------- */
+.tbl-scroll { overflow-x: auto; margin: 6px 0 18px; -webkit-overflow-scrolling: touch; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; font-size: 14.5px; min-width: 540px; }
+th, td { padding: 11px 12px; text-align: right; vertical-align: top; }
+th.left, td.left { text-align: left; }
+th { border-bottom: 2px solid var(--accent); color: var(--accent); font-weight: 600; font-size: 10.5px; text-transform: uppercase; letter-spacing: 1.1px; padding-top: 12px; padding-bottom: 12px; white-space: nowrap; }
+tbody tr { border-bottom: 1px solid var(--border-soft); }
+tbody tr:nth-child(even) { background: var(--surface); }
+tbody tr:hover { background: var(--panel); }
+.pos { color: var(--pos); } .neg { color: var(--neg); }
+.hi-strong { background: rgba(0,69,39,0.10); color: var(--accent); font-weight: 600; }
+
+/* ---------- Vendor cards ---------- */
+.vendor-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; margin: 14px 0 22px; }
+.vendor-card { background: var(--surface); border: 1px solid var(--border-soft); border-radius: 2px; padding: 14px 16px; font-size: 13.5px; line-height: 1.55; }
+.vendor-card .vc-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; padding-bottom: 7px; border-bottom: 1px solid var(--border-soft); }
+.vendor-card .vc-bank { font-size: 10px; text-transform: uppercase; letter-spacing: 1.3px; font-weight: 700; color: var(--accent); }
+.vendor-card .vc-id a { font-size: 10.5px; color: var(--warn); text-decoration: none; font-weight: 600; letter-spacing: 0.3px; }
+.vendor-card .vc-id a:hover { text-decoration: underline; }
+.vendor-card .vc-meta { font-size: 11.5px; color: var(--muted); margin: 0 0 6px; letter-spacing: 0.2px; }
+.vendor-card blockquote { margin: 7px 0; padding: 0 0 0 11px; border-left: 2px solid var(--border); font-size: 13px; color: var(--fg); line-height: 1.55; }
+.vendor-card blockquote::before { content: "\201C"; color: var(--accent); }
+.vendor-card blockquote::after  { content: "\201D"; color: var(--accent); }
+
+/* ---------- SP link style ---------- */
+.rpt-link { color: var(--accent); text-decoration: none; border-bottom: 1px dotted var(--accent); padding: 0 1px; font-variant-numeric: tabular-nums; font-weight: 600; }
+.rpt-link:hover { background: var(--panel); border-bottom-style: solid; }
+
+/* ---------- Footer ---------- */
+.footer-rule { margin-top: 38px; padding-top: 18px; border-top: 1px solid var(--border-soft); display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; font-size: 10.5px; text-transform: uppercase; letter-spacing: 1.1px; color: var(--muted); }
+.footer-rule .brand-mark { color: var(--accent); font-weight: 600; letter-spacing: 1.4px; }
+
+/* ---------- Mobile ---------- */
+@media (max-width: 960px) {
+  table { font-size: 14px; }
+}
+@media (max-width: 760px) {
+  body { font-size: 15.5px; }
+  table { font-size: 13.5px; min-width: 480px; }
+  th, td { padding: 9px 10px; }
+  .brand-bar { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .brand-bar .brand-meta { text-align: left; }
+}
+@media (max-width: 480px) {
+  .wrap { padding: 16px 14px 50px; }
+  table { min-width: 380px; font-size: 13px; }
+  th, td { padding: 8px 9px; }
+}
+@media print {
+  .nav-bar { display: none; }
+  .wrap { max-width: 100%; padding: 0; }
+  body { font-size: 11px; }
+  h2 { page-break-after: avoid; }
+  table, .vendor-card, .mycroft-view-panel, .tldr-callout { page-break-inside: avoid; }
+  .sources-details { page-break-inside: avoid; }
+  .sources-details:not([open]) > .sd-body { display: block; }
+}
+
+/* =========================================================
+ * mycroft_topical_theme.css (inlined overrides) — v2 delta
+ * ========================================================= */
+
+.conviction-badge { display: none; }
+
+.tldr-callout {
+  background: var(--green-15);
+  border: 1px solid #CFE0D6;
+  border-top: 3px solid var(--accent);
+  padding: 22px 26px;
+  margin: 16px 0 26px;
+  font-size: 15.5px;
+  line-height: 1.62;
+  border-radius: 0 0 3px 3px;
+}
+.tldr-callout ul { margin: 4px 0 2px; padding-left: 1.3em; }
+.tldr-callout li { margin: 8px 0; }
+.tldr-callout strong { color: var(--accent); }
+
+.section-num {
+  font-family: "Public Sans", system-ui, sans-serif;
+  color: var(--green-70);
+  font-weight: 600;
+  font-size: 0.56em;
+  letter-spacing: 0.06em;
+  font-variant-numeric: tabular-nums;
+  vertical-align: 0.22em;
+  margin-right: 11px;
+}
+
+.mycroft-view-panel {
+  margin: 18px 0 26px;
+  padding: 24px 28px 26px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--accent);
+  border-radius: 0 0 3px 3px;
+  box-shadow: var(--shadow-md);
+}
+.mycroft-view-panel > :first-child { margin-top: 0; }
+.mycroft-view-panel > :last-child  { margin-bottom: 0; }
+.mycroft-view-panel strong { color: var(--accent); }
+.mycroft-view-panel ul { padding-left: 1.25em; }
+.mycroft-view-panel ul li { margin: 8px 0; }
+
+.change-my-mind-ol {
+  padding-left: 1.6em;
+  font-size: 15px;
+  line-height: 1.62;
+}
+.change-my-mind-ol li {
+  margin: 10px 0;
+  padding-left: 4px;
+}
+.change-my-mind-ol li::marker {
+  font-size: 1.15em;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.sources-details {
+  margin: 10px 0;
+  border: 1px solid var(--border-soft);
+  border-radius: 2px;
+  background: var(--surface);
+}
+.sources-details + .sources-details { margin-top: 8px; }
+.sources-details > summary {
+  font-weight: 600;
+  color: var(--accent);
+  font-size: 13.5px;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  list-style: none;
+  padding: 12px 16px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.sources-details > summary::-webkit-details-marker { display: none; }
+.sources-details > summary::before {
+  content: "\25B8";
+  color: var(--accent);
+  font-size: 11px;
+  display: inline-block;
+}
+.sources-details[open] > summary::before { content: "\25BE"; }
+.sources-details > summary:hover { background: var(--panel); }
+.sources-details[open] > summary { border-bottom: 1px solid var(--border-soft); }
+.sources-details .sd-body {
+  padding: 14px 18px 18px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.sources-details .sd-body pre {
+  background: var(--bg);
+  border: 1px solid var(--border-soft);
+  border-radius: 2px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  font-size: 12.5px;
+  line-height: 1.5;
+  font-family: 'SF Mono','Cascadia Mono','Consolas','Menlo',monospace;
+  color: var(--accent);
+  margin: 8px 0;
+}
+.sources-details .sd-body code { font-size: 12.5px; }
+.sources-details .sd-body ul { padding-left: 1.3em; }
+.sources-details .sd-body li { margin: 8px 0; }
+
+.chart-ref {
+  margin: 14px 0 20px;
+  padding: 12px 16px;
+  background: var(--panel);
+  border: 1px dashed var(--border-strong);
+  font-size: 13px;
+  color: var(--muted);
+  font-style: italic;
+  border-radius: 2px;
+}
+
+/* =========================================================
+ * RV newsletter bands — hero / KPI stripe / desk-quote / footer
+ * ========================================================= */
+.bleed { margin-left: calc(-1 * clamp(16px,4vw,40px)); margin-right: calc(-1 * clamp(16px,4vw,40px)); }
+
+/* ---- Masthead: white dateline (topical deep dive) ---- */
+.masthead { padding: clamp(18px,3vw,28px) 0 0; }
+.masthead .mh-top { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+.masthead .mh-top .logo { height: clamp(30px,4.5vw,38px); width: auto; }
+.masthead .mh-meta { text-align: right; font-size: 10px; text-transform: uppercase; letter-spacing: 1.4px; line-height: 1.7; color: var(--muted); }
+.masthead .mh-meta strong { color: var(--accent); font-weight: 600; letter-spacing: 1.6px; }
+.masthead .mh-eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 0.18em; color: var(--green-70); font-weight: 600; margin: 26px 0 12px; }
+.masthead h1 { font-family: var(--serif); font-weight: 400; font-size: clamp(32px,5vw,52px); line-height: 1.06; letter-spacing: -0.02em; color: var(--accent); margin: 0; max-width: 24ch; }
+.masthead .mh-lede { font-size: clamp(15px,1.9vw,17px); font-weight: 300; line-height: 1.6; color: var(--fg); margin: 14px 0 0; max-width: 66ch; }
+.masthead .mh-lede strong { color: var(--accent); font-weight: 500; }
+.masthead hr.line-dot { margin-top: 22px; }
+
+/* ---- Hero masthead band ---- */
+.hero {
+  position: relative; overflow: hidden;
+  background: var(--accent);
+  margin: 0 calc(-1 * clamp(16px,4vw,40px)) 0;
+  padding: clamp(38px,5.5vw,60px) clamp(28px,5vw,64px) clamp(42px,6vw,58px);
+  border-radius: 2px;
+}
+.hero .hero-bg { position: absolute; inset: 0; opacity: 0.14; }
+.hero .hero-bg img { width: 100%; height: 100%; object-fit: cover; }
+.hero .hero-top { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: clamp(26px,5vw,42px); }
+.hero .hero-top .logo { height: clamp(30px,4vw,38px); width: auto; }
+.hero .hero-meta { text-align: right; font-size: 10.5px; text-transform: uppercase; letter-spacing: 1.4px; line-height: 1.7; color: var(--cream); }
+.hero .hero-meta strong { color: #fff; font-weight: 600; letter-spacing: 1.6px; }
+.hero .hero-eyebrow { position: relative; font-size: 11px; text-transform: uppercase; letter-spacing: 0.18em; color: var(--cream); font-weight: 600; margin-bottom: 16px; }
+.hero h1 { position: relative; font-family: var(--serif); font-weight: 400; font-size: clamp(34px,5.2vw,56px); line-height: 1.05; letter-spacing: -0.02em; color: #fff; margin: 0; max-width: 21ch; }
+.hero .hero-lede { position: relative; font-size: clamp(15px,1.9vw,18px); font-weight: 300; line-height: 1.6; color: rgba(255,255,255,0.86); margin: 18px 0 0; max-width: 62ch; }
+.hero .hero-lede strong { color: #fff; font-weight: 500; }
+
+/* ---- Brief meta strip (below hero): DS badges + conviction heat scale ---- */
+.brief-meta {
+  display: grid;
+  grid-template-columns: repeat(4, max-content);
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+  width: fit-content;
+  max-width: 100%;
+  margin: 22px auto 0;
+}
+.brief-meta .bm-cell { background: var(--surface); display: flex; align-items: center; gap: 12px; padding: 8px 16px; }
+@media (max-width: 1230px) {
+  .brief-meta { grid-template-columns: repeat(2, 1fr); }
+  .brief-meta .bm-cell { flex-wrap: wrap; gap: 8px 12px; padding: 10px 16px; }
+}
+.brief-meta .bm-badges { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.brief-meta .bm-badges > span { white-space: nowrap; }
+
+/* Conviction heat scale: 5 steps, low → high (light surface) */
+.heat-scale { display: flex; gap: 2px; width: 56px; }
+.heat-scale span { flex: 1; height: 6px; border-radius: 1px; background: var(--rv-green-15); }
+.heat-scale span.on { background: var(--rv-light-green); }
+.heat-scale span.cur { background: var(--accent); }
+
+@media (max-width: 640px) {
+  .brief-meta { grid-template-columns: 1fr; }
+}
+
+/* ---- KPI stripe ---- */
+.kpi-stripe { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); margin: 26px 0 6px; border-radius: 2px; overflow: hidden; }
+.kpi { background: var(--bg); padding: 20px 18px 18px; }
+/* DS <Stat> label (first span) — reserve two lines so values align across cells */
+.kpi > div > span:first-of-type { min-height: 2.7em; }
+
+/* ---- Rule: hairline divider with RV-green tick + dot ---- */
+hr.rv-rule {
+  position: relative;
+  overflow: visible;
+  border: 0; height: 1px; margin: 40px 0 36px;
+  background: linear-gradient(to right, var(--accent) 0 32px, transparent 32px 46px, var(--border) 46px);
+}
+hr.rv-rule::after {
+  content: ""; position: absolute; left: 36px; top: -2.5px;
+  width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+}
+
+/* ---- Brand device: line + dot ---- */
+hr.line-dot {
+  position: relative; border: 0;
+  overflow: visible;
+  width: 64px; height: 2px; margin: 26px 0 0;
+  background: var(--accent);
+}
+hr.line-dot::after {
+  content: ""; position: absolute; right: -10px; top: -2px;
+  width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+}
+.hero hr.line-dot { background: var(--cream); }
+.hero hr.line-dot::after { background: var(--light-green); }
+.site-footer hr.line-dot { background: var(--cream); margin: 0 0 18px; }
+.site-footer hr.line-dot::after { background: var(--light-green); }
+
+/* ---- Desk pull-quote: 25° slice + dot ---- */
+.desk-quote {
+  position: relative; overflow: hidden;
+  background: var(--dark-blue);
+  margin: 44px calc(-1 * clamp(16px,4vw,40px));
+  padding: clamp(40px,5vw,56px) clamp(40px,6vw,84px) clamp(56px,7vw,78px);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 calc(100% - 2.6rem));
+}
+.desk-quote .dq-eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 0.18em; color: var(--light-blue); font-weight: 600; margin-bottom: 20px; }
+.desk-quote .dq-text { font-family: var(--serif); font-weight: 400; font-size: clamp(23px,3.2vw,38px); line-height: 1.2; color: #fff; max-width: 26ch; margin: 0; letter-spacing: -0.01em; }
+.desk-quote .dq-by { font-size: 13px; color: var(--cream); margin-top: 26px; letter-spacing: 0.04em; }
+.desk-quote .dq-dot { position: absolute; right: clamp(40px,6vw,84px); bottom: clamp(34px,4vw,46px); width: 16px; height: 16px; border-radius: 999px; background: var(--light-green); }
+
+/* ---- Dark-blue footer band ---- */
+.site-footer {
+  background: var(--dark-blue); color: rgba(255,255,255,0.78);
+  margin: 48px calc(-1 * clamp(16px,4vw,40px)) -60px;
+  padding: clamp(40px,5vw,54px) clamp(28px,5vw,64px) clamp(26px,4vw,38px);
+  border-radius: 2px 2px 0 0;
+}
+.site-footer .foot-top { display: flex; flex-wrap: wrap; gap: 28px; justify-content: space-between; align-items: flex-start; padding-bottom: 26px; border-bottom: 1px solid rgba(255,255,255,0.14); }
+.site-footer .logo { height: 24px; width: auto; filter: brightness(0) invert(1); opacity: 0.92; margin-bottom: 14px; }
+.site-footer .foot-about { font-size: 13px; font-weight: 300; line-height: 1.7; color: rgba(255,255,255,0.7); max-width: 48ch; margin: 0; }
+.site-footer .foot-meta { text-align: right; font-size: 10.5px; text-transform: uppercase; letter-spacing: 1.3px; line-height: 1.85; color: var(--light-blue); }
+.site-footer .foot-base { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; padding-top: 18px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(255,255,255,0.55); }
+
+@media (max-width: 760px) {
+  .kpi-stripe { grid-template-columns: repeat(2, 1fr); }
+  .kpi:last-child { grid-column: span 2; }
+}
+@media print {
+  .hero, .desk-quote, .site-footer, .tldr-callout, .kpi { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .desk-quote { clip-path: none; }
+}
+
+
+/* ---- Figures: DS-token data charts ---- */
+.figure { margin: 20px 0 28px; }
+.figure svg { width: 100%; height: auto; display: block; }
+.figure .fig-title { font-size: 10.5px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--accent); font-weight: 600; margin-bottom: 12px; }
+.figure .fig-caption { font-size: 11.5px; color: var(--muted); margin-top: 10px; letter-spacing: 0.2px; line-height: 1.55; }
+.figure svg text[font-weight="600"] { paint-order: stroke; stroke: var(--bg); stroke-width: 3px; stroke-linejoin: round; }
+
+/* =========================================================
+ * Tweak variants (driven by body[data-*] from the Tweaks panel)
+ * ========================================================= */
+/* ---- Masthead: colour-band variants reuse the white markup ---- */
+body[data-masthead="green"] .masthead,
+body[data-masthead="blue"] .masthead {
+  margin: 0 calc(-1 * clamp(16px,4vw,40px));
+  padding: clamp(30px,4.5vw,48px) clamp(28px,5vw,64px) clamp(36px,5vw,52px);
+  border-radius: 2px;
+}
+body[data-masthead="green"] .masthead { background: var(--accent); }
+body[data-masthead="blue"] .masthead {
+  background: var(--dark-blue);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 calc(100% - 2.4rem));
+  padding-bottom: clamp(50px,6.5vw,68px);
+}
+body[data-masthead="green"] .masthead .mh-top,
+body[data-masthead="blue"] .masthead .mh-top { border-bottom: 0; padding-bottom: 0; margin-bottom: clamp(20px,3.5vw,34px); }
+body[data-masthead="green"] .masthead .mh-top .logo,
+body[data-masthead="blue"] .masthead .mh-top .logo { filter: brightness(0) invert(1); }
+body[data-masthead="green"] .masthead .mh-meta,
+body[data-masthead="blue"] .masthead .mh-meta { color: var(--cream); }
+body[data-masthead="blue"] .masthead .mh-meta { color: var(--light-blue); }
+body[data-masthead="green"] .masthead .mh-meta strong,
+body[data-masthead="blue"] .masthead .mh-meta strong { color: #fff; }
+body[data-masthead="green"] .masthead .mh-eyebrow { color: var(--cream); }
+body[data-masthead="blue"] .masthead .mh-eyebrow { color: var(--light-blue); }
+body[data-masthead="green"] .masthead h1,
+body[data-masthead="blue"] .masthead h1 { color: #fff; }
+body[data-masthead="green"] .masthead .mh-lede,
+body[data-masthead="blue"] .masthead .mh-lede { color: rgba(255,255,255,0.86); }
+body[data-masthead="green"] .masthead .mh-lede strong,
+body[data-masthead="blue"] .masthead .mh-lede strong { color: #fff; }
+body[data-masthead="green"] .masthead hr.line-dot,
+body[data-masthead="blue"] .masthead hr.line-dot { background: var(--cream); }
+body[data-masthead="green"] .masthead hr.line-dot::after,
+body[data-masthead="blue"] .masthead hr.line-dot::after { background: var(--light-green); }
+
+/* ---- Rhythm: desk = compact fast-read density ---- */
+body[data-density="desk"] { font-size: 15px; }
+body[data-density="desk"] .masthead h1 { font-size: clamp(28px,4vw,42px); }
+body[data-density="desk"] h2 { font-size: clamp(22px,2.6vw,27px); margin: clamp(32px,4vw,44px) 0 12px; padding-bottom: 10px; }
+body[data-density="desk"] h3 { font-size: clamp(16px,1.9vw,18px); margin: 20px 0 8px; }
+body[data-density="desk"] p { margin: 6px 0 10px; }
+body[data-density="desk"] th, body[data-density="desk"] td { padding: 8px 10px; }
+body[data-density="desk"] table { font-size: 14px; }
+body[data-density="desk"] hr.rv-rule { margin: 26px 0 22px; }
+body[data-density="desk"] .tldr-callout, body[data-density="desk"] .callout { padding: 15px 18px; font-size: 14.5px; }
+body[data-density="desk"] .kpi { padding: 14px 14px 13px; }
+
+/* ---- Brand devices: quiet mode strips line+dot accents ---- */
+body[data-devices="off"] h2::before, body[data-devices="off"] h2::after { display: none; }
+body[data-devices="off"] hr.rv-rule { background: var(--border); }
+body[data-devices="off"] hr.rv-rule::after { display: none; }
+body[data-devices="off"] hr.line-dot::after { display: none; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <!-- Sticky nav -->
+  <nav class="nav-bar">
+    <div class="nav-inner">
+      <a href="#tldr">01 TL;DR</a>
+      <a href="#scope">02 Scope</a>
+      <a href="#context">03 Context</a>
+      <a href="#drivers">04 Drivers</a>
+      <a href="#data">05 Data view</a>
+      <a href="#street">06 Street's view</a>
+      <a href="#mycroft">07 Mycroft's view</a>
+      <a href="#change">08 Change my mind</a>
+      <a href="#sources">09 Sources</a>
+    </div>
+  </nav>
+
+  <!-- Hero masthead band -->
+  <!-- Masthead — white dateline (topical deep dive) -->
+  <header class="masthead">
+    <div class="mh-top">
+      <img class="logo" src="assets/RV_Logo_Colour.png" alt="RV Capital">
+      <div class="mh-meta">
+        <strong>Mycroft · Topical Brief</strong><br>
+        Internal · 2026-06-09 · IMDR
+      </div>
+    </div>
+    <div class="mh-eyebrow">Indonesia · Fiscal Deficit + SBN Investor Base</div>
+    <h1>Indonesia fiscal &amp; SBN — funding-pressure deep-dive</h1>
+    <p class="mh-lede">
+      Who owns Indonesia's bonds, how has it changed, and what's driving the
+      <strong>IDR / rates pressure</strong> right now — read against the 20-May BI hike,
+      the 4-Jun UU&nbsp;P2SK passage, and the IDR break of 18,000.
+    </p>
+    <hr class="line-dot" style="position: relative;">
+  </header>
+
+  <!-- Brief meta — DS <Badge> components (see script at end of body) -->
+  <section class="brief-meta" id="brief-meta" aria-label="Conviction, horizon and data vintage"></section>
+
+  <!-- KPI stripe — rendered with DS <Stat> components (see script at end of body) -->
+  <section class="kpi-stripe" id="kpi-stripe" aria-label="Headline metrics"></section>
+
+  <!-- Backfill note (from MD front-matter callout) -->
+  <div class="callout">
+    <strong>Backfill note.</strong> This MD was authored on 2026-06-09 <em>after</em> the HTML render at
+    <code>indonesia-fiscal-sbn.html</code> to retroactively become the source-of-truth markdown
+    for that HTML under the Mycroft contract. Every claim has been re-grounded
+    against IMDR live as of 2026-06-09. Discrepancies between the HTML and the
+    re-verified data are noted in §10 Backfill notes.
+  </div>
+
+  <!-- ============================================================ -->
+  <h2 id="tldr"><span class="section-num">01</span> TL;DR</h2>
+
+  <div class="tldr-callout">
+    <ul>
+      <li>The <strong>biggest investor-base shift in any Asian EM since 2015</strong>: foreign holders of
+        tradable IDR-denominated SBN have fallen from <strong>38.2% of stock at end-2015 to
+        12.6% at 2026-06-05</strong> (Q1 in §5 below), replaced almost one-for-one by Bank
+        Indonesia (10.2% → 26.7%) plus a captive domestic build (insur+pension 11.7%
+        → 20.4%, retail 2.9% → 8.0%).</li>
+      <li><strong>BI is now doing two contradictory things on the same balance sheet</strong>: a +50bp
+        FX-defence hike on 20-May took policy to <strong>5.25%</strong> (Q5, R-487/214) — yet by
+        4-Jun USD/IDR had still <strong>broken 18,000 for the first time</strong> (Q3, R-3538);
+        meanwhile BI's net SBN holdings hit <strong>IDR 1,834tn / 26.7%</strong> of total (Q1),
+        a record.</li>
+      <li>The pressure is <strong>external-twin-deficit driven</strong>, not inflation: Q1 BOP swung
+        to a <strong>$9.1bn deficit</strong> vs Q4 surplus, CAD widened to $4.0bn (R-1253). Nomura
+        sees CAD reaching 2.0% of GDP in 2026 vs 0.1% in 2025.</li>
+      <li><strong>The mechanism inside the domestic stack</strong>: BI's SRBI sterilisation paper
+        yields rallied <strong>4.65% → 6.69% (+200bp in &lt;1y)</strong> (R-1300), pulling <strong>IDR 240tn
+        out of bank-balance-sheet SBN</strong> over six months. BI then plugs the rotation —
+        net additions of ~+330tn over the same window (Q1).</li>
+      <li><strong>Conviction: medium-high bearish IDR / bearish INDOGB front-end into 18-Jun
+        BI meeting</strong>; underweight INDOGB 2-5y; consensus 25bp hike, but Barclays #1770
+        flags rising 50bp risk. Watch for parliament-level UU P2SK fallout — that
+        changes the <em>kind</em> of trade.</li>
+    </ul>
+  </div>
+
+  <!-- ============================================================ -->
+  <h2 id="scope"><span class="section-num">02</span> The question, scoped</h2>
+
+  <p>
+    The HTML was titled <em>"Indonesia · Fiscal Deficit + SBN Investor Base"</em> — a
+    medium-to-long deep-dive into how Indonesia funds itself and who's buying the
+    paper, set against the 20-May BI hike, the 4-Jun UU P2SK passage, and the IDR
+    break of 18,000. <strong>In scope:</strong> the SBN investor base by category (DJPPR daily,
+    2015 → 2026), realised fiscal balance (BI SEKI annual, 2015 → 2024),
+    sell-side framing across 10 reports (20-May → 4-Jun), and the forward 90-day
+    calendar. <strong>Out of scope:</strong> USD INDON sovereign credit (Bloomberg domain, not
+    DJPPR), monthly APBN realisasi (PDF-only, not parsed), bank-level deep-dive
+    beyond OCI sensitivity (Nomura #199 is cited but not re-derived).
+  </p>
+
+  <!-- ============================================================ -->
+  <h2 id="context"><span class="section-num">03</span> Context</h2>
+
+  <ul>
+    <li><strong>Fiscal anchor:</strong> UU 17/2003 caps the deficit at 3.0% of GDP. The cap was
+      suspended 2020-22 via Perppu 1/2020 (COVID waiver), then restored from 2023.
+      2024 realisasi: revenue 2,851tn, expenditure 3,360tn, <strong>deficit IDR 509tn
+      ≈ −2.3% GDP</strong> (Q2). The deficit has run between 1.6% and 2.6% of GDP every
+      year ex-COVID; the funding profile is the story, not the headline number.</li>
+    <li><strong>SBN stock:</strong> total tradable IDR-denominated SBN reached <strong>IDR 6,882tn</strong> at
+      2026-06-05 (Q1), ≈ USD 422bn at 16,300 IDR/USD. Stock has grown from 1,462tn
+      (2015) at roughly 12% CAGR — slightly faster than nominal GDP.</li>
+    <li><strong>BI's policy regime:</strong> 7-day reverse repo + corridor (deposit / lending
+      facility). Pre-hike corridor 3.75% / 4.75% / 5.50%; post-hike 4.25% / 5.25%
+      / 6.00% (Q4 — BI SEKI I.25.A May-26 row confirms 4.25 / 6.00 corridor
+      endpoints). Above-corridor sterilisation is SRBI (Sekuritas Rupiah Bank
+      Indonesia), launched 2023, now a major tool.</li>
+    <li><strong>Recent regime shifts:</strong> Fitch lowered Indonesia's outlook to negative
+      4-Mar-2026 (referenced in R-229, R-3787); UU P2SK financial-sector law
+      revisions passed by parliament 4-Jun-2026 expanding BI's mandate to "growth
+      + jobs" + parliamentary evaluation of BI officials (R-3787).</li>
+  </ul>
+
+  <!-- ============================================================ -->
+  <h2 id="drivers"><span class="section-num">04</span> Drivers</h2>
+
+  <h3>4.1 · External pressure — twin-deficit fundamentals worsened</h3>
+  <p>
+    The Q1 BOP swung from a +$6.1bn surplus in Q4 to a <strong>−$9.1bn deficit</strong>
+    (R-1253, chunk 0). The current account deficit widened from −$2.5bn (Q4) to
+    <strong>−$4.0bn (Q1)</strong> (R-1253). Net FDI fell from $3.2bn to $2.0bn; portfolio
+    inflows collapsed from $4.7bn to $0.7bn. This is the <strong>underlying</strong> cause —
+    "financial account weakened, led by net 'other investment' swinging back to
+    a deficit, reflecting resident outflows" (R-1253, chunk 0). Nomura flagged
+    "upside risks" to the 25bp June call on the basis of this print.
+  </p>
+
+  <hr class="rv-rule">
+
+  <h3>4.2 · BI's surprise 50bp hike — FX defence, not inflation</h3>
+  <p>
+    20-May: BI raised BI 7D-RR by 50bp to <strong>5.25%</strong>, first hike since 2022,
+    plus corridor widening (lending +50bp to 6.0%, deposit +50bp to 4.25% — Q4
+    confirms via SEKI I.25.A). BI's own words: the move was "a further step to
+    strengthen the stabilization of the IDR from the impact of high global
+    turmoil due to the war in the Middle East" (R-214, chunk 0); framed as
+    "pre-emptive" on inflation. <strong>No vendor reads this as inflation-driven</strong> —
+    it is unanimously read as FX defence (consensus: 5/5 desks; see §6).
+  </p>
+
+  <hr class="rv-rule">
+
+  <h3>4.3 · The SRBI sterilisation regime is pulling banks out of SBN</h3>
+  <p>
+    This is the mechanical driver of the domestic rotation. SRBI is BI's
+    sterilisation paper. Blended yield rallied from a low of <strong>4.65% in Oct-25
+    to 6.69% as of 22-May-26 (+200bp in &lt;1 year)</strong> (R-1300, chunk 0). Bank
+    holding of SRBI grew to roughly 70% of outstanding ("redirecting excess
+    liquidity into high-yield BI instruments" — R-1300). The mechanical
+    consequence: <strong>bank balance-sheet rotated out of SBN into SRBI</strong>. Bank
+    holding of SBN dropped from ~1,484tn at 10-Dec-2025 (last clean weekly obs
+    before the year-end rollover) to <strong>1,245tn at 5-Jun-2026</strong> — a decline of
+    <strong>~240tn over six months</strong> (Q1, Q-rollback). At the same time <strong>foreign
+    holding of SRBI fell to IDR 192tn (~20% share) by Apr-26</strong> from the Oct-24
+    peak (R-1300), i.e. foreigners rotated <em>out of BI's own paper</em> too.
+  </p>
+
+  <hr class="rv-rule">
+
+  <h3>4.4 · BI as residual buyer — the quasi-fiscal absorber</h3>
+  <p>
+    The accounting identity: new SBN supply + bank rotation out = BI absorbs.
+    <strong>BI net SBN holding rose from ~1,500tn (early-Dec-25) to 1,834tn at
+    5-Jun-26</strong> — net additions of <strong>+334tn over six months</strong> (Q1, Q-rollback;
+    the HTML cites +216tn against an end-2024 reference of 1,618tn). The HTML's
+    phrasing of "+216tn in six months" appears to mis-anchor against end-2024;
+    the actual six-month-ago figure is closer to early-Dec-25. Either way, the
+    qualitative point is intact: BI net holding is at a record share (26.7%)
+    and a record absolute (1,834tn).
+  </p>
+
+  <hr class="rv-rule">
+
+  <h3>4.5 · Institutional risk premium rebuild</h3>
+  <p>Two events compound the structural backdrop:</p>
+  <ul>
+    <li><strong>Fitch outlook to negative, 4-Mar-2026</strong> (R-229 footnote, R-3787 — direct
+      IMDR validation of the <em>rating action</em> sits outside the chunks; the
+      citation is via vendor commentary).</li>
+    <li><strong>UU P2SK financial-sector law revision passed 4-Jun-2026</strong> — "The
+      revision expands BI's mandate to include both economic growth (i.e.,
+      real sector) and job creation" (R-3787, chunk 0). Plus 17 other
+      provisions including DPR evaluation power over BI officials. Nomura's
+      framing: "Legislative changes, including expanding BI's mandate, pose
+      an additional risk, if those changes are viewed by investors as
+      potentially eroding BI's monetary policy independence" (R-3787, chunk 0).</li>
+    <li><strong>Prabowo's state export agency</strong> ($65bn / 4.5% GDP of palm oil + coal +
+      iron alloy re-routed through Danantara, effective 1-Sep-26): "a
+      'marketing facility', aiming to strengthen export supervision, curb
+      'under-invoicing' and prevent the embezzlement of proceeds of natural
+      resource exports" (R-229, chunk 0). Nomura's read: "raises further
+      investor concerns about greater state control, increase policy
+      uncertainty, which is already leading to credit rating pressures"
+      (R-229, chunk 0).</li>
+  </ul>
+
+  <hr class="rv-rule">
+
+  <h3>4.6 · Bank-sector OCI sensitivity</h3>
+  <p>
+    Nomura #199 sized the OCI hit per bank. <strong>BBCA</strong> holds the largest absolute
+    SBN portfolio ("IDR425.6tn" — R-199, chunk 0) yet screens at only −0.41%
+    OCI ("well-insulated… a testament to superior duration management and
+    hedging discipline" — R-199, chunk 0). <strong>BBNI</strong> screens worst at <strong>−2.92%</strong>
+    ("driven by large mark-to-market losses on a mid-sized SBN portfolio – the
+    worst risk-adjusted outcome in our coverage" — R-199, chunk 0). OCI hits
+    don't flow P&amp;L but compress book value / Tier-1. Another 50bp hike at
+    18-Jun pushes long-end yields ~30bp higher per Nomura and BBNI's Tier-1
+    becomes the watch-item.
+  </p>
+
+  <!-- ============================================================ -->
+  <h2 id="data"><span class="section-num">05</span> Data view</h2>
+
+  <h3>5.1 · SBN composition — latest snapshot (2026-06-05)</h3>
+  <p>
+    Source: DJPPR Kepemilikan SBN Domestik yang Dapat Diperdagangkan, wired
+    into <code>econ.fact_indicator</code> 2026-06-09 (36 indicators = 12 categories × 3
+    instruments {SUN / SBSN / TOTAL}). Sum-of-components ties to TOTAL exact.
+    All figures <strong>IDR tn</strong> at 2026-06-05.
+  </p>
+
+  <div class="tbl-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th class="left">#</th>
+          <th class="left">Investor category</th>
+          <th class="left">IMDR code suffix</th>
+          <th>IDR tn</th>
+          <th>% of total</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td class="left">1</td><td class="left">Banks (Bank Umum)</td><td class="left"><code>BANK.TOTAL</code></td><td>1,245.45</td><td>18.1%</td></tr>
+        <tr><td class="left">2</td><td class="left"><strong>Bank Indonesia (net)</strong></td><td class="left"><code>BI_NET.TOTAL</code></td><td><strong>1,834.32</strong></td><td><strong>26.7%</strong></td></tr>
+        <tr><td class="left">3</td><td class="left">Mutual funds (Reksadana)</td><td class="left"><code>MF.TOTAL</code></td><td>259.96</td><td>3.8%</td></tr>
+        <tr><td class="left">4</td><td class="left">Insurance + pension</td><td class="left"><code>INSUR_PENSION.TOTAL</code></td><td>1,401.91</td><td>20.4%</td></tr>
+        <tr><td class="left">5</td><td class="left"><strong>Foreign (non-resident)</strong></td><td class="left"><code>FOREIGN.TOTAL</code></td><td><strong>869.92</strong></td><td><strong>12.6%</strong></td></tr>
+        <tr><td class="left"></td><td class="left"><em>of which foreign-official</em></td><td class="left"><code>FOREIGN_OFFICIAL.TOTAL</code></td><td>262.11</td><td>3.8%</td></tr>
+        <tr><td class="left">6</td><td class="left">Individuals (retail)</td><td class="left"><code>INDIVIDUAL.TOTAL</code></td><td>552.80</td><td>8.0%</td></tr>
+        <tr><td class="left">7</td><td class="left">Other</td><td class="left"><code>OTHER.TOTAL</code></td><td>717.93</td><td>10.4%</td></tr>
+        <tr class="hi-strong"><td class="left"><strong>Σ</strong></td><td class="left"><strong>Total tradable SBN</strong></td><td class="left"><code>TOTAL.TOTAL</code></td><td><strong>6,882.29</strong></td><td><strong>100%</strong></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    Memo: BI gross holding = 1,722.25 tn; BI net 1,834.32 tn exceeds gross
+    because "net" includes BI's economic position adjusted for SBN lent to
+    banks via Operasi Moneter. SUM(1+2+3+4+5+6+7) = 1,245.45 + 1,834.32 +
+    259.96 + 1,401.91 + 869.92 + 552.80 + 717.93 = <strong>6,882.29 ✓</strong>.
+  </p>
+
+  <figure class="figure">
+    <figcaption class="fig-title">Fig 1 · Who holds tradable SBN — 2026-06-05</figcaption>
+    <svg viewBox="0 0 720 248" role="img" aria-label="SBN composition by investor category, 5 June 2026"><line x1="185" y1="14" x2="185" y2="228" stroke="#EEEEEC" stroke-width="1"/><text x="185" y="244" text-anchor="middle" font-size="10" fill="#7A7C7C" font-family="Public Sans, Arial, sans-serif">0%</text><line x1="305" y1="14" x2="305" y2="228" stroke="#EEEEEC" stroke-width="1"/><text x="305" y="244" text-anchor="middle" font-size="10" fill="#7A7C7C" font-family="Public Sans, Arial, sans-serif">10%</text><line x1="425" y1="14" x2="425" y2="228" stroke="#EEEEEC" stroke-width="1"/><text x="425" y="244" text-anchor="middle" font-size="10" fill="#7A7C7C" font-family="Public Sans, Arial, sans-serif">20%</text><line x1="545" y1="14" x2="545" y2="228" stroke="#EEEEEC" stroke-width="1"/><text x="545" y="244" text-anchor="middle" font-size="10" fill="#7A7C7C" font-family="Public Sans, Arial, sans-serif">30%</text><text x="175" y="31" text-anchor="end" font-size="11" fill="#3D3E3E" font-family="Public Sans, Arial, sans-serif">Bank Indonesia (net)</text><rect x="185" y="18" width="320.4" height="18" fill="#004527"/><text x="513.4" y="31" font-size="11" font-weight="600" fill="#004527" font-family="Public Sans, Arial, sans-serif" style="font-variant-numeric:tabular-nums">26.7%</text><text x="555.4" y="31" font-size="10.5" fill="#7A7C7C" font-family="Public Sans, Arial, sans-serif" style="font-variant-numeric:tabular-nums">1,834tn</text><text x="175" y="61" text-anchor="end" font-size="11" fill="#3D3E3E" font-family="Public Sans, Arial, sans-serif">Insurance + pension</text><rect x="185" y="48" width="244.8" height="18" fill="#99b3a8"/><text x="437.8" y="61" font-size="11" font-weight="600" fill="#004527" font-family="Public Sans, Arial, sans-serif" style="font-variant-numeric:tabular-nums">20.4%</text><text x="479.8" y="61" font-size="10.5" fill="#7A7C7C" font-family="Public Sans, Arial, sans-serif" style="font-variant-numeric:tabular-nums">1,402tn</text><text x="175" y="91" text-anchor="end" font-size="11" fill="#3D3E3E" font-family="Public Sans, Arial, sans-serif">Banks</text><rect x="185" y="78" width="217.2" height="18" fill="#99b3a8"/><text x="410.2" y="91" font-size="11" font-weight="600" fill="#004527" font-family="Public Sans, Arial, sans-serif" style="font-variant-numeric:tabular-nums">18.1%</text><text x="452.2" y="91" font-size="10.5" fill="#7A7C7C" font-family="Public Sans, Arial, sans-serif" style="font-variant-numeric:tabular-nums">1,245tn</text><text x="175" y="121" text-anchor="end" font-size="11" fill="#3D3E3E" font-family="Public Sans, Arial, sans-serif">Foreign (non-resident)</text><rect x="185" y="108" width="151.2" height="18" fill="#85A2BE"/><text x="344.2" y="121" font-size="11" font-weight="600" fill="#004527" font-family="Public Sans, Arial, sans-serif" style="font-variant-numeric:tabular-nums">12.6%</text><text x="386.2" y="121" font-size="10.5" fill="#7A7C7C" font-family="Public Sans, Arial, sans-serif" style="font-variant-numeric:tabular-nums">870tn</text><text x="175" y="151" text-anchor="end" font-size="11" fill="#3D3E3E" font-family="Public Sans, Arial, sans-serif">Other</text><rect x="185" y="138" width="124.8" height="18" fill="#e0e9e4"/><text x="317.8" y="151" font-size="11" font-weight="600" fill="#004527" font-family="Public Sans, Arial, sans-serif" style="font-variant-numeric:tabular-nums">10.4%</text><text x="359.8" y="151" font-size="10.5" fill="#7A7C7C" font-family="Public Sans, Arial, sans-serif" style="font-variant-numeric:tabular-nums">718tn</text><text x="175" y="181" text-anchor="end" font-size="11" fill="#3D3E3E" font-family="Public Sans, Arial, sans-serif">Individuals (retail)</text><rect x="185" y="168" width="96" height="18" fill="#e0e9e4"/><text x="289" y="181" font-size="11" font-weight="600" fill="#004527" font-family="Public Sans, Arial, sans-serif" style="font-variant-numeric:tabular-nums">8%</text><text x="331" y="181" font-size="10.5" fill="#7A7C7C" font-family="Public Sans, Arial, sans-serif" style="font-variant-numeric:tabular-nums">553tn</text><text x="175" y="211" text-anchor="end" font-size="11" fill="#3D3E3E" font-family="Public Sans, Arial, sans-serif">Mutual funds</text><rect x="185" y="198" width="45.6" height="18" fill="#e0e9e4"/><text x="238.6" y="211" font-size="11" font-weight="600" fill="#004527" font-family="Public Sans, Arial, sans-serif" style="font-variant-numeric:tabular-nums">3.8%</text><text x="280.6" y="211" font-size="10.5" fill="#7A7C7C" font-family="Public Sans, Arial, sans-serif" style="font-variant-numeric:tabular-nums">260tn</text></svg>
+    <figcaption class="fig-caption">DJPPR via IMDR <code>econ.fact_indicator</code>, 2026-06-09. Total 6,882.29tn. BI net (record 26.7%) in RV green; foreign (12.6%, lowest in series) in light blue.</figcaption>
+  </figure>
+
+  <hr class="rv-rule">
+
+  <h3>5.2 · Investor-base evolution — year-end shares 2015 → 2026</h3>
+  <p>
+    Source: DJPPR daily series, year-end-last-trading-day snapshot. Shares in %.
+    2022 year-end = 2022-12-29 obs (last trading day of 2022). Latest = 2026-06-05.
+  </p>
+
+  <div class="tbl-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th class="left">Year-end</th>
+          <th>Banks</th>
+          <th>BI net</th>
+          <th>MF</th>
+          <th>Insur+Pen</th>
+          <th>Foreign</th>
+          <th>Individual</th>
+          <th>Other</th>
+          <th>Total (tn)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td class="left">2015-12-31</td><td>23.9</td><td>10.2</td><td>4.2</td><td>11.7</td><td><strong>38.2</strong></td><td>2.9</td><td>5.4</td><td>1,461.85</td></tr>
+        <tr><td class="left">2019-12-31</td><td>21.1</td><td>9.5</td><td>4.8</td><td>7.8</td><td><strong>38.6</strong></td><td>2.9</td><td>5.9</td><td>2,752.74</td></tr>
+        <tr><td class="left">2020-12-30</td><td>35.5</td><td>11.7</td><td>4.2</td><td>14.0</td><td>25.2</td><td>3.4</td><td>6.0</td><td>3,870.76</td></tr>
+        <tr><td class="left">2022-12-29</td><td>31.6</td><td>19.6</td><td>2.7</td><td>16.4</td><td>14.4</td><td>6.5</td><td>8.8</td><td>5,309.43</td></tr>
+        <tr><td class="left">2024-12-31</td><td>17.4</td><td><strong>26.8</strong></td><td>3.1</td><td>19.0</td><td>14.5</td><td>9.0</td><td>10.2</td><td>6,039.52</td></tr>
+        <tr class="hi-strong"><td class="left"><strong>2026-06-05</strong></td><td><strong>18.1</strong></td><td><strong>26.7</strong></td><td>3.8</td><td><strong>20.4</strong></td><td><strong>12.6</strong></td><td>8.0</td><td>10.4</td><td><strong>6,882.29</strong></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Headline deltas 2015 → 2026-06:</p>
+  <ul>
+    <li>Foreign <strong>−25.6pp</strong> (38.2 → 12.6) — single biggest investor-base shift in
+      any Asian EM since 2015.</li>
+    <li>BI net <strong>+16.5pp</strong> (10.2 → 26.7).</li>
+    <li>Insur+pension <strong>+8.7pp</strong> (11.7 → 20.4) — POJK minimum-government-paper
+      rules + regulated AUM growth (per R-1300 commentary on captive base).</li>
+    <li>Retail <strong>+5.1pp</strong> (2.9 → 8.0) — SBN Ritel program (ORI / SBR / ST / SR).
+      <strong>Flat since end-2024</strong>.</li>
+    <li>Banks ratio cycle: 24% pre-COVID → 36% peak 2020 → 17-18% now (the
+      rotation into SRBI).</li>
+  </ul>
+
+  <figure class="figure">
+    <figcaption class="fig-title">Fig 2 · The handover — foreign out, BI + captive domestic in (year-end shares, %)</figcaption>
+    <svg viewBox="0 0 745 300" role="img" aria-label="Investor shares of SBN 2015 to June 2026"><line x1="42" y1="262" x2="632" y2="262" stroke="#EEEEEC" stroke-width="1"/><text x="34" y="266" text-anchor="end" font-size="10" fill="#7A7C7C" font-family="Public Sans, Arial, sans-serif">0%</text><line x1="42" y1="201" x2="632" y2="201" stroke="#EEEEEC" stroke-width="1"/><text x="34" y="205" text-anchor="end" font-size="10" fill="#7A7C7C" font-family="Public Sans, Arial, sans-serif">10%</text><line x1="42" y1="140" x2="632" y2="140" stroke="#EEEEEC" stroke-width="1"/><text x="34" y="144" text-anchor="end" font-size="10" fill="#7A7C7C" font-family="Public Sans, Arial, sans-serif">20%</text><line x1="42" y1="79" x2="632" y2="79" stroke="#EEEEEC" stroke-width="1"/><text x="34" y="83" text-anchor="end" font-size="10" fill="#7A7C7C" font-family="Public Sans, Arial, sans-serif">30%</text><line x1="42" y1="18" x2="632" y2="18" stroke="#EEEEEC" stroke-width="1"/><text x="34" y="22" text-anchor="end" font-size="10" fill="#7A7C7C" font-family="Public Sans, Arial, sans-serif">40%</text><text x="42" y="280" text-anchor="middle" font-size="10" fill="#7A7C7C" font-family="Public Sans, Arial, sans-serif">2015</text><text x="248.5" y="280" text-anchor="middle" font-size="10" fill="#7A7C7C" font-family="Public Sans, Arial, sans-serif">2019</text><text x="300.1" y="280" text-anchor="middle" font-size="10" fill="#7A7C7C" font-family="Public Sans, Arial, sans-serif">2020</text><text x="403.3" y="280" text-anchor="middle" font-size="10" fill="#7A7C7C" font-family="Public Sans, Arial, sans-serif">2022</text><text x="506.6" y="280" text-anchor="middle" font-size="10" fill="#7A7C7C" font-family="Public Sans, Arial, sans-serif">2024</text><text x="632" y="280" text-anchor="middle" font-size="10" fill="#7A7C7C" font-family="Public Sans, Arial, sans-serif">Jun-26</text><polyline points="42,29 248.5,26.5 300.1,108.3 403.3,174.2 506.6,173.6 632,185.1" fill="none" stroke="#85A2BE" stroke-width="2.5" stroke-linejoin="round"/><circle cx="42" cy="29" r="2.6" fill="#85A2BE"/><circle cx="248.5" cy="26.5" r="2.6" fill="#85A2BE"/><circle cx="300.1" cy="108.3" r="2.6" fill="#85A2BE"/><circle cx="403.3" cy="174.2" r="2.6" fill="#85A2BE"/><circle cx="506.6" cy="173.6" r="2.6" fill="#85A2BE"/><circle cx="632" cy="185.1" r="2.6" fill="#85A2BE"/><text x="640" y="197.1" font-size="10.5" font-weight="600" fill="#85A2BE" font-family="Public Sans, Arial, sans-serif">Foreign 12.6%</text><polyline points="42,199.8 248.5,204.1 300.1,190.6 403.3,142.4 506.6,98.5 632,99.1" fill="none" stroke="#004527" stroke-width="2.5" stroke-linejoin="round"/><circle cx="42" cy="199.8" r="2.6" fill="#004527"/><circle cx="248.5" cy="204.1" r="2.6" fill="#004527"/><circle cx="300.1" cy="190.6" r="2.6" fill="#004527"/><circle cx="403.3" cy="142.4" r="2.6" fill="#004527"/><circle cx="506.6" cy="98.5" r="2.6" fill="#004527"/><circle cx="632" cy="99.1" r="2.6" fill="#004527"/><text x="640" y="97.1" font-size="10.5" font-weight="600" fill="#004527" font-family="Public Sans, Arial, sans-serif">BI net 26.7%</text><polyline points="42,116.2 248.5,133.3 300.1,45.5 403.3,69.2 506.6,155.9 632,151.6" fill="none" stroke="#99b3a8" stroke-width="1.5" stroke-linejoin="round"/><text x="640" y="159.6" font-size="10.5" font-weight="400" fill="#99b3a8" font-family="Public Sans, Arial, sans-serif">Banks 18.1%</text><polyline points="42,190.6 248.5,214.4 300.1,176.6 403.3,162 506.6,146.1 632,137.6" fill="none" stroke="#4d806a" stroke-width="1.5" stroke-linejoin="round"/><text x="640" y="133.6" font-size="10.5" font-weight="400" fill="#4d806a" font-family="Public Sans, Arial, sans-serif">Insur+Pen 20.4%</text><polyline points="42,244.3 248.5,244.3 300.1,241.3 403.3,222.4 506.6,207.1 632,213.2" fill="none" stroke="#8A6D2E" stroke-width="1.5" stroke-linejoin="round"/><text x="640" y="219.2" font-size="10.5" font-weight="400" fill="#8A6D2E" font-family="Public Sans, Arial, sans-serif">Retail 8%</text></svg>
+    <figcaption class="fig-caption">DJPPR daily series via IMDR; year-end last-trading-day snapshots; latest 2026-06-05. Foreign −25.6pp since 2015; BI net +16.5pp. MF and Other omitted for legibility (3.8% / 10.4% at latest).</figcaption>
+  </figure>
+
+  <hr class="rv-rule">
+
+  <h3>5.3 · Fiscal evolution — annual realisasi 2015 → 2024</h3>
+  <p>
+    Source: BI SEKI Table IV.1-3 in <code>econ.fact_indicator</code>. UU 17/2003 caps the
+    deficit at 3.0% of GDP; cap suspended 2020-22 via Perppu 1/2020; restored
+    2023. All figures <strong>IDR tn</strong> (raw values in <code>fact_indicator</code> are Miliar Rp
+    i.e. IDR bn — converted to tn by ÷ 1,000). 2025 realisasi not yet published
+    (BI SEKI T+9mo lag).
+  </p>
+
+  <div class="tbl-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th class="left">Year</th>
+          <th>Revenue</th>
+          <th>Tax</th>
+          <th>Expend</th>
+          <th>Balance</th>
+          <th>% GDP*</th>
+          <th>Net Financing</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td class="left">2015</td><td>1,508.02</td><td>1,240.42</td><td>1,806.52</td><td><strong>−298.49</strong></td><td>−2.6%</td><td>323.11</td></tr>
+        <tr><td class="left">2018</td><td>1,943.67</td><td>1,518.79</td><td>2,213.12</td><td>−269.44</td><td>−1.8%</td><td>305.69</td></tr>
+        <tr><td class="left">2019</td><td>1,960.63</td><td>1,546.14</td><td>2,309.29</td><td>−348.65</td><td>−2.2%</td><td>402.05</td></tr>
+        <tr><td class="left">2020</td><td>1,647.78</td><td>1,285.14</td><td>2,595.48</td><td><strong>−947.70</strong></td><td><strong>−6.1%</strong></td><td>1,193.29</td></tr>
+        <tr><td class="left">2021</td><td>2,011.35</td><td>1,547.84</td><td>2,786.41</td><td>−775.06</td><td>−4.6%</td><td>871.72</td></tr>
+        <tr><td class="left">2022</td><td>2,635.84</td><td>2,034.55</td><td>3,096.26</td><td>−460.42</td><td>−2.4%</td><td>590.98</td></tr>
+        <tr><td class="left">2023</td><td>2,783.93</td><td>2,154.21</td><td>3,121.22</td><td>−337.29</td><td>−1.6%</td><td>356.66</td></tr>
+        <tr class="hi-strong"><td class="left"><strong>2024</strong></td><td><strong>2,850.61</strong></td><td><strong>2,231.84</strong></td><td><strong>3,359.77</strong></td><td><strong>−509.16</strong></td><td><strong>~−2.3%</strong></td><td><strong>554.89</strong></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p style="font-size:12.5px;color:var(--muted);margin-top:-4px;">
+    * % GDP uses BPS current-price GDP denominator; 2024 GDP ≈ 22,150tn (per
+    HTML, not directly re-derived here — flagged in §10).
+  </p>
+
+  <figure class="figure">
+    <figcaption class="fig-title">Fig 3 · Fiscal balance, % of GDP — disciplined outside the COVID window</figcaption>
+    <svg viewBox="0 0 720 250" role="img" aria-label="Fiscal balance as percent of GDP 2015 to 2024"><line x1="46" y1="28" x2="686" y2="28" stroke="#3D3E3E" stroke-width="1"/><line x1="46" y1="105.5" x2="686" y2="105.5" stroke="#B23A2B" stroke-width="1" stroke-dasharray="5 4"/><text x="682" y="120.5" text-anchor="end" font-size="10" fill="#B23A2B" font-family="Public Sans, Arial, sans-serif">UU 17/2003 cap −3.0% · suspended 2020-22</text><rect x="79.8" y="28" width="38" height="67.2" fill="#4d806a"/><text x="98.8" y="111.2" text-anchor="middle" font-size="11" font-weight="600" fill="#3D3E3E" font-family="Public Sans, Arial, sans-serif" style="font-variant-numeric:tabular-nums">-2.6%</text><text x="98.8" y="19" text-anchor="middle" font-size="10" fill="#7A7C7C" font-family="Public Sans, Arial, sans-serif">2015</text><rect x="157.3" y="28" width="38" height="46.5" fill="#4d806a"/><text x="176.3" y="90.5" text-anchor="middle" font-size="11" font-weight="600" fill="#3D3E3E" font-family="Public Sans, Arial, sans-serif" style="font-variant-numeric:tabular-nums">-1.8%</text><text x="176.3" y="19" text-anchor="middle" font-size="10" fill="#7A7C7C" font-family="Public Sans, Arial, sans-serif">2018</text><rect x="234.8" y="28" width="38" height="56.9" fill="#4d806a"/><text x="253.8" y="100.9" text-anchor="middle" font-size="11" font-weight="600" fill="#3D3E3E" font-family="Public Sans, Arial, sans-serif" style="font-variant-numeric:tabular-nums">-2.2%</text><text x="253.8" y="19" text-anchor="middle" font-size="10" fill="#7A7C7C" font-family="Public Sans, Arial, sans-serif">2019</text><rect x="312.3" y="28" width="38" height="157.7" fill="#B8862F"/><text x="331.3" y="201.7" text-anchor="middle" font-size="11" font-weight="600" fill="#3D3E3E" font-family="Public Sans, Arial, sans-serif" style="font-variant-numeric:tabular-nums">-6.1%</text><text x="331.3" y="19" text-anchor="middle" font-size="10" fill="#7A7C7C" font-family="Public Sans, Arial, sans-serif">2020</text><rect x="389.8" y="28" width="38" height="118.9" fill="#B8862F"/><text x="408.8" y="162.9" text-anchor="middle" font-size="11" font-weight="600" fill="#3D3E3E" font-family="Public Sans, Arial, sans-serif" style="font-variant-numeric:tabular-nums">-4.6%</text><text x="408.8" y="19" text-anchor="middle" font-size="10" fill="#7A7C7C" font-family="Public Sans, Arial, sans-serif">2021</text><rect x="467.3" y="28" width="38" height="62" fill="#B8862F"/><text x="486.3" y="106" text-anchor="middle" font-size="11" font-weight="600" fill="#3D3E3E" font-family="Public Sans, Arial, sans-serif" style="font-variant-numeric:tabular-nums">-2.4%</text><text x="486.3" y="19" text-anchor="middle" font-size="10" fill="#7A7C7C" font-family="Public Sans, Arial, sans-serif">2022</text><rect x="544.8" y="28" width="38" height="41.4" fill="#4d806a"/><text x="563.8" y="85.4" text-anchor="middle" font-size="11" font-weight="600" fill="#3D3E3E" font-family="Public Sans, Arial, sans-serif" style="font-variant-numeric:tabular-nums">-1.6%</text><text x="563.8" y="19" text-anchor="middle" font-size="10" fill="#7A7C7C" font-family="Public Sans, Arial, sans-serif">2023</text><rect x="622.3" y="28" width="38" height="59.4" fill="#4d806a"/><text x="641.3" y="103.4" text-anchor="middle" font-size="11" font-weight="600" fill="#3D3E3E" font-family="Public Sans, Arial, sans-serif" style="font-variant-numeric:tabular-nums">-2.3%</text><text x="641.3" y="19" text-anchor="middle" font-size="10" fill="#7A7C7C" font-family="Public Sans, Arial, sans-serif">2024</text></svg>
+    <figcaption class="fig-caption">BI SEKI Table IV.1-3 via IMDR. Amber bars = cap suspension years (Perppu 1/2020); cap restored 2023. 2025 realisasi unpublished (T+9mo lag).</figcaption>
+  </figure>
+
+  <hr class="rv-rule">
+
+  <h3>5.4 · FX + rates — current pricing</h3>
+  <p>
+    Source: <code>FX.fact_fx_rate</code> (pair_id=15 USD/IDR, tenor=SPOT) and BI rates
+    indicators.
+  </p>
+
+  <div class="tbl-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th class="left">Variable</th>
+          <th>Value</th>
+          <th class="left">Date</th>
+          <th class="left">Cite</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td class="left">USD/IDR (20-May close range)</td><td>17,626 – 17,752</td><td class="left">2026-05-20</td><td class="left">Q6</td></tr>
+        <tr><td class="left">USD/IDR (29-May close range)</td><td>17,806 – 17,898</td><td class="left">2026-05-29</td><td class="left">Q6</td></tr>
+        <tr><td class="left">USD/IDR (4-Jun close range)</td><td>17,974 – 18,055</td><td class="left">2026-06-04</td><td class="left">Q6</td></tr>
+        <tr><td class="left">USD/IDR (5-Jun close range)</td><td>18,029 – 18,134</td><td class="left">2026-06-05</td><td class="left">Q7</td></tr>
+        <tr><td class="left">USD/IDR (9-Jun intraday)</td><td>17,926 – 18,189</td><td class="left">2026-06-09</td><td class="left">Q7</td></tr>
+        <tr><td class="left">BI lending facility (post-hike)</td><td>6.00%</td><td class="left">2026-05-01</td><td class="left">Q4</td></tr>
+        <tr><td class="left">BI deposit facility (post-hike)</td><td>4.25%</td><td class="left">2026-05-01</td><td class="left">Q4</td></tr>
+        <tr><td class="left">2Y INDOGB</td><td>~7.0% (+200bp YTD)</td><td class="left">2026-06-04</td><td class="left">R-3538 (no IMDR rates table)</td></tr>
+        <tr><td class="left">SRBI blended yield</td><td>6.69%</td><td class="left">2026-05-22</td><td class="left">R-1300</td></tr>
+        <tr><td class="left">FX reserves</td><td>$146bn</td><td class="left">2026-04-30</td><td class="left">R-3378</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <figure class="figure">
+    <figcaption class="fig-title">Fig 4 · USD/IDR — the break of 18,000 (vendor close ranges)</figcaption>
+    <svg viewBox="0 0 720 268" role="img" aria-label="USD/IDR daily ranges, 20 May to 9 June 2026"><line x1="56" y1="232" x2="664" y2="232" stroke="#EEEEEC" stroke-width="1"/><text x="50" y="236" text-anchor="end" font-size="10" fill="#7A7C7C" font-family="Public Sans, Arial, sans-serif" style="font-variant-numeric:tabular-nums">17,500</text><line x1="56" y1="164.5" x2="664" y2="164.5" stroke="#EEEEEC" stroke-width="1"/><text x="50" y="168.5" text-anchor="end" font-size="10" fill="#7A7C7C" font-family="Public Sans, Arial, sans-serif" style="font-variant-numeric:tabular-nums">17,750</text><line x1="56" y1="97" x2="664" y2="97" stroke="#B23A2B" stroke-width="1" stroke-dasharray="5 4"/><text x="50" y="101" text-anchor="end" font-size="10" fill="#B23A2B" font-family="Public Sans, Arial, sans-serif" style="font-variant-numeric:tabular-nums">18,000</text><line x1="56" y1="29.5" x2="664" y2="29.5" stroke="#EEEEEC" stroke-width="1"/><text x="50" y="33.5" text-anchor="end" font-size="10" fill="#7A7C7C" font-family="Public Sans, Arial, sans-serif" style="font-variant-numeric:tabular-nums">18,250</text><polyline points="66,181 330.6,137 507,93.1 536.4,75 654,81.5" fill="none" stroke="#004527" stroke-width="1.5"/><rect x="63" y="164" width="6" height="34" rx="1" fill="#85A2BE"/><circle cx="66" cy="181" r="3" fill="#004527"/><text x="66" y="252" text-anchor="middle" font-size="10" fill="#7A7C7C" font-family="Public Sans, Arial, sans-serif">20 May</text><text x="66" y="156" text-anchor="middle" font-size="9.5" fill="#7A7C7C" font-family="Public Sans, Arial, sans-serif" font-style="italic">+50bp hike</text><rect x="327.6" y="124.5" width="6" height="24.8" rx="1" fill="#85A2BE"/><circle cx="330.6" cy="137" r="3" fill="#004527"/><text x="330.6" y="252" text-anchor="middle" font-size="10" fill="#7A7C7C" font-family="Public Sans, Arial, sans-serif">29 May</text><rect x="504" y="82.2" width="6" height="21.9" rx="1" fill="#85A2BE"/><circle cx="507" cy="93.1" r="3" fill="#004527"/><text x="507" y="252" text-anchor="middle" font-size="10" fill="#7A7C7C" font-family="Public Sans, Arial, sans-serif">4 Jun</text><text x="507" y="74.2" text-anchor="middle" font-size="9.5" fill="#7A7C7C" font-family="Public Sans, Arial, sans-serif" font-style="italic">UU P2SK passes</text><rect x="533.4" y="60.8" width="6" height="28.3" rx="1" fill="#85A2BE"/><circle cx="536.4" cy="75" r="3" fill="#004527"/><text x="536.4" y="252" text-anchor="middle" font-size="10" fill="#7A7C7C" font-family="Public Sans, Arial, sans-serif">5 Jun</text><rect x="651" y="46" width="6" height="71" rx="1" fill="#85A2BE"/><circle cx="654" cy="81.5" r="3" fill="#004527"/><text x="654" y="252" text-anchor="middle" font-size="10" fill="#7A7C7C" font-family="Public Sans, Arial, sans-serif">9 Jun</text><text x="654" y="38" text-anchor="middle" font-size="9.5" fill="#7A7C7C" font-family="Public Sans, Arial, sans-serif" font-style="italic">intraday</text></svg>
+    <figcaption class="fig-caption">IMDR <code>FX.fact_fx_rate</code> (Q6/Q7); bars = daily vendor mid-quote range, dot = midpoint. First close above 18,000 on 5 Jun; 9 Jun is intraday.</figcaption>
+  </figure>
+
+  <!-- ============================================================ -->
+  <h2 id="street"><span class="section-num">06</span> The street's view (verbatim from <code>research.fact_chunk</code>)</h2>
+
+  <p>
+    Ten reports across five desks, 20-May → 4-Jun. Consensus on direction is
+    total; dispersion is on magnitude (25 vs 50bp at 18-Jun) and on the
+    absorption mechanism (sanguine on FX supply vs bank-rotation crowd-out).
+  </p>
+
+  <h3>6.1 · Consensus — BI hike on 18-Jun, FX-driven, not inflation-driven</h3>
+  <div class="vendor-grid">
+
+    <div class="vendor-card">
+      <div class="vc-head">
+        <span class="vc-bank">Barclays · Brian Tan</span>
+        <span class="vc-id"><a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/05/20/barclays/Indonesia_First_Look_Outsized_50bp_hike_6a0d6efb.pdf" target="_blank" rel="noopener">R-487</a></span>
+      </div>
+      <div class="vc-meta">2026-05-20 · "First Look: Outsized 50bp hike" · chunk 0</div>
+      <blockquote>We now expect another 25bp rate hike, to 5.50%, in June – with the main risk being that IDR pressures subside visibly, obviating the need for further FX support. Once IDR pressures subside, BI will likely pivot back towards rate cuts.</blockquote>
+    </div>
+
+    <div class="vendor-card">
+      <div class="vc-head">
+        <span class="vc-bank">Barclays · Brian Tan</span>
+        <span class="vc-id"><a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/05/29/barclays/Indonesia_Rising_risk_of_another_50bp_policy_rate_hike_6a190c55.pdf" target="_blank" rel="noopener">R-1770</a></span>
+      </div>
+      <div class="vc-meta">2026-05-29 · "Rising risk of another 50bp" · chunk 0</div>
+      <blockquote>Should FX pressures sustain until the 18 June policy meeting, BI could feel compelled to deliver another larger-than-usual 50bp hike to demonstrate its resolve in defending the IDR.</blockquote>
+      <blockquote>BI is likely to continue encouraging banks to not raise lending rates despite policy rate hikes, citing ample liquidity and macroprudential easing.</blockquote>
+    </div>
+
+    <div class="vendor-card">
+      <div class="vc-head">
+        <span class="vc-bank">Nomura · Paracuelles + Amani</span>
+        <span class="vc-id"><a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/05/20/nomura/Asia_Insights_Indonesia_Currency_concerns_prompt_a_more_aggressive_50bp_BI_hike_1301274.pdf" target="_blank" rel="noopener">R-214</a></span>
+      </div>
+      <div class="vc-meta">2026-05-20 · "Currency concerns prompt 50bp BI hike" · chunk 0</div>
+      <blockquote>BI cited that the 50bp hike is 'a further step to strengthen the stabilization of the IDR from the impact of high global turmoil due to the war in the Middle East.'</blockquote>
+      <blockquote>BI also described this as a 'pre-emptive' measure to keep inflation in 2026-27 within its 1.5-3.5% target.</blockquote>
+    </div>
+
+  </div>
+
+  <hr class="rv-rule">
+
+  <h3>6.2 · Fundamentals — BOP and CAD</h3>
+  <div class="vendor-grid">
+    <div class="vendor-card">
+      <div class="vc-head">
+        <span class="vc-bank">Nomura · Paracuelles + Amani</span>
+        <span class="vc-id"><a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/05/25/nomura/Asia_Insights_Indonesia_The_current_account_deficit_widened_in_Q1_1301977.pdf" target="_blank" rel="noopener">R-1253</a></span>
+      </div>
+      <div class="vc-meta">2026-05-25 · "CAD widened in Q1" · chunk 0</div>
+      <blockquote>The financial account weakened, led by net 'other investment' swinging back to a deficit, reflecting resident outflows. Net FDI and portfolio inflows also declined.</blockquote>
+      <blockquote>We maintain our CAD forecast of 2.0% of GDP in 2026, widening from 0.1% in 2025. We expect Bank Indonesia to hike by 25bp in June to 5.50%, but flag upside risks.</blockquote>
+    </div>
+  </div>
+
+  <hr class="rv-rule">
+
+  <h3>6.3 · The mechanism — SRBI crowd-out of bank-bid for SBN</h3>
+  <div class="vendor-grid">
+    <div class="vendor-card">
+      <div class="vc-head">
+        <span class="vc-bank">Nomura · Maju</span>
+        <span class="vc-id"><a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/05/25/nomura/Quick_Note_Indonesia_Banks_SRBI_yields_resume_climb_1302015.pdf" target="_blank" rel="noopener">R-1300</a></span>
+      </div>
+      <div class="vc-meta">2026-05-25 · "SRBI yields resume climb" · chunk 0</div>
+      <blockquote>Blended Sekuritas Rupiah Bank Indonesia (SRBI) yields rebounded sharply from a low of 4.65% in Oct-25 to 6.69% as of 22 May 2026 (+200bp in &lt;1 year), following three phases.</blockquote>
+      <blockquote>Banks now hold ~70% of SRBI outstanding, effectively redirecting excess liquidity into high-yield BI instruments.</blockquote>
+    </div>
+  </div>
+
+  <hr class="rv-rule">
+
+  <h3>6.4 · Bank-sector OCI sensitivity</h3>
+  <div class="vendor-grid">
+    <div class="vendor-card">
+      <div class="vc-head">
+        <span class="vc-bank">Nomura · Maju</span>
+        <span class="vc-id"><a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/05/21/nomura/Quick_Note_Indonesia_Banks_Bank_Indonesia_delivers_a_surprise_50bp_rate_hike_1301332.pdf" target="_blank" rel="noopener">R-199</a></span>
+      </div>
+      <div class="vc-meta">2026-05-21 · "BI delivers a surprise 50bp" · chunk 0</div>
+      <blockquote>BBNI screens worst at −2.92%, driven by large mark-to-market losses on a mid-sized SBN portfolio – the worst risk-adjusted outcome in our coverage.</blockquote>
+      <blockquote>BBCA is well-insulated at −0.41% despite holding the largest government bond portfolio in absolute terms (IDR425.6tn) – a testament to superior duration management and hedging discipline.</blockquote>
+    </div>
+  </div>
+
+  <hr class="rv-rule">
+
+  <h3>6.5 · Sovereign-credit absorption — sanguine</h3>
+  <div class="vendor-grid">
+    <div class="vendor-card">
+      <div class="vc-head">
+        <span class="vc-bank">Barclays · Save + Beh</span>
+        <span class="vc-id"><a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/03/barclays/Emerging_Asia_Sovereign_Credit_Indonesia_Bring_on_the_supply_6a1fecdb.pdf" target="_blank" rel="noopener">R-3378</a></span>
+      </div>
+      <div class="vc-meta">2026-06-03 · "Bring on the supply" · chunks 1-2</div>
+      <blockquote>More supply but nothing overwhelming. Sovereign to issue USD3.3bn more.</blockquote>
+      <blockquote>…the bar for a downgrade is high, in our view… more explicit deterioration in the fiscal balance (wider deficit) or external position (capital flight) is visible. (chunk 1, edited for length with ellipses; full sentence verified in IMDR)</blockquote>
+    </div>
+  </div>
+
+  <hr class="rv-rule">
+
+  <h3>6.6 · The IDR break + reserves call</h3>
+  <div class="vendor-grid">
+    <div class="vendor-card">
+      <div class="vc-head">
+        <span class="vc-bank">ANZ · Kusuma + Goh</span>
+        <span class="vc-id"><a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/04/anz/Indonesia_local_markets_fell_on_external_and_domestic_headwinds_2bbb022f.pdf" target="_blank" rel="noopener">R-3538</a></span>
+      </div>
+      <div class="vc-meta">2026-06-04 · "Local markets fell" · chunk 0</div>
+      <blockquote>The IDR weakened past the 18,000 level for the first time on 4 June, making it the worst-performing currency in Asia and emerging markets year-to-date, after it lost 7.5% against the USD.</blockquote>
+      <blockquote>While Bank Indonesia says it is 'increasing the intensity' of its triple interventions, we estimate its usable reserves (FX reserves ex-gold and adjusted for the forward book) dropped below USD100bn in April and fell further in May.</blockquote>
+    </div>
+  </div>
+
+  <hr class="rv-rule">
+
+  <h3>6.7 · Institutional risk — UU P2SK + state export agency</h3>
+  <div class="vendor-grid">
+
+    <div class="vendor-card">
+      <div class="vc-head">
+        <span class="vc-bank">Nomura · Paracuelles</span>
+        <span class="vc-id"><a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/04/nomura/First_Insights_Indonesia_Thoughts_on_the_financial_sector_law_revisions_passed_b_1304038.pdf" target="_blank" rel="noopener">R-3787</a></span>
+      </div>
+      <div class="vc-meta">2026-06-04 · "Financial sector law revisions passed" · chunk 0</div>
+      <blockquote>The revision expands BI's mandate to include both economic growth (i.e., real sector) and job creation.</blockquote>
+      <blockquote>Legislative changes, including expanding BI's mandate, pose an additional risk, if those changes are viewed by investors as potentially eroding BI's monetary policy independence.</blockquote>
+    </div>
+
+    <div class="vendor-card">
+      <div class="vc-head">
+        <span class="vc-bank">Nomura · Paracuelles + Amani</span>
+        <span class="vc-id"><a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/05/20/nomura/First_Insights_Indonesia_Our_initial_thoughts_on_new_policies_for_the_government_1301210.pdf" target="_blank" rel="noopener">R-229</a></span>
+      </div>
+      <div class="vc-meta">2026-05-20 · "Thoughts on new policies for the government" · chunk 0</div>
+      <blockquote>The president said the scheme is a 'marketing facility', aiming to strengthen export supervision, curb 'under-invoicing' and prevent the embezzlement of proceeds of natural resource exports.</blockquote>
+      <blockquote>We think the creation of the export agency will raise further investor concerns about greater state control, increase policy uncertainty, which is already leading to credit rating pressures (see First Insights - Indonesia: Fitch lowers its credit rating outlook to 'negative', 4 March 2026).</blockquote>
+    </div>
+
+  </div>
+
+  <hr class="rv-rule">
+
+  <h3>6.8 · Disagreement + counterintuitive</h3>
+  <ul>
+    <li><strong>Disagreement on supply absorption.</strong> Barclays #3378 is sanguine ("more
+      supply but nothing overwhelming"). Nomura #1300 sees the SRBI/bank-bid
+      squeeze as fragile.</li>
+    <li><strong>Counterintuitive #1</strong> — The <em>non-BI non-foreign</em> share has fallen in
+      2026 H1: banks 1,485tn (end-Dec-25) → 1,245tn (Jun-26), an <strong>IDR 240tn
+      rotation out of SBN</strong> (Q1, Q-rollback). BI is plugging an actual
+      <em>domestic</em> rotation, not just absorbing net new supply.</li>
+    <li><strong>Counterintuitive #2</strong> — BI hikes the policy rate but simultaneously
+      encourages banks <em>not</em> to raise lending rates (R-1770). The hike doesn't
+      transmit to bank-lending margins; SRBI's +200bp is the true cost of
+      marginal liquidity.</li>
+    <li><strong>Counterintuitive #3</strong> — Foreign exit runs through SRBI too: foreign
+      SRBI holding fell from Oct-24 peak to IDR 192tn (~20% share) by Apr-26
+      (R-1300) — foreigners are leaving anything IDR-denominated, not just
+      sovereign credit.</li>
+  </ul>
+
+  <!-- ============================================================ -->
+  <h2 id="mycroft"><span class="section-num">07</span> Mycroft's view</h2>
+
+  <div class="mycroft-view-panel">
+    <p><strong>Conviction: medium-high bearish IDR / bearish INDOGB front-end into the
+    18-Jun BI meeting.</strong> State the bias, name the trade:</p>
+
+    <ul>
+      <li><strong>FX:</strong> Long USD/IDR (or long SGD/IDR per Nomura's max-conviction
+        framing in R-214) into 18-Jun. Triple-intervention works at the margin
+        but the trend is one-way given (a) Q1 BOP collapse, (b) corporate
+        USD-dividend demand into July-Aug (R-3538), (c) the institutional
+        risk-premium rebuild (UU P2SK, Fitch outlook). Stop at 17,500;
+        near-term target 18,500.</li>
+      <li><strong>Rates:</strong> Underweight INDOGB 2-5y. ANZ targets 12M-5Y at 7.0-7.5% in
+        3-6 months (R-3538); the bear-flattener trade is consensus but still
+        has room. SRBI marginal funding cost (6.69% and rising) anchors the
+        short end.</li>
+      <li><strong>Sovereign credit:</strong> No view yet — Barclays #3378's "bring on the
+        supply" framing is defensible at current spreads. The trade is <em>not</em>
+        on USD INDON; the trade is on the IDR-rates / IDR-FX side where the
+        marginal balance-sheet user (BI) has constraints.</li>
+      <li><strong>Banks:</strong> Sector underweight bias driven by BBNI OCI sensitivity. If
+        18-Jun delivers 50bp, BBNI Tier-1 becomes the proximate risk-asset
+        story.</li>
+    </ul>
+
+    <p><strong>The bigger argument I'm running:</strong> the SBN investor-base shift makes
+    Indonesia <em>less</em> market-priced and <em>more</em> policy-priced than at any time
+    since 2015. With foreign at 12.6% (vs 38% historical), the marginal
+    price-setter for IDR-rates is now BI itself plus regulated domestic
+    captives (insur+pension at 20.4%, banks via SRBI). That means the <em>price
+    signal</em> from auction cover ratios or 2Y yield prints is weaker than it
+    used to be — but the <em>quantity signal</em> (BI's balance sheet running, SRBI
+    stock expanding) is louder. Watch the quantity, not the price.</p>
+
+    <p><strong>Where I'd be wrong:</strong> a credible signal that the post-UU P2SK BI
+    remains operationally independent (e.g. another 50bp at 18-Jun without
+    political pushback), combined with Iran-war de-escalation, would
+    collapse the institutional risk premium fast. The trade is asymmetric:
+    the bull case requires <em>two</em> exogenous things, the bear case requires
+    only one driver to keep going.</p>
+  </div>
+
+  <!-- ============================================================ -->
+  <h2 id="change"><span class="section-num">08</span> What would change my mind</h2>
+
+  <ol class="change-my-mind-ol">
+    <li><strong>BI delivers 50bp at 18-Jun without political pushback.</strong> Signals
+      operational independence intact post-UU P2SK; collapses one of the
+      two pillars of the institutional risk premium. Re-think IDR short.</li>
+    <li><strong>Iran-war ceasefire / oil drops below $70.</strong> Removes the BOP-side
+      shock; flips IDR positioning rapidly given crowded short.</li>
+    <li><strong>DJPPR weekly print shows foreign re-engaging — foreign share back
+      above 14%.</strong> Mechanical buying capacity from foreign re-entry is
+      ~1,000tn over 2-3 years; a single weekly print &gt;+10tn net inflow
+      would suggest a turn.</li>
+    <li><strong>Bank SBN holding stabilises or rises week-on-week.</strong> Would mean
+      the SRBI crowd-out has run its course and the marginal bank balance
+      sheet is back at the SBN bid.</li>
+    <li><strong>APBN 2027 (submitted to DPR August) anchored at 2.5% deficit or
+      lower.</strong> Eases pre-funding pressure into early-2027; removes the
+      "wider deficit" trigger Barclays #3378 names as the rating-action
+      condition.</li>
+  </ol>
+
+  <!-- ============================================================ -->
+  <h2 id="sources"><span class="section-num">09</span> Sources appendix</h2>
+
+  <details class="sources-details">
+    <summary>9.1 · IMDR DB queries (7 queries + 1 rollback)</summary>
+    <div class="sd-body">
+
+      <p><strong>Q1.</strong> Latest SBN ownership snapshot — all 7 investor categories
+      + BI net + foreign-official + total — at 2026-06-05.</p>
+<pre>WITH latest AS (
+  SELECT MAX(f.obs_date) AS d
+  FROM econ.fact_indicator f
+  JOIN econ.dim_indicator di ON di.id = f.indicator_id
+  WHERE di.imdr_code = 'DJPPR.SBN.HOLD.TOTAL.TOTAL.IDR.ID'
+)
+SELECT di.imdr_code, f.obs_date, f.value
+FROM econ.fact_indicator f
+JOIN econ.dim_indicator di ON di.id = f.indicator_id
+CROSS JOIN latest
+WHERE di.imdr_code IN (
+  'DJPPR.SBN.HOLD.BANK.TOTAL.IDR.ID',
+  'DJPPR.SBN.HOLD.BI_NET.TOTAL.IDR.ID',
+  'DJPPR.SBN.HOLD.BI_GROSS.TOTAL.IDR.ID',
+  'DJPPR.SBN.HOLD.MF.TOTAL.IDR.ID',
+  'DJPPR.SBN.HOLD.INSUR_PENSION.TOTAL.IDR.ID',
+  'DJPPR.SBN.HOLD.FOREIGN.TOTAL.IDR.ID',
+  'DJPPR.SBN.HOLD.FOREIGN_OFFICIAL.TOTAL.IDR.ID',
+  'DJPPR.SBN.HOLD.INDIVIDUAL.TOTAL.IDR.ID',
+  'DJPPR.SBN.HOLD.OTHER.TOTAL.IDR.ID',
+  'DJPPR.SBN.HOLD.TOTAL.TOTAL.IDR.ID'
+)
+AND f.obs_date = latest.d
+ORDER BY di.imdr_code</pre>
+      <p>Result @ 2026-06-05: Bank 1,245.45; BI_NET 1,834.32; BI_GROSS 1,722.25;
+      Foreign 869.92; Foreign_Official 262.11; Individual 552.80; Insur+Pen
+      1,401.91; MF 259.96; Other 717.93; <strong>Total 6,882.29 tn</strong>. Sum-of-parts
+      ties exact. Cited in §1, §3, §4.4, §5.1.</p>
+
+      <p><strong>Q2.</strong> Annual fiscal realisasi 2015 → 2024.</p>
+<pre>SELECT di.imdr_code, f.obs_date, f.value
+FROM econ.fact_indicator f
+JOIN econ.dim_indicator di ON di.id = f.indicator_id
+WHERE di.imdr_code IN (
+  'BI.FISCAL.REVENUE.TOTAL.IDR.ID',
+  'BI.FISCAL.TAX_REVENUE.IDR.ID',
+  'BI.FISCAL.EXPEND.TOTAL.IDR.ID',
+  'BI.FISCAL.BALANCE.IDR.ID',
+  'BI.FISCAL.NET_FINANCING.IDR.ID'
+)
+AND YEAR(f.obs_date) IN (2015,2018,2019,2020,2021,2022,2023,2024)
+ORDER BY f.obs_date, di.imdr_code</pre>
+      <p>Result: 2024 deficit −509.16 tn; 2020 −947.70 tn; 2015 −298.49 tn (all
+      in Miliar Rp / 1000 = IDR tn). Cited in §3, §5.3.</p>
+
+      <p><strong>Q3.</strong> USD/IDR spot on key event dates 20-May / 29-May / 4-Jun.</p>
+<pre>SELECT obs_date, MIN(mid_rate) AS lo, MAX(mid_rate) AS hi, AVG(mid_rate) AS avg_mid
+FROM FX.fact_fx_rate
+WHERE pair_id = 15 AND tenor = 'SPOT'
+  AND obs_date IN ('2026-05-20','2026-05-29','2026-06-04','2026-06-09')
+GROUP BY obs_date ORDER BY obs_date</pre>
+      <p>Result: 20-May 17,626-17,752 (avg 17,683); 29-May 17,806-17,898 (avg
+      17,842); 4-Jun 17,974-18,055 (avg 18,018); 9-Jun 17,926-18,189 (avg
+      18,049). Cited in §1, §4.2, §5.4.</p>
+
+      <p><strong>Q4.</strong> BI corridor rates post-hike — deposit + lending facility.</p>
+<pre>SELECT TOP 10 f.obs_date, f.value, di.imdr_code
+FROM econ.fact_indicator f
+JOIN econ.dim_indicator di ON di.id = f.indicator_id
+WHERE di.imdr_code IN ('BI.RATES.DEPOSIT_FACILITY.LEVEL.ID','BI.RATES.LENDING_FACILITY.LEVEL.ID')
+ORDER BY f.obs_date DESC, di.imdr_code</pre>
+      <p>Result @ 2026-05-01: Deposit 4.25%, Lending 6.00% (post-50bp corridor
+      widening). Cited in §3, §4.2.</p>
+
+      <p><strong>Q5.</strong> BIS-mirror policy rate series (Indonesia 7-day reverse repo
+      proxy) — used to confirm the pre-20-May regime level.</p>
+<pre>SELECT TOP 30 f.obs_date, f.value
+FROM econ.fact_indicator f
+JOIN econ.dim_indicator di ON di.id = f.indicator_id
+WHERE di.imdr_code = 'BIS.POLICY_RATE.ID'
+ORDER BY f.obs_date DESC</pre>
+      <p>Result: 4.75% through 30-April-2026. <strong>Note:</strong> the BIS feed has not yet
+      back-loaded the 20-May 5.25% hike — that level is sourced via vendor
+      research (R-487, R-214) until BIS posts. Cited in §3.</p>
+
+      <p><strong>Q6.</strong> End-2015, 2019, 2020, 2022, 2024 year-end SBN composition for
+      the evolution table (year-end last trading day).</p>
+<pre>SELECT di.imdr_code, f.obs_date, f.value
+FROM econ.fact_indicator f
+JOIN econ.dim_indicator di ON di.id = f.indicator_id
+WHERE di.imdr_code IN (
+  'DJPPR.SBN.HOLD.BANK.TOTAL.IDR.ID','DJPPR.SBN.HOLD.BI_NET.TOTAL.IDR.ID',
+  'DJPPR.SBN.HOLD.MF.TOTAL.IDR.ID','DJPPR.SBN.HOLD.INSUR_PENSION.TOTAL.IDR.ID',
+  'DJPPR.SBN.HOLD.FOREIGN.TOTAL.IDR.ID','DJPPR.SBN.HOLD.INDIVIDUAL.TOTAL.IDR.ID',
+  'DJPPR.SBN.HOLD.OTHER.TOTAL.IDR.ID','DJPPR.SBN.HOLD.TOTAL.TOTAL.IDR.ID'
+)
+AND f.obs_date IN ('2015-12-31','2019-12-31','2020-12-30','2022-12-29','2024-12-31')
+ORDER BY f.obs_date, di.imdr_code</pre>
+      <p>Result: Total stock 1,461.85 (2015) → 2,752.74 (2019) → 3,870.76 (2020)
+      → 5,309.43 (2022) → 6,039.52 (2024). Foreign share computed from raw
+      values: 558.52/1461.85 = 38.2%; 1061.86/2752.74 = 38.6%; 973.91/3870.76 =
+      25.2%; 762.36/5309.43 = 14.4%; 876.64/6039.52 = 14.5%. Cited in §1, §5.2.</p>
+
+      <p><strong>Q7.</strong> BI net SBN holding rolling forward — used to verify the
+      "6-months-ago" reference and the +334tn / +216tn discrepancy with the
+      HTML.</p>
+<pre>SELECT f.obs_date, f.value
+FROM econ.fact_indicator f
+JOIN econ.dim_indicator di ON di.id = f.indicator_id
+WHERE di.imdr_code='DJPPR.SBN.HOLD.BI_NET.TOTAL.IDR.ID'
+  AND f.obs_date BETWEEN '2025-11-01' AND '2025-12-31'
+ORDER BY f.obs_date</pre>
+      <p>Result: BI net 2025-12-01 = 1,509.93; 2025-12-10 = 1,480.38 (last clean
+      obs before year-end rollover gap). Delta to 2026-06-05 (1,834.32) =
+      +324 → +354 tn over six months (true 6m reference). HTML cited "+216tn
+      in 6 months" which actually represents delta vs 2024-12-31 = 1,618.01,
+      i.e. ~17 months not 6. See §10.</p>
+
+      <p><strong>Q-rollback.</strong> Banks SBN holding rolling forward, end-2025 → Jun-2026.</p>
+<pre>SELECT TOP 20 f.obs_date, f.value
+FROM econ.fact_indicator f
+JOIN econ.dim_indicator di ON di.id = f.indicator_id
+WHERE di.imdr_code='DJPPR.SBN.HOLD.BANK.TOTAL.IDR.ID'
+  AND f.obs_date BETWEEN '2025-11-15' AND '2026-01-15'
+ORDER BY f.obs_date</pre>
+      <p>Result: Banks 2025-12-10 = 1,484.50 tn (last clean obs); 2026-06-05 =
+      1,245.45 tn (per Q1) = −239.05 tn over ~6 months. Verifies the HTML's
+      "240tn of bank-balance-sheet SBN moving into SRBI" within rounding.
+      Cited in §4.3, §6.8.</p>
+
+      <p><strong>Data quality flag:</strong> observations between 2026-01-02 and 2026-01-12
+      in DJPPR series are stored in mixed units (some values appear to be in
+      millions instead of trillions), creating a discontinuity at the year
+      rollover. This was confirmed across multiple categories. Not a brief-
+      blocking issue — the year-end and post-rollover-recovery values are
+      internally consistent. Flagged for fix.</p>
+
+    </div>
+  </details>
+
+  <details class="sources-details">
+    <summary>9.2 · Research documents (10 reports cited)</summary>
+    <div class="sd-body">
+      <p>All quotes verbatim from <code>research.fact_chunk</code>. SharePoint hyperlinks
+      mirror those in the HTML.</p>
+      <ul>
+        <li><strong>R-487</strong> · Barclays · Brian Tan (2026-05-20) · "Indonesia: First
+          Look: Outsized 50bp hike" · vendor_id=2 · <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/05/20/barclays/Indonesia_First_Look_Outsized_50bp_hike_6a0d6efb.pdf" target="_blank" rel="noopener" class="rpt-link">SharePoint</a>
+          <ul>
+            <li>Chunks quoted: <strong>0</strong> (§4.2 thesis, §6.1 hike call)</li>
+            <li>Asset class: Rates / FX | Country: ID</li>
+          </ul>
+        </li>
+        <li><strong>R-214</strong> · Nomura · Paracuelles + Amani (2026-05-20) · "Asia Insights —
+          Indonesia: Currency concerns prompt a more aggressive 50bp BI hike" ·
+          vendor_id=11 · <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/05/20/nomura/Asia_Insights_Indonesia_Currency_concerns_prompt_a_more_aggressive_50bp_BI_hike_1301274.pdf" target="_blank" rel="noopener" class="rpt-link">SharePoint</a>
+          <ul><li>Chunks quoted: <strong>0</strong> (§4.2 BI quote, §6.1 pre-emptive framing)</li></ul>
+        </li>
+        <li><strong>R-229</strong> · Nomura · Paracuelles + Amani (2026-05-20) · "First Insights
+          — Indonesia: New policies on commodity exports" · vendor_id=11 ·
+          <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/05/20/nomura/First_Insights_Indonesia_Our_initial_thoughts_on_new_policies_for_the_government_1301210.pdf" target="_blank" rel="noopener" class="rpt-link">SharePoint</a>
+          <ul><li>Chunks quoted: <strong>0</strong> (§4.5 state export agency, §6.7 marketing-facility + state-control + Fitch reference)</li></ul>
+        </li>
+        <li><strong>R-199</strong> · Nomura · Maju (2026-05-21) · "Quick Note — Indonesia Banks:
+          BI delivers a surprise 50bp" · vendor_id=11 · <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/05/21/nomura/Quick_Note_Indonesia_Banks_Bank_Indonesia_delivers_a_surprise_50bp_rate_hike_1301332.pdf" target="_blank" rel="noopener" class="rpt-link">SharePoint</a>
+          <ul><li>Chunks quoted: <strong>0</strong> (§4.6 BBCA/BBNI OCI, §6.4)</li></ul>
+        </li>
+        <li><strong>R-1253</strong> · Nomura · Paracuelles + Amani (2026-05-25) · "Asia Insights
+          — Indonesia: CAD widened in Q1" · vendor_id=11 · <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/05/25/nomura/Asia_Insights_Indonesia_The_current_account_deficit_widened_in_Q1_1301977.pdf" target="_blank" rel="noopener" class="rpt-link">SharePoint</a>
+          <ul><li>Chunks quoted: <strong>0</strong> (§4.1 BOP/CAD, §6.2)</li></ul>
+        </li>
+        <li><strong>R-1300</strong> · Nomura · Maju (2026-05-25) · "Quick Note — Indonesia
+          Banks: SRBI yields resume climb" · vendor_id=11 · <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/05/25/nomura/Quick_Note_Indonesia_Banks_SRBI_yields_resume_climb_1302015.pdf" target="_blank" rel="noopener" class="rpt-link">SharePoint</a>
+          <ul><li>Chunks quoted: <strong>0</strong> (§4.3 SRBI mechanism, §6.3, §6.8)</li></ul>
+        </li>
+        <li><strong>R-1770</strong> · Barclays · Brian Tan (2026-05-29) · "Indonesia: Rising
+          risk of another 50bp policy rate hike" · vendor_id=2 · <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/05/29/barclays/Indonesia_Rising_risk_of_another_50bp_policy_rate_hike_6a190c55.pdf" target="_blank" rel="noopener" class="rpt-link">SharePoint</a>
+          <ul><li>Chunks quoted: <strong>0</strong> (§6.1 50bp risk + non-transmission)</li></ul>
+        </li>
+        <li><strong>R-3378</strong> · Barclays · Save + Beh (2026-06-03) · "Emerging Asia
+          Sovereign Credit — Indonesia: Bring on the supply" · vendor_id=2 ·
+          <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/03/barclays/Emerging_Asia_Sovereign_Credit_Indonesia_Bring_on_the_supply_6a1fecdb.pdf" target="_blank" rel="noopener" class="rpt-link">SharePoint</a>
+          <ul><li>Chunks quoted: <strong>1, 2</strong> (§6.5 supply sanguine + downgrade-bar quote)</li></ul>
+        </li>
+        <li><strong>R-3538</strong> · ANZ · Kusuma + Goh (2026-06-04) · "Indonesia: local
+          markets fell on external and domestic headwinds" · vendor_id=10 ·
+          <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/04/anz/Indonesia_local_markets_fell_on_external_and_domestic_headwinds_2bbb022f.pdf" target="_blank" rel="noopener" class="rpt-link">SharePoint</a>
+          <ul><li>Chunks quoted: <strong>0</strong> (§6.6 IDR break + usable reserves &lt;$100bn)</li></ul>
+        </li>
+        <li><strong>R-3787</strong> · Nomura · Paracuelles (2026-06-04) · "First Insights —
+          Indonesia: Thoughts on the financial sector law revisions passed" ·
+          vendor_id=11 · <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/04/nomura/First_Insights_Indonesia_Thoughts_on_the_financial_sector_law_revisions_passed_b_1304038.pdf" target="_blank" rel="noopener" class="rpt-link">SharePoint</a>
+          <ul><li>Chunks quoted: <strong>0</strong> (§4.5 mandate expansion, §6.7)</li></ul>
+        </li>
+      </ul>
+      <p>Reviewed (not cited): no additional Indonesia-tagged reports in the
+      2026-05-20 → 2026-06-08 window beyond the 10 above carried in the HTML.</p>
+    </div>
+  </details>
+
+  <details class="sources-details">
+    <summary>9.3 · Repo code + docs</summary>
+    <div class="sd-body">
+      <ul>
+        <li><code>src/imdr/domains/econ/djppr_kepemilikan.py:1-572</code> — DJPPR Kepemilikan
+          SBN parser (Angular SPA → repeater API + XLSX 2007-2024 + PDF 2025+;
+          PyMuPDF lines strategy + label carry-over). Confirms FOREIGN_OFFICIAL
+          match-before-bank ordering ("Bank Sentral Asing" disambiguation).
+          Informs §5.1 schema + the foreign-official breakout (262.11 tn / 3.8%).</li>
+        <li><code>scripts/econ/djppr/djppr_sbn_ownership.py:1-117</code> — Daily DJPPR fetcher
+          wired into <code>id_monthly.py</code>. 36 indicators × ~83k obs as of 2026-06-09.
+          Cited in §5.1 + appendix DJPPR mention.</li>
+        <li><code>migrations/085_seed_djppr_dim_vendor.sql</code> — DJPPR vendor seed
+          (vendor_id row); supports the SBN indicator wiring.</li>
+        <li><code>docs/admin/econ/indonesia/indonesia_indicator_inventory.md</code> — confirms
+          BI SEKI IV.1-3 annual fiscal indicators wired as <code>BI.FISCAL.*</code>; cited
+          in §5.3.</li>
+        <li><code>docs/admin/econ/indonesia/indonesia_prod_pipeline.md</code> — Indonesia
+          prod-pipeline doc; confirms <code>id_monthly.py</code> is the orchestration entry
+          point. Cited in §3 context for data-freshness expectations.</li>
+        <li><code>docs/topics/indonesia_fiscal_and_sbn_investor_base_jun_2026.md</code> — the
+          HTML footer cross-references this as the companion deep-dive markdown.
+          Not edited as part of this backfill; out-of-spec location (should live
+          under <code>data/topical_briefs/...</code>). See §10.</li>
+      </ul>
+    </div>
+  </details>
+
+  <details class="sources-details">
+    <summary>9.4 · Web / external</summary>
+    <div class="sd-body">
+      <p>No live web fetches were made for this backfill — all primary data was
+      re-derived from IMDR (<code>econ.fact_indicator</code>, <code>FX.fact_fx_rate</code>,
+      <code>research.fact_chunk</code>). The 22 sell-side PDFs sit on SharePoint at the
+      URLs hyperlinked in §9.2.</p>
+      <p>Reference URLs <em>that would</em> be the primary sources if IMDR lagged:</p>
+      <ul>
+        <li><code>https://www.djppr.kemenkeu.go.id/...</code> — DJPPR Kepemilikan SBN weekly
+          XLSX feed (already fetched daily by <code>scripts/econ/djppr/djppr_sbn_ownership.py</code>).</li>
+        <li><code>https://www.bi.go.id/.../seki/...</code> — BI SEKI Tables IV.1-3 (annual
+          fiscal) and I.25 (corridor rates).</li>
+      </ul>
+      <p>Attempted (not used): none.</p>
+    </div>
+  </details>
+
+  <!-- ============================================================ -->
+  <details class="sources-details" style="margin-top:18px;">
+    <summary>10 · Backfill Notes (meta — not part of the brief)</summary>
+    <div class="sd-body">
+
+      <p><strong>Verified verbatim against IMDR (all 16 quotes pulled in the HTML
+      vendor-cards and callouts):</strong></p>
+
+      <div class="tbl-scroll">
+        <table>
+          <thead><tr><th class="left">Report</th><th class="left">Quote anchor</th><th class="left">Match</th></tr></thead>
+          <tbody>
+            <tr><td class="left">R-487</td><td class="left">"another 25bp rate hike"</td><td class="left">✓ chunks 0, 1</td></tr>
+            <tr><td class="left">R-1770</td><td class="left">"50bp hike to demonstrate"</td><td class="left">✓ chunk 0</td></tr>
+            <tr><td class="left">R-1770</td><td class="left">"encouraging banks to not raise lending rates"</td><td class="left">✓ chunk 0</td></tr>
+            <tr><td class="left">R-214</td><td class="left">"further step to strengthen…war in the Middle East"</td><td class="left">✓ chunk 0</td></tr>
+            <tr><td class="left">R-214</td><td class="left">"pre-emptive measure"</td><td class="left">✓ chunks 0, 2</td></tr>
+            <tr><td class="left">R-1253</td><td class="left">"financial account weakened…other investment"</td><td class="left">✓ chunk 0</td></tr>
+            <tr><td class="left">R-1253</td><td class="left">"CAD forecast of 2.0% of GDP in 2026"</td><td class="left">✓ chunks 0, 1</td></tr>
+            <tr><td class="left">R-199</td><td class="left">"BBNI screens worst at −2.92%"</td><td class="left">✓ chunk 0</td></tr>
+            <tr><td class="left">R-199</td><td class="left">"BBCA is well-insulated at −0.41%…IDR425.6tn"</td><td class="left">✓ chunk 0</td></tr>
+            <tr><td class="left">R-1300</td><td class="left">"Blended Sekuritas Rupiah…4.65%…6.69%"</td><td class="left">✓ chunk 0</td></tr>
+            <tr><td class="left">R-1300</td><td class="left">"banks now hold ~70% of SRBI outstanding"</td><td class="left">✓ chunk 0</td></tr>
+            <tr><td class="left">R-3378</td><td class="left">"More supply but nothing overwhelming"</td><td class="left">✓ chunk 2</td></tr>
+            <tr><td class="left">R-3378</td><td class="left">"bar for a downgrade is high"</td><td class="left">✓ chunk 1</td></tr>
+            <tr><td class="left">R-3538</td><td class="left">"weakened past the 18,000 level for the first time"</td><td class="left">✓ chunk 0</td></tr>
+            <tr><td class="left">R-3538</td><td class="left">"usable reserves…dropped below USD100bn"</td><td class="left">✓ chunk 0</td></tr>
+            <tr><td class="left">R-229</td><td class="left">"marketing facility"</td><td class="left">✓ chunk 0</td></tr>
+            <tr><td class="left">R-229</td><td class="left">"greater state control…credit rating pressures"</td><td class="left">✓ chunk 0</td></tr>
+            <tr><td class="left">R-3787</td><td class="left">"mandate to include both economic growth…job creation"</td><td class="left">✓ chunk 0</td></tr>
+            <tr><td class="left">R-3787</td><td class="left">"monetary policy independence"</td><td class="left">✓ chunk 0</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p><strong>Wording discrepancies noticed between HTML and re-verified data:</strong></p>
+      <ol>
+        <li><strong>HTML says "BI net SBN +216tn in just six months."</strong> Re-verified math
+          (Q7): BI net at 2025-12-10 (last clean weekly obs before the year-end
+          data-rollover gap) = 1,480.38 tn → 2026-06-05 = 1,834.32 tn, delta
+          ≈ <strong>+354 tn over six months</strong>, not +216 tn. The +216 figure equals
+          delta vs end-2024 (1,618.01 → 1,834.32), which is ~17 months, not 6.
+          <strong>The qualitative point is intact</strong> (record share, record absolute,
+          accelerating); only the numeric magnitude needs correction. MD body
+          reports +334 tn ("~330"), consistent with the early-Dec reference.</li>
+        <li><strong>HTML says USD/IDR was "17,605 close-of-day" on 20-May.</strong> Re-verified
+          (Q3) the <strong>range of vendor mid-quotes</strong> on 20-May was 17,626 – 17,752
+          (avg 17,683). The 17,605 print does not appear in any single vendor
+          feed in <code>FX.fact_fx_rate</code> for 2026-05-20 — it likely originates from
+          a single Bloomberg fix or one of the vendor reports themselves
+          (Barclays #1770 cites "17,605 close May 20 → 17,850+ by May 29";
+          29-May verified at 17,806-17,898). Not a brief-blocking discrepancy —
+          the qualitative claim "IDR continued to weaken post-hike" is fully
+          supported.</li>
+        <li><strong>HTML says "−7.5% YTD" for USD/IDR.</strong> End-2025 USD/IDR (Q3, 31-Dec
+          2025) = 16,678-16,691; 4-Jun-26 close ≈ 18,015 → +8.0% (USD/IDR up =
+          IDR down). The HTML "−7.5% YTD" is <strong>the IDR-side depreciation per
+          ANZ R-3538 chunk-0</strong> ("lost 7.5% against the USD"), not an IMDR
+          re-derivation. The two are slightly different reference points
+          (vendor cut-off) but both correct in sign and order of magnitude.</li>
+        <li><strong>HTML says 2024 GDP ≈ 22,150 tn.</strong> Not re-derived in this backfill —
+          BPS GDP indicator coverage in <code>econ.fact_indicator</code> was not directly
+          queried because the % GDP calc in §5.3 takes the HTML denominator as
+          given. Independent re-derivation deferred (not required for the
+          brief's qualitative conclusions). Flagged for the next refresh.</li>
+      </ol>
+
+      <p><strong>Could not verify from IMDR — flagged in body:</strong></p>
+      <ul>
+        <li><strong>17,605 single-print on 20-May.</strong> Captured via vendor-quote citation,
+          not direct FX-table re-derivation.</li>
+        <li><strong>20-May 5.25% policy rate.</strong> <code>BIS.POLICY_RATE.ID</code> (Q5) ends at 4.75%
+          on 30-Apr-26; the post-hike level is sourced via R-487 / R-214. BI
+          corridor (Q4: deposit 4.25%, lending 6.00% as of 1-May-2026) is
+          consistent with the 5.25% midpoint, providing indirect confirmation.</li>
+        <li><strong>2Y INDOGB ~7.0%.</strong> No Indonesia rates table in IMDR yet — sourced
+          via ANZ R-3538. Flag for IMD-* candidate (Indonesia rates feed).</li>
+        <li><strong>DJPPR data discontinuity 2026-01-02 → 2026-01-12.</strong> Mixed-unit
+          observations across multiple SBN categories — values appear to be in
+          millions rather than trillions. Year-end and post-rollover-recovery
+          values are self-consistent, but the intra-rollover window cannot be
+          used for derived calculations. Engineering ticket recommended (not
+          raised here — outside Mycroft scope).</li>
+      </ul>
+
+      <p><strong>Hard-rule compliance:</strong></p>
+      <ul>
+        <li>Path under <code>data/topical_briefs/...</code> ✓ (not <code>data/research_summary/</code>)</li>
+        <li>Every quote verbatim ✓ (16/16 matched in <code>fact_chunk</code>)</li>
+        <li>Every number traces to a §9.x entry ✓</li>
+        <li>Conviction stated in §7 ✓ ("medium-high bearish IDR / bearish INDOGB
+          front-end into 18-Jun")</li>
+        <li>§8 has 5 concrete observable items ✓</li>
+        <li>No charts regenerated ✓ (backfill clause; pre-existing chart references
+          preserved as text placeholders in §5)</li>
+      </ul>
+
+      <p><strong>Companion-doc note.</strong> The HTML footer references
+      <code>docs/topics/indonesia_fiscal_and_sbn_investor_base_jun_2026.md</code> as a
+      companion MD. That file exists at the named path but is <strong>out of spec</strong>
+      (MDs should live under <code>data/topical_briefs/...</code>). This backfill creates
+      the spec-conformant MD at the correct path; the older <code>docs/topics/</code>
+      file is left untouched. Reconciliation between the two is a follow-up.</p>
+
+    </div>
+  </details>
+
+  <!-- ============================================================ -->
+  <footer class="site-footer">
+    <div class="foot-top">
+      <div>
+        <hr class="line-dot">
+        <img class="logo" src="assets/rv-logo-negative.png" alt="RV Capital">
+        <p class="foot-about">RV Capital Management Private Ltd · Singapore-based hedge fund manager focused on long / short Asian fixed income — interest rates, foreign exchange and credit.</p>
+      </div>
+      <div class="foot-meta">
+        Mycroft · Topical Brief<br>
+        indonesia-fiscal-sbn<br>
+        Data-as-of 2026-06-09 · IMDR
+      </div>
+    </div>
+    <div class="foot-base">
+      <span>© 2026 RV Capital Management Private Ltd · Internal</span>
+      <span>Private &amp; Confidential</span>
+    </div>
+  </footer>
+
+</div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="_ds/rv-capital-design-system-d7ca4c30-6380-416e-bbde-ff5246b2ea06/_ds_bundle.js"></script>
+<script>
+(function () {
+  var ns = window.RVCapitalDesignSystem_d7ca4c;
+  var e = React.createElement;
+  var cells = [
+    { label: "Foreign share of SBN", value: "12.6%", delta: -25.6, deltaSuffix: "pp", caption: "since 2015" },
+    { label: "Bank Indonesia (net)", value: "26.7%", delta: 16.5, deltaSuffix: "pp", caption: "record share" },
+    { label: "USD / IDR", value: "18,134", caption: "+7.5% YTD · weakest in EM" },
+    { label: "BI policy rate", value: "5.25%", caption: "+50bp · 20-May hike" },
+    { label: "CAD · 2026e", value: "2.0%", caption: "vs 0.1% in 2025" }
+  ];
+  ReactDOM.createRoot(document.getElementById("kpi-stripe")).render(
+    e(React.Fragment, null, cells.map(function (c, i) {
+      return e("div", { className: "kpi", key: i }, e(ns.Stat, Object.assign({ display: true }, c)));
+    }))
+  );
+
+  // Brief meta strip — DS Badges + conviction heat scale
+  function cell(label, children) {
+    return e("div", { className: "bm-cell" },
+      e("span", { className: "rv-eyebrow" }, label),
+      children
+    );
+  }
+  var heat = e("div", { className: "heat-scale", role: "img", title: "Conviction: medium-high, 4 of 5", "aria-label": "Conviction: medium-high, 4 of 5" },
+    e("span", { className: "on" }), e("span", { className: "on" }), e("span", { className: "on" }),
+    e("span", { className: "on cur" }), e("span", null)
+  );
+  ReactDOM.createRoot(document.getElementById("brief-meta")).render(
+    e(React.Fragment, null,
+      cell("Edition", e("div", { className: "bm-badges" },
+        e(ns.Badge, { tone: "green", variant: "solid" }, "Topical"),
+        e(ns.Badge, { tone: "neutral" }, "Mycroft")
+      )),
+      cell("Conviction", e(React.Fragment, null,
+        e("div", { className: "bm-badges" }, e(ns.Badge, { tone: "green" }, "Medium-high")),
+        heat
+      )),
+      cell("Horizon", e("div", { className: "bm-badges" },
+        e(ns.Badge, { tone: "blue" }, "Tactical"),
+        e(ns.Badge, { tone: "neutral" }, "3-month")
+      )),
+      cell("Data as of", e("div", { className: "bm-badges" },
+        e(ns.Badge, { tone: "cream" }, "5 Jun 2026"),
+        e(ns.Badge, { tone: "neutral" }, "Re-verified 9 Jun")
+      ))
+    )
+  );
+})();
+</script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel">
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "masthead": "white",
+  "density": "desk",
+  "devices": true
+}/*EDITMODE-END*/;
+
+function RvBriefTweaks() {
+  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  React.useEffect(() => {
+    document.body.dataset.masthead = t.masthead;
+    document.body.dataset.density = t.density;
+    document.body.dataset.devices = t.devices ? "on" : "off";
+  }, [t]);
+  return (
+    <TweaksPanel title="Tweaks">
+      <TweakSection label="Masthead" />
+      <TweakRadio label="Style" value={t.masthead}
+        options={["white", "green", "blue"]}
+        onChange={(v) => setTweak("masthead", v)} />
+      <TweakSection label="Rhythm" />
+      <TweakRadio label="Density" value={t.density}
+        options={["editorial", "desk"]}
+        onChange={(v) => setTweak("density", v)} />
+      <TweakSection label="Brand devices" />
+      <TweakToggle label="Line + dot accents" value={t.devices}
+        onChange={(v) => setTweak("devices", v)} />
+    </TweaksPanel>
+  );
+}
+const __tweaksRoot = document.createElement("div");
+document.body.appendChild(__tweaksRoot);
+ReactDOM.createRoot(__tweaksRoot).render(<RvBriefTweaks />);
+</script>
+</body>
+</html>

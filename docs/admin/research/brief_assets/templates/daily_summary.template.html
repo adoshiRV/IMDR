@@ -1,19 +1,13 @@
-/* ============================================================
- * rv_theme.css — RV Capital brief stylesheet (v3 — design team)
- *
- * Source: extracted verbatim from the topical template at
- *   docs/admin/research/brief_assets/templates/topical.template.html
- * (the same inlined CSS block also appears in weekly_macro_preview
- * and daily_summary templates — all 3 share one stylesheet)
- *
- * Authority: docs/admin/research/picasso_design_brief.md (PICASSO.md)
- * Imported: 2026-06-10
- *
- * DS tokens (--accent, --bg, --surface, --panel, --fg, --border,*,
- * --pos, --neg, --warn, --shadow-*, --font-display, --font-mono,
- * --rv-*) are supplied by docs/admin/research/brief_assets/rv_tokens.css
- * — load it FIRST.
- * ============================================================ */
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Daily Summary · Tue 9 Jun 2026 · RV Capital</title>
+<!-- DS tokens (palette / fonts / shadows) — self-contained substitute for
+     the full RV Capital Design System workspace. See picasso_design_brief.md §1. -->
+<link rel="stylesheet" href="../rv_tokens.css">
+<style>
 
 /* =========================================================
  * rv_theme.css (inlined master) — lois-weekly baseline
@@ -307,18 +301,6 @@ tbody tr:hover { background: var(--panel); }
  * ========================================================= */
 .bleed { margin-left: calc(-1 * clamp(16px,4vw,40px)); margin-right: calc(-1 * clamp(16px,4vw,40px)); }
 
-/* ---- Masthead: white dateline (topical deep dive) ---- */
-.masthead { padding: clamp(18px,3vw,28px) 0 0; }
-.masthead .mh-top { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
-.masthead .mh-top .logo { height: clamp(30px,4.5vw,38px); width: auto; }
-.masthead .mh-meta { text-align: right; font-size: 10px; text-transform: uppercase; letter-spacing: 1.4px; line-height: 1.7; color: var(--muted); }
-.masthead .mh-meta strong { color: var(--accent); font-weight: 600; letter-spacing: 1.6px; }
-.masthead .mh-eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 0.18em; color: var(--green-70); font-weight: 600; margin: 26px 0 12px; }
-.masthead h1 { font-family: var(--serif); font-weight: 400; font-size: clamp(32px,5vw,52px); line-height: 1.06; letter-spacing: -0.02em; color: var(--accent); margin: 0; max-width: 24ch; }
-.masthead .mh-lede { font-size: clamp(15px,1.9vw,17px); font-weight: 300; line-height: 1.6; color: var(--fg); margin: 14px 0 0; max-width: 66ch; }
-.masthead .mh-lede strong { color: var(--accent); font-weight: 500; }
-.masthead hr.line-dot { margin-top: 22px; }
-
 /* ---- Hero masthead band ---- */
 .hero {
   position: relative; overflow: hidden;
@@ -341,7 +323,7 @@ tbody tr:hover { background: var(--panel); }
 /* ---- Brief meta strip (below hero): DS badges + conviction heat scale ---- */
 .brief-meta {
   display: grid;
-  grid-template-columns: repeat(4, max-content);
+  grid-template-columns: repeat(3, max-content);
   gap: 1px;
   background: var(--border);
   border: 1px solid var(--border);
@@ -352,22 +334,20 @@ tbody tr:hover { background: var(--panel); }
   margin: 22px auto 0;
 }
 .brief-meta .bm-cell { background: var(--surface); display: flex; align-items: center; gap: 12px; padding: 8px 16px; }
-@media (max-width: 1230px) {
-  .brief-meta { grid-template-columns: repeat(2, 1fr); }
+@media (max-width: 1100px) {
+  .brief-meta { grid-template-columns: 1fr; }
   .brief-meta .bm-cell { flex-wrap: wrap; gap: 8px 12px; padding: 10px 16px; }
 }
 .brief-meta .bm-badges { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .brief-meta .bm-badges > span { white-space: nowrap; }
 
 /* Conviction heat scale: 5 steps, low → high (light surface) */
-.heat-scale { display: flex; gap: 2px; width: 56px; }
+.heat-scale { display: flex; gap: 2px; width: 64px; }
 .heat-scale span { flex: 1; height: 6px; border-radius: 1px; background: var(--rv-green-15); }
 .heat-scale span.on { background: var(--rv-light-green); }
 .heat-scale span.cur { background: var(--accent); }
 
-@media (max-width: 640px) {
-  .brief-meta { grid-template-columns: 1fr; }
-}
+
 
 /* ---- KPI stripe ---- */
 .kpi-stripe { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); margin: 26px 0 6px; border-radius: 2px; overflow: hidden; }
@@ -439,65 +419,233 @@ hr.line-dot::after {
 }
 
 
-/* ---- Figures: DS-token data charts ---- */
-.figure { margin: 20px 0 28px; }
-.figure svg { width: 100%; height: auto; display: block; }
-.figure .fig-title { font-size: 10.5px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--accent); font-weight: 600; margin-bottom: 12px; }
-.figure .fig-caption { font-size: 11.5px; color: var(--muted); margin-top: 10px; letter-spacing: 0.2px; line-height: 1.55; }
-.figure svg text[font-weight="600"] { paint-order: stroke; stroke: var(--bg); stroke-width: 3px; stroke-linejoin: round; }
-
 /* =========================================================
- * Tweak variants (driven by body[data-*] from the Tweaks panel)
+ * DAILY identity — white / light, compact, fast read
  * ========================================================= */
-/* ---- Masthead: colour-band variants reuse the white markup ---- */
-body[data-masthead="green"] .masthead,
-body[data-masthead="blue"] .masthead {
-  margin: 0 calc(-1 * clamp(16px,4vw,40px));
-  padding: clamp(30px,4.5vw,48px) clamp(28px,5vw,64px) clamp(36px,5vw,52px);
-  border-radius: 2px;
+body { font-size: 15px; }
+/* slim white masthead: no colour band */
+.masthead {
+  padding: clamp(18px,3vw,28px) 0 0;
 }
-body[data-masthead="green"] .masthead { background: var(--accent); }
-body[data-masthead="blue"] .masthead {
-  background: var(--dark-blue);
-  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 calc(100% - 2.4rem));
-  padding-bottom: clamp(50px,6.5vw,68px);
-}
-body[data-masthead="green"] .masthead .mh-top,
-body[data-masthead="blue"] .masthead .mh-top { border-bottom: 0; padding-bottom: 0; margin-bottom: clamp(20px,3.5vw,34px); }
-body[data-masthead="green"] .masthead .mh-top .logo,
-body[data-masthead="blue"] .masthead .mh-top .logo { filter: brightness(0) invert(1); }
-body[data-masthead="green"] .masthead .mh-meta,
-body[data-masthead="blue"] .masthead .mh-meta { color: var(--cream); }
-body[data-masthead="blue"] .masthead .mh-meta { color: var(--light-blue); }
-body[data-masthead="green"] .masthead .mh-meta strong,
-body[data-masthead="blue"] .masthead .mh-meta strong { color: #fff; }
-body[data-masthead="green"] .masthead .mh-eyebrow { color: var(--cream); }
-body[data-masthead="blue"] .masthead .mh-eyebrow { color: var(--light-blue); }
-body[data-masthead="green"] .masthead h1,
-body[data-masthead="blue"] .masthead h1 { color: #fff; }
-body[data-masthead="green"] .masthead .mh-lede,
-body[data-masthead="blue"] .masthead .mh-lede { color: rgba(255,255,255,0.86); }
-body[data-masthead="green"] .masthead .mh-lede strong,
-body[data-masthead="blue"] .masthead .mh-lede strong { color: #fff; }
-body[data-masthead="green"] .masthead hr.line-dot,
-body[data-masthead="blue"] .masthead hr.line-dot { background: var(--cream); }
-body[data-masthead="green"] .masthead hr.line-dot::after,
-body[data-masthead="blue"] .masthead hr.line-dot::after { background: var(--light-green); }
+.masthead .mh-top { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+.masthead .mh-top .logo { height: clamp(28px,4vw,34px); width: auto; }
+.masthead .mh-meta { text-align: right; font-size: 10px; text-transform: uppercase; letter-spacing: 1.4px; line-height: 1.7; color: var(--muted); }
+.masthead .mh-meta strong { color: var(--accent); font-weight: 600; letter-spacing: 1.6px; }
+.masthead .mh-eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 0.18em; color: var(--green-70); font-weight: 600; margin: 22px 0 10px; }
+.masthead h1 { font-family: var(--serif); font-weight: 400; font-size: clamp(28px,4.4vw,44px); line-height: 1.08; letter-spacing: -0.015em; color: var(--accent); margin: 0; max-width: 26ch; }
+.masthead .mh-lede { font-size: clamp(14px,1.8vw,16px); font-weight: 300; line-height: 1.6; color: var(--fg); margin: 12px 0 0; max-width: 70ch; }
+.masthead .mh-lede strong { color: var(--accent); font-weight: 500; }
+.masthead hr.line-dot { margin-top: 20px; }
+/* daily green band: compact, no imagery */
+.hero { padding: clamp(26px,4vw,40px) clamp(28px,5vw,64px) clamp(30px,4.5vw,46px); }
+.hero h1 { font-size: clamp(26px,4vw,40px); max-width: 26ch; }
+.hero .hero-top { margin-bottom: clamp(18px,3vw,28px); }
+.hero .hero-top .logo { height: clamp(26px,3.5vw,32px); }
+/* compact rhythm */
+h2 { font-size: clamp(22px,2.6vw,27px); margin: clamp(34px,4.5vw,46px) 0 14px; padding-bottom: 11px; }
+h3 { font-size: clamp(16px,1.9vw,18px); margin: 22px 0 8px; }
+hr.rv-rule { margin: 28px 0 24px; }
+p { margin: 6px 0 10px; }
+.brief-meta { margin-top: 18px; }
+/* compact KPI mini cells (same idiom as weekly, tighter) */
+.kpi-mini { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0; margin: 10px 0 20px; border: 1px solid var(--border-soft); border-radius: 2px; overflow: hidden; background: var(--surface); }
+.kpi-mini .cell { padding: 9px 13px; border-right: 1px solid var(--border-soft); border-bottom: 1px solid var(--border-soft); display: flex; flex-direction: column; gap: 2px; }
+.kpi-mini .cell .lbl { font-size: 9.5px; text-transform: uppercase; letter-spacing: 1.1px; color: var(--muted); font-weight: 600; }
+.kpi-mini .cell .val { font-size: 15.5px; font-weight: 600; color: var(--accent); font-variant-numeric: tabular-nums; line-height: 1.15; }
+.kpi-mini .cell .meta { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; display: flex; gap: 7px; align-items: baseline; }
+.kpi-mini .cell .meta .chg { font-weight: 600; }
+.kpi-mini .cell .meta .chg.pos { color: var(--pos); }
+.kpi-mini .cell .meta .chg.neg { color: var(--neg); }
+.kpi-mini .cell .meta .sep { color: var(--border); }
+/* tier tags */
+.tag { display: inline-block; font-size: 10px; padding: 2px 8px; border-radius: 999px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.7px; white-space: nowrap; }
+.tag.hot { background: #F6E3DF; color: var(--neg); }
+.tag.warm { background: var(--rv-cream-50); color: var(--ye); }
+.tag.calm { background: var(--rv-green-15); color: var(--accent); }
+td.event { color: var(--accent); font-weight: 500; }
+td.time { color: var(--muted); font-size: 13px; white-space: nowrap; }
+table { font-size: 14px; }
+th, td { padding: 9px 11px; }
 
-/* ---- Rhythm: desk = compact fast-read density ---- */
-body[data-density="desk"] { font-size: 15px; }
-body[data-density="desk"] .masthead h1 { font-size: clamp(28px,4vw,42px); }
-body[data-density="desk"] h2 { font-size: clamp(22px,2.6vw,27px); margin: clamp(32px,4vw,44px) 0 12px; padding-bottom: 10px; }
-body[data-density="desk"] h3 { font-size: clamp(16px,1.9vw,18px); margin: 20px 0 8px; }
-body[data-density="desk"] p { margin: 6px 0 10px; }
-body[data-density="desk"] th, body[data-density="desk"] td { padding: 8px 10px; }
-body[data-density="desk"] table { font-size: 14px; }
-body[data-density="desk"] hr.rv-rule { margin: 26px 0 22px; }
-body[data-density="desk"] .tldr-callout, body[data-density="desk"] .callout { padding: 15px 18px; font-size: 14.5px; }
-body[data-density="desk"] .kpi { padding: 14px 14px 13px; }
+</style>
+</head>
+<body>
 
-/* ---- Brand devices: quiet mode strips line+dot accents ---- */
-body[data-devices="off"] h2::before, body[data-devices="off"] h2::after { display: none; }
-body[data-devices="off"] hr.rv-rule { background: var(--border); }
-body[data-devices="off"] hr.rv-rule::after { display: none; }
-body[data-devices="off"] hr.line-dot::after { display: none; }
+<div class="wrap">
+
+  <!-- Sticky nav -->
+  <nav class="nav-bar">
+    <div class="nav-inner">
+      <a href="#tape">Tape</a>
+      <a href="#calendar">Calendar</a>
+      <a href="#focus">Focus</a>
+      <a href="#tomorrow">Tomorrow</a>
+      <a href="#watchlist">Watchlist</a>
+    </div>
+  </nav>
+
+  <!-- Masthead band — RV Green (daily top-line) -->
+  <header class="hero">
+    <div class="hero-top">
+      <img class="logo" src="assets/rv-logo-negative.png" alt="RV Capital">
+      <div class="hero-meta">
+        <strong>Daily Summary</strong><br>
+        Internal · 2026-06-09 · IMDR
+      </div>
+    </div>
+    <div class="hero-eyebrow">Tuesday · 9 June 2026 · Week 24</div>
+    <h1>China trade and Korea GDP open a three-decision week</h1>
+    <p class="hero-lede">
+      CN May trade lands 08:30 UTC — the AI-semis export cycle is the day's swing factor.
+      KR Q1 GDP prelim at 07:00 expected unchanged from advance. Quiet US session (NFIB only)
+      ahead of <strong>Wednesday's US CPI + BoC double</strong>. Fed comms blackout continues.
+    </p>
+    <hr class="line-dot" style="position: relative;">
+  </header>
+
+  <!-- Edition meta — DS Badges (mounted at end of body) -->
+  <section class="brief-meta" id="brief-meta" aria-label="Edition, coverage and data vintage"></section>
+
+  <!-- ============================================================ -->
+  <h2 id="tape"><span class="section-num">00</span> Today's tape</h2>
+
+  <div class="callout">
+    <strong>Positioning day, not decision day.</strong> The market is square into Wednesday's
+    CPI + BoC; today's CN trade print is the only release with cross-asset range. Watch USD/KRW
+    (worst EM performer, 1533.8) for the GDP-print reaction and EUR/USD drift into Thursday's ECB.
+  </div>
+
+  <h4>Overnight snapshot · vs prior close, verified vs IMDR</h4>
+  <div class="kpi-mini">
+    <div class="cell"><span class="lbl">EUR/USD</span><span class="val">1.1510</span><span class="meta"><span class="chg neg">−0.21%</span><span class="sep">·</span><span class="ctx">into ECB</span></span></div>
+    <div class="cell"><span class="lbl">USD/JPY</span><span class="val">160.04</span><span class="meta"><span class="chg pos">+0.08%</span><span class="sep">·</span><span class="ctx">MoF line</span></span></div>
+    <div class="cell"><span class="lbl">USD/KRW</span><span class="val">1533.8</span><span class="meta"><span class="chg pos">+0.34%</span><span class="sep">·</span><span class="ctx">GDP 07:00</span></span></div>
+    <div class="cell"><span class="lbl">UST 10y</span><span class="val">4.46%</span><span class="meta"><span class="chg pos">−1 bp</span><span class="sep">·</span><span class="ctx">2s10s 41 bp</span></span></div>
+    <div class="cell"><span class="lbl">VIX</span><span class="val">21.5</span><span class="meta"><span class="chg neg">+0.4 pts</span><span class="sep">·</span><span class="ctx">9D &gt; 3M</span></span></div>
+    <div class="cell"><span class="lbl">WTI</span><span class="val">$94.0</span><span class="meta"><span class="chg neg">−0.5%</span><span class="sep">·</span><span class="ctx">Iran bid</span></span></div>
+  </div>
+
+  <!-- ============================================================ -->
+  <h2 id="calendar"><span class="section-num">01</span> Today's calendar (UTC)</h2>
+
+  <div class="tbl-scroll">
+    <table>
+      <thead>
+        <tr><th class="left">Time</th><th class="left">Event</th><th class="left">Consensus</th><th class="left">Prior</th><th class="left">Vendor lean</th><th>Tier</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="left time">07:00</td><td class="left event">KR Q1 GDP Prelim</td><td class="left">1.7 q/q · 3.6 y/y</td><td class="left">advance</td><td class="left">Unchanged from advance (JPM, Goldman)</td><td><span class="tag warm">Mid</span></td></tr>
+        <tr><td class="left time hi-strong">08:30</td><td class="left event hi-strong">CN May Trade (Exp / Imp y/y)</td><td class="left hi-strong">Exp +14-16 / Imp +21-26</td><td class="left">Apr Exp +13.5</td><td class="left">AI semis cycle (MS, Barclays, Nomura, JPM)</td><td><span class="tag hot">High</span></td></tr>
+        <tr><td class="left time">18:00</td><td class="left event">US NFIB Small Biz Optimism</td><td class="left">—</td><td class="left">—</td><td class="left">ANZ: 27% plan price hikes (vs 50-55% '21-22)</td><td><span class="tag calm">Low</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ============================================================ -->
+  <h2 id="focus"><span class="section-num">02</span> What matters today</h2>
+
+  <h3>2.1 · CN May trade — the AI-semis cycle test</h3>
+  <p>
+    May exports forecast <strong>+14-16% y/y</strong> on the AI semiconductor cycle; imports +21-26%.
+    <strong>BNP</strong> argues the reflation impulse is structurally sustainable beyond the energy shock;
+    <strong>MS / Barclays / Nomura / JPM</strong> all frame the print as the cycle's monthly health check.
+    A miss bleeds into tomorrow's CN CPI/PPI reflation read.
+  </p>
+
+  <hr class="rv-rule">
+
+  <h3>2.2 · KR Q1 GDP prelim — confirmation print</h3>
+  <p>
+    Expected <strong>unchanged from advance (1.7% q/q · 3.6% y/y)</strong> per JPM and Goldman.
+    The KRW story stays BoP-driven: Citi's chart pack shows a record YTD current-account surplus
+    (USD 75bn through Mar-26) against equity outflows — the add-zone for short USD/KRW remains 1480-1500.
+  </p>
+
+  <hr class="rv-rule">
+
+  <h3>2.3 · US NFIB — pricing-intentions detail</h3>
+  <p>
+    Headline is third-tier, but <strong>ANZ flags the price-plans subindex</strong>: 27% of small firms
+    plan hikes vs 50-55% in 2021-22 — an anchor argument into tomorrow's CPI.
+  </p>
+
+  <!-- ============================================================ -->
+  <h2 id="tomorrow"><span class="section-num">03</span> Into tomorrow</h2>
+
+  <div class="callout">
+    <strong>Wednesday is the week's hinge.</strong> CN CPI/PPI 09:30 · <strong>US May CPI 20:30</strong>
+    (consensus 0.50% headline / 0.22% core m/m — softest core in three months if it lands)
+    · <strong>BoC 21:45</strong> (hold 2.25%, UBS + Nomura unanimous; Nomura 60/25/15 scenario ladder).
+    The soft-core consensus is crowded — BNP sits at 0.29 core, the hot tail.
+  </div>
+
+  <!-- ============================================================ -->
+  <h2 id="watchlist"><span class="section-num">04</span> Desk watchlist</h2>
+
+  <div class="tbl-scroll">
+    <table>
+      <thead>
+        <tr><th class="left">Position</th><th class="left">Today's relevance</th><th class="left">Level</th><th class="left">Trigger</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="left event">SFRZ6M7 curve flatteners</td><td class="left">Hold into Wed CPI; soft core extends</td><td class="left">2s10s 41 bp</td><td class="left">Exit on core ≥0.28</td></tr>
+        <tr><td class="left event">Short USD/KRW</td><td class="left">GDP print + BoP surplus support</td><td class="left">1533.8</td><td class="left">Add 1480-1500 zone</td></tr>
+        <tr><td class="left event">Long USD/JPY dips</td><td class="left">MoF 160 line; BoJ hike next week priced</td><td class="left">160.04</td><td class="left">Stop below 157.5</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ============================================================ -->
+  <footer class="site-footer">
+    <div class="foot-top">
+      <div>
+        <hr class="line-dot">
+        <img class="logo" src="assets/rv-logo-negative.png" alt="RV Capital">
+        <p class="foot-about">RV Capital Management Private Ltd · Singapore-based hedge fund manager focused on long / short Asian fixed income — interest rates, foreign exchange and credit.</p>
+      </div>
+      <div class="foot-meta">
+        Daily Summary<br>
+        tue · 9 Jun 2026 · week 24<br>
+        Data-as-of 06:30 UTC · IMDR
+      </div>
+    </div>
+    <div class="foot-base">
+      <span>© 2026 RV Capital Management Private Ltd · Internal</span>
+      <span>Private &amp; Confidential</span>
+    </div>
+  </footer>
+
+</div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="_ds/rv-capital-design-system-d7ca4c30-6380-416e-bbde-ff5246b2ea06/_ds_bundle.js"></script>
+<script>
+(function () {
+  var ns = window.RVCapitalDesignSystem_d7ca4c;
+  var e = React.createElement;
+  function cell(label, badges) {
+    return e("div", { className: "bm-cell" },
+      e("span", { className: "rv-eyebrow" }, label),
+      e("div", { className: "bm-badges" }, badges)
+    );
+  }
+  ReactDOM.createRoot(document.getElementById("brief-meta")).render(
+    e(React.Fragment, null,
+      cell("Edition", [
+        e(ns.Badge, { key: 1, tone: "green" }, "Daily"),
+        e(ns.Badge, { key: 2, tone: "neutral" }, "Tue · Week 24")
+      ]),
+      cell("Overnight", [
+        e(ns.Badge, { key: 1, tone: "blue" }, "312 reports indexed")
+      ]),
+      cell("Data as of", [
+        e(ns.Badge, { key: 1, tone: "cream" }, "06:30 UTC · 9 Jun"),
+        e(ns.Badge, { key: 2, tone: "neutral" }, "IMDR-verified")
+      ])
+    )
+  );
+})();
+</script>
+</body>
+</html>

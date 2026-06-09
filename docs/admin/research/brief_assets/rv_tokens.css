@@ -1,0 +1,77 @@
+/* =========================================================
+ * rv_tokens.css — self-contained RV Capital design tokens
+ * Source of truth: docs/admin/research/picasso_design_brief.md §1
+ *
+ * This file replaces the external _ds/...token css link tags that
+ * the design-team templates expect, so renders are portable.
+ * If the full RV Capital Design System ever lands in this repo,
+ * replace this file with the DS source.
+ *
+ * Last updated: 2026-06-10
+ * ========================================================= */
+
+@import url("https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Public+Sans:wght@300;400;500;600;700&display=swap");
+
+:root {
+  /* ---- Brand ---- */
+  --rv-green:        #004527;
+  --rv-dark-blue:    #001830;
+  --rv-cream:        #E1D7C0;
+  --rv-light-blue:   #85A2BE;
+  --rv-light-green:  #B2D0B9;
+
+  /* ---- Brand semantic alias ---- */
+  --accent:          var(--rv-green);
+  --accent-ink:      #FFFFFF;
+
+  /* ---- Green tints ---- */
+  --rv-green-15:     #E0E9E4;
+  --rv-green-40:     #99B3A8;
+  --rv-green-70:     #4D806A;
+
+  /* ---- Foreground / muted ---- */
+  --fg:              #3D3E3E;
+  --text-muted:      #7A7C7C;
+  --text-faint:      #A7A8A8;
+
+  /* ---- Surfaces ---- */
+  --bg:              #FFFFFF;
+  --surface:         #FBFBFA;
+  --panel:           #F4F5F3;
+
+  /* ---- Borders (hairlines) ---- */
+  --border:          #E0E0DE;
+  --border-strong:   #C9CAC8;
+  --border-soft:     #EEEEEC;
+
+  /* ---- Semantic ---- */
+  --pos:             var(--rv-green);
+  --neg:             #B23A2B;
+  --warn:            #B8862F;
+
+  /* ---- Shadows (green-tinted, subtle) ---- */
+  --shadow-sm:       0 2px 6px -3px rgba(0,69,39,0.16);
+  --shadow-md:       0 6px 18px -10px rgba(0,69,39,0.22);
+
+  /* ---- Typography ---- */
+  /* Display serif: Quinn is the licensed brand face — substituted with
+   * Newsreader (Google Fonts) as the closest available match. */
+  --font-display:    "Newsreader", Georgia, "Times New Roman", serif;
+  --font-body:       "Public Sans", system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+  --font-mono:       "SF Mono", "Cascadia Mono", "Consolas", "Menlo", monospace;
+}
+
+/* Base reset / body — matches the design-team templates so they render
+ * without needing the inlined master rv_theme.css to redefine anything. */
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; padding: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-feature-settings: 'tnum' 1, 'lnum' 1;
+  font-size: 16px;
+  line-height: 1.62;
+  -webkit-font-smoothing: antialiased;
+}

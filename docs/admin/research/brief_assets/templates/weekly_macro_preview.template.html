@@ -1,0 +1,1481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Weekly Macro Preview · 8–14 Jun 2026 · RV Capital</title>
+<!-- DS tokens (palette / fonts / shadows) — self-contained substitute for
+     the full RV Capital Design System workspace. See picasso_design_brief.md §1. -->
+<link rel="stylesheet" href="../rv_tokens.css">
+<style>
+
+/* =========================================================
+ * rv_theme.css (inlined master) — lois-weekly baseline
+ * ========================================================= */
+:root {
+  /* Page aliases onto RV Capital DS tokens (_ds/...). Core semantics
+     (--bg, --surface, --panel, --fg, --accent, --border*, --pos, --neg,
+     --warn, --shadow-*) come straight from the DS stylesheets. */
+  --muted: var(--text-muted);
+  --faint: var(--text-faint);
+  --dark-blue: var(--rv-dark-blue);
+  --cream: var(--rv-cream);
+  --light-blue: var(--rv-light-blue);
+  --light-green: var(--rv-light-green);
+  --green-15: var(--rv-green-15);
+  --green-70: var(--rv-green-70);
+  --serif: var(--font-display);
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: 'Public Sans', system-ui, -apple-system, 'Segoe UI', Arial, sans-serif;
+  font-feature-settings: 'tnum' 1, 'lnum' 1;
+  font-size: 16px;
+  line-height: 1.62;
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+}
+.wrap { max-width: 1240px; margin: 0 auto; padding: clamp(20px,4vw,40px) clamp(16px,4vw,40px) 60px; }
+
+/* ---------- Sticky nav ---------- */
+.nav-bar {
+  position: sticky; top: 0; z-index: 50;
+  background: rgba(255,255,255,0.96);
+  backdrop-filter: saturate(180%) blur(8px);
+  -webkit-backdrop-filter: saturate(180%) blur(8px);
+  border-bottom: 1px solid var(--border-soft);
+  margin: 0 calc(-1 * clamp(16px,4vw,40px)) 22px;
+  padding: 0 clamp(16px,4vw,40px);
+}
+.nav-bar .nav-inner { display: flex; gap: 0; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.nav-bar .nav-inner::-webkit-scrollbar { display: none; }
+.nav-bar a {
+  display: inline-block; color: var(--muted); text-decoration: none;
+  font-size: 11.5px; text-transform: uppercase; letter-spacing: 1.1px; font-weight: 600;
+  padding: 12px 14px; border-bottom: 2px solid transparent; white-space: nowrap;
+}
+.nav-bar a:hover { color: var(--accent); border-bottom-color: var(--border); }
+
+/* ---------- Brand bar ---------- */
+.brand-bar { display: flex; align-items: center; justify-content: space-between; gap: 24px;
+  padding-bottom: 22px; margin-bottom: 24px; border-bottom: 1px solid var(--border); }
+.brand-bar .logo { height: clamp(36px,6vw,48px); width: auto; }
+.brand-bar .brand-meta { font-size: 10.5px; text-transform: uppercase; letter-spacing: 1.4px; color: var(--muted); text-align: right; line-height: 1.6; }
+.brand-bar .brand-meta strong { color: var(--accent); font-weight: 600; letter-spacing: 1.6px; }
+
+/* ---------- Hero ---------- */
+.hero { padding-bottom: 18px; margin-bottom: 28px; border-bottom: 1px solid var(--border-soft); }
+.hero h1 { font-size: clamp(26px,4.6vw,38px); font-weight: 600; letter-spacing: -0.4px; color: var(--accent); line-height: 1.15; margin: 0; }
+.hero p { font-size: clamp(14px,2vw,16px); color: var(--fg); margin-top: 12px; line-height: 1.6; }
+.hero p strong { color: var(--accent); }
+
+/* ---------- Headings ---------- */
+h2 {
+  font-family: var(--serif);
+  font-size: clamp(26px, 3.4vw, 34px);
+  font-weight: 400; color: var(--accent);
+  letter-spacing: -0.015em; line-height: 1.12;
+  margin: clamp(48px, 6vw, 68px) 0 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+  position: relative;
+  scroll-margin-top: 70px;
+}
+h2::after {
+  content: ""; position: absolute; left: 0; bottom: -2px;
+  width: 40px; height: 3px; background: var(--accent);
+}
+h2::before {
+  content: ""; position: absolute; left: 46px; bottom: -4px;
+  width: 7px; height: 7px; border-radius: 50%; background: var(--accent);
+}
+h3 {
+  font-family: var(--serif);
+  font-size: clamp(18px, 2.1vw, 21px);
+  font-weight: 500; color: var(--accent);
+  margin: 28px 0 10px; letter-spacing: -0.01em; line-height: 1.22;
+}
+h4 {
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: 1.3px;
+  color: var(--muted); font-weight: 600;
+  margin: 18px 0 8px;
+}
+p { margin: 8px 0 12px; }
+ol, ul { padding-left: 1.3em; }
+ol li, ul li { margin: 6px 0; }
+code { font-family: var(--font-mono); font-size: 0.88em; background: var(--panel); padding: 1px 6px; border-radius: 2px; color: var(--accent); }
+pre code { background: transparent; padding: 0; color: inherit; }
+strong { font-weight: 600; }
+
+/* ---------- Callout ---------- */
+.callout { background: var(--surface); border: 1px solid var(--border); border-top: 2px solid var(--accent); padding: 18px 22px; margin: 18px 0; font-size: 15.5px; border-radius: 0 0 2px 2px; line-height: 1.6; box-shadow: var(--shadow-sm); }
+.callout.warn  { border-top-color: var(--warn); }
+.callout.alert { border-top-color: var(--neg); }
+.callout strong { color: var(--accent); }
+
+/* ---------- Tables ---------- */
+.tbl-scroll { overflow-x: auto; margin: 6px 0 18px; -webkit-overflow-scrolling: touch; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; font-size: 14.5px; min-width: 540px; }
+th, td { padding: 11px 12px; text-align: right; vertical-align: top; }
+th.left, td.left { text-align: left; }
+th { border-bottom: 2px solid var(--accent); color: var(--accent); font-weight: 600; font-size: 10.5px; text-transform: uppercase; letter-spacing: 1.1px; padding-top: 12px; padding-bottom: 12px; white-space: nowrap; }
+tbody tr { border-bottom: 1px solid var(--border-soft); }
+tbody tr:nth-child(even) { background: var(--surface); }
+tbody tr:hover { background: var(--panel); }
+.pos { color: var(--pos); } .neg { color: var(--neg); }
+.hi-strong { background: rgba(0,69,39,0.10); color: var(--accent); font-weight: 600; }
+
+/* ---------- Vendor cards ---------- */
+.vendor-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; margin: 14px 0 22px; }
+.vendor-card { background: var(--surface); border: 1px solid var(--border-soft); border-radius: 2px; padding: 14px 16px; font-size: 13.5px; line-height: 1.55; }
+.vendor-card .vc-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; padding-bottom: 7px; border-bottom: 1px solid var(--border-soft); }
+.vendor-card .vc-bank { font-size: 10px; text-transform: uppercase; letter-spacing: 1.3px; font-weight: 700; color: var(--accent); }
+.vendor-card .vc-id a { font-size: 10.5px; color: var(--warn); text-decoration: none; font-weight: 600; letter-spacing: 0.3px; }
+.vendor-card .vc-id a:hover { text-decoration: underline; }
+.vendor-card .vc-meta { font-size: 11.5px; color: var(--muted); margin: 0 0 6px; letter-spacing: 0.2px; }
+.vendor-card blockquote { margin: 7px 0; padding: 0 0 0 11px; border-left: 2px solid var(--border); font-size: 13px; color: var(--fg); line-height: 1.55; }
+.vendor-card blockquote::before { content: "\201C"; color: var(--accent); }
+.vendor-card blockquote::after  { content: "\201D"; color: var(--accent); }
+
+/* ---------- SP link style ---------- */
+.rpt-link { color: var(--accent); text-decoration: none; border-bottom: 1px dotted var(--accent); padding: 0 1px; font-variant-numeric: tabular-nums; font-weight: 600; }
+.rpt-link:hover { background: var(--panel); border-bottom-style: solid; }
+
+/* ---------- Footer ---------- */
+.footer-rule { margin-top: 38px; padding-top: 18px; border-top: 1px solid var(--border-soft); display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; font-size: 10.5px; text-transform: uppercase; letter-spacing: 1.1px; color: var(--muted); }
+.footer-rule .brand-mark { color: var(--accent); font-weight: 600; letter-spacing: 1.4px; }
+
+/* ---------- Mobile ---------- */
+@media (max-width: 960px) {
+  table { font-size: 14px; }
+}
+@media (max-width: 760px) {
+  body { font-size: 15.5px; }
+  table { font-size: 13.5px; min-width: 480px; }
+  th, td { padding: 9px 10px; }
+  .brand-bar { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .brand-bar .brand-meta { text-align: left; }
+}
+@media (max-width: 480px) {
+  .wrap { padding: 16px 14px 50px; }
+  table { min-width: 380px; font-size: 13px; }
+  th, td { padding: 8px 9px; }
+}
+@media print {
+  .nav-bar { display: none; }
+  .wrap { max-width: 100%; padding: 0; }
+  body { font-size: 11px; }
+  h2 { page-break-after: avoid; }
+  table, .vendor-card, .mycroft-view-panel, .tldr-callout { page-break-inside: avoid; }
+  .sources-details { page-break-inside: avoid; }
+  .sources-details:not([open]) > .sd-body { display: block; }
+}
+
+/* =========================================================
+ * mycroft_topical_theme.css (inlined overrides) — v2 delta
+ * ========================================================= */
+
+.conviction-badge { display: none; }
+
+.tldr-callout {
+  background: var(--green-15);
+  border: 1px solid #CFE0D6;
+  border-top: 3px solid var(--accent);
+  padding: 22px 26px;
+  margin: 16px 0 26px;
+  font-size: 15.5px;
+  line-height: 1.62;
+  border-radius: 0 0 3px 3px;
+}
+.tldr-callout ul { margin: 4px 0 2px; padding-left: 1.3em; }
+.tldr-callout li { margin: 8px 0; }
+.tldr-callout strong { color: var(--accent); }
+
+.section-num {
+  font-family: "Public Sans", system-ui, sans-serif;
+  color: var(--green-70);
+  font-weight: 600;
+  font-size: 0.56em;
+  letter-spacing: 0.06em;
+  font-variant-numeric: tabular-nums;
+  vertical-align: 0.22em;
+  margin-right: 11px;
+}
+
+.mycroft-view-panel {
+  margin: 18px 0 26px;
+  padding: 24px 28px 26px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--accent);
+  border-radius: 0 0 3px 3px;
+  box-shadow: var(--shadow-md);
+}
+.mycroft-view-panel > :first-child { margin-top: 0; }
+.mycroft-view-panel > :last-child  { margin-bottom: 0; }
+.mycroft-view-panel strong { color: var(--accent); }
+.mycroft-view-panel ul { padding-left: 1.25em; }
+.mycroft-view-panel ul li { margin: 8px 0; }
+
+.change-my-mind-ol {
+  padding-left: 1.6em;
+  font-size: 15px;
+  line-height: 1.62;
+}
+.change-my-mind-ol li {
+  margin: 10px 0;
+  padding-left: 4px;
+}
+.change-my-mind-ol li::marker {
+  font-size: 1.15em;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.sources-details {
+  margin: 10px 0;
+  border: 1px solid var(--border-soft);
+  border-radius: 2px;
+  background: var(--surface);
+}
+.sources-details + .sources-details { margin-top: 8px; }
+.sources-details > summary {
+  font-weight: 600;
+  color: var(--accent);
+  font-size: 13.5px;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  list-style: none;
+  padding: 12px 16px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.sources-details > summary::-webkit-details-marker { display: none; }
+.sources-details > summary::before {
+  content: "\25B8";
+  color: var(--accent);
+  font-size: 11px;
+  display: inline-block;
+}
+.sources-details[open] > summary::before { content: "\25BE"; }
+.sources-details > summary:hover { background: var(--panel); }
+.sources-details[open] > summary { border-bottom: 1px solid var(--border-soft); }
+.sources-details .sd-body {
+  padding: 14px 18px 18px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.sources-details .sd-body pre {
+  background: var(--bg);
+  border: 1px solid var(--border-soft);
+  border-radius: 2px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  font-size: 12.5px;
+  line-height: 1.5;
+  font-family: 'SF Mono','Cascadia Mono','Consolas','Menlo',monospace;
+  color: var(--accent);
+  margin: 8px 0;
+}
+.sources-details .sd-body code { font-size: 12.5px; }
+.sources-details .sd-body ul { padding-left: 1.3em; }
+.sources-details .sd-body li { margin: 8px 0; }
+
+.chart-ref {
+  margin: 14px 0 20px;
+  padding: 12px 16px;
+  background: var(--panel);
+  border: 1px dashed var(--border-strong);
+  font-size: 13px;
+  color: var(--muted);
+  font-style: italic;
+  border-radius: 2px;
+}
+
+/* =========================================================
+ * RV newsletter bands — hero / KPI stripe / desk-quote / footer
+ * ========================================================= */
+.bleed { margin-left: calc(-1 * clamp(16px,4vw,40px)); margin-right: calc(-1 * clamp(16px,4vw,40px)); }
+
+/* ---- Hero masthead band ---- */
+.hero {
+  position: relative; overflow: hidden;
+  background: var(--accent);
+  margin: 0 calc(-1 * clamp(16px,4vw,40px)) 0;
+  padding: clamp(38px,5.5vw,60px) clamp(28px,5vw,64px) clamp(42px,6vw,58px);
+  border-radius: 2px;
+}
+.hero .hero-bg { position: absolute; inset: 0; opacity: 0.14; }
+.hero .hero-bg img { width: 100%; height: 100%; object-fit: cover; }
+.hero .hero-top { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: clamp(26px,5vw,42px); }
+.hero .hero-top .logo { height: clamp(30px,4vw,38px); width: auto; }
+.hero .hero-meta { text-align: right; font-size: 10.5px; text-transform: uppercase; letter-spacing: 1.4px; line-height: 1.7; color: var(--cream); }
+.hero .hero-meta strong { color: #fff; font-weight: 600; letter-spacing: 1.6px; }
+.hero .hero-eyebrow { position: relative; font-size: 11px; text-transform: uppercase; letter-spacing: 0.18em; color: var(--cream); font-weight: 600; margin-bottom: 16px; }
+.hero h1 { position: relative; font-family: var(--serif); font-weight: 400; font-size: clamp(34px,5.2vw,56px); line-height: 1.05; letter-spacing: -0.02em; color: #fff; margin: 0; max-width: 21ch; }
+.hero .hero-lede { position: relative; font-size: clamp(15px,1.9vw,18px); font-weight: 300; line-height: 1.6; color: rgba(255,255,255,0.86); margin: 18px 0 0; max-width: 62ch; }
+.hero .hero-lede strong { color: #fff; font-weight: 500; }
+
+/* ---- Brief meta strip (below hero): DS badges + conviction heat scale ---- */
+.brief-meta {
+  display: grid;
+  grid-template-columns: repeat(3, max-content);
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+  width: fit-content;
+  max-width: 100%;
+  margin: 22px auto 0;
+}
+.brief-meta .bm-cell { background: var(--surface); display: flex; align-items: center; gap: 12px; padding: 8px 16px; }
+@media (max-width: 1100px) {
+  .brief-meta { grid-template-columns: 1fr; }
+  .brief-meta .bm-cell { flex-wrap: wrap; gap: 8px 12px; padding: 10px 16px; }
+}
+.brief-meta .bm-badges { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.brief-meta .bm-badges > span { white-space: nowrap; }
+
+/* Conviction heat scale: 5 steps, low → high (light surface) */
+.heat-scale { display: flex; gap: 2px; width: 64px; }
+.heat-scale span { flex: 1; height: 6px; border-radius: 1px; background: var(--rv-green-15); }
+.heat-scale span.on { background: var(--rv-light-green); }
+.heat-scale span.cur { background: var(--accent); }
+
+
+
+/* ---- KPI stripe ---- */
+.kpi-stripe { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); margin: 26px 0 6px; border-radius: 2px; overflow: hidden; }
+.kpi { background: var(--bg); padding: 20px 18px 18px; }
+/* DS <Stat> label (first span) — reserve two lines so values align across cells */
+.kpi > div > span:first-of-type { min-height: 2.7em; }
+
+/* ---- Rule: hairline divider with RV-green tick + dot ---- */
+hr.rv-rule {
+  position: relative;
+  overflow: visible;
+  border: 0; height: 1px; margin: 40px 0 36px;
+  background: linear-gradient(to right, var(--accent) 0 32px, transparent 32px 46px, var(--border) 46px);
+}
+hr.rv-rule::after {
+  content: ""; position: absolute; left: 36px; top: -2.5px;
+  width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+}
+
+/* ---- Brand device: line + dot ---- */
+hr.line-dot {
+  position: relative; border: 0;
+  overflow: visible;
+  width: 64px; height: 2px; margin: 26px 0 0;
+  background: var(--accent);
+}
+hr.line-dot::after {
+  content: ""; position: absolute; right: -10px; top: -2px;
+  width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+}
+.hero hr.line-dot { background: var(--cream); }
+.hero hr.line-dot::after { background: var(--light-green); }
+.site-footer hr.line-dot { background: var(--cream); margin: 0 0 18px; }
+.site-footer hr.line-dot::after { background: var(--light-green); }
+
+/* ---- Desk pull-quote: 25° slice + dot ---- */
+.desk-quote {
+  position: relative; overflow: hidden;
+  background: var(--dark-blue);
+  margin: 44px calc(-1 * clamp(16px,4vw,40px));
+  padding: clamp(40px,5vw,56px) clamp(40px,6vw,84px) clamp(56px,7vw,78px);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 calc(100% - 2.6rem));
+}
+.desk-quote .dq-eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 0.18em; color: var(--light-blue); font-weight: 600; margin-bottom: 20px; }
+.desk-quote .dq-text { font-family: var(--serif); font-weight: 400; font-size: clamp(23px,3.2vw,38px); line-height: 1.2; color: #fff; max-width: 26ch; margin: 0; letter-spacing: -0.01em; }
+.desk-quote .dq-by { font-size: 13px; color: var(--cream); margin-top: 26px; letter-spacing: 0.04em; }
+.desk-quote .dq-dot { position: absolute; right: clamp(40px,6vw,84px); bottom: clamp(34px,4vw,46px); width: 16px; height: 16px; border-radius: 999px; background: var(--light-green); }
+
+/* ---- Dark-blue footer band ---- */
+.site-footer {
+  background: var(--dark-blue); color: rgba(255,255,255,0.78);
+  margin: 48px calc(-1 * clamp(16px,4vw,40px)) -60px;
+  padding: clamp(40px,5vw,54px) clamp(28px,5vw,64px) clamp(26px,4vw,38px);
+  border-radius: 2px 2px 0 0;
+}
+.site-footer .foot-top { display: flex; flex-wrap: wrap; gap: 28px; justify-content: space-between; align-items: flex-start; padding-bottom: 26px; border-bottom: 1px solid rgba(255,255,255,0.14); }
+.site-footer .logo { height: 24px; width: auto; filter: brightness(0) invert(1); opacity: 0.92; margin-bottom: 14px; }
+.site-footer .foot-about { font-size: 13px; font-weight: 300; line-height: 1.7; color: rgba(255,255,255,0.7); max-width: 48ch; margin: 0; }
+.site-footer .foot-meta { text-align: right; font-size: 10.5px; text-transform: uppercase; letter-spacing: 1.3px; line-height: 1.85; color: var(--light-blue); }
+.site-footer .foot-base { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; padding-top: 18px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(255,255,255,0.55); }
+
+@media (max-width: 760px) {
+  .kpi-stripe { grid-template-columns: repeat(2, 1fr); }
+  .kpi:last-child { grid-column: span 2; }
+}
+@media print {
+  .hero, .desk-quote, .site-footer, .tldr-callout, .kpi { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .desk-quote { clip-path: none; }
+}
+
+/* ---------- Compact KPI mini-table (top markets snapshot) ---------- */
+/* Stacked vertically inside each cell so no horizontal overflow. */
+.kpi-mini {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0;
+  margin: 10px 0 22px;
+  border: 1px solid var(--border-soft);
+  border-radius: 2px;
+  overflow: hidden;
+  background: var(--panel-2);
+}
+.kpi-mini .cell {
+  padding: 10px 14px;
+  border-right: 1px solid var(--border-soft);
+  border-bottom: 1px solid var(--border-soft);
+  display: flex; flex-direction: column;
+  gap: 2px;
+}
+.kpi-mini .cell .lbl {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 1.1px;
+  color: var(--muted); font-weight: 600;
+}
+.kpi-mini .cell .val {
+  font-size: 16px; font-weight: 600;
+  color: var(--accent); font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+}
+.kpi-mini .cell .meta {
+  font-size: 11.5px; color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  display: flex; gap: 8px; align-items: baseline;
+}
+.kpi-mini .cell .meta .chg { font-weight: 600; }
+.kpi-mini .cell .meta .chg.pos { color: var(--pos); }
+.kpi-mini .cell .meta .chg.neg { color: var(--neg); }
+.kpi-mini .cell .meta .sep { color: var(--border); }
+.kpi-mini .cell .meta .ctx { color: var(--muted); }
+
+/* ---------- Tables ---------- */
+.tbl-scroll { overflow-x: auto; margin: 6px 0 18px; -webkit-overflow-scrolling: touch; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; font-size: 14.5px; min-width: 540px; }
+th, td { padding: 11px 12px; text-align: right; vertical-align: top; }
+th.left, td.left { text-align: left; }
+th { border-bottom: 2px solid var(--accent); color: var(--accent); font-weight: 600; font-size: 10.5px; text-transform: uppercase; letter-spacing: 1.1px; padding-top: 12px; padding-bottom: 12px; white-space: nowrap; }
+tbody tr { border-bottom: 1px solid var(--border-soft); }
+tbody tr:nth-child(even) { background: var(--panel-2); }
+tbody tr:hover { background: var(--panel); }
+td.event { color: var(--accent); font-weight: 500; }
+td.time { color: var(--muted); font-size: 13.5px; white-space: nowrap; }
+.pos { color: var(--pos); } .neg { color: var(--neg); }
+.tag { display: inline-block; font-size: 10px; padding: 2px 8px; border-radius: 999px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.7px; white-space: nowrap; }
+.tag.hot { background:#F8E1DC; color:var(--neg); }
+.tag.warm{ background:#F4E7CC; color:var(--warn); }
+.tag.calm{ background:#DEEAE3; color:var(--accent); }
+.hi-strong { background: rgba(0,69,39,0.10); color: var(--accent); font-weight: 600; }
+
+/* ---------- Vendor cards (per-bank thesis blocks) ---------- */
+.vendor-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; margin: 14px 0 22px; }
+.vendor-card { background: var(--panel-2); border: 1px solid var(--border-soft); border-radius: 2px; padding: 14px 16px; font-size: 13.5px; line-height: 1.55; }
+.vendor-card .vc-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; padding-bottom: 7px; border-bottom: 1px solid var(--border-soft); }
+.vendor-card .vc-bank { font-size: 10px; text-transform: uppercase; letter-spacing: 1.3px; font-weight: 700; color: var(--accent); }
+.vendor-card .vc-id a { font-size: 10.5px; color: var(--warn); text-decoration: none; font-weight: 600; letter-spacing: 0.3px; }
+.vendor-card .vc-id a:hover { text-decoration: underline; }
+.vendor-card .vc-thesis { font-style: italic; color: var(--fg); font-size: 13.5px; font-weight: 500; }
+.vendor-card .vc-fcst { font-size: 13px; margin: 7px 0; color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums; }
+.vendor-card blockquote { margin: 7px 0; padding: 0 0 0 11px; border-left: 2px solid var(--border); font-size: 13px; color: var(--fg); line-height: 1.5; }
+.vendor-card blockquote::before { content: "\201C"; color: var(--accent); }
+.vendor-card blockquote::after  { content: "\201D"; color: var(--accent); }
+.vendor-card .vc-meta { font-size: 11.5px; color: var(--muted); margin-top: 4px; letter-spacing: 0.2px; }
+.vendor-card .vc-trade { margin-top: 10px; padding: 8px 10px; background: var(--bg); border-left: 3px solid var(--warn); font-size: 13px; }
+.vendor-card .vc-trade strong { color: var(--warn); text-transform: uppercase; font-size: 10.5px; letter-spacing: 1.2px; }
+.vendor-card .vc-risk  { margin-top: 8px; padding: 8px 10px; background: var(--bg); border-left: 3px solid var(--neg); font-size: 13px; }
+.vendor-card .vc-risk strong  { color: var(--neg); text-transform: uppercase; font-size: 10.5px; letter-spacing: 1.2px; }
+
+/* ---------- Reaction matrix ---------- */
+.rxn-grid { display: grid; grid-template-columns: minmax(220px,1.3fr) repeat(3, minmax(160px,1fr)); margin: 14px 0 18px; border: 1px solid var(--border-soft); }
+.rxn-grid > div { padding: 12px 14px; border-right: 1px solid var(--border-soft); border-bottom: 1px solid var(--border-soft); font-size: 14px; line-height: 1.5; }
+.rxn-grid > div:nth-child(4n) { border-right: 0; }
+.rxn-grid .rg-head { background: var(--bg); color: var(--accent); font-weight: 600; font-size: 10.5px; text-transform: uppercase; letter-spacing: 1.1px; border-bottom: 2px solid var(--accent); }
+.rxn-grid .rg-cell-bull { background: rgba(31,125,74,0.07); }
+.rxn-grid .rg-cell-base { background: var(--panel-2); }
+.rxn-grid .rg-cell-bear { background: rgba(139,46,30,0.07); }
+.rxn-grid .rg-label { font-weight: 600; color: var(--accent); display: block; margin-bottom: 4px; }
+.rxn-grid .rg-prob { display: inline-block; font-size: 10px; padding: 1px 7px; border-radius: 999px; background: var(--panel); color: var(--accent); font-weight: 600; letter-spacing: 0.4px; margin-left: 4px; }
+
+/* ---------- Charts & PDF embeds ---------- */
+.chart-card { margin: 14px 0 28px; }
+.chart-card img { max-width: 100%; height: auto; display: block; border: 1px solid var(--border-soft); padding: 8px; background: var(--bg); border-radius: 2px; }
+.chart-grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px,1fr)); gap: 22px; margin: 18px 0 28px; }
+.chart-grid-2 .chart-card { margin: 0; }
+.chart-caption { font-size: 11.5px; color: var(--muted); margin-top: 8px; letter-spacing: 0.2px; line-height: 1.55; }
+
+/* Bank PDF augmentation embed — compact, image as augmentation */
+.pdf-augment {
+  margin: 16px 0 22px;
+  padding: 12px 14px 14px;
+  background: var(--panel-3);
+  border-left: 3px solid var(--warn);
+  border-radius: 0 2px 2px 0;
+  max-width: 760px;  /* cap width so PDFs don't dominate */
+}
+.pdf-augment .pa-head {
+  display: flex; flex-wrap: wrap;
+  justify-content: space-between; align-items: baseline;
+  gap: 8px; margin-bottom: 10px; padding-bottom: 7px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.pdf-augment .pa-eyebrow {
+  font-size: 9.5px; text-transform: uppercase; letter-spacing: 1.3px;
+  color: var(--warn); font-weight: 700;
+}
+.pdf-augment .pa-title {
+  font-size: 13px; font-weight: 600; color: var(--accent);
+  margin-top: 2px; line-height: 1.35;
+}
+.pdf-augment .pa-link a {
+  font-size: 10.5px; color: var(--warn);
+  text-decoration: none; font-weight: 600; letter-spacing: 0.4px;
+}
+.pdf-augment .pa-link a:hover { text-decoration: underline; }
+.pdf-augment img {
+  max-width: 100%; height: auto; display: block;
+  border: 1px solid var(--border); background: var(--bg);
+  border-radius: 2px;
+}
+.pdf-augment .pa-pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px,1fr));
+  gap: 10px;
+}
+.pdf-augment .pa-pair > div { display: flex; flex-direction: column; }
+.pdf-augment .pa-pair img { flex: 1; }
+.pdf-augment .pa-note {
+  font-size: 11px; color: var(--muted);
+  margin-top: 8px; line-height: 1.5; font-style: italic;
+}
+
+/* ---------- Trade tags ---------- */
+.trade-tag { display: inline-block; padding: 3px 10px; border-radius: 2px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; white-space: nowrap; }
+.trade-tag.rates { background: var(--accent); color: var(--accent-ink); }
+.trade-tag.fx { background: var(--warn); color: white; }
+.trade-tag.eq { background: var(--light-green); color: white; }
+.trade-tag.cmd { background: var(--neg); color: white; }
+
+/* ---------- Vendor consensus banner ---------- */
+.consensus-banner { display: flex; align-items: center; gap: 16px; padding: 14px 18px; background: var(--panel); border-left: 4px solid var(--accent); border-radius: 0 2px 2px 0; margin: 12px 0 18px; font-size: 14.5px; }
+.consensus-banner .cb-num { font-size: 26px; font-weight: 700; color: var(--accent); line-height: 1; letter-spacing: -0.5px; min-width: 72px; }
+.consensus-banner .cb-text { flex: 1; line-height: 1.5; }
+
+/* ---------- Day cards (mobile §1) ---------- */
+.day-cards { display: none; }
+.day { background: var(--panel-2); border: 1px solid var(--border-soft); padding: 14px 16px; margin: 12px 0; border-radius: 2px; }
+.day .day-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border-soft); }
+.day .day-title { font-size: 13px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--accent); font-weight: 600; }
+.day .day-meta { font-size: 11px; color: var(--muted); letter-spacing: 0.5px; }
+.day .day-row { display: flex; gap: 10px; padding: 6px 0; align-items: baseline; border-top: 1px solid var(--border-soft); }
+.day .day-row:first-of-type { border-top: 0; }
+.day .day-time { color: var(--muted); font-size: 12.5px; min-width: 52px; font-variant-numeric: tabular-nums; }
+.day .day-event { flex: 1; }
+.day .day-event .event-name { color: var(--accent); font-weight: 500; font-size: 14.5px; }
+.day .day-event .event-cons { color: var(--fg); font-size: 13.5px; margin-top: 2px; }
+.day .day-event .event-lean { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+.day .day-row .tag { align-self: flex-start; flex-shrink: 0; margin-top: 3px; }
+
+/* ---------- SP link style ---------- */
+.rpt-link { color: var(--accent); text-decoration: none; border-bottom: 1px dotted var(--accent); padding: 0 1px; font-variant-numeric: tabular-nums; font-weight: 600; }
+.rpt-link:hover { background: var(--panel); border-bottom-style: solid; }
+
+/* ---------- Footer ---------- */
+.footer-note { margin-top: 28px; font-size: 12.5px; color: var(--muted); line-height: 1.6; }
+.footer-rule { margin-top: 38px; padding-top: 18px; border-top: 1px solid var(--border-soft); display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; font-size: 10.5px; text-transform: uppercase; letter-spacing: 1.1px; color: var(--muted); }
+.footer-rule .brand-mark { color: var(--accent); font-weight: 600; letter-spacing: 1.4px; }
+
+/* ---------- Mobile ---------- */
+@media (max-width: 760px) {
+  body { font-size: 15.5px; }
+  table { font-size: 13.5px; min-width: 480px; }
+  th, td { padding: 9px 10px; }
+  .brand-bar { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .brand-bar .brand-meta { text-align: left; }
+  .kpi-mini { grid-template-columns: 1fr 1fr; }
+  .kpi-mini .cell { border-right: 1px solid var(--border-soft); border-bottom: 1px solid var(--border-soft); }
+  .kpi-mini .cell:nth-child(2n) { border-right: 0; }
+  .rxn-grid { grid-template-columns: 1fr; border-left: 0; border-right: 0; }
+  .rxn-grid > div { border-right: 0; padding: 13px 14px; }
+  .rxn-grid .rg-head { display: none; }
+  .rxn-grid .rg-label { font-size: 14px; }
+  .rxn-grid > div::before { content: attr(data-label); display: block; font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.1px; margin-bottom: 4px; font-weight: 600; }
+  .events-table-wrap { display: none; }
+  .day-cards { display: block; }
+  .pdf-augment .pa-pair { grid-template-columns: 1fr; }
+}
+@media (max-width: 480px) {
+  .wrap { padding: 16px 14px 50px; }
+  table { min-width: 380px; font-size: 13px; }
+  th, td { padding: 8px 9px; }
+}
+@media print {
+  .nav-bar { display: none; }
+  .wrap { max-width: 100%; padding: 0; }
+  body { font-size: 11px; }
+  h2 { page-break-after: avoid; }
+  table, .rxn-grid, .chart-card, .pdf-augment, .vendor-card { page-break-inside: avoid; }
+}
+
+
+/* =========================================================
+ * WEEKLY identity — RV Dark Blue flagship
+ * ========================================================= */
+:root { --panel-2: var(--surface); --panel-3: var(--panel); }
+.hero { background: var(--dark-blue); padding-bottom: clamp(60px,8vw,92px);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 calc(100% - 2.8rem)); }
+.hero .hero-eyebrow { color: var(--light-blue); }
+.hero h1 { font-size: clamp(38px,6.4vw,66px); max-width: 18ch; }
+.hero .hero-meta { color: var(--light-blue); }
+.hero .hero-meta strong { color: #fff; }
+/* family coding: weekly line+dot and section devices in dark blue */
+h2::after { background: var(--dark-blue); }
+h2::before { background: var(--dark-blue); }
+hr.rv-rule { background: linear-gradient(to right, var(--dark-blue) 0 32px, transparent 32px 46px, var(--border) 46px); }
+hr.rv-rule::after { background: var(--dark-blue); }
+/* tier tags on DS tints */
+.tag.hot { background: #F6E3DF; color: var(--neg); }
+.tag.warm { background: var(--rv-cream-50); color: var(--ye); }
+.tag.calm { background: var(--rv-green-15); color: var(--accent); }
+/* trade tags: fix contrast, keep DS palette */
+.trade-tag.eq { background: var(--green-70); color: #fff; }
+/* consensus banner: card idiom, not left-border trope */
+.consensus-banner { background: var(--surface); border: 1px solid var(--border); border-left: 0; border-top: 2px solid var(--dark-blue); border-radius: 0 0 2px 2px; box-shadow: var(--shadow-sm); }
+.consensus-banner .cb-num { font-family: var(--serif); font-weight: 400; font-size: 32px; }
+/* pdf augment: quiet card */
+.pdf-augment { background: var(--surface); border: 1px solid var(--border); border-left: 0; border-top: 2px solid var(--warn); border-radius: 0 0 2px 2px; }
+.kpi-mini .cell .val { font-size: 17px; }
+/* graceful fallback for pipeline images not present in this preview */
+.img-fallback {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 140px; padding: 30px 18px;
+  border: 1px dashed var(--border-strong); border-radius: 2px;
+  background: var(--panel); color: var(--muted);
+  font-size: 12px; font-style: italic; text-align: center; line-height: 1.5;
+}
+@media print { .hero { clip-path: none; } }
+
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+
+  <!-- Sticky nav -->
+  <nav class="nav-bar">
+    <div class="nav-inner">
+      <a href="#story">Story</a>
+      <a href="#calendar">Calendar</a>
+      <a href="#snapshot">Markets</a>
+      <a href="#uscpi">US CPI</a>
+      <a href="#ecb">ECB</a>
+      <a href="#boc">BoC</a>
+      <a href="#japan">Japan</a>
+      <a href="#china">China</a>
+      <a href="#korea">Korea</a>
+      <a href="#india">India</a>
+      <a href="#trades">Trades</a>
+      <a href="#risks">Tail risks</a>
+    </div>
+  </nav>
+
+  <!-- Masthead band — RV Dark Blue (weekly flagship) -->
+  <header class="hero">
+    <div class="hero-bg"><img src="assets/architecture-mumbai.png" alt=""></div>
+    <div class="hero-top">
+      <img class="logo" src="assets/rv-logo-negative.png" alt="RV Capital">
+      <div class="hero-meta">
+        <strong>Weekly Macro Preview</strong><br>
+        Internal · 2026-06-08 · IMDR
+      </div>
+    </div>
+    <div class="hero-eyebrow">Week 24 · 8–14 June 2026</div>
+    <h1>Three central-bank decisions in 28 hours — and a US CPI in the middle</h1>
+    <p class="hero-lede">
+      ECB hikes Thu (<strong>10/10 vendor consensus</strong> — first cycle since 2022 where the ECB
+      leads the Fed) · BoC holds late Wed · US May CPI between them · BoJ June hike fully telegraphed
+      for next week. New Fed Chair <strong>Warsh enters comms blackout the day he takes the chair</strong>;
+      the under-the-radar tape-bomb is UoM 5-10y inflation expectations Fri 22:00 UTC.
+    </p>
+    <hr class="line-dot" style="position: relative;">
+  </header>
+
+  <!-- Edition meta — DS Badges (mounted at end of body) -->
+  <section class="brief-meta" id="brief-meta" aria-label="Edition, coverage and data vintage"></section>
+
+
+  <!-- ============================================================ -->
+  <h2 id="story"><span class="section-num">00</span> Story of the Week</h2>
+
+  <div class="callout">
+    <strong>The G3 central-bank rotation has flipped.</strong>
+    ECB hikes Thu in what every vendor calls "recalibration" not "new cycle" — first time since 2022 the ECB leads.
+    BoJ June hike telegraphed unanimously for next week. BoC holds with USMCA tail.
+    Iran/Hormuz keeps Brent elevated $94–95/bbl, with banks raising '26 oil assumptions +16-40% vs March staff baselines.
+    Fed under Warsh enters comms blackout 06/06–06/11. <strong>The story everyone is hedging:
+    can inflation expectations stay anchored without an early Warsh hike?</strong>
+    Watch UoM Fri 22:00 UTC.
+  </div>
+
+  <!-- Compact markets KPI mini-table -->
+  <h4>Markets snapshot · 5-day change, verified vs IMDR</h4>
+  <div class="kpi-mini">
+    <div class="cell"><span class="lbl">EUR/USD</span><span class="val">1.1510</span><span class="meta"><span class="chg neg">−1.13%</span><span class="sep">·</span><span class="ctx">into ECB</span></span></div>
+    <div class="cell"><span class="lbl">USD/JPY</span><span class="val">160.04</span><span class="meta"><span class="chg pos">+0.19%</span><span class="sep">·</span><span class="ctx">MoF line</span></span></div>
+    <div class="cell"><span class="lbl">USD/KRW</span><span class="val">1533.8</span><span class="meta"><span class="chg pos">+1.03%</span><span class="sep">·</span><span class="ctx">worst EM</span></span></div>
+    <div class="cell"><span class="lbl">USD/CAD</span><span class="val">1.3950</span><span class="meta"><span class="chg pos">+0.74%</span><span class="sep">·</span><span class="ctx">BoC priced</span></span></div>
+    <div class="cell"><span class="lbl">UST 10y</span><span class="val">4.46%</span><span class="meta"><span class="chg pos">−4 bp</span><span class="sep">·</span><span class="ctx">2s10s 41 bp</span></span></div>
+    <div class="cell"><span class="lbl">UST 2y</span><span class="val">4.05%</span><span class="meta"><span class="chg neg">+4 bp</span><span class="sep">·</span><span class="ctx">curve flatter</span></span></div>
+    <div class="cell"><span class="lbl">VIX</span><span class="val">21.5</span><span class="meta"><span class="chg neg">+6.2 pts</span><span class="sep">·</span><span class="ctx">5-Jun pulse</span></span></div>
+    <div class="cell"><span class="lbl">WTI</span><span class="val">$94.0</span><span class="meta"><span class="chg neg">−1.7%</span><span class="sep">·</span><span class="ctx">Iran bid</span></span></div>
+  </div>
+
+  <!-- ============================================================ -->
+  <h2 id="calendar"><span class="section-num">01</span> Event Calendar (UTC)</h2>
+
+  <div class="events-table-wrap">
+    <div class="tbl-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th class="left">Day</th><th class="left">Time</th><th class="left">Event</th>
+            <th class="left">Consensus</th><th class="left">Prior</th><th class="left">Vendor lean</th><th>Tier</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="left">Mon 9 Jun</td><td class="left time">07:50</td><td class="left event">JP Q1 GDP Final q/q SAAR</td><td class="left">+1.8% (revised)</td><td class="left">+2.1% P</td><td class="left">Capex +1.1 → −2.8; doesn't derail BoJ hike</td><td><span class="tag warm">Mid</span></td></tr>
+          <tr><td class="left">Mon 9 Jun</td><td class="left time">07:50</td><td class="left event">JP Apr BoP Current Account</td><td class="left">—</td><td class="left">—</td><td class="left">Repatriation flow watch (Goldman $6tn unhedged)</td><td><span class="tag calm">Low</span></td></tr>
+          <tr><td class="left">Tue 9 Jun</td><td class="left time">07:00</td><td class="left event">KR Q1 GDP Prelim</td><td class="left">1.7 q/q · 3.6 y/y</td><td class="left">advance</td><td class="left">Unchanged from advance (JPM, Goldman)</td><td><span class="tag warm">Mid</span></td></tr>
+          <tr><td class="left">Tue 9 Jun</td><td class="left time">08:30</td><td class="left event">CN May Trade (Exp / Imp y/y)</td><td class="left">Exp +14-16 / Imp +21-26</td><td class="left">Apr Exp +13.5</td><td class="left">AI semis cycle (MS, Barclays, Nomura, JPM)</td><td><span class="tag hot">High</span></td></tr>
+          <tr><td class="left">Tue 9 Jun</td><td class="left time">18:00</td><td class="left event">US NFIB Small Biz Optimism</td><td class="left">—</td><td class="left">—</td><td class="left">ANZ: 27% plan price hikes (vs 50-55% '21-22)</td><td><span class="tag calm">Low</span></td></tr>
+          <tr><td class="left">Wed 10 Jun</td><td class="left time">09:30</td><td class="left event">CN May CPI / PPI y/y</td><td class="left">CPI +1.2 / PPI +3.8-4.0</td><td class="left">—</td><td class="left">Reflation supply-side (BNP, JPM)</td><td><span class="tag hot">High</span></td></tr>
+          <tr><td class="left">Wed 10 Jun</td><td class="left time hi-strong">20:30</td><td class="left event hi-strong">US May CPI</td><td class="left hi-strong">0.50% hd · 0.22% core m/m</td><td class="left">0.4 / 0.3 (Apr)</td><td class="left">Soft-core consensus; BNP "Energized" the hot tail</td><td><span class="tag hot">Tier 1</span></td></tr>
+          <tr><td class="left">Wed 10 Jun</td><td class="left time hi-strong">21:45</td><td class="left event hi-strong">BoC Decision</td><td class="left hi-strong">HOLD 2.25%</td><td class="left">2.25%</td><td class="left">UBS · Nomura 3/3 hold; USMCA tail</td><td><span class="tag hot">Tier 1</span></td></tr>
+          <tr><td class="left">Thu 11 Jun</td><td class="left time">07:00</td><td class="left event">KR May Unemployment SA</td><td class="left">2.8%</td><td class="left">2.8%</td><td class="left">Flat — labour stable despite KRW stress</td><td><span class="tag calm">Low</span></td></tr>
+          <tr><td class="left">Thu 11 Jun</td><td class="left time hi-strong">20:15</td><td class="left event hi-strong">ECB Decision</td><td class="left hi-strong">+25 bp → 2.25% depo</td><td class="left">2.00%</td><td class="left"><strong>10/10 vendor hike consensus</strong></td><td><span class="tag hot">Tier 1</span></td></tr>
+          <tr><td class="left">Thu 11 Jun</td><td class="left time">20:30</td><td class="left event">US Initial Jobless Claims · May PPI</td><td class="left">—</td><td class="left">—</td><td class="left">UBS: PPI +1.0% m/m on JP PPI</td><td><span class="tag warm">Mid</span></td></tr>
+          <tr><td class="left">Fri 12 Jun</td><td class="left time">14:00</td><td class="left event">DE/FR/ES May CPI Final</td><td class="left">At flash</td><td class="left">—</td><td class="left">Confirmation print, post-ECB</td><td><span class="tag warm">Mid</span></td></tr>
+          <tr><td class="left">Fri 12 Jun</td><td class="left time">18:30</td><td class="left event">IN May CPI</td><td class="left">4.2% y/y</td><td class="left">3.5% Apr</td><td class="left">MS: re-accel; RBI FY27 fcst to 5.1%</td><td><span class="tag hot">High</span></td></tr>
+          <tr><td class="left">Fri 12 Jun</td><td class="left time hi">22:00</td><td class="left event hi">US Jun P UoM + 5-10y inflation exp</td><td class="left">—</td><td class="left">—</td><td class="left">Under-radar Warsh-Fed credibility test</td><td><span class="tag hot">High</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Mobile day-cards -->
+  <div class="day-cards">
+    <div class="day"><div class="day-header"><span class="day-title">Mon · 9 Jun</span><span class="day-meta">JP Q1 GDP final</span></div><div class="day-row"><span class="day-time">07:50</span><div class="day-event"><div class="event-name">JP Q1 GDP Final q/q SAAR</div><div class="event-cons">+1.8% (revised from +2.1%P)</div><div class="event-lean">Capex −2.8; doesn't derail BoJ</div></div><span class="tag warm">Mid</span></div></div>
+    <div class="day"><div class="day-header"><span class="day-title">Tue · 9 Jun</span><span class="day-meta">CN trade · KR GDP</span></div><div class="day-row"><span class="day-time">07:00</span><div class="day-event"><div class="event-name">KR Q1 GDP Prelim</div><div class="event-cons">1.7 q/q · 3.6 y/y</div></div><span class="tag warm">Mid</span></div><div class="day-row"><span class="day-time">08:30</span><div class="day-event"><div class="event-name">CN May Trade y/y</div><div class="event-cons">Exp +14-16 / Imp +21-26</div><div class="event-lean">AI semis cycle</div></div><span class="tag hot">High</span></div></div>
+    <div class="day"><div class="day-header"><span class="day-title">Wed · 10 Jun</span><span class="day-meta">CN CPI · US CPI · BoC</span></div><div class="day-row"><span class="day-time">09:30</span><div class="day-event"><div class="event-name">CN May CPI / PPI</div><div class="event-cons">CPI +1.2 · PPI +3.8-4.0</div></div><span class="tag hot">High</span></div><div class="day-row"><span class="day-time">20:30</span><div class="day-event"><div class="event-name"><strong>US May CPI</strong></div><div class="event-cons">0.50% hd · 0.22% core m/m</div><div class="event-lean">Soft consensus; BNP "Energized" the hot tail</div></div><span class="tag hot">Tier 1</span></div><div class="day-row"><span class="day-time">21:45</span><div class="day-event"><div class="event-name"><strong>BoC Decision</strong></div><div class="event-cons">HOLD 2.25% (3/3)</div></div><span class="tag hot">Tier 1</span></div></div>
+    <div class="day"><div class="day-header"><span class="day-title">Thu · 11 Jun</span><span class="day-meta">ECB · KR jobs · US claims/PPI</span></div><div class="day-row"><span class="day-time">07:00</span><div class="day-event"><div class="event-name">KR Unemployment</div><div class="event-cons">2.8%</div></div><span class="tag calm">Low</span></div><div class="day-row"><span class="day-time">20:15</span><div class="day-event"><div class="event-name"><strong>ECB Decision</strong></div><div class="event-cons">+25 bp → 2.25% depo</div><div class="event-lean"><strong>10/10 hike consensus</strong></div></div><span class="tag hot">Tier 1</span></div></div>
+    <div class="day"><div class="day-header"><span class="day-title">Fri · 12 Jun</span><span class="day-meta">EU CPI · IN CPI · UoM</span></div><div class="day-row"><span class="day-time">14:00</span><div class="day-event"><div class="event-name">DE/FR/ES May CPI Final</div></div><span class="tag warm">Mid</span></div><div class="day-row"><span class="day-time">18:30</span><div class="day-event"><div class="event-name">IN May CPI</div><div class="event-cons">4.2% y/y (MS); prior 3.5%</div></div><span class="tag hot">High</span></div><div class="day-row"><span class="day-time">22:00</span><div class="day-event"><div class="event-name">US Jun P UoM + 5-10y inflation exp</div><div class="event-lean">Under-radar Warsh-Fed test</div></div><span class="tag hot">High</span></div></div>
+  </div>
+
+  <h4>Central bank speakers / blackouts</h4>
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th class="left">Date</th><th class="left">Event</th></tr></thead>
+      <tbody>
+        <tr><td class="left">06/06 – 06/11</td><td class="left">Fed external communications blackout — Warsh's first as Chair</td></tr>
+        <tr><td class="left">Mon 09 Jun 19:00 UTC</td><td class="left">ECB Moulin in Paris</td></tr>
+        <tr><td class="left">Fri 12 Jun 22:30 UTC</td><td class="left">ECB Nagel in Berlin</td></tr>
+        <tr><td class="left">Fri 12 Jun</td><td class="left">Bundesbank publishes new economic forecasts</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ============================================================ -->
+  <h2 id="snapshot"><span class="section-num">02</span> Cross-Asset Markets Snapshot</h2>
+
+  <p>Numbers verified directly from IMDR: <strong>FX spot</strong> 2026-06-08 09:10 UTC vs 2026-06-02; <strong>UST</strong> 2026-06-02 (FRED daily) vs 2026-05-26; <strong>VIX</strong> 2026-06-05 vs 2026-05-29. <strong>USDKRW is the standout EM weakness (+1.03% in 5 days) on $76 bn YTD foreign equity outflows.</strong> US 2s10s flattened 8 bp last week (2y +4 / 10y −4) — bull-flattening into the soft-CPI thesis but with front-end pressure persisting.</p>
+
+  <div class="chart-grid-2">
+    <div class="chart-card"><img loading="lazy" src="charts/us_cpi_yoy.png" alt="US CPI YoY"><div class="chart-caption">IMDR <code>econ.fact_indicator</code> FRED CPIAUCSL — Apr-26 3.78% YoY, May consensus 4.20-4.30%.</div></div>
+    <div class="chart-card"><img loading="lazy" src="charts/ust_2s10s.png" alt="UST 2s10s YTD"><div class="chart-caption">IMDR <code>econ.fact_indicator</code>. 2s10s at 41 bp, flattened 8 bp last week.</div></div>
+    <div class="chart-card"><img loading="lazy" src="charts/ust_curve_ytd.png" alt="UST curve YTD"><div class="chart-caption">UST curve YTD — DGS2/5/10/30.</div></div>
+    <div class="chart-card"><img loading="lazy" src="charts/vix_term.png" alt="VIX term structure"><div class="chart-caption">CBOE indices. 5-Jun pulse VIX +6.2 pts; VIX9D &gt; VIX3M (inversion).</div></div>
+    <div class="chart-card"><img loading="lazy" src="charts/fx_eurusd.png" alt="EURUSD"><div class="chart-caption">IMDR <code>fx.fact_fx_rate</code>. UBS year-end target 1.14.</div></div>
+    <div class="chart-card"><img loading="lazy" src="charts/fx_usdjpy.png" alt="USDJPY"><div class="chart-caption">May dip = MoF intervention $74 bn Apr-May (per SocGen <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/04/socgen/Yen_at_160_2y_spread_at_crossroads_362200.pdf" target="_blank" rel="noopener" class="rpt-link" title="Yen at 160, 2y spread at crossroads">3804</a>).</div></div>
+    <div class="chart-card"><img loading="lazy" src="charts/fx_usdkrw.png" alt="USDKRW"><div class="chart-caption">HSBC EOY target 1450; add zone 1480-1500 (HSBC/Citi/Nomura).</div></div>
+    <div class="chart-card"><img loading="lazy" src="charts/oil_gold_ytd.png" alt="WTI + Gold"><div class="chart-caption">IMDR <code>commodities.fact_spot</code>. Iran/Hormuz premium.</div></div>
+  </div>
+
+  <!-- ============================================================ -->
+  <h2 id="uscpi"><span class="section-num">03</span> US May CPI — Wed 10 Jun 20:30 UTC · DEEP DIVE</h2>
+
+  <p><strong>The print everyone is positioning ahead of.</strong> Consensus median sits at <strong>0.50% headline / 0.22% core m/m</strong>, which would be the softest core in three months. But the dispersion is wide: <strong>UBS / Nomura camp at 0.17–0.18% core</strong> (residual seasonality + rent technicals) vs. <strong>BNP "Energized" at 0.29% core</strong> (NSS structural shift + tariff persistence + airfare jet-fuel spike). 12 bp spread on the core call. The MS rates desk is positioned for the soft outcome with explicit trade levels.</p>
+
+  <div class="consensus-banner">
+    <div class="cb-num">0.22</div>
+    <div class="cb-text">
+      <strong>Core m/m median forecast across 6 banks.</strong>
+      Soft camp (UBS, Nomura) → bull-steepener via SFRZ flatteners.
+      Hot camp (BNP solo) → bear-flattener.
+    </div>
+  </div>
+
+  <h3>Vendor forecasts at a glance</h3>
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th class="left">Bank</th><th>Hd m/m</th><th>Hd y/y</th><th>Core m/m</th><th>Core y/y</th><th class="left">Tilt</th></tr></thead>
+      <tbody>
+        <tr><td class="left">BNP <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/03/bnp/US_May_CPI_preview_Energized_925588.pdf" target="_blank" rel="noopener" class="rpt-link" title="US May CPI preview: Energized">3572</a></td><td class="hi-strong">0.56</td><td>4.3</td><td class="hi-strong">0.29</td><td>2.9</td><td class="left">Hot tail — "Energized"</td></tr>
+        <tr><td class="left">Barclays <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/barclays/US_CPI_Inflation_Preview_May_CPI_Softer_rents_stronger_travel_inflation_6a2313de.pdf" target="_blank" rel="noopener" class="rpt-link" title="US CPI Inflation Preview: May CPI: Softer rents, stronger travel inflation">4195</a></td><td>0.54</td><td>4.3</td><td>0.28</td><td>2.9</td><td class="left">Softer rents, stronger travel</td></tr>
+        <tr><td class="left">Morgan Stanley <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/03/ms/CPI_Preview_Core_decelerates_headline_remains_high_3ba6325e.pdf" target="_blank" rel="noopener" class="rpt-link" title="CPI Preview: Core decelerates, headline remains high">3308</a></td><td>0.56</td><td>4.3</td><td>0.22</td><td>2.8</td><td class="left">Core decelerates, hd stays high</td></tr>
+        <tr><td class="left">ANZ</td><td>0.50</td><td>4.2</td><td>0.20</td><td>2.9</td><td class="left">Elevated; demand-pull absent</td></tr>
+        <tr><td class="left">Nomura <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/nomura/Economic_Insights_US_May_CPI_Preview_1304251.pdf" target="_blank" rel="noopener" class="rpt-link" title="Economic Insights - US: May CPI Preview">4694</a></td><td>0.45</td><td>4.20</td><td class="hi-strong">0.18</td><td>2.80</td><td class="left">Soft camp</td></tr>
+        <tr><td class="left">UBS</td><td>0.46</td><td>4.2</td><td class="hi-strong">0.17</td><td>2.8</td><td class="left">Softest core</td></tr>
+        <tr><td class="left"><strong>Median</strong></td><td><strong>0.50</strong></td><td><strong>4.25</strong></td><td><strong>0.22</strong></td><td><strong>2.85</strong></td><td class="left">12 bp core spread</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>How each bank sees it (direct quotes)</h3>
+  <div class="vendor-grid">
+
+    <div class="vendor-card">
+      <div class="vc-head">
+        <span class="vc-bank">Barclays</span>
+        <span class="vc-id"><a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/barclays/US_CPI_Inflation_Preview_May_CPI_Softer_rents_stronger_travel_inflation_6a2313de.pdf" target="_blank" rel="noopener">4195 ↗</a></span>
+      </div>
+      <div class="vc-thesis">Softer rents, stronger travel inflation.</div>
+      <div class="vc-fcst">Hd 0.54 / 4.3 · Core 0.28 / 2.9 · Gasoline +7.44 · Rents +0.34 · Airline fares +3.50 · Core gds +0.07</div>
+      <blockquote>We expect core CPI to have risen 0.28% m/m (versus 0.38% in April), with this deceleration largely led by a normalization in rents/OER CPI run-rates.</blockquote>
+      <blockquote>This forecast is about 4 bp above our preliminary estimate, led by stronger inflation forecasts for lodging away from home and airline fares, based on our high frequency data.</blockquote>
+      <div class="vc-risk"><strong>Risk</strong> · "Risks to our path are skewed to the upside amid elevated commodity prices, even outside of crude oil."</div>
+    </div>
+
+    <div class="vendor-card">
+      <div class="vc-head">
+        <span class="vc-bank">Nomura</span>
+        <span class="vc-id"><a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/nomura/Economic_Insights_US_May_CPI_Preview_1304251.pdf" target="_blank" rel="noopener">4694 ↗</a></span>
+      </div>
+      <div class="vc-thesis">Core moderates to 0.183% from temporarily elevated 0.376% in April.</div>
+      <div class="vc-fcst">Hd 0.454 / 4.198 · Core 0.183 / 2.797 · OER +0.22 · Regular rent +0.21 · Airfares +2.9</div>
+      <blockquote>Incoming data suggest core goods price inflation remained slightly positive in May. While the tariff impact continued to wane, information technology commodity prices rose further, reflecting higher production costs for consumer electronics.</blockquote>
+      <blockquote>Supercore service CPI inflation likely decelerated modestly in May, partly due to negative residual seasonality, although airline fares continued to rise strongly due to higher jet fuel costs.</blockquote>
+      <blockquote>Overall, the expected moderation in m-o-m core CPI inflation is unlikely to quell concerns over inflation risks among policymakers.</blockquote>
+    </div>
+
+    <div class="vendor-card">
+      <div class="vc-head">
+        <span class="vc-bank">BNP Paribas</span>
+        <span class="vc-id"><a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/03/bnp/US_May_CPI_preview_Energized_925588.pdf" target="_blank" rel="noopener">3572 ↗</a></span>
+      </div>
+      <div class="vc-thesis">"Energized" — the lone hot tail at 0.29% core.</div>
+      <div class="vc-fcst">Hd 0.56 / 4.3 · Core 0.29 / 2.9 · Motor fuel +7.0 · Core gds +0.34 · Airfares +4.0</div>
+      <blockquote>Inflation persistence, combined with the energy price shock and layered onto ongoing tariff pass-through, suggests that this category will be an inflationary source through our forecast horizon.</blockquote>
+      <blockquote>We tend to think that pricing behavior in NSS has changed and that inflation in the category has become more entrenched... Our forecast is for NSS to average 3.6% over 2026-2027, which we think is consistent with the category being shocked back into its high state following the jolts since 2020.</blockquote>
+      <div class="vc-risk"><strong>Risk</strong> · "With summer travel and events impending and the Middle East conflict ongoing, we continue to see upside risks to our inflation profile."</div>
+    </div>
+
+    <div class="vendor-card">
+      <div class="vc-head">
+        <span class="vc-bank">Morgan Stanley</span>
+        <span class="vc-id"><a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/ms/Maintain_SFRZ6M7_Flatteners_into_Soft_May_CPI_22c64b36.pdf" target="_blank" rel="noopener">4614 ↗</a></span>
+      </div>
+      <div class="vc-thesis">Maintain SFRZ6M7 flatteners into soft May CPI — peak inflation in rearview.</div>
+      <div class="vc-fcst">Core 0.22% m/m (down from 0.38% Apr)</div>
+      <blockquote>Our economists see the peak inflationary pulse in the rearview and soft inflation ahead; stay in SFRZ6M7 flatteners.</blockquote>
+      <blockquote>The step-down in core is largely explained by easing shelter inflation. The April strength reflected a one-off payback from shutdown-related noise, and shelter should move back closer to its underlying trend starting from May.</blockquote>
+      <div class="vc-trade"><strong>Trade idea</strong> · Maintain SFRZ6M7 curve flatteners at 14 bp, target −10 bp, initial stop 20 bp. + Long 2y (Sep'27) UST SOFR swap spreads at −11.6 bp, target −9 bp, trailing stop −15 bp.</div>
+    </div>
+
+  </div>
+
+  <h3>Component drivers — what moves inside the print</h3>
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th class="left">Component</th><th class="left">Direction</th><th class="left">Vendor view</th></tr></thead>
+      <tbody>
+        <tr><td class="left">Energy</td><td class="left">↑ Big</td><td class="left">Gasoline +7-9% m/m (BNP 7.0, Barclays 7.44). All vendors aligned.</td></tr>
+        <tr><td class="left">Shelter (rent / OER)</td><td class="left">↓ Soft</td><td class="left">April was technical noise. Nomura 0.21-0.22, BNP 0.24, Barclays 0.34 m/m — normalising. <strong>This is the swing factor.</strong></td></tr>
+        <tr><td class="left">Core services ex-housing (NSS)</td><td class="left">Mixed</td><td class="left">Airline fares +2.9-4.0 (jet fuel). Lodging −0.6 (BNP, neg seasonality). BNP flags <em>"NSS has changed... category shocked back to high state"</em>.</td></tr>
+        <tr><td class="left">Core goods</td><td class="left">Mostly soft</td><td class="left">Tariff pass-through ~63 bp of ~70 bp done (MS). IT commodities push higher (Nomura). BNP outlier at +0.34 m/m.</td></tr>
+        <tr><td class="left">Health insurance</td><td class="left">Soft</td><td class="left">Barclays: rebound from −6.7% YoY (low frequency).</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Scenario reaction matrix</h3>
+  <div class="rxn-grid">
+    <div class="rg-head">Print scenario</div><div class="rg-head">UST 2y / SOFR</div><div class="rg-head">DXY / EURUSD</div><div class="rg-head">SPX / risk</div>
+
+    <div class="rg-cell-bull" data-label="Scenario"><span class="rg-label">Soft / dovish<span class="rg-prob">~30%</span></span>Core ≤ 0.20 m/m (UBS, Nomura camp)</div>
+    <div class="rg-cell-bull" data-label="UST 2y / SOFR">2y −7 to −10 bp · <strong>MS SFRZ6/Z7 flattener target −10 bp</strong> (entry 14, stop 20)</div>
+    <div class="rg-cell-bull" data-label="DXY / EURUSD">DXY −0.5 to −1.0% · EURUSD +60-100 pips into ECB</div>
+    <div class="rg-cell-bull" data-label="SPX / risk">SPX +0.7 to +1.5% · bull-steepener · cyclical bid</div>
+
+    <div class="rg-cell-base" data-label="Scenario"><span class="rg-label">In-line<span class="rg-prob">~50%</span></span>Core 0.22 m/m (consensus median)</div>
+    <div class="rg-cell-base" data-label="UST 2y / SOFR">2y ±2 bp · curve unchanged · pre-positioning for ECB drives flows</div>
+    <div class="rg-cell-base" data-label="DXY / EURUSD">DXY mixed · EURUSD 1.148-1.156 into ECB</div>
+    <div class="rg-cell-base" data-label="SPX / risk">SPX flat ±0.3% · vol crush · VIX → 19s</div>
+
+    <div class="rg-cell-bear" data-label="Scenario"><span class="rg-label">Hot / hawkish<span class="rg-prob">~20%</span></span>Core ≥ 0.27 m/m (BNP "Energized")</div>
+    <div class="rg-cell-bear" data-label="UST 2y / SOFR">2y +7 to +12 bp · flattener stopped · SFRZ6/Z7 → 20+ bp</div>
+    <div class="rg-cell-bear" data-label="DXY / EURUSD">DXY +0.5 to +1.0% · EURUSD −80 pips · &lt; 1.144</div>
+    <div class="rg-cell-bear" data-label="SPX / risk">SPX −1.0 to −1.8% · VIX → 24+ · bear-flattener</div>
+  </div>
+  <p class="chart-caption">Sensitivities derived from MS explicit trade levels (id&nbsp;<a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/ms/Maintain_SFRZ6M7_Flatteners_into_Soft_May_CPI_22c64b36.pdf" target="_blank" rel="noopener" class="rpt-link" title="Maintain SFRZ6M7 Flatteners into Soft May CPI">4614</a>) + historical CPI reaction beta. Not bank forecasts of post-print levels.</p>
+
+  <h3>Source material — bank PDFs (augmentation)</h3>
+  <div class="pdf-augment">
+    <div class="pa-head">
+      <div>
+        <div class="pa-eyebrow">Nomura · Soft-core forecast table</div>
+        <div class="pa-title">Economic Insights — US: May CPI Preview <span style="color:var(--muted);font-weight:400;">· id&nbsp;<a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/nomura/Economic_Insights_US_May_CPI_Preview_1304251.pdf" target="_blank" rel="noopener" class="rpt-link" title="Economic Insights - US: May CPI Preview">4694</a>, p.1</span></div>
+      </div>
+      <div class="pa-link"><a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/nomura/Economic_Insights_US_May_CPI_Preview_1304251.pdf" target="_blank" rel="noopener">Open PDF ↗</a></div>
+    </div>
+    <img loading="lazy" src="bank_pdfs/4694_nomura_p01.png" alt="Nomura US CPI Preview p.1">
+    <div class="pa-note">Look at: Fig 1 (mid-page) — full component forecast table with Mar/Apr Actual + May Nomura vs Consensus side-by-side. Nomura at 0.183 core vs consensus 0.3 = the soft-camp number.</div>
+  </div>
+
+  <div class="pdf-augment">
+    <div class="pa-head">
+      <div>
+        <div class="pa-eyebrow">Morgan Stanley · Trade idea + entry/target/stop</div>
+        <div class="pa-title">Maintain SFRZ6M7 Flatteners into Soft May CPI <span style="color:var(--muted);font-weight:400;">· id&nbsp;<a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/ms/Maintain_SFRZ6M7_Flatteners_into_Soft_May_CPI_22c64b36.pdf" target="_blank" rel="noopener" class="rpt-link" title="Maintain SFRZ6M7 Flatteners into Soft May CPI">4614</a>, p.1</span></div>
+      </div>
+      <div class="pa-link"><a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/ms/Maintain_SFRZ6M7_Flatteners_into_Soft_May_CPI_22c64b36.pdf" target="_blank" rel="noopener">Open PDF ↗</a></div>
+    </div>
+    <img loading="lazy" src="bank_pdfs/4614_ms_p01.png" alt="MS SFRZ6M7 flatteners p.1">
+    <div class="pa-note">Look at: Key Takeaways bullet 6 — explicit trade size and stop: "stay in SFRZ6M7 curve flatteners… core at 0.22% m/m". This is the only piece in the dump with named entry/target/stop.</div>
+  </div>
+
+  <div class="pdf-augment">
+    <div class="pa-head">
+      <div>
+        <div class="pa-eyebrow">BNP · "Energized" hot-tail forecast table</div>
+        <div class="pa-title">US May CPI preview: Energized <span style="color:var(--muted);font-weight:400;">· id&nbsp;<a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/03/bnp/US_May_CPI_preview_Energized_925588.pdf" target="_blank" rel="noopener" class="rpt-link" title="US May CPI preview: Energized">3572</a>, p.1</span></div>
+      </div>
+      <div class="pa-link"><a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/03/bnp/US_May_CPI_preview_Energized_925588.pdf" target="_blank" rel="noopener">Open PDF ↗</a></div>
+    </div>
+    <img loading="lazy" src="bank_pdfs/3572_bnp_p01.png" alt="BNP Energized US CPI preview p.1">
+    <div class="pa-note">Look at: Fig 1 (the wide category-breakdown table). BNP at 0.29 core vs Nomura/UBS 0.17-0.18 — the dispersion is in <em>core goods</em> (+0.34 m/m vs ~0.1 consensus) on tariff persistence + NSS structural shift.</div>
+  </div>
+
+  <!-- ============================================================ -->
+  <h2 id="ecb"><span class="section-num">04</span> ECB — Thu 11 Jun 20:15 UTC · DEEP DIVE</h2>
+
+  <p><strong>The regime shift.</strong> For the first time since 2022, the ECB hikes ahead of the Fed. Every vendor we ingest (10/10) expects +25 bp to 2.25%. The framing is uniform across desks: this is "<em>recalibration</em>" not a new tightening cycle. Drivers: <strong>core HICP up to 2.55% May</strong> (above target, surprised up — Goldman), <strong>'26 Brent assumption raised +16-40%</strong> across vendors since March, <strong>selling-price expectations re-accelerated sharply Mar/Apr</strong> (BNP), even as <strong>Q2 GDP tracker prints ~0.0% q/q</strong> (Barclays). Schnabel's framework on persistence has won out over Lane's wait-and-see.</p>
+
+  <div class="consensus-banner">
+    <div class="cb-num">10/10</div>
+    <div class="cb-text">
+      <strong>Vendors expect +25 bp to 2.25%.</strong>
+      Median EOY 2.50% (after Sep hike); JPM/HSBC see <strong>three hikes total</strong>.
+      Quote (per Goldman <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/04/goldman/ECB_Preview_A_June_Hike_as_Inflation_Risks_Rebuild_43f35d6f.pdf" target="_blank" rel="noopener" class="rpt-link" title="ECB Preview—A June Hike as Inflation Risks Rebuild">3656</a>): <em>"A limited inflation overshoot could warrant 'some measured adjustment' in the policy stance."</em>
+    </div>
+  </div>
+
+  <h3>Vendor path</h3>
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th class="left">Bank</th><th class="left">Jun decision</th><th class="left">EOY path</th><th class="left">'26 HICP</th><th class="left">'26 GDP</th></tr></thead>
+      <tbody>
+        <tr><td class="left">SocGen <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/08/socgen/A_modest_hike_by_the_ECB_362359.pdf" target="_blank" rel="noopener" class="rpt-link" title="A modest hike by the ECB">4619</a></td><td class="left">+25 bp → 2.25</td><td class="left">+ Sep hike → 2.50</td><td class="left">peak 3.8 early '27</td><td class="left">Q1 dip; multinational vol</td></tr>
+        <tr><td class="left">Nomura <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/nomura/European_Insights_ECB_preview_Begin_phase_recalibration_1304169.pdf" target="_blank" rel="noopener" class="rpt-link" title="European Insights - ECB preview: Begin phase “recalibration”">4704</a></td><td class="left">+25 bp → 2.25</td><td class="left">+ Jul hike → <strong>2.50 peak</strong></td><td class="left">3.2 (vs Mar 2.6)</td><td class="left">0.6 (vs Mar 0.9)</td></tr>
+        <tr><td class="left">JPM <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/jpm/ECB_preview_A_hike_with_a_hawkish_signal_GPS.pdf" target="_blank" rel="noopener" class="rpt-link" title="ECB preview: A hike with a hawkish signal">4510</a></td><td class="left">+25 bp → 2.25</td><td class="left">3 hikes total (Sep next)</td><td class="left">core &gt; 2% all horizon</td><td class="left">—</td></tr>
+        <tr><td class="left">Barclays <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/barclays/ECB_preview_A_credible_hike_6a23136a.pdf" target="_blank" rel="noopener" class="rpt-link" title="ECB preview: A credible hike">4196</a></td><td class="left">+25 bp → 2.25</td><td class="left">+ Sep hike → 2.50</td><td class="left">2.9 (down from prior)</td><td class="left">0.3 ('26) · 1.0 ('27)</td></tr>
+        <tr><td class="left">Goldman <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/04/goldman/ECB_Preview_A_June_Hike_as_Inflation_Risks_Rebuild_43f35d6f.pdf" target="_blank" rel="noopener" class="rpt-link" title="ECB Preview—A June Hike as Inflation Risks Rebuild">3656</a></td><td class="left">+25 bp → 2.25</td><td class="left">+ Sep hike → 2.50</td><td class="left">3.0 (vs Mar 2.6)</td><td class="left">0.7 (vs Mar 0.9)</td></tr>
+        <tr><td class="left">ANZ</td><td class="left">+25 bp → 2.25</td><td class="left">+ Sep hike → 2.50 (symbolic)</td><td class="left">—</td><td class="left">—</td></tr>
+        <tr><td class="left">BNP</td><td class="left">+25 bp → 2.25</td><td class="left">+ Sep → 2.50, hold '27</td><td class="left">2.8 hd · 2.3 core</td><td class="left">—</td></tr>
+        <tr><td class="left">HSBC</td><td class="left">+25 bp → 2.25</td><td class="left"><strong>3 hikes</strong> base; mkt 65 bp</td><td class="left">+0.4 ppt vs Mar</td><td class="left">nudged down</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>How each bank sees it (direct quotes)</h3>
+  <div class="vendor-grid">
+
+    <div class="vendor-card">
+      <div class="vc-head">
+        <span class="vc-bank">Goldman Sachs</span>
+        <span class="vc-id"><a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/04/goldman/ECB_Preview_A_June_Hike_as_Inflation_Risks_Rebuild_43f35d6f.pdf" target="_blank" rel="noopener">3656 ↗</a></span>
+      </div>
+      <div class="vc-thesis">A June hike as inflation risks rebuild.</div>
+      <div class="vc-fcst">25 bp → 2.25 · '26 HICP 3.0 / Core 2.5 · '26 GDP 0.7</div>
+      <blockquote>The latest data point to materially higher inflation and weaker growth than the ECB anticipated.</blockquote>
+      <blockquote>Persistently higher energy prices have shifted up the inflation outlook significantly since the March staff projections.</blockquote>
+      <blockquote>A limited inflation overshoot could warrant "some measured adjustment" in the policy stance.</blockquote>
+      <div class="vc-meta">Base path: 2× 25 bp hikes Jun+Sep → 2.50, then cuts back to neutral in '27.</div>
+    </div>
+
+    <div class="vendor-card">
+      <div class="vc-head">
+        <span class="vc-bank">Nomura</span>
+        <span class="vc-id"><a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/nomura/European_Insights_ECB_preview_Begin_phase_recalibration_1304169.pdf" target="_blank" rel="noopener">4704 ↗</a></span>
+      </div>
+      <div class="vc-thesis">Begin phase "recalibration".</div>
+      <div class="vc-fcst">25 bp → 2.25; peak 2.50 (Jul next) · '26 HICP 3.2 / Core 2.5</div>
+      <blockquote>The public may find it difficult to understand a reaction function that does not react.<br><span style="font-size:11px;color:var(--muted);">— Lagarde (quoted by Nomura)</span></blockquote>
+      <blockquote>The Iran war, so far, is more akin to the second type of shock... Any ECB rate hike, therefore, would be to ensure that medium-term consumer inflation expectations do not drift higher and de-anchor.</blockquote>
+      <blockquote>We believe the ECB's view on the upper bound for neutral has likely shifted higher, which means the ECB could feasibly justify a couple of rate hikes as a signal that it won't leave inflation expectations or inflation unchecked.</blockquote>
+    </div>
+
+    <div class="vendor-card">
+      <div class="vc-head">
+        <span class="vc-bank">JPMorgan</span>
+        <span class="vc-id"><a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/jpm/ECB_preview_A_hike_with_a_hawkish_signal_GPS.pdf" target="_blank" rel="noopener">4510 ↗</a></span>
+      </div>
+      <div class="vc-thesis">A hike with a hawkish signal — three hikes total signalled.</div>
+      <div class="vc-fcst">25 bp; staff projections consistent with 3 hikes; core &gt; 2% all horizon</div>
+      <blockquote>The ECB will almost certainly hike by 25bp next week, putting the focus on the signal for subsequent meetings.</blockquote>
+      <blockquote>Core inflation jumped to 2.5% y/y in May. It is not yet clear if this reflects stronger-than-expected pre-war momentum, a holiday distortion in May or stronger indirect effects from energy prices.</blockquote>
+      <blockquote>The signal from the staff forecasts is that three hikes could be needed in total... with a clear direction of travel.</blockquote>
+      <div class="vc-meta">Risk tilt: 3 hikes after upward revision to PMI + flash HICP upside surprise.</div>
+    </div>
+
+    <div class="vendor-card">
+      <div class="vc-head">
+        <span class="vc-bank">Barclays</span>
+        <span class="vc-id"><a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/barclays/ECB_preview_A_credible_hike_6a23136a.pdf" target="_blank" rel="noopener">4196 ↗</a></span>
+      </div>
+      <div class="vc-thesis">A credible hike — look-through strategy no longer an option.</div>
+      <div class="vc-fcst">25 bp → 2.25; + Sep hike → 2.50 then hold to end-'27</div>
+      <blockquote>The magnitude of the current energy shock implies that a look-through strategy is no longer an option.</blockquote>
+      <blockquote>The decision would be rooted in updated staff projections, which we expect to feature upward revisions to headline inflation and, to a lesser extent, to core inflation, alongside downward revisions to growth forecasts.</blockquote>
+      <blockquote>We expect President Lagarde to refrain from framing the policy decision as an insurance hike, keeping optionality regarding upcoming meetings.</blockquote>
+      <div class="vc-risk"><strong>Risk</strong> · "Risks skewed towards tighter monetary policy should energy prices remain higher for longer and/or if behavioural responses by firms and households give rise to broader indirect and second-round effects."</div>
+    </div>
+
+    <div class="vendor-card">
+      <div class="vc-head">
+        <span class="vc-bank">SocGen</span>
+        <span class="vc-id"><a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/08/socgen/A_modest_hike_by_the_ECB_362359.pdf" target="_blank" rel="noopener">4619 ↗</a></span>
+      </div>
+      <div class="vc-thesis">A modest hike — communication shapes the path.</div>
+      <div class="vc-fcst">25 bp; peak headline ~3.8% / core ~2.8% early '27</div>
+      <blockquote>This week: ECB will hike rates by 25 bp. The main point of attention will be the communication around it which will shape expectations going forward.</blockquote>
+      <blockquote>We expect indirect effects and supply chain disruptions in energy-related commodities to drive headline and core inflation to peaks of around 3.8% y/y and 2.8% y/y, respectively, in early 2027.</blockquote>
+      <blockquote>The revision to negative territory for euro area GDP growth in 1Q is a bit embarrassing less than a week before an ECB hike... most of the volatility in growth for the past two years can be traced back to Ireland and multinationals activity.</blockquote>
+    </div>
+
+  </div>
+
+  <h3>Scenario reaction matrix</h3>
+  <div class="rxn-grid">
+    <div class="rg-head">ECB outcome</div><div class="rg-head">EUR rates curve</div><div class="rg-head">EUR/USD</div><div class="rg-head">Periphery / risk</div>
+
+    <div class="rg-cell-bear" data-label="Scenario"><span class="rg-label">Dovish surprise<span class="rg-prob">~5%</span></span>Hold — no vendor predicts</div>
+    <div class="rg-cell-bear" data-label="EUR rates curve">EUR 2y −20 to −30 bp · bull-steepener · reprice Sep to Q4</div>
+    <div class="rg-cell-bear" data-label="EUR/USD">EURUSD −150 to −200 pips · &lt; 1.140</div>
+    <div class="rg-cell-bear" data-label="Periphery / risk">BTP-Bund tighter 5-10 bp · SX7E +1.0%</div>
+
+    <div class="rg-cell-base" data-label="Scenario"><span class="rg-label">In-line<span class="rg-prob">~70%</span></span>+25 bp, data-dependent guidance</div>
+    <div class="rg-cell-base" data-label="EUR rates curve">2y &lt;±5 bp (priced) · <strong>2s10s steepener +3-6 bp</strong></div>
+    <div class="rg-cell-base" data-label="EUR/USD">EURUSD initial spike +50 pips · fade flat</div>
+    <div class="rg-cell-base" data-label="Periphery / risk">Bund vol crush · periphery stable · SX7E +0.3%</div>
+
+    <div class="rg-cell-bull" data-label="Scenario"><span class="rg-label">Hawkish surprise<span class="rg-prob">~25%</span></span>+25 bp + Jul signal OR 3-hike dot</div>
+    <div class="rg-cell-bull" data-label="EUR rates curve">2y +10 to +15 bp · bear-flattener · Jul priced in</div>
+    <div class="rg-cell-bull" data-label="EUR/USD">EURUSD +100 to +180 pips · 1.165+</div>
+    <div class="rg-cell-bull" data-label="Periphery / risk">BTP wider 5 bp · SX7E +0.8% (banks like steeper)</div>
+  </div>
+
+  <h3>Why the regime shift</h3>
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th class="left">Driver</th><th class="left">Magnitude</th><th class="left">Source</th></tr></thead>
+      <tbody>
+        <tr><td class="left">Core HICP May</td><td class="left">2.55% y/y (above target, surprised up)</td><td class="left">Goldman <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/04/goldman/ECB_Preview_A_June_Hike_as_Inflation_Risks_Rebuild_43f35d6f.pdf" target="_blank" rel="noopener" class="rpt-link" title="ECB Preview—A June Hike as Inflation Risks Rebuild">3656</a></td></tr>
+        <tr><td class="left">Brent '26 assumption</td><td class="left">$95/bbl vs $81 in Mar baseline (+16%)</td><td class="left">Barclays <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/barclays/ECB_preview_A_credible_hike_6a23136a.pdf" target="_blank" rel="noopener" class="rpt-link" title="ECB preview: A credible hike">4196</a></td></tr>
+        <tr><td class="left">Selling-price expectations</td><td class="left">Re-accelerated sharply Mar/Apr</td><td class="left">BNP</td></tr>
+        <tr><td class="left">Q2 GDP tracker</td><td class="left">~0.0% q/q</td><td class="left">Barclays · Goldman</td></tr>
+        <tr><td class="left">Consumer confidence</td><td class="left">−19 vs −12.4 Feb (worst vs past geopolitical shocks)</td><td class="left">Barclays</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Source material — bank PDFs</h3>
+  <div class="pdf-augment">
+    <div class="pa-head">
+      <div>
+        <div class="pa-eyebrow">Goldman · Energy price persistence (Exhibit 1)</div>
+        <div class="pa-title">ECB Preview — A June Hike as Inflation Risks Rebuild <span style="color:var(--muted);font-weight:400;">· id&nbsp;<a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/04/goldman/ECB_Preview_A_June_Hike_as_Inflation_Risks_Rebuild_43f35d6f.pdf" target="_blank" rel="noopener" class="rpt-link" title="ECB Preview—A June Hike as Inflation Risks Rebuild">3656</a>, p.2</span></div>
+      </div>
+      <div class="pa-link"><a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/04/goldman/ECB_Preview_A_June_Hike_as_Inflation_Risks_Rebuild_43f35d6f.pdf" target="_blank" rel="noopener">Open PDF ↗</a></div>
+    </div>
+    <div class="pa-pair">
+      <div><img loading="lazy" src="bank_pdfs/3656_goldman_p01.png" alt="Goldman ECB Preview p.1"></div>
+      <div><img loading="lazy" src="bank_pdfs/3656_goldman_p02.png" alt="Goldman ECB Preview p.2 — energy chart"></div>
+    </div>
+    <div class="pa-note">Right page (p.2) Exhibit 1 = the chart that justifies the regime shift. ECB energy assumption now sits between baseline and adverse scenario, with more persistence than the adverse case extending into 2027-28.</div>
+  </div>
+
+  <div class="pdf-augment">
+    <div class="pa-head">
+      <div>
+        <div class="pa-eyebrow">Nomura · "Begin phase recalibration" (Lagarde framework)</div>
+        <div class="pa-title">European Insights — ECB preview: Begin phase "recalibration" <span style="color:var(--muted);font-weight:400;">· id&nbsp;<a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/nomura/European_Insights_ECB_preview_Begin_phase_recalibration_1304169.pdf" target="_blank" rel="noopener" class="rpt-link" title="European Insights - ECB preview: Begin phase “recalibration”">4704</a>, p.1</span></div>
+      </div>
+      <div class="pa-link"><a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/nomura/European_Insights_ECB_preview_Begin_phase_recalibration_1304169.pdf" target="_blank" rel="noopener">Open PDF ↗</a></div>
+    </div>
+    <img loading="lazy" src="bank_pdfs/4704_nomura_p01.png" alt="Nomura ECB recalibration p.1">
+    <div class="pa-note">Frames the regime shift as "recalibration" — ECB upper-bound-for-neutral has shifted higher. Lagarde quote (top of page): <em>"The public may find it difficult to understand a reaction function that does not react."</em></div>
+  </div>
+
+  <!-- ============================================================ -->
+  <h2 id="boc"><span class="section-num">05</span> BoC — Wed 10 Jun 21:45 UTC</h2>
+
+  <p><strong>Hold the line.</strong> UBS and Nomura both unanimous on hold at 2.25%; Nomura assigns explicit 60/25/15 probabilities. Strong May LFS (+88K) doesn't shift the call — the 4-month moving average is ~0K, and the BoC will look through Iran oil with core at 2.1% y/y. The only live tail is USMCA escalation triggering further easing; modest probability of a hawkish hold if oil pass-through accelerates.</p>
+
+  <div class="consensus-banner">
+    <div class="cb-num">3/3</div>
+    <div class="cb-text">
+      <strong>Vendors expect HOLD 2.25%.</strong>
+      Nomura: <strong>60% hold · 25% hike · 15% cut</strong> probabilities.
+      No-spillover narrative: core inflation slowed to 2.1% y/y, wages moderated to 3.0% y/y.
+    </div>
+  </div>
+
+  <h3>Vendor calls</h3>
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th class="left">Bank</th><th class="left">Decision</th><th class="left">Path</th><th class="left">Note</th></tr></thead>
+      <tbody>
+        <tr><td class="left">UBS <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/ubs/Canada_Economic_Perspectives_Strong_May_LFS_BoC_up_next_Watt_xrm86383.pdf" target="_blank" rel="noopener" class="rpt-link" title="Canada Economic Perspectives &quot;Strong May LFS, BoC?up next&quot; Watt">4126</a></td><td class="left">Hold 2.25%</td><td class="left">Hikes deferred to H2-27</td><td class="left">+88K May LFS not enough; 4m MA ~0K</td></tr>
+        <tr><td class="left">Nomura — Policy Watch <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/04/nomura/Policy_Watch_June_BoC_Preview_1304037.pdf" target="_blank" rel="noopener" class="rpt-link" title="Policy Watch - June BoC Preview">3788</a></td><td class="left">Hold 2.25%</td><td class="left"><strong>60% base · 25% hike · 15% cut</strong></td><td class="left">Core 2.1% y/y; Q1 technical recession</td></tr>
+        <tr><td class="left">Nomura — Next Week <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/nomura/The_Economy_Next_Week_ECB_is_set_to_hike_and_all_eyes_on_US_CPI_1304221.pdf" target="_blank" rel="noopener" class="rpt-link" title="The Economy Next Week - ECB is set to hike and all eyes on US CPI">4696</a></td><td class="left">Hold 2.25%</td><td class="left">Hold through '26</td><td class="left">Look-through Iran oil; no spillover</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Scenario reaction matrix</h3>
+  <div class="rxn-grid">
+    <div class="rg-head">BoC outcome</div><div class="rg-head">CAD 2y</div><div class="rg-head">USD/CAD</div><div class="rg-head">CAD curve</div>
+    <div class="rg-cell-bull" data-label="Scenario"><span class="rg-label">Dovish — surprise cut<span class="rg-prob">~15%</span></span>USMCA scenario</div>
+    <div class="rg-cell-bull" data-label="CAD 2y">2y −18 to −25 bp</div>
+    <div class="rg-cell-bull" data-label="USD/CAD">USDCAD +120 to +180 pips · 1.41+</div>
+    <div class="rg-cell-bull" data-label="CAD curve">Steepener · CGB rally</div>
+    <div class="rg-cell-base" data-label="Scenario"><span class="rg-label">In-line hold<span class="rg-prob">~60%</span></span>Dovish-tone guidance</div>
+    <div class="rg-cell-base" data-label="CAD 2y">2y &lt;±3 bp</div>
+    <div class="rg-cell-base" data-label="USD/CAD">USDCAD ±25 pips · 1.392-1.398</div>
+    <div class="rg-cell-base" data-label="CAD curve">Limited · flow-driven</div>
+    <div class="rg-cell-bear" data-label="Scenario"><span class="rg-label">Hawkish<span class="rg-prob">~25%</span></span>Surprise hike or hawk-hold</div>
+    <div class="rg-cell-bear" data-label="CAD 2y">2y +12 to +20 bp · bear-flattener</div>
+    <div class="rg-cell-bear" data-label="USD/CAD">USDCAD −80 to −150 pips · 1.380 break</div>
+    <div class="rg-cell-bear" data-label="CAD curve">Flattener · CGB sell-off</div>
+  </div>
+
+  <div class="pdf-augment">
+    <div class="pa-head">
+      <div>
+        <div class="pa-eyebrow">Nomura · BoC scenario probabilities (Fig 2 + rate-history Fig 1)</div>
+        <div class="pa-title">Policy Watch — June BoC Preview <span style="color:var(--muted);font-weight:400;">· id&nbsp;<a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/04/nomura/Policy_Watch_June_BoC_Preview_1304037.pdf" target="_blank" rel="noopener" class="rpt-link" title="Policy Watch - June BoC Preview">3788</a>, p.1</span></div>
+      </div>
+      <div class="pa-link"><a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/04/nomura/Policy_Watch_June_BoC_Preview_1304037.pdf" target="_blank" rel="noopener">Open PDF ↗</a></div>
+    </div>
+    <img loading="lazy" src="bank_pdfs/3788_nomura_p01.png" alt="Nomura BoC scenarios p.1">
+    <div class="pa-note">Fig 2 (right) is the money chart — explicit 60/25/15 scenario probability ladder with policy-rate assumption per case. Fig 1 (left) shows BoC's neutral-range estimate at 2.25-2.75% — current 2.25% sits at lower bound.</div>
+  </div>
+
+  <!-- ============================================================ -->
+  <h2 id="japan"><span class="section-num">06</span> Japan — Q1 GDP done · PPI Wed · BoJ hike telegraphed</h2>
+
+  <p><strong>Q1 GDP revised to +1.8% q/q SAAR (from +2.1% P)</strong> on capex −2.8% (from +1.1%). All read-throughs agree this doesn't derail the BoJ. <strong>10/10 vendors expect +25 bp at the June MPM</strong> (next week, not this one) — market-priced probability 88-94%. Consensus is short JPY despite the hike: rate differentials dominate the move; Goldman flags $6tn unhedged Japanese foreign assets with limited repatriation; SocGen calls JPY "cheap vs FV" with 2y UST/JGB at 212 bp (off 333 bp peak).</p>
+
+  <div class="consensus-banner">
+    <div class="cb-num">10/10</div>
+    <div class="cb-text">
+      <strong>Vendors expect BoJ +25 bp at the June MPM</strong> (released next week).
+      UBS USDJPY target <strong>162</strong>; <strong>2s10s JGB steepener target 125 bp</strong>. May PPI Wed is the pass-through cue.
+    </div>
+  </div>
+
+  <h3>Vendor calls</h3>
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th class="left">Bank</th><th class="left">Hike call</th><th class="left">USDJPY view</th><th class="left">JGB strategy</th></tr></thead>
+      <tbody>
+        <tr><td class="left">JPM <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/08/jpm/Japan_1Q26_GDP_revised_down_on_capex_GPS.pdf" target="_blank" rel="noopener" class="rpt-link" title="Japan: 1Q26 GDP revised down on capex">4407</a></td><td class="left">Yes · +25 bp → 1.00</td><td class="left">long bias</td><td class="left">Long 10y (secular)</td></tr>
+        <tr><td class="left">UBS <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/ubs/Japan_Macro_Watch_Green_light_for_a_June_rate_hike_Kurihara_xrm86371.pdf" target="_blank" rel="noopener" class="rpt-link" title="Japan Macro Watch &quot;Green light for a June rate hike&quot; Kurihara">4656</a></td><td class="left">"Green light"</td><td class="left"><strong>162 target</strong></td><td class="left"><strong>2s10s steepener target 125 bp</strong></td></tr>
+        <tr><td class="left">Barclays <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/barclays/Japan_Outlook_Groundwork_for_June_rate_hike_firmly_in_place_6a235a20.pdf" target="_blank" rel="noopener" class="rpt-link" title="Japan Outlook: Groundwork for June rate hike firmly in place">4178</a></td><td class="left">Yes</td><td class="left">160 range</td><td class="left">Terminal 1.50% · Jun/Oct/Apr'27</td></tr>
+        <tr><td class="left">Nomura <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/04/nomura/BOJ_Watch_We_still_expect_BOJ_to_hike_rates_in_June_based_on_Governor_Ueda_s_spe_1303910.pdf" target="_blank" rel="noopener" class="rpt-link" title="BOJ Watch - We still expect BOJ to hike rates in June, based on Governor Ueda's speech">3794</a></td><td class="left">Yes (94% prob)</td><td class="left">160 · shorts room to expand</td><td class="left">Halt QT Apr-27</td></tr>
+        <tr><td class="left">StanC <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/04/stanc/BoJ_Quicker_and_faster_309958.pdf" target="_blank" rel="noopener" class="rpt-link" title="BoJ – Quicker and faster">3924</a></td><td class="left">"Quicker and faster"</td><td class="left">~160</td><td class="left">Pause QT FY27</td></tr>
+        <tr><td class="left">Goldman <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/04/goldman/BOJ_Now_Expecting_Next_Rate_Hike_at_June_MPM_Following_Governor_Ueda_s_June_3_Sp_2647ac5a.pdf" target="_blank" rel="noopener" class="rpt-link" title="BOJ: Now Expecting Next Rate Hike at June MPM Following Governor Ueda's (June 3) Speech">3657</a></td><td class="left">Yes</td><td class="left">~155-160</td><td class="left">Terminal 1.50% · $6tn unhedged</td></tr>
+        <tr><td class="left">SocGen <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/04/socgen/Yen_at_160_2y_spread_at_crossroads_362200.pdf" target="_blank" rel="noopener" class="rpt-link" title="Yen at 160, 2y spread at crossroads">3804</a></td><td class="left">Short JPY view</td><td class="left">160+ · cheap vs FV</td><td class="left">2y UST/JGB 212 bp (revd from 333)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="pdf-augment">
+    <div class="pa-head">
+      <div>
+        <div class="pa-eyebrow">SocGen · "Yen at 160, 2y spread at crossroads" (with JPY chart)</div>
+        <div class="pa-title">Morning Briefing <span style="color:var(--muted);font-weight:400;">· id&nbsp;<a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/04/socgen/Yen_at_160_2y_spread_at_crossroads_362200.pdf" target="_blank" rel="noopener" class="rpt-link" title="Yen at 160, 2y spread at crossroads">3804</a>, p.1</span></div>
+      </div>
+      <div class="pa-link"><a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/04/socgen/Yen_at_160_2y_spread_at_crossroads_362200.pdf" target="_blank" rel="noopener">Open PDF ↗</a></div>
+    </div>
+    <img loading="lazy" src="bank_pdfs/3804_socgen_p01.png" alt="SG Yen at 160 2y spread crossroads">
+    <div class="pa-note">"Chart of the day" — USDJPY (red) vs 2y UST/JGB spread (blue) with FX intervention episodes marked. SG: spread already 212 bp, off 333 bp peak; further BoJ hikes narrow the gap but USD strength dominates.</div>
+  </div>
+
+  <!-- ============================================================ -->
+  <h2 id="china"><span class="section-num">07</span> China — Trade Tue · CPI/PPI Wed</h2>
+
+  <p><strong>Reflation is the controversial call.</strong> May exports forecast +14-16% y/y on AI semiconductor cycle, May PPI +3.8-4.0% y/y. <strong>BNP</strong> argues this is structurally sustainable through energy-chemicals + non-ferrous metals + AI chips (~30% of PPI basket). <strong>Barclays</strong> says growth is "lower and bifurcated" — top-line lift hides domestic-demand weakness. The trade implication splits banks: long CSI 500/1000 + small long CNY (BNP/JPM/MS view) vs. structural caution (Barclays).</p>
+
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th class="left">Print</th><th class="left">Forecast</th><th class="left">Vendor drivers</th></tr></thead>
+      <tbody>
+        <tr><td class="left">May Exports y/y</td><td class="left">+14 to +16%</td><td class="left">AI semiconductors cycle (MS <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/ms/Asia_Macro_Catalysts_China_s_Trade_Inflation_and_Credit_Data_59d21e34.pdf" target="_blank" rel="noopener" class="rpt-link" title="Asia – Macro Catalysts: China's Trade, Inflation and Credit Data">4605</a> · Barclays · Nomura · JPM)</td></tr>
+        <tr><td class="left">May Imports y/y</td><td class="left">+21 to +26%</td><td class="left">Semis demand · crude vol −47% (Iran)</td></tr>
+        <tr><td class="left">May CPI y/y</td><td class="left">+1.2%</td><td class="left">Limited demand-pull</td></tr>
+        <tr><td class="left">May PPI y/y</td><td class="left">+3.8 to +4.0%</td><td class="left"><strong>Reflation</strong> — BNP <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/bnp/China_s_reflation_Enduring_beyond_energy_shock_925631.pdf" target="_blank" rel="noopener" class="rpt-link" title="China’s reflation: Enduring beyond energy shock">3983</a>: ~30% basket = energy-chems + non-ferrous + AI</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="pdf-augment">
+    <div class="pa-head">
+      <div>
+        <div class="pa-eyebrow">BNP · "China's reflation: Enduring beyond energy shock"</div>
+        <div class="pa-title">Markets 360 Deep Dive <span style="color:var(--muted);font-weight:400;">· id&nbsp;<a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/bnp/China_s_reflation_Enduring_beyond_energy_shock_925631.pdf" target="_blank" rel="noopener" class="rpt-link" title="China’s reflation: Enduring beyond energy shock">3983</a>, p.1</span></div>
+      </div>
+      <div class="pa-link"><a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/bnp/China_s_reflation_Enduring_beyond_energy_shock_925664.pdf" target="_blank" rel="noopener">Open PDF ↗</a></div>
+    </div>
+    <img loading="lazy" src="bank_pdfs/3983_bnp_p01.png" alt="BNP China reflation enduring p.1">
+    <div class="pa-note">Fig 1 inflation forecast table: CPI 0.0 → 1.3 ('26E) → 1.6 ('27E); PPI -2.7 → 2.1 ('26E) → 1.5 ('27E). PPI reflation = supply-side (energy-chems + non-ferrous + AI ≈ 30% of basket), not demand-pull.</div>
+  </div>
+
+  <!-- ============================================================ -->
+  <h2 id="korea"><span class="section-num">08</span> Korea — Q1 GDP Tue · Unemployment Thu</h2>
+
+  <div class="callout alert">
+    <strong>KRW the standout EM loser.</strong> Foreign equity outflows <strong>USD 76 bn YTD — worst on record</strong>.
+    USDKRW +1.03% in 5 days. Offset by record CA surplus forecast (~USD 26 bn/mo avg).
+    BoK hikes priced Jul / Oct / Jan / Apr-27 (25 bp each, 3.5% terminal). Citi <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/citi/Capital_Outflow_Pressure_KRW_Weakness_and_BoK_s_Faster_Hikes_30435801.pdf" target="_blank" rel="noopener" class="rpt-link" title="Capital Outflow Pressure, KRW Weakness, and BoK's Faster Hikes">4288</a>:
+    capital outflow pressure may force a faster BoK pace.
+  </div>
+
+  <p>Q1 GDP forecast 1.7% q/q · 3.6% y/y, unchanged from advance (JPM, Goldman). May unemployment at 2.8% — labour stable despite the KRW depreciation. The KRW outflow narrative is dominant: HSBC <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/hsbc/Korea_Macro_Strategy_Flip_side_of_the_rally_Wk2xPTng.pdf" target="_blank" rel="noopener" class="rpt-link" title="Korea Macro Strategy Flip side of the rally">3880</a> argues the rally has flipped; depreciation expectations turning self-fulfilling among corporates is the real risk. KRW is 10-15% undervalued vs REER, but flows trump valuation in the near term.</p>
+
+  <div class="chart-card">
+    <img loading="lazy" src="charts/fx_usdkrw.png" alt="USDKRW with reference lines">
+    <div class="chart-caption">IMDR <code>fx.fact_fx_rate</code>. USDKRW 1534; HSBC EOY 1450 target; HSBC/Citi/Nomura add-zone 1480-1500.</div>
+  </div>
+
+  <div class="pdf-augment">
+    <div class="pa-head">
+      <div>
+        <div class="pa-eyebrow">Citi · Korea Balance of Payments charts (BoP $bn + % of GDP)</div>
+        <div class="pa-title">Korea Chart Pack <span style="color:var(--muted);font-weight:400;">· id&nbsp;<a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/08/citi/Korea_Chart_Pack_30436098.pdf" target="_blank" rel="noopener" class="rpt-link" title="Korea Chart Pack">4241</a>, p.2</span></div>
+      </div>
+      <div class="pa-link"><a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/08/citi/Korea_Chart_Pack_30436098.pdf" target="_blank" rel="noopener">Open PDF ↗</a></div>
+    </div>
+    <img loading="lazy" src="bank_pdfs/4241_citi_p02.png" alt="Citi Korea Chart Pack BoP p.2">
+    <div class="pa-note">Fig 1 (left, $bn) + Fig 2 (right, % GDP): YTD current account surplus USD 75 bn as of Mar-26 — record high. CA surplus trumps equity outflows in the long run; the trade is to fade USD/KRW strength.</div>
+  </div>
+
+  <!-- ============================================================ -->
+  <h2 id="india"><span class="section-num">09</span> India — May CPI Fri</h2>
+
+  <p>RBI held 5.25% on 5 Jun but raised FY27 inflation forecast to <strong>5.1% (+50 bp)</strong>. Five capital-flow measures announced — FCNR(B) full RBI hedging support, concessional FX swap for PSU ECBs, FAR G-Sec expansion, export-realization extended 9→15 mo. Expected inflows <strong>USD 40-60 bn through Sept</strong>. May CPI consensus 4.2% y/y (MS <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/ms/RBI_Policy_Review_Steady_Rates_Boosting_Capital_Inflows_f0fbf78c.pdf" target="_blank" rel="noopener" class="rpt-link" title="RBI Policy Review: Steady Rates; Boosting Capital Inflows">4588</a>) re-acceleration from 3.5% April.</p>
+
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th class="left">Bank</th><th class="left">USDINR view</th><th class="left">Rate path</th></tr></thead>
+      <tbody>
+        <tr><td class="left">UBS <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/08/ubs/EM_FI_FX_Strategy_RBI_s_Whatever_It_Takes_Will_the_rupee_bite_Arora_swa75708.pdf" target="_blank" rel="noopener" class="rpt-link" title="EM FI/FX Strategy &quot;RBI’s “Whatever It Takes” - Will the rupee bite?&quot; Arora">4647</a></td><td class="left">EOY 96; ~70% inflows rupee-neutral</td><td class="left">Topside 100 ruled out</td></tr>
+        <tr><td class="left">Nomura <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/nomura/Asia_Insights_India_Policy_bazooka_for_managing_currency_prudently_leaves_out_po_1304259.pdf" target="_blank" rel="noopener" class="rpt-link" title="Asia Insights - India: Policy bazooka for managing currency prudently leaves out policy rate">4690</a></td><td class="left">93-97 range</td><td class="left">Hold through FY27; hikes deferred Aug/Oct</td></tr>
+        <tr><td class="left">StanC <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/stanc/India_MPC_on_hold_takes_bold_steps_to_attract_USD_310377.pdf" target="_blank" rel="noopener" class="rpt-link" title="India – MPC on hold; takes bold steps to attract USD">4630</a></td><td class="left">93-97 range</td><td class="left">"Bold steps to attract USD"</td></tr>
+        <tr><td class="left">Goldman <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/goldman/RBI_policy_review_RBI_unveils_external_financing_support_in_a_neutral_hold_6fece647.pdf" target="_blank" rel="noopener" class="rpt-link" title="RBI policy review: RBI unveils external financing support in a “neutral” hold">4362</a></td><td class="left">External financing addressed</td><td class="left">FX measures &gt; rate measures</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="pdf-augment">
+    <div class="pa-head">
+      <div>
+        <div class="pa-eyebrow">UBS · "RBI's Whatever It Takes" — 15 charts on RBI response + FX/Rates implications</div>
+        <div class="pa-title">EM FI/FX Strategy <span style="color:var(--muted);font-weight:400;">· id&nbsp;<a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/08/ubs/EM_FI_FX_Strategy_RBI_s_Whatever_It_Takes_Will_the_rupee_bite_Arora_swa75708.pdf" target="_blank" rel="noopener" class="rpt-link" title="EM FI/FX Strategy &quot;RBI’s “Whatever It Takes” - Will the rupee bite?&quot; Arora">4647</a>, p.1</span></div>
+      </div>
+      <div class="pa-link"><a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/08/ubs/EM_FI_FX_Strategy_RBI_s_Whatever_It_Takes_Will_the_rupee_bite_Arora_xrm86432.pdf" target="_blank" rel="noopener">Open PDF ↗</a></div>
+    </div>
+    <img loading="lazy" src="bank_pdfs/4647_ubs_p01.png" alt="UBS RBI Whatever It Takes p.1">
+    <div class="pa-note">Bullets enumerate the 15 charts inside the report on RBI's response. UBS frame: bazooka credibly caps topside USDINR at 100 but ~70% of announced inflows are rupee-neutral — limited tailwind, range-bound 93-97 the realistic outcome.</div>
+  </div>
+
+  <!-- ============================================================ -->
+  <h2 id="trades"><span class="section-num">10</span> Trade Ideas — Week of 8-14 Jun</h2>
+
+  <p>10 trade ideas across rates, FX, and equities — derived directly from the vendor reports above. Text and table first; the supporting chart-visualisations are at the bottom as augmentation.</p>
+
+  <div class="tbl-scroll">
+    <table>
+      <thead>
+        <tr><th>#</th><th class="left">Trade</th><th class="left">Type</th><th class="left">Thesis</th><th class="left">Risk</th><th class="left">Owner banks</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>1</td><td class="left">EUR 2s10s steepener</td><td class="left"><span class="trade-tag rates">Rates</span></td><td class="left">ECB hike + data-dep guidance caps front; weak growth → back rallies</td><td class="left">Hawkish Sep · de-escalation</td><td class="left">JPM, Goldman, Nomura</td></tr>
+        <tr><td>2</td><td class="left">Fade EURUSD post-ECB</td><td class="left"><span class="trade-tag fx">FX</span></td><td class="left">41 bp priced for H2 · ECB likely delivers neutral → less priced</td><td class="left">Hawkish dot</td><td class="left">Nomura, ANZ</td></tr>
+        <tr><td>3</td><td class="left">Long USDJPY dips → 158</td><td class="left"><span class="trade-tag fx">FX</span></td><td class="left">BoJ priced · rate differential dominates · UBS target 162</td><td class="left">Genuine MoF action</td><td class="left">Goldman, SG, UBS</td></tr>
+        <tr><td>4</td><td class="left">JGB 2s10s steepener (tgt 125 bp)</td><td class="left"><span class="trade-tag rates">Rates</span></td><td class="left">Front-end repricing into BoJ · QT halt Apr-27 caps long</td><td class="left">BoJ disappoints</td><td class="left">UBS, Barclays</td></tr>
+        <tr><td>5</td><td class="left">MS SFRZ6/Z7 flatteners (entry 14, tgt −10, stop 20)</td><td class="left"><span class="trade-tag rates">Rates</span></td><td class="left">Median 0.22 core supports front rally · Warsh dovish-hold</td><td class="left">BNP "Energized" wins (0.29 core)</td><td class="left">MS <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/ms/Maintain_SFRZ6M7_Flatteners_into_Soft_May_CPI_22c64b36.pdf" target="_blank" rel="noopener" class="rpt-link" title="Maintain SFRZ6M7 Flatteners into Soft May CPI">4614</a></td></tr>
+        <tr><td>6</td><td class="left">Short USDKRW (add 1480-1500)</td><td class="left"><span class="trade-tag fx">FX</span></td><td class="left">Outflows transitory · CA + BoK hawkish differential</td><td class="left">Outflow regime persists</td><td class="left">HSBC, Citi, Nomura</td></tr>
+        <tr><td>7</td><td class="left">Long INR fwd / pay 5y OIS India</td><td class="left"><span class="trade-tag fx">FX</span></td><td class="left">RBI bazooka frontloaded · hike tail removed</td><td class="left">Monsoon disappoints</td><td class="left">UBS, Nomura, StanC, Goldman</td></tr>
+        <tr><td>8</td><td class="left">Long CSI 500/1000 + small long CNY</td><td class="left"><span class="trade-tag eq">Equity</span></td><td class="left">China reflation enduring · Hormuz reopening optionality</td><td class="left">Demand-side weakness drags</td><td class="left">BNP, JPM, MS</td></tr>
+        <tr><td>9</td><td class="left">USDCAD range (sell 1.40 / buy 1.385)</td><td class="left"><span class="trade-tag fx">FX</span></td><td class="left">Unanimous hold · no path to break range absent USMCA</td><td class="left">Surprise cut on USMCA breakdown</td><td class="left">UBS, Nomura</td></tr>
+        <tr><td>10</td><td class="left">Watch UoM Fri inflation expectations</td><td class="left"><span class="trade-tag cmd">Macro</span></td><td class="left">Under-radar Warsh-Fed credibility test</td><td class="left">n/a — observation</td><td class="left">Nomura <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/08/nomura/Matsuzawa_Morning_Report_New_Fed_Chair_Warsh_faces_a_turbulent_start_1304362.pdf" target="_blank" rel="noopener" class="rpt-link" title="Matsuzawa Morning Report - New Fed Chair Warsh faces a turbulent start">4674</a>, UBS</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Supporting visualisations</h3>
+  <p style="font-size:13.5px;color:var(--muted);">Charts below augment specific trades from the table above.</p>
+  <div class="chart-grid-2">
+    <div class="chart-card">
+      <img loading="lazy" src="charts/ust_2s10s.png" alt="UST 2s10s">
+      <div class="chart-caption"><strong>Supports trade #5 (MS SFRZ flatteners).</strong> 2s10s already flattening 8 bp/wk; CPI soft print extends it.</div>
+    </div>
+    <div class="chart-card">
+      <img loading="lazy" src="charts/fx_usdjpy.png" alt="USDJPY at MoF line">
+      <div class="chart-caption"><strong>Supports trade #3 (long USDJPY dips).</strong> 160 MoF line + UBS 162 target. May dip = $74 bn intervention failed to hold.</div>
+    </div>
+    <div class="chart-card">
+      <img loading="lazy" src="charts/fx_usdkrw.png" alt="USDKRW add zone">
+      <div class="chart-caption"><strong>Supports trade #6 (short USDKRW).</strong> Add-zone 1480-1500 shaded; HSBC EOY target 1450.</div>
+    </div>
+    <div class="chart-card">
+      <img loading="lazy" src="charts/fx_eurusd.png" alt="EURUSD into ECB">
+      <div class="chart-caption"><strong>Supports trade #2 (fade EURUSD post-ECB).</strong> 1.151 into the hike; UBS year-end 1.14.</div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <h2 id="risks"><span class="section-num">11</span> Tail Risks — What Breaks the Consensus</h2>
+
+  <ol style="font-size:15px;line-height:1.6;">
+    <li><strong>Iran / Hormuz escalation → Brent $110+.</strong> ECB forced to 3-4 hikes · BoC forced to hike · all CPIs reprint hotter. Tightens everything · risk-off bid.</li>
+    <li><strong>Inflation expectations de-anchor (UoM Fri / NFIB Tue).</strong> Warsh forced into early hike → risk-off spiral. Nomura: medium-term expectations already jumped Mar/Apr.</li>
+    <li><strong>ECB surprise hawkish presser</strong> (Lagarde endorses back-to-back hikes) → bear flattener · EUR rallies hard · trade #2 stops.</li>
+    <li><strong>China demand collapse</strong> → reflation thesis dies · AUD/KRW/CNY weaker · semis pull back · trade #8 stops.</li>
+    <li><strong>Lone hot US CPI (BNP camp wins).</strong> 0.29% core → flatteners punished · USD bid · trade #5 stops.</li>
+    <li><strong>Warsh dovish surprise via leak during blackout</strong> (06/06-06/11) → compress USD · UST steepens · gold bid.</li>
+  </ol>
+
+  <!-- ============================================================ -->
+  <h2>Appendix · Reports Referenced</h2>
+  <p>Every cited report ID below links directly to its SharePoint PDF.</p>
+
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th class="left">Topic</th><th class="left">Reports (vendor, id)</th></tr></thead>
+      <tbody>
+        <tr><td class="left">US CPI</td><td class="left">nomura <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/nomura/Economic_Insights_US_May_CPI_Preview_1304251.pdf" target="_blank" rel="noopener" class="rpt-link" title="Economic Insights - US: May CPI Preview">4694</a> · barclays <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/barclays/US_CPI_Inflation_Preview_May_CPI_Softer_rents_stronger_travel_inflation_6a2313de.pdf" target="_blank" rel="noopener" class="rpt-link" title="US CPI Inflation Preview: May CPI: Softer rents, stronger travel inflation">4195</a> · bnp <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/03/bnp/US_May_CPI_preview_Energized_925588.pdf" target="_blank" rel="noopener" class="rpt-link" title="US May CPI preview: Energized">3572</a> · ms <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/03/ms/CPI_Preview_Core_decelerates_headline_remains_high_3ba6325e.pdf" target="_blank" rel="noopener" class="rpt-link" title="CPI Preview: Core decelerates, headline remains high">3308</a> · ms <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/ms/Cross_Asset_Conversations_Why_We_re_Out_of_Consensus_on_Inflation_Ep_143_566475e2.pdf" target="_blank" rel="noopener" class="rpt-link" title="Cross-Asset Conversations: Why We’re Out of Consensus on Inflation | Ep. 143">4606</a> · ms <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/ms/Maintain_SFRZ6M7_Flatteners_into_Soft_May_CPI_22c64b36.pdf" target="_blank" rel="noopener" class="rpt-link" title="Maintain SFRZ6M7 Flatteners into Soft May CPI">4614</a> · anz <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/04/anz/US_CPI_elevated_but_demand_pull_inflation_is_soft_1595f795.pdf" target="_blank" rel="noopener" class="rpt-link" title="US CPI: elevated, but demand-pull inflation is soft">3540</a> · ubs <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/ubs/US_Economics_Weekly_Hawkish_NFP_inflation_week_next_Pingle_xrm86384.pdf" target="_blank" rel="noopener" class="rpt-link" title="US Economics Weekly &quot;Hawkish NFP, inflation week next&quot; Pingle">4650</a></td></tr>
+        <tr><td class="left">ECB</td><td class="left">socgen <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/08/socgen/A_modest_hike_by_the_ECB_362359.pdf" target="_blank" rel="noopener" class="rpt-link" title="A modest hike by the ECB">4619</a>, 4621, 3805 · nomura <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/nomura/European_Insights_ECB_preview_Begin_phase_recalibration_1304169.pdf" target="_blank" rel="noopener" class="rpt-link" title="European Insights - ECB preview: Begin phase “recalibration”">4704</a> · jpm <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/jpm/ECB_preview_A_hike_with_a_hawkish_signal_GPS.pdf" target="_blank" rel="noopener" class="rpt-link" title="ECB preview: A hike with a hawkish signal">4510</a> · barclays <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/barclays/ECB_preview_A_credible_hike_6a23136a.pdf" target="_blank" rel="noopener" class="rpt-link" title="ECB preview: A credible hike">4196</a> · goldman <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/04/goldman/ECB_Preview_A_June_Hike_as_Inflation_Risks_Rebuild_43f35d6f.pdf" target="_blank" rel="noopener" class="rpt-link" title="ECB Preview—A June Hike as Inflation Risks Rebuild">3656</a> · bnp <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/03/bnp/ECB_preview_Persistence_not_panic_925565.pdf" target="_blank" rel="noopener" class="rpt-link" title="ECB preview: Persistence, not panic">3140</a> · hsbc <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/02/hsbc/ECB_Preview_June_Summer_hiking_but_for_how_long_cTLSvnLg.pdf" target="_blank" rel="noopener" class="rpt-link" title="ECB Preview (June) Summer hiking (but for how long?)">2707</a> · anz <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/anz/ECB_symbolic_tightening_40bd3403.pdf" target="_blank" rel="noopener" class="rpt-link" title="ECB: symbolic tightening">3945</a></td></tr>
+        <tr><td class="left">BoC</td><td class="left">ubs <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/ubs/Canada_Economic_Perspectives_Strong_May_LFS_BoC_up_next_Watt_xrm86383.pdf" target="_blank" rel="noopener" class="rpt-link" title="Canada Economic Perspectives &quot;Strong May LFS, BoC?up next&quot; Watt">4126</a> · nomura <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/04/nomura/Policy_Watch_June_BoC_Preview_1304037.pdf" target="_blank" rel="noopener" class="rpt-link" title="Policy Watch - June BoC Preview">3788</a> · nomura <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/nomura/The_Economy_Next_Week_ECB_is_set_to_hike_and_all_eyes_on_US_CPI_1304221.pdf" target="_blank" rel="noopener" class="rpt-link" title="The Economy Next Week - ECB is set to hike and all eyes on US CPI">4696</a></td></tr>
+        <tr><td class="left">Japan / BoJ</td><td class="left">jpm <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/08/jpm/Japan_1Q26_GDP_revised_down_on_capex_GPS.pdf" target="_blank" rel="noopener" class="rpt-link" title="Japan: 1Q26 GDP revised down on capex">4407</a> · ubs <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/08/ubs/Japan_Economic_Comment_Limited_downward_revision_to_Q1_GDP_Kurihara_xrm86387.pdf" target="_blank" rel="noopener" class="rpt-link" title="Japan Economic Comment &quot;Limited downward revision to Q1 GDP&quot; Kurihara">4634</a>, 4656 · barclays <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/08/barclays/Japan_Economics_Update_Q1_GDP_second_estimate_Real_growth_exceeds_expectations_a_6a261e32.pdf" target="_blank" rel="noopener" class="rpt-link" title="Japan Economics Update: Q1 GDP (second estimate): Real growth exceeds expectations at 1.8% q/q saar">4144</a>, 4178 · nomura <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/nomura/Japan_Economic_Weekly_BOJ_likely_to_hike_rates_in_June_following_speech_by_Gover_1304275.pdf" target="_blank" rel="noopener" class="rpt-link" title="Japan Economic Weekly - BOJ likely to hike rates in June following speech by Governor Ueda">4680</a>, 3794 · stanc <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/04/stanc/BoJ_Quicker_and_faster_309958.pdf" target="_blank" rel="noopener" class="rpt-link" title="BoJ – Quicker and faster">3924</a> · goldman <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/04/goldman/BOJ_Now_Expecting_Next_Rate_Hike_at_June_MPM_Following_Governor_Ueda_s_June_3_Sp_2647ac5a.pdf" target="_blank" rel="noopener" class="rpt-link" title="BOJ: Now Expecting Next Rate Hike at June MPM Following Governor Ueda's (June 3) Speech">3657</a>, 3877 · socgen <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/04/socgen/Yen_at_160_2y_spread_at_crossroads_362200.pdf" target="_blank" rel="noopener" class="rpt-link" title="Yen at 160, 2y spread at crossroads">3804</a></td></tr>
+        <tr><td class="left">China / Korea / India</td><td class="left">ms <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/ms/Asia_Macro_Catalysts_China_s_Trade_Inflation_and_Credit_Data_59d21e34.pdf" target="_blank" rel="noopener" class="rpt-link" title="Asia – Macro Catalysts: China's Trade, Inflation and Credit Data">4605</a>, 4588 · nomura <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/nomura/Asia_Insights_China_The_emerging_impact_of_raw_materials_supply_disruptions_1304160.pdf" target="_blank" rel="noopener" class="rpt-link" title="Asia Insights - China: The emerging impact of raw materials supply disruptions">4707</a>, 4690 · jpm <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/jpm/Asia_Focus_Oil_shock_and_China_s_substitution_effects_GPS.pdf" target="_blank" rel="noopener" class="rpt-link" title="Asia Focus: Oil shock and China’s substitution effects">4570</a>, 4556, 4523 · barclays <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/barclays/China_Outlook_Growth_is_lower_and_bifurcated_6a235a25.pdf" target="_blank" rel="noopener" class="rpt-link" title="China Outlook: Growth is lower and bifurcated">4173</a> · anz <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/anz/China_Data_Preview_demand_driven_softness_6af9d64e.pdf" target="_blank" rel="noopener" class="rpt-link" title="China Data Preview: demand-driven softness">3943</a> · bnp <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/bnp/China_s_reflation_Enduring_beyond_energy_shock_925631.pdf" target="_blank" rel="noopener" class="rpt-link" title="China’s reflation: Enduring beyond energy shock">3983</a> · citi <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/08/citi/Korea_Chart_Pack_30436098.pdf" target="_blank" rel="noopener" class="rpt-link" title="Korea Chart Pack">4241</a>, 4288 · hsbc <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/hsbc/Korea_Macro_Strategy_Flip_side_of_the_rally_Wk2xPTng.pdf" target="_blank" rel="noopener" class="rpt-link" title="Korea Macro Strategy Flip side of the rally">3880</a> · ubs <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/08/ubs/EM_FI_FX_Strategy_RBI_s_Whatever_It_Takes_Will_the_rupee_bite_Arora_swa75708.pdf" target="_blank" rel="noopener" class="rpt-link" title="EM FI/FX Strategy &quot;RBI’s “Whatever It Takes” - Will the rupee bite?&quot; Arora">4647</a>, 4651 · stanc <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/stanc/India_MPC_on_hold_takes_bold_steps_to_attract_USD_310377.pdf" target="_blank" rel="noopener" class="rpt-link" title="India – MPC on hold; takes bold steps to attract USD">4630</a> · goldman <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/goldman/RBI_policy_review_RBI_unveils_external_financing_support_in_a_neutral_hold_6fece647.pdf" target="_blank" rel="noopener" class="rpt-link" title="RBI policy review: RBI unveils external financing support in a “neutral” hold">4362</a></td></tr>
+        <tr><td class="left">Cross-asset · Warsh</td><td class="left">nomura <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/nomura/The_Economy_Next_Week_ECB_is_set_to_hike_and_all_eyes_on_US_CPI_1304221.pdf" target="_blank" rel="noopener" class="rpt-link" title="The Economy Next Week - ECB is set to hike and all eyes on US CPI">4696</a>, 4674 · ubs <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/08/ubs/Global_Economics_Strategy_Core_Convictions_Multi_Asset_Rundown_Kapteyn_xrm86386.pdf" target="_blank" rel="noopener" class="rpt-link" title="Global Economics & Strategy &quot;Core Convictions (Multi-Asset Rundown)&quot; Kapteyn">4635</a> · socgen <a href="https://itbillingrvcapitalfunds.sharepoint.com/teams/TradeKnowledgeCore/ResearchData1/IMDR/2026/06/05/socgen/ECB_first_among_key_central_banks_to_recalibrate_higher_362304.pdf" target="_blank" rel="noopener" class="rpt-link" title="ECB first among key central banks to recalibrate higher">4621</a></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h4>Build sources &amp; verification</h4>
+  <ul class="footer-note">
+    <li>Research: <code>research.dim_report</code> + <code>research.fact_chunk</code>. 15 vendors · ~2,400 reports last 7 days.</li>
+    <li>Cross-asset: <code>fx.fact_fx_rate</code> (SPOT MID) · <code>econ.fact_indicator</code> FRED DGS2/5/10/30 + CPIAUCSL · <code>equities.fact_vix</code> · <code>commodities.fact_spot</code> · <code>equities.fact_index_level</code>.</li>
+    <li>Bank PDFs sourced from local OneDrive sync of <code>TradeKnowledgeCore/ResearchData1/IMDR/</code>. Pages rendered via PyMuPDF at 180 DPI.</li>
+    <li>Build scripts (reusable for next week):
+      <code>playground/research/_make_weekly_charts_v2.py</code> · <code>_render_pdf_pages.py</code> · <code>_dump_sharepoint_links.py</code> · <code>_link_reports_in_html.py</code>.</li>
+    <li>All numerical claims tied to source report IDs; bank quotes verbatim from <code>research.fact_chunk</code>.</li>
+    <li><strong>Numbers verified directly vs IMDR:</strong> USDKRW +1.03% (not +2.20%) · USDJPY +0.19% (not +0.51%) · UST 2y +4 bp / 10y −4 bp / 2s10s flattened 8 bp last week.</li>
+  </ul>
+
+  <footer class="site-footer">
+    <div class="foot-top">
+      <div>
+        <hr class="line-dot">
+        <img class="logo" src="assets/rv-logo-negative.png" alt="RV Capital">
+        <p class="foot-about">RV Capital Management Private Ltd · Singapore-based hedge fund manager focused on long / short Asian fixed income — interest rates, foreign exchange and credit.</p>
+      </div>
+      <div class="foot-meta">
+        Weekly Macro Preview · v3<br>
+        week-24 · 8–14 Jun 2026<br>
+        Data-as-of 2026-06-08 · IMDR
+      </div>
+    </div>
+    <div class="foot-base">
+      <span>© 2026 RV Capital Management Private Ltd · Internal</span>
+      <span>Private &amp; Confidential</span>
+    </div>
+  </footer>
+
+</div>
+
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="_ds/rv-capital-design-system-d7ca4c30-6380-416e-bbde-ff5246b2ea06/_ds_bundle.js"></script>
+<script>
+(function () {
+  var ns = window.RVCapitalDesignSystem_d7ca4c;
+  var e = React.createElement;
+  function cell(label, badges) {
+    return e("div", { className: "bm-cell" },
+      e("span", { className: "rv-eyebrow" }, label),
+      e("div", { className: "bm-badges" }, badges)
+    );
+  }
+  ReactDOM.createRoot(document.getElementById("brief-meta")).render(
+    e(React.Fragment, null,
+      cell("Edition", [
+        e(ns.Badge, { key: 1, tone: "blue", variant: "solid", style: { background: "var(--dark-blue)" } }, "Weekly"),
+        e(ns.Badge, { key: 2, tone: "neutral" }, "Week 24")
+      ]),
+      cell("Coverage", [
+        e(ns.Badge, { key: 1, tone: "blue" }, "15 vendors"),
+        e(ns.Badge, { key: 2, tone: "neutral" }, "~2,400 reports · 7 days")
+      ]),
+      cell("Data as of", [
+        e(ns.Badge, { key: 1, tone: "cream" }, "8 Jun 2026"),
+        e(ns.Badge, { key: 2, tone: "neutral" }, "IMDR-verified")
+      ])
+    )
+  );
+  // Pipeline imagery (charts/, bank_pdfs/) may be absent in preview — swap imgs that fail for labeled placeholders.
+  // Preview-safe + production-safe: error event OR a 5s grace timer once the img nears the viewport
+  // (hung requests in preview never fire 'error'); a late 'load' restores the real image.
+  document.querySelectorAll(".chart-card img, .pdf-augment img").forEach(function (img) {
+    var ph = null;
+    function fallback() {
+      if (ph || img.naturalWidth > 0) return;
+      ph = document.createElement("div");
+      ph.className = "img-fallback";
+      ph.textContent = (img.getAttribute("alt") || "chart") + " \u00b7 " + img.getAttribute("src");
+      img.replaceWith(ph);
+    }
+    img.addEventListener("error", fallback);
+    img.addEventListener("load", function () {
+      if (ph && img.naturalWidth > 0) { ph.replaceWith(img); ph = null; }
+    });
+    if (img.complete && img.naturalWidth === 0) { fallback(); return; }
+    if ("IntersectionObserver" in window) {
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) {
+            io.disconnect();
+            setTimeout(function () { if (img.naturalWidth === 0) fallback(); }, 5000);
+          }
+        });
+      }, { rootMargin: "400px" });
+      io.observe(img);
+    }
+  });
+})();
+</script>
+
+</body>
+</html>
