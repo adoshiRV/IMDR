@@ -9,7 +9,7 @@ This file is the **coverage target** for `econ.dim_indicator`. Every cluster bel
 - **Onboarding playbook**: [onboarding_new_country.md](onboarding_new_country.md) — 5-step workflow with vendor cascade, build order, identity checks, quality bar, ❌→⚠→✅ promotion rules.
 - **Indicator catalogue**: [country_econ_blueprint.md](country_econ_blueprint.md) — country-agnostic master list of series per cluster.
 - **Schema + build log**: [economics_data_ingest.md](economics_data_ingest.md) — pipeline + per-vendor build state.
-- **Date**: 2026-06-05 (KR sweep complete: **370 indicators / 325,579 obs / 11 countries / 15 categories**; FRED 173/173, HKMA 29/29, KOSIS 164/164, REB 4/4 — KR went from 1 ✅ / 6 ⚠️ / 9 ❌ to **16/16 covered** across 21 fetchers — 172 KR-specific indicators)
+- **Date**: 2026-06-09 (AU sweep complete: **502 indicators / 389,504 obs / 11 countries**; AU 132 indicators / 63,925 obs — 11 of 16 cells now ✅, 4.1/4.2/2.1/1.2 remain ❌; second-most-populated after ID)
 
 ---
 
@@ -297,12 +297,14 @@ US score: **4 ✅ / 11 ⚠️ / 1 ❌** (was 4/8/4 before v2 expansion). Only Te
 
 ### 7.7 Australia (AU)
 
+Updated 2026-06-09: **132 indicators / 63,925 obs DB-LIVE** (manual load). ABS 11 dataflows (88 indicators) + RBA 3 tables via CSV snapshot (44 indicators). Second-most-populated country after Indonesia.
+
 | Engine | A | B | C | D |
 |---|:---:|:---:|:---:|:---:|
-| **Growth** | ❌ | ❌ | ❌ | ⚠️ Macro Core *(FRED Real GDP + OECD Unemployment + IIP)* |
-| **Inflation** | ❌ | ❌ | ❌ | ❌ AU CPI YoY code dropped by FRED validator — refetch with different ID |
-| **External** | ❌ | ❌ | ❌ | ❌ |
-| **Policy** | ❌ | ❌ | ❌ | ❌ |
+| **Growth** | ✅ Private Demand *(ABS Retail Trade 10 series)* | ❌ | ✅ External Demand *(ABS BOP 14 + BOP_GOODS 7 + ITPI 6 + ANA_EXP 10)* | ✅ Macro Core *(ABS ANA_AGG GDP chain-vol SA + LF unemployment/participation/employed + ANA_EXP expenditure decomp + Job Vacancies 3)* |
+| **Inflation** | ❌ | ✅ Producer Prices *(ABS PPI_FD 3 — final demand, TSEST=TOTXE)* | ✅ Domestic Costs *(ABS WPI 6 — OHRPEB, TOT level, NSA-only — SA not published)* | ✅ CPI Pressure *(ABS CPI 16 — headline Q NSA + Trimmed Mean M + Weighted Median M + subcategories)* |
+| **External** | ❌ | ❌ | ✅ Current Account *(ABS BOP 14 — CA + primary + secondary + capital + financial account sub-items)* | ✅ FX / REER *(RBA F11.1 — AUD/USD + TWI + 17 AUD crosses, 19 series; daily via CSV snapshot)* |
+| **Policy** | ❌ | ❌ | ✅ Fin Conditions *(RBA F1+F2 — cash rate, BBSW 1m/3m/6m, OIS 1m/3m/6m, govt bonds 2y/3y/5y/10y; 11 series; daily via CSV snapshot)* | ✅ Policy Reaction *(RBA D3 — M1/M3/Broad money/Money base NSA+SA, 14 series; monthly via CSV snapshot)* |
 
 ### 7.8 New Zealand (NZ)
 
@@ -354,6 +356,8 @@ HK score: **0 ✅ / 7 ⚠️ / 9 ❌** (was 0/1/15 before v2). All right-side cl
 | **Policy** | ❌ | ❌ | ❌ | ❌ |
 
 ### 7.12 India (IN)
+
+Scoping plan landed 2026-06-10: [`india/in_coverage_plan.md`](india/in_coverage_plan.md) — dual-track DBIE + CIMS (per user direction) plus MOSPI / DGCIS / MoF / DPIIT / CCIL / NSDL / BIS cascade. 0 indicators loaded; 36 discovered-but-unloaded in `playground/econ/rbi/sample_output/`. Phase A (DBIE auth-durability check) is the unblocker.
 
 | Engine | A | B | C | D |
 |---|:---:|:---:|:---:|:---:|
