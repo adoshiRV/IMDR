@@ -255,11 +255,11 @@ and occasionally trim sub-components.
 | Errors and Omissions | RBI | DBIE BoP | Q | ⚠ |
 | Net IIP (International Investment Position) | RBI | DBIE — IIP quarterly | Q | ⚠ |
 | External Debt (total + components) | RBI / MoF | DBIE External Debt | Q | ⚠ |
-| FX Reserves Total (USD) | RBI | DBIE `dbie_foreignExchangeReserves` `reserveCode=TR` | W | ✅ endpoint confirmed |
-| FX Reserves — Foreign Currency Assets | RBI | DBIE `reserveCode=FCA` | W | ✅ endpoint confirmed |
-| FX Reserves — Gold | RBI | DBIE `reserveCode=GOLD` | W | ✅ endpoint confirmed |
-| FX Reserves — SDR | RBI | DBIE `reserveCode=SDR` | W | ✅ endpoint confirmed |
-| FX Reserves — Reserve position in IMF | RBI | DBIE `reserveCode=IMF` | W | ✅ endpoint confirmed |
+| FX Reserves Total (USD) | RBI | DBIE `dbie_foreignExchangeReserves` `reserveCode=TR` | W | ✅ `scripts.econ.rbi.rbi_fx_reserves` (603 obs, 2015→) |
+| FX Reserves — Foreign Currency Assets | RBI | DBIE `reserveCode=FCA` | W | ✅ `scripts.econ.rbi.rbi_fx_reserves` (603 obs, 2015→) |
+| FX Reserves — Gold | RBI | DBIE `reserveCode=GOLD` | W | ✅ `scripts.econ.rbi.rbi_fx_reserves` (603 obs, 2015→) |
+| FX Reserves — SDR | RBI | DBIE `reserveCode=SDR` | W | ✅ `scripts.econ.rbi.rbi_fx_reserves` (603 obs, 2015→) |
+| FX Reserves — Reserve position in IMF | RBI | DBIE `reserveCode=IMF` | W | ✅ `scripts.econ.rbi.rbi_fx_reserves` (603 obs, 2015→) |
 
 ### 3.4 FX / REER
 
@@ -559,8 +559,8 @@ Mark items in PRs that close them.
 
 ### A. Data series (target: ~150 indicators across 16 cells)
 
-- [ ] **A0** DBIE auth durability — verify captured header works 1d / 7d / 30d; build bootstrap-replay if it rotates
-- [ ] **A1** DBIE FX reserves (TR + FCA + GOLD + SDR + IMF) — 5 indicators load to `econ.fact_indicator` (endpoint already decoded)
+- [x] **A0** DBIE auth durability — captured header confirmed dead 2026-06-10 (returns errorCode 4302). Bootstrap flow live: POST `security_generateSessionToken` w/o auth header → new token in **HTTP response header** `authorization`. Client at `src/imdr/domains/econ/rbi_dbie.py` re-bootstraps on token-expiry mid-call.
+- [x] **A1** DBIE FX reserves (TR + FCA + GOLD + SDR + IMF) — `scripts.econ.rbi.rbi_fx_reserves` shipped 2026-06-10; **3,015 obs × 5 indicators** loaded covering 2015→2026, weekly. Latest TR = $682.32 bn (2026-05-28).
 - [ ] **A2** DBIE Indicators-tree payload capture — Playwright + network interception for all leaves; produces `discovery/payloads_indicators.json`
 - [ ] **A3** Generic `dbie_getPublicationDataImpala` wrapper — decode body shape; ship `playground/econ/rbi/fetch_publication.py`
 - [ ] **A4** RBI Bulletin tables (T19C CPI, T27 call money, IESH, Consumer Confidence, etc.) — 31 indicators
