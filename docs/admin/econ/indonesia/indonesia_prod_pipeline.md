@@ -20,6 +20,7 @@ Vendor API/portal
   BI SEKI XLSX (bi.go.id/SEKI/tabel/)
   BI Survey ZIPs (bi.go.id/.../Documents/{SK,spe,SKDU}.zip)
   BIS SDMX-JSON (stats.bis.org/api/v2/)
+  DJPPR listing API + per-file XLSX/PDF (api-djppr.kemenkeu.go.id/web/api/v1/)
         │
         ▼
 scripts/econ/{vendor}/{topic}.py   ← per-topic fetcher; delegates to _runner.run_main()
@@ -49,6 +50,7 @@ Domain library code lives in `src/imdr/domains/econ/`:
 | `bi_seki.py` | SEKI XLSX downloader + sheet parser; `_infer_years` Dec→Jan year rollover logic |
 | `bi_survey.py` | Survey ZIP downloader (SK / spe / SKDU); single-XLSX assertion + row-indexed parser |
 | `bis_sdmx.py` | `fetch_sdmx_series` — SDMX-JSON dataflow helper; no auth; Indonesia key=`ID` |
+| `djppr_kepemilikan.py` | DJPPR listing API + XLSX/PDF parsers for SBN ownership by investor; PyMuPDF carry-over label logic; `classify_label` ordering trap (FOREIGN_OFFICIAL must precede "bank" patterns) |
 
 ---
 
@@ -81,7 +83,7 @@ policy rate) series all live under the monthly trigger because fetchers are
 idempotent (MERGE on PK): running them monthly catches every release window
 without per-cadence scheduling.
 
-Fans out to **25 fetchers sequentially** (BPS/BI portal throttle discourages
+Fans out to **26 fetchers sequentially** (BPS/BI portal throttle discourages
 concurrency; BIS is fast enough that parallelism adds no benefit):
 
 | Fetcher | Vendor | Primary cadence | Approx indicators |
@@ -111,6 +113,7 @@ concurrency; BIS is fast enough that parallelism adds no benefit):
 | `scripts.econ.bi.bi_sbn` | BI SEKI XLSX | Monthly | 5 |
 | `scripts.econ.bi.bi_skdu_macro` | BI SEKI XLSX | Quarterly | 36 |
 | `scripts.econ.bi.bi_sulni` | BI SEKI XLSX | Quarterly | 8 |
+| `scripts.econ.djppr.djppr_sbn_ownership` | DJPPR listing API + XLSX/PDF | Daily | 36 |
 
 Annual and semi-annual fetchers (Sakernas, fiscal) are included here: MERGE on
 PK makes them idempotent — running monthly catches every release window without

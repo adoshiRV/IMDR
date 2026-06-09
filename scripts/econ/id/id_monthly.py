@@ -1,12 +1,12 @@
 """Indonesia econ — MONTHLY+QUARTERLY+SEMIANNUAL+ANNUAL+DAILY orchestrator.
 
-Runs every Indonesia prod fetcher (BPS + BI + BIS). Higher-cadence series
-(BIS daily policy rate, BPS monthly CPI/PPI/trade/labour, BI monthly money/
-reserves/credit/banking rates) and lower-cadence ones (BPS quarterly GDP,
-BPS semi-annual Sakernas, BI quarterly BoP/SKDU, BI annual fiscal) all live
-under one monthly trigger because fetchers are idempotent (MERGE on PK):
-running them monthly costs extra API calls but catches every release window
-without per-cadence scheduling.
+Runs every Indonesia prod fetcher (BPS + BI + BIS + DJPPR). Higher-cadence
+series (BIS daily policy rate, BPS monthly CPI/PPI/trade/labour, BI monthly
+money/reserves/credit/banking rates, DJPPR daily SBN ownership) and lower-
+cadence ones (BPS quarterly GDP, BPS semi-annual Sakernas, BI quarterly
+BoP/SKDU, BI annual fiscal) all live under one monthly trigger because
+fetchers are idempotent (MERGE on PK): running them monthly costs extra
+API calls but catches every release window without per-cadence scheduling.
 
 Indonesia has no WEEKLY-cadence series — no companion id_weekly.py is needed.
 
@@ -60,6 +60,9 @@ PIPELINES: list[list[str]] = [
     [sys.executable, "-m", "scripts.econ.bi.bi_sbn"],
     [sys.executable, "-m", "scripts.econ.bi.bi_skdu_macro"],
     [sys.executable, "-m", "scripts.econ.bi.bi_sulni"],
+    # DJPPR (1 fetcher, listing-API + per-file XLSX/PDF — runs late because
+    # it pulls ~30 files via HTTP and is the slowest single step)
+    [sys.executable, "-m", "scripts.econ.djppr.djppr_sbn_ownership"],
 ]
 
 

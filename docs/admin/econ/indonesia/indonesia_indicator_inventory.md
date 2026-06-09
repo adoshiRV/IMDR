@@ -1,10 +1,10 @@
 # Indonesia (ID) — Econ Indicator Inventory
 
-Last updated: 2026-06-09
+Last updated: 2026-06-09 (post-DJPPR load)
 
 Tracker forked from [`../country_econ_blueprint.md`](../country_econ_blueprint.md) §1-4 per the [onboarding playbook](../onboarding_new_country.md#step-1--fork-the-blueprint-into-a-country-tracker).
 
-**Today (2026-06-09 post-Phase G):** **250 indicators × 26,757 observations live in `econ.fact_indicator`** across 3 vendors (BPS 82 + BI 162 + BIS 6); migrations 081-084 applied. **All 16 wiring-map cells covered; 13 of 16 are full ✅.** Orchestrator wired into `scripts/imdr_monthly.py:PIPELINES` 2026-06-09 — Phase G complete.
+**Today (2026-06-09 post-DJPPR):** **286 indicators × 109,991 observations live in `econ.fact_indicator`** across 4 vendors (BPS 82 + BI 162 + BIS 6 + DJPPR 36); migrations 081-085 applied. **All 16 wiring-map cells covered; 13 of 16 are full ✅.** Orchestrator wired into `scripts/imdr_monthly.py:PIPELINES` 2026-06-09 — Phase G complete. DJPPR Kepemilikan SBN added 2026-06-09 covers daily ownership of tradable IDR-denominated government securities (SBN) by investor category (banks / BI / mutual funds / insurance+pension / foreign / individuals / other), window 2015-12-31 → 2026-06-05, daily. Wired into `id_monthly.py` 2026-06-09 (parser library at `src/imdr/domains/econ/djppr_kepemilikan.py`).
 
 ## Production fetchers (2026-06-09)
 
@@ -39,7 +39,10 @@ See [indonesia_prod_pipeline.md](indonesia_prod_pipeline.md).
 | `scripts.econ.bi.bi_sbn` | 5 |
 | `scripts.econ.bi.bi_skdu_macro` | 36 |
 | `scripts.econ.bi.bi_sulni` | 8 |
-| **Total** | **250** |
+| `scripts.econ.djppr.djppr_sbn_ownership` | 36 |
+| **Total** | **286** |
+
+DJPPR Kepemilikan SBN wired into `id_monthly.py` 2026-06-09 (parser library at `src/imdr/domains/econ/djppr_kepemilikan.py`). Pre-2016 legacy XLSX deferred → [IMD-42](https://linear.app/imdr/issue/IMD-42).
 
 ---
 
@@ -57,7 +60,7 @@ See [indonesia_prod_pipeline.md](indonesia_prod_pipeline.md).
 | Cell | Status | Headline indicator (vendor) | Sub-bullets covered | Gap / Tier |
 |---|:---:|---|:---:|---|
 | 1.1 Private Demand    | ✅ | BI.SENTIMENT.CCI + BI.RETAIL_SALES.TOTAL + SKDU TOTAL | 36/13 | BI Consumer Survey IKK (9 sub-indices, M 2012→) + Retail Sales INDEKS TOTAL (9 categories, M 2012→) + SKDU Business Activity (18 sectoral, Q 2022→) |
-| 1.2 Fiscal Demand     | ✅ | BI.FISCAL.REVENUE / EXPEND / BALANCE | 6/11 | BI SEKI IV.1-3 annual realisasi (2008→2024); MoF APBN portal PDF-only |
+| 1.2 Fiscal Demand     | ✅ | BI.FISCAL.REVENUE / EXPEND / BALANCE + DJPPR.SBN.HOLD.* | 42/11 | BI SEKI IV.1-3 annual realisasi (2008→2024) + DJPPR Kepemilikan SBN daily by investor (12 cats × 3 instruments × daily 2015→2026); MoF APBN portal monthly PDF-only still unparsed |
 | 1.3 External Demand   | ✅ | BPS.TRADE.EXPORT / IMPORT.TOTAL.USD.ID | 6/13 | BPS customs trade (2009→2026 monthly + Migas/Non-Migas annual) |
 | 1.4 Macro Core        | ✅ | BPS.GDP.GDP.YOY.ID + Sakernas + IP | 9/22 | BPS GDP (7) + Sakernas labour (12) + Industrial Production (4) |
 | 2.1 Input Costs       | ✅ | BPS.IMPORT_PRICE.YOY.ID | 2/7 | BPS Import Price Index 2023=100 (Q); import-price decomp pending |
