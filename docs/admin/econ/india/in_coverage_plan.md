@@ -581,7 +581,8 @@ Mark items in PRs that close them.
 - [ ] **A19** PPAC — crude basket + petrol/diesel/LPG prices
 - [ ] **A20** EPFO monthly payroll release
 - [x] **A21** BIS package for IN — `scripts.econ.bis.bis_india` shipped 2026-06-10; 6/8 indicators × 24,957 obs live (NEER/REER broad · DSR PNFS · credit-to-GDP ratio · credit-to-GDP gap · RBI repo rate daily 1946→). DSR.HOUSEHOLDS + DSR.NFC return 404 — confirmed BIS gap for IN.
-- [ ] **A22** FRED OECD India mirror — CPI YoY + IP + unemployment + 10Y yield (fallback / cross-check)
+- [x] **A22** FRED OECD India mirror — 7/16 candidates validated 2026-06-10; **11,589 obs loaded**. Live: CPI YoY (1990→) · CPI level (1990→2024) · IIP (1994→2023) · Real GDP annual (PWT, 1990→2023) · Call money rate (1990→) · INR/USD daily (1990→) + monthly (1990→). Confirmed FRED-absent for IN: OECD harmonised unemployment (`LRHUTTTT*IN*` 400) · OECD 10Y govt yield (`IRLTLT01INM156N` 400) · OECD 3M interbank (`IR3TIB01INM156N` 400) · IMF IFS quarterly GDP (`NGDPRSAXDCINQ` 400). Discount Rate `INTDSRINM193N` validates but is stale (last 2022-07) — use `BIS.POLICY_RATE.IN` instead.
+  - **Reproducibility caveat (carried over from FRED architecture):** FRED India entries live in `playground/econ/fred/seed.yml` (gitignored). Same as every other FRED country today. Tracked via Linear `IMD-FRED-PROMOTE` (TBD): move `seed.yml` + `connector.py` to `src/imdr/domains/econ/fred*` so the seed becomes reproducible. Until then, anyone re-running `python -m playground.econ.fred.fetch` must hand-add the India rows from the locally-loaded DB state.
 - [ ] **A23** GSTN monthly GST collections scrape
 
 ### B. Events + documents

@@ -359,14 +359,14 @@ HK score: **0 ✅ / 7 ⚠️ / 9 ❌** (was 0/1/15 before v2). All right-side cl
 
 Scoping plan landed 2026-06-10: [`india/in_coverage_plan.md`](india/in_coverage_plan.md) — dual-track DBIE + CIMS (per user direction) plus MOSPI / DGCIS / MoF / DPIIT / CCIL / NSDL / BIS cascade.
 
-**Live 2026-06-10:** BIS India package shipped via `scripts.econ.bis.bis_india` — **6 indicators × 24,957 obs** in `econ.fact_indicator` covering NEER/REER broad, Private-NFS DSR, Credit-to-GDP ratio + gap, and RBI repo rate (daily, 1946→). First IN data live in DB.
+**Live 2026-06-10:** BIS + FRED India packages shipped — **13 indicators × 36,546 obs** in `econ.fact_indicator`. BIS: NEER/REER broad, Private-NFS DSR, Credit-to-GDP ratio + gap, RBI repo daily (1946→). FRED: CPI YoY + level (1990→), IIP (1994→2023), Real GDP annual (PWT 1990→), Call money rate (1990→), INR/USD daily + monthly (1990→). First IN data live in DB.
 
 | Engine | A | B | C | D |
 |---|:---:|:---:|:---:|:---:|
-| **Growth** | ❌ | ❌ | ❌ | ❌ |
-| **Inflation** | ❌ | ❌ | ❌ | ⚠️ CPI *(RBI Bulletin T19C — combined rural+urban)* |
-| **External** | ❌ | ❌ | ⚠️ Capital Acc *(RBI DBIE FX reserves, 5 components)* | ⚠️ FX/REER *(BIS NEER + REER broad, M, 1994→)* |
-| **Policy** | ❌ | ⚠️ Balance Sheets *(BIS Private-NFS DSR + Credit-to-GDP ratio + gap, Q, 1951→)* | ⚠️ Fin Conditions *(RBI Bulletin T27 call money)* | ⚠️ Policy *(BIS CBPOL — RBI repo rate, D, 1946→)* |
+| **Growth** | ❌ | ❌ | ❌ | ⚠️ Macro Core *(FRED IIP 1994→2023 + Real GDP PWT annual 1990→2023)* |
+| **Inflation** | ❌ | ❌ | ❌ | ⚠️ CPI *(FRED OECD MEI YoY + level 1990→ + RBI Bulletin T19C)* |
+| **External** | ❌ | ❌ | ⚠️ Capital Acc *(RBI DBIE FX reserves, 5 components)* | ⚠️ FX/REER *(BIS NEER + REER broad M, 1994→ + FRED DEXINUS daily 1990→)* |
+| **Policy** | ❌ | ⚠️ Balance Sheets *(BIS Private-NFS DSR + Credit-to-GDP ratio + gap, Q, 1951→)* | ⚠️ Fin Conditions *(RBI Bulletin T27 + FRED OECD Call Money 1990→)* | ⚠️ Policy *(BIS CBPOL — RBI repo rate D, 1946→)* |
 
 ### 7.13 South Korea (KR)
 
