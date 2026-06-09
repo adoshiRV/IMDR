@@ -163,6 +163,23 @@ class DBIEClient:
     # Convenience wrappers — add more as endpoints are decoded.
     # ------------------------------------------------------------------
 
+    def publication_data_impala(self, report_id: int) -> list[dict]:
+        """``dbie_getPublicationDataImpala`` — at the time of writing (2026-06-10)
+        this endpoint *always* returns the "Major Monetary Policy Rates and
+        Reserve Requirements" snapshot (9 rows) regardless of the
+        ``reportId`` passed. The name is misleading — it is the Key Rates
+        dashboard card, not a generic publication fetcher.
+
+        Each row carries ``{name, rate, timeDate, currencyDesc, timeMonth}``.
+        ``timeDate`` is epoch-ms of the last release/change.
+
+        Returns the ``body.result`` array.
+        """
+        data = self.call(
+            "dbie_getPublicationDataImpala", {"reportId": report_id}
+        )
+        return (data.get("body") or {}).get("result") or []
+
     def fx_reserves(
         self,
         reserve_code: str,

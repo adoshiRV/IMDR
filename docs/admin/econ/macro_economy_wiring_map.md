@@ -297,14 +297,14 @@ US score: **4 ✅ / 11 ⚠️ / 1 ❌** (was 4/8/4 before v2 expansion). Only Te
 
 ### 7.7 Australia (AU)
 
-Updated 2026-06-09: **132 indicators / 63,925 obs DB-LIVE** (manual load). ABS 11 dataflows (88 indicators) + RBA 3 tables via CSV snapshot (44 indicators). Second-most-populated country after Indonesia.
+Updated 2026-06-10: **327 indicators / 334,529 obs DB-LIVE** (manual load). ABS 11 dataflows (124 indicators) + RBA 3 tables via CSV snapshot (44 indicators) + AOFM 5 fetchers (157 indicators) + FRED-mirror (3). Phase G blocker lifted. Second-most-populated country after Indonesia.
 
 | Engine | A | B | C | D |
 |---|:---:|:---:|:---:|:---:|
-| **Growth** | ✅ Private Demand *(ABS Retail Trade 10 series)* | ❌ | ✅ External Demand *(ABS BOP 14 + BOP_GOODS 7 + ITPI 6 + ANA_EXP 10)* | ✅ Macro Core *(ABS ANA_AGG GDP chain-vol SA + LF unemployment/participation/employed + ANA_EXP expenditure decomp + Job Vacancies 3)* |
+| **Growth** | ✅ Private Demand *(ABS Retail Trade 10 series)* | ✅ Fiscal Demand *(AOFM portfolio aggregate 16 series — TB+TIB+TN outstanding monthly since 2003; AOFM issuance/buybacks 10 series — monthly gross issuance + buyback flows)* | ✅ External Demand *(ABS BOP 14 + BOP_GOODS 7 + ITPI 6 + ANA_EXP 10)* | ✅ Macro Core *(ABS ANA_AGG GDP chain-vol SA + LF unemployment/participation/employed + ANA_EXP expenditure decomp + Job Vacancies 3)* |
 | **Inflation** | ❌ | ✅ Producer Prices *(ABS PPI_FD 3 — final demand, TSEST=TOTXE)* | ✅ Domestic Costs *(ABS WPI 6 — OHRPEB, TOT level, NSA-only — SA not published)* | ✅ CPI Pressure *(ABS CPI 16 — headline Q NSA + Trimmed Mean M + Weighted Median M + subcategories)* |
-| **External** | ❌ | ❌ | ✅ Current Account *(ABS BOP 14 — CA + primary + secondary + capital + financial account sub-items)* | ✅ FX / REER *(RBA F11.1 — AUD/USD + TWI + 17 AUD crosses, 19 series; daily via CSV snapshot)* |
-| **Policy** | ❌ | ❌ | ✅ Fin Conditions *(RBA F1+F2 — cash rate, BBSW 1m/3m/6m, OIS 1m/3m/6m, govt bonds 2y/3y/5y/10y; 11 series; daily via CSV snapshot)* | ✅ Policy Reaction *(RBA D3 — M1/M3/Broad money/Money base NSA+SA, 14 series; monthly via CSV snapshot)* |
+| **External** | ❌ | ❌ | ✅ Current Account *(ABS BOP 14 — CA + primary + secondary + capital + financial account sub-items)* + ✅ Capital Account *(AOFM foreign holdings 34 series — non-resident AGS holdings by investor category, quarterly since 2003; Mar-2026: AUD 469bn = 50.9% of AUD 922bn outstanding)* | ✅ FX / REER *(RBA F11.1 — AUD/USD + TWI + 17 AUD crosses, 19 series; daily via CSV snapshot)* |
+| **Policy** | ❌ | ❌ | ✅ Fin Conditions *(RBA F1+F2 — cash rate, BBSW 1m/3m/6m, OIS 1m/3m/6m, govt bonds 2y/3y/5y/10y; 11 series; daily via CSV snapshot)* + *(AOFM term premium 30 series — FY/TP/RNY × 1Y..10Y daily since 1992; 10Y Mar-2026: 95bp)* + *(AOFM turnover 67 series — TB+TIB secondary by region/tenor/category)* | ✅ Policy Reaction *(RBA D3 — M1/M3/Broad money/Money base NSA+SA, 14 series; monthly via CSV snapshot)* |
 
 ### 7.8 New Zealand (NZ)
 
@@ -359,14 +359,14 @@ HK score: **0 ✅ / 7 ⚠️ / 9 ❌** (was 0/1/15 before v2). All right-side cl
 
 Scoping plan landed 2026-06-10: [`india/in_coverage_plan.md`](india/in_coverage_plan.md) — dual-track DBIE + CIMS (per user direction) plus MOSPI / DGCIS / MoF / DPIIT / CCIL / NSDL / BIS cascade.
 
-**Live 2026-06-10:** BIS + FRED + RBI DBIE India packages shipped — **18 indicators × 39,561 obs** in `econ.fact_indicator`. BIS: NEER/REER broad, Private-NFS DSR, Credit-to-GDP ratio + gap, RBI repo daily (1946→). FRED: CPI YoY + level (1990→), IIP (1994→2023), Real GDP annual (PWT 1990→), Call money rate (1990→), INR/USD daily + monthly (1990→). RBI DBIE: FX reserves total + FCA + Gold + SDR + IMF position (weekly, 2015→). First IN data live in DB; DBIE bootstrap-auth client at [`src/imdr/domains/econ/rbi_dbie.py`](../../src/imdr/domains/econ/rbi_dbie.py).
+**Live 2026-06-10:** BIS + FRED + RBI DBIE India packages shipped — **26 indicators × 39,569 obs** in `econ.fact_indicator`. BIS: NEER/REER broad, Private-NFS DSR, Credit-to-GDP ratio + gap, RBI repo daily (1946→). FRED: CPI YoY + level (1990→), IIP (1994→2023), Real GDP annual (PWT 1990→), Call money rate (1990→), INR/USD daily + monthly (1990→). RBI DBIE: FX reserves total + FCA + Gold + SDR + IMF position (weekly, 2015→) plus 8-row Key Rates snapshot (Repo / SDF / Reverse Repo / CRR / SLR + CPI/WPI YoY latest + WACR). First IN data live in DB; DBIE bootstrap-auth client at [`src/imdr/domains/econ/rbi_dbie.py`](../../src/imdr/domains/econ/rbi_dbie.py).
 
 | Engine | A | B | C | D |
 |---|:---:|:---:|:---:|:---:|
 | **Growth** | ❌ | ❌ | ❌ | ⚠️ Macro Core *(FRED IIP 1994→2023 + Real GDP PWT annual 1990→2023)* |
-| **Inflation** | ❌ | ❌ | ❌ | ⚠️ CPI *(FRED OECD MEI YoY + level 1990→ + RBI Bulletin T19C)* |
+| **Inflation** | ❌ | ❌ | ❌ | ⚠️ CPI *(FRED OECD MEI YoY + level 1990→ + RBI DBIE WPI/CPI latest snapshot + RBI Bulletin T19C)* |
 | **External** | ❌ | ❌ | ✅ Capital Acc *(RBI DBIE FX reserves — TR + FCA + Gold + SDR + IMF, weekly 2015→)* | ⚠️ FX/REER *(BIS NEER + REER broad M, 1994→ + FRED DEXINUS daily 1990→)* |
-| **Policy** | ❌ | ⚠️ Balance Sheets *(BIS Private-NFS DSR + Credit-to-GDP ratio + gap, Q, 1951→)* | ⚠️ Fin Conditions *(RBI Bulletin T27 + FRED OECD Call Money 1990→)* | ⚠️ Policy *(BIS CBPOL — RBI repo rate D, 1946→)* |
+| **Policy** | ❌ | ⚠️ Balance Sheets *(BIS Private-NFS DSR + Credit-to-GDP ratio + gap, Q, 1951→)* | ⚠️ Fin Conditions *(RBI DBIE WACR daily + FRED OECD Call Money 1990→ + RBI Bulletin T27)* | ✅ Policy Reaction *(RBI DBIE Repo + SDF + Reverse Repo + CRR + SLR event-stamped + BIS CBPOL daily 1946→)* |
 
 ### 7.13 South Korea (KR)
 

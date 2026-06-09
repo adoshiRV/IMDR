@@ -25,15 +25,16 @@ India is the weakest API landscape in Asia. Real-economy series (CPI, IIP, GDP) 
 
 ## Loading status
 
-**Live as of 2026-06-10: 18 indicators × 39,561 observations in `econ.fact_indicator`.**
+**Live as of 2026-06-10: 26 indicators × 39,569 observations in `econ.fact_indicator`.**
 
 | Vendor | Indicators | Obs | Coverage |
 |---|---:|---:|---|
 | BIS | 6 | 24,957 | NEER/REER broad · Private-NFS DSR · Credit-to-GDP ratio + gap · RBI repo daily 1946→ |
 | FRED | 7 | 11,589 | CPI YoY + level (1990→) · IIP (1994→2023) · Real GDP PWT annual · Call money · INR/USD daily + monthly |
-| RBI DBIE | 5 | 3,015 | FX reserves — Total + FCA + Gold + SDR + IMF position (weekly 2015→) |
+| RBI DBIE | 13 | 3,023 | FX reserves Total/FCA/Gold/SDR/IMF (weekly 2015→) + Key Rates snapshot (Repo · SDF · Reverse Repo · CRR · SLR · CPI YoY · WPI YoY · WACR) |
+| **Total** | **26** | **39,569** | |
 
-5 of 16 wiring-map cells now covered; 3.3 Capital Account is the only ✅ today. See [`in_coverage_plan.md`](in_coverage_plan.md) §"Final India Checklist" for the full punch-list (A0+A1+A21+A22 done; A2–A20 remaining).
+7 of 16 wiring-map cells now covered (2 ✅ + 5 ⚠) including 4.4 Policy Reaction (now ✅ with event-stamped Repo/SDF/CRR/SLR snapshot). See [`in_coverage_plan.md`](in_coverage_plan.md) §"Final India Checklist" for the full punch-list (A0 + A1 + A5(partial) + A21 + A22 done; A2–A20 remaining).
 
 ## Policy & fiscal document sources
 
