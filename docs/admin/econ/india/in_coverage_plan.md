@@ -630,12 +630,210 @@ Mark items in PRs that close them.
 - [ ] **D8** Linear epic created — `IMD-INDIA-ECON` parent + per-phase sub-issues mapped to this checklist
 - [ ] **D9** Smoke test on the FCNR-MIFOR worked example end-to-end before declaring "production"
 
+### A. Data series — India Cluster Map additions (2026-06-10)
+
+New rows added after cross-checking the 12-cluster India Macro Read map (see [Appendix B](#appendix-b--india-cluster-map-cross-check) for the full mapping). These live alongside the wiring-cell rows in Groups A–D above; numbering picks up at A24.
+
+- [ ] **A24** **IMD monsoon rainfall** — daily/weekly during SW monsoon (Jun-Sep) + NE monsoon (Oct-Dec). `mausam.imd.gov.in` HTML scrape. Cumulative + sub-divisional distribution + reservoir-region anchored. Critical for food CPI + rural demand.
+- [ ] **A25** **CWC reservoir levels** — weekly, 4 zones (N/S/E/W). `cwc.gov.in/reservoir-storage`. Predicts hydropower output + Rabi sowing conditions + drinking-water stress.
+- [ ] **A26** **DAC crop sowing area** — weekly during sowing season (Kharif Jun-Sep, Rabi Oct-Mar). `agricoop.gov.in`. Per crop + total acreage YoY.
+- [ ] **A27** **POSOCO national power demand** — daily peak load + energy met. `posoco.in/reports/daily-reports`. High-frequency activity proxy (alternative to monthly IIP).
+- [ ] **A28** **NHB Residex / RBI HPI** — quarterly housing price indices, 50+ cities. NHB `nhb.org.in/residex/` + RBI quarterly HPI publication.
+- [ ] **A29** **MGNREGA spend + person-days** — weekly. MoRD `nrega.nic.in`. Rural distress proxy (counter-cyclical to farm income).
+- [ ] **A30** **PM-KISAN disbursement** — installment events. MoA press release.
+- [ ] **A31** **MSP minimum support price levels** — annual + event when announced. MoA press release per crop.
+- [ ] **A32** **FCI food stocks** — monthly. FCI `fci.gov.in/stocks.php`. Rice + wheat buffer vs norm.
+- [ ] **A33** **Agmarknet mandi prices** — daily, ~3,000 mandis × ~300 commodities. `agmarknet.gov.in`. Food-CPI leading indicator at granularity.
+- [ ] **A34** **DPIIT PLI scheme commitments** — quarterly (scheme-wise applications + sanctioned investment + actual deployment). `dpiit.gov.in` + scheme-specific dashboards.
+- [ ] **A35** **DIPAM disinvestment proceeds** — event-driven. `dipam.gov.in`.
+- [ ] **A36** **Ministry of Tourism FTA (Foreign Tourist Arrivals)** — monthly. `tourism.gov.in/Statistics`.
+- [ ] **A37** **NBFC sector aggregates** — quarterly. RBI NBFC publication / Financial Stability Report annex.
+- [ ] **A38** **IBBI quarterly newsletter — insolvency cases** — quarterly. `ibbi.gov.in`. Corporate stress / refinancing wall proxy.
+- [ ] **A39** **NSDL FPI — index-inclusion slice** — daily. Slice the existing NSDL FPI debt flow (A16) into JPM GBI-EM-eligible vs ineligible bonds, and Bloomberg EM-eligible slice. Tracks index-inclusion flow specifically.
+- [ ] **A40** **DoF / FAI fertilizer prices** — monthly. `faidelhi.org` + Dept of Fertilizers subsidy dashboard.
+- [ ] **A41** **FAO Food Price Index** — monthly (cross-country benchmark). `fao.org/worldfoodsituation/foodpricesindex`. Imported-food inflation reference.
+- [ ] **A42** **Baltic Dry Index** — daily (commercial proxy via FRED `BDIY` or paid). Shipping-cost proxy.
+- [ ] **A43** **SIAM auto sales** — monthly. `siam.in` press release. PVs + 2-wheelers + tractors (TAMA via separate channel for tractors — rural demand proxy).
+- [ ] **A44** **GST e-Way Bill volumes** — monthly + daily. `ewaybillgst.gov.in`. Real-time trade activity proxy.
+
+### B. Events + documents — India Cluster Map additions
+
+- [ ] **B18** **Election Commission of India (ECI) dates** — General + State elections + by-poll dates. `eci.gov.in`. Drives federal-politics + policy-continuity risk.
+- [ ] **B19** **GST Council meeting outcomes** — per-meeting notification. `gstcouncil.gov.in`. Tax-reform event corpus.
+- [ ] **B20** **MoCI / DPIIT PLI scheme launches + reviews** — event press releases.
+- [ ] **B21** **MoA MSP announcements** — Kharif (May/Jun) + Rabi (Oct) annual cycles.
+- [ ] **B22** **IMD seasonal forecasts** — Long-Range Forecast Apr + update Jun for SW monsoon; NE-monsoon forecast Oct. Document corpus.
+- [ ] **B23** **Customs notifications (CBIC)** — BCD changes, tariff revisions. `cbic.gov.in`. Trade-policy event corpus.
+- [ ] **B24** **DEA Mid-Year Economic Analysis** (already in B11) — confirmed within cluster-11 coverage.
+
 ### Out of scope for the initial build
 
 - ❌ Paid feeds — S&P Global PMI · CMIE high-frequency unemployment · CEIC/Macrobond mirror
 - ❌ MOSPI PPI proper (pilot only — revisit when official series launches)
 - ❌ Microdata (PLFS person-level, ASI plant-level, BSR branch-level) — only published aggregates
 - ⏸ State-level fiscal + state-level CPI (defer to Phase 2)
+
+---
+
+## Appendix B — India Cluster Map cross-check
+
+Cross-checking the 12-cluster *India Macro Read* dashboard (see image in
+docs/) against the coverage plan above. Each bullet is tagged:
+- ✅ in plan already
+- ⚠ partial / needs a derivation step
+- ❌ missing → added to checklist Group A24+ or B18+ above
+- ⏸ deferred (paid feed / structural)
+
+### Cluster 1 — Domestic Demand / Consumption
+
+| Bullet | Status | Mapped to |
+|---|:---:|---|
+| Urban demand — salaried jobs | ⚠ | A20 EPFO payroll (formal employment) |
+| Urban demand — services income | ❌ | derived from PFCE services component (1.1) |
+| Urban demand — credit | ✅ | A5 RBI Sectoral Deployment — Personal Loans |
+| Urban demand — confidence | ✅ | A5 RBI Consumer Confidence Survey (CCS) |
+| Rural demand — farm income | ❌ | requires DAC crop output × MSP × MSP-procurement composite — derived |
+| Rural demand — monsoon | ❌ | **A24 IMD rainfall — NEW** |
+| Rural demand — wages | ✅ | A18 Labour Bureau rural wages + WRI |
+| Rural demand — transfers (MGNREGA / PM-KISAN) | ❌ | **A29 MGNREGA + A30 PM-KISAN — NEW** |
+| Rural demand — MSP | ❌ | **A31 MSP — NEW** (data + B21 events) |
+| Household balance sheets — savings | ⚠ | derived from BoP / household financial assets |
+| Household balance sheets — debt | ✅ | BIS DSR + Credit-to-GDP + Sectoral Deployment HH |
+| Household balance sheets — real rates | ⚠ | derived = Repo − CPI YoY |
+| Household balance sheets — housing wealth | ❌ | **A28 NHB Residex + RBI HPI — NEW** |
+| Demographics — youth / migration / participation / mix | ⏸ | Census + NSSO microdata — structural, deferred |
+
+### Cluster 2 — Investment / Capex / Construction
+
+| Bullet | Status | Mapped to |
+|---|:---:|---|
+| Private capex — profits | ⚠ | RBI Corporate Sector statistics (A7) — annual lag |
+| Private capex — capacity use | ✅ | A5 RBI OBICUS survey (quarterly) |
+| Private capex — policy certainty | ⏸ | qualitative — picked up via §5 event corpus |
+| Private capex — cost of capital | ✅ | A5 WALR / MCLR + CCIL corp bond curve (A17) |
+| Public capex — central | ✅ | A14 CGA monthly accounts (capital expenditure split) |
+| Public capex — state capex | ⚠ | A6 RBI State Govt finances (annual lag) |
+| Real estate — affordability | ❌ | **A28 NHB Residex / RBI HPI — NEW** |
+| Real estate — approvals / inventory | ⏸ | PropEquity / Knight Frank — paid |
+| Real estate — financing | ✅ | A5 RBI Sectoral Deployment — Housing Loans |
+| Manufacturing push — PLI | ❌ | **A34 DPIIT PLI commitments — NEW** + B20 events |
+| Manufacturing push — China+1 | ⏸ | derived from DGCIS commodity-level trade composition |
+| Manufacturing push — logistics | ❌ | LPI not refreshed annually; use port throughput / e-Way Bill (A44) |
+| Manufacturing push — export capacity | ✅ | A13 DGCIS exports + ITPI indices |
+
+### Cluster 3 — Labour / Supply / Productivity
+
+| Bullet | Status | Mapped to |
+|---|:---:|---|
+| Employment quantity — job creation / unemployment / LFPR | ✅ | A11 MOSPI PLFS (Annual + Quarterly Urban) |
+| Employment quantity — informal vs formal | ⚠ | PLFS reports the split; EPFO (A20) tracks formal-only |
+| Employment quality — wages | ✅ | A18 Labour Bureau WRI + PLFS earnings |
+| Employment quality — productivity | ⚠ | derived = GVA / employment from NAS + PLFS |
+| Employment quality — skill mismatch | ⏸ | NSSO unit-level surveys — deferred |
+| Supply capacity — utilisation | ✅ | RBI OBICUS (cross-ref 2.3) |
+| Supply capacity — bottlenecks / intermediate imports | ⚠ | DGCIS HS-chapter import composition |
+| Infrastructure — ports / roads / power / digital | ❌ | port throughput (IPA), Indian Railways monthly, **A27 POSOCO — NEW**; logistics → A44 e-Way Bill |
+
+### Cluster 4 — Agriculture / Monsoon / Food
+
+| Bullet | Status | Mapped to |
+|---|:---:|---|
+| Rainfall — onset / distribution / dry spells | ❌ | **A24 IMD — NEW** + B22 seasonal forecasts |
+| Rainfall — reservoir levels | ❌ | **A25 CWC weekly — NEW** |
+| Crops — kharif / rabi / sowing / yields / acreage | ❌ | **A26 DAC sowing area — NEW** |
+| Food supply — cereals / pulses / vegetables / oils / milk | ⚠ | CPI sub-groups (A8) + Agmarknet wholesale (**A33 — NEW**) + FCI stocks (**A32 — NEW**) |
+| Rural spillovers — incomes / migration / demand | ⚠ | composite — derives from A29 MGNREGA + A18 rural wages + A11 PLFS rural participation |
+
+**Cluster 4 is the single largest gap in the original plan.** Six new data series (A24-A26, A32-A33, B22) and one new vendor cascade (IMD + CWC + DAC + Agmarknet + FCI) added.
+
+### Cluster 5 — Inflation Pipeline
+
+| Bullet | Status | Mapped to |
+|---|:---:|---|
+| Food — weather / perishables / MSP / stock mgmt | ⚠ → ✅ once Cluster 4 ships | A24 IMD, A31 MSP, A32 FCI, A33 Agmarknet |
+| Fuel / energy — crude / LPG / electricity / taxes | ✅ | A19 PPAC + Customs notifications (B23) |
+| Core goods — import prices / FX / supply chains | ⚠ | DGCIS UVI + Citi spot + global GSCPI proxy |
+| Core services — housing / health / education / telecom / wages | ⚠ | CPI sub-groups (A8) + WPI services pilot (deferred) |
+| Expectations — credibility / wage indexation | ✅ | A5 RBI IESH + DA-hike events (B-class) |
+
+### Cluster 6 — Fiscal / Public Sector
+
+| Bullet | Status | Mapped to |
+|---|:---:|---|
+| Revenue — GST / income tax / corporate tax / non-tax | ✅ | A14 CGA + A23 GSTN |
+| Expenditure — capex / subsidies / welfare / defence / interest | ⚠ | A14 CGA totals; subsidies + interest-bill need explicit line-items (Budget annex) |
+| States — capex / power subsidies / off-budget | ⚠ | A6 RBI State Govt finances; off-budget needs Budget annex parsing |
+| Debt / deficit — borrowing / fiscal impulse / crowding out | ✅ | A6 RBI Central Govt Market Borrowings + DJPPR equivalent (none for IN — RBI is the issuer) |
+
+New: **A35 DIPAM disinvestment** added (revenue side, important budget-arithmetic item).
+
+### Cluster 7 — Monetary / Liquidity / Rates
+
+| Bullet | Status | Mapped to |
+|---|:---:|---|
+| RBI stance — repo / corridor / liquidity / communication | ✅ | A5 Key Rates + B1-B3 MPC events |
+| Transmission — deposits / lending rates / MIBOR / funding costs | ✅ | A5 WALR/WAFR/WATDR + A17 MIBOR/MIFOR |
+| Bond market — G-sec yields / term premium / supply / OMO | ⚠ | A17 CCIL G-sec curve; term premium derived; OMO events scattered across press releases |
+| Financial conditions — real rates / liquidity / spreads / equity | ✅ | A5 Daily LAF + corp bond spreads (A17) + equity domain |
+
+Fully covered.
+
+### Cluster 8 — Banking / Credit / Balance Sheets
+
+| Bullet | Status | Mapped to |
+|---|:---:|---|
+| Bank health — NPLs / provisioning / capital / deposits | ✅ | A7 RBI Banking Performance |
+| Credit cycle — retail / MSME / corporate / NBFC / rural | ⚠ | A5 Sectoral Deployment covers retail+corporate+rural; **A37 NBFC aggregates — NEW**; MSME sub-cut needs RBI MSME annex |
+| Household leverage — mortgages / personal / unsecured | ✅ | A5 Sectoral Deployment Housing + Personal |
+| Corporate balance sheets — leverage / cash flows / refi / insolvency | ⚠ | A7 RBI Corporate Sector; **A38 IBBI insolvency cases — NEW** |
+
+### Cluster 9 — External Sector / Current Account
+
+| Bullet | Status | Mapped to |
+|---|:---:|---|
+| Goods trade — oil / electronics / gold / chemicals / engineering | ✅ | A13 DGCIS commodity-level (HS chapter) |
+| Services exports — IT / business / tourism / GIC | ⚠ → ✅ once A36 ships | RBI BoP services breakdown (A6) + **A36 Tourism FTA — NEW** + IT exports via RBI BoP; GIC not officially tracked |
+| Remittances — Gulf / US / diaspora | ✅ | A6 RBI BoP Secondary Income + Remittances Survey |
+| Current account — ToT / import demand / export demand | ✅ | A6 BoP CA + DGCIS UVI |
+
+### Cluster 10 — Capital Flows / FX / Reserves
+
+| Bullet | Status | Mapped to |
+|---|:---:|---|
+| FDI — manufacturing / services / infrastructure | ✅ | A15 DPIIT FDI quarterly |
+| Portfolio flows — debt / equity / global risk / **index inclusion** | ⚠ → ✅ once A39 slice ships | A16 NSDL FPI total + **A39 index-inclusion slice — NEW** |
+| INR — oil / USD / carry / relative rates / intervention | ✅ | A17 + A6 RBI Sale/Purchase USD + derived carry |
+| Reserves — adequacy / buffer / FX management | ✅ | A1 RBI DBIE FX reserves 5-way breakdown |
+
+### Cluster 11 — Structural / Institutional / Political
+
+Mostly **event corpus**, not time-series. Mapped to §5 Events:
+
+| Bullet | Status | Mapped to |
+|---|:---:|---|
+| Reforms — ease of doing business / labour / land / logistics | ⚠ | Press release scrape + Parliament passage events (B-class) |
+| Federal politics — state-centre / elections / continuity | ❌ | **B18 ECI election dates — NEW** |
+| Digitalisation — UPI / Aadhaar / formalisation / financial inclusion | ⚠ | NPCI UPI volumes monthly (public); Aadhaar enrolment events |
+| Regulation — tariffs / localisation / taxes / compliance | ⚠ | **B19 GST Council + B23 Customs notifications — NEW** |
+
+### Cluster 12 — Global / Geopolitical / Climate
+
+| Bullet | Status | Mapped to |
+|---|:---:|---|
+| Global growth — US / China / Europe / trade cycle | ✅ | covered via existing US/EU/JP/CN/HK panels |
+| Commodity shocks — oil / gas / fertilizer / food | ⚠ → ✅ once A40+A41 ship | A19 PPAC crude + **A40 fertilizer — NEW** + **A41 FAO Food Price Index — NEW** |
+| Geopolitics — shipping / sanctions / supply chains | ⚠ | **A42 Baltic Dry — NEW** + Suez/Red Sea events via news |
+| Climate stress — heatwaves / floods / water stress / power demand | ❌ | **A24 IMD + A25 CWC + A27 POSOCO — NEW** (cross-ref Clusters 4 + 3) |
+
+### Summary of gap-closures from this cluster-map cross-check
+
+**21 new line items** added to the checklist (Group A24-A44 + B18-B23):
+- 14 new data series (IMD / CWC / DAC / POSOCO / NHB / MGNREGA / PM-KISAN / FCI / Agmarknet / PLI / DIPAM / Tourism FTA / NBFC / IBBI / NSDL slice / Fertilizer / FAO / Baltic Dry / SIAM / e-Way Bill)
+- 7 new event sources (ECI / GST Council / PLI scheme launches / MoA MSP / IMD seasonal forecasts / CBIC customs / DEA mid-year)
+
+**Biggest gaps closed:** Cluster 4 (Agriculture/Monsoon, was ❌ end-to-end), Cluster 2 housing-side (NHB Residex), Cluster 11 (Structural/Political event corpus).
+
+**Vendor cascade additions:** IMD · CWC · DAC (Dept of Ag & Coop) · POSOCO · NHB · MoRD (MGNREGA) · MoA (MSP / PM-KISAN) · FCI · Agmarknet · DPIIT (PLI) · DIPAM · Ministry of Tourism · IBBI · DoF / FAI · FAO · ECI · GST Council secretariat · CBIC. Most have no formal API — HTML scrape / XLSX / PDF.
 
 ---
 
