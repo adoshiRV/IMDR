@@ -3,9 +3,18 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
+from dotenv import load_dotenv
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
+
+# Push .env into os.environ at import time. pydantic-settings already
+# reads .env when populating Settings, but raw ``os.environ.get(...)``
+# call sites (notably the playground/research/ingest_today_*.py daily
+# scripts) need the values in the process env to see them. Doing this
+# here means any module that imports Settings or get_settings inherits
+# the loaded .env — single point of wiring.
+load_dotenv(_PROJECT_ROOT / ".env", override=False)
 
 
 class Settings(BaseSettings):
@@ -20,7 +29,30 @@ class Settings(BaseSettings):
     mssql_host: str = "localhost"
     mssql_port: int = 1433
     mssql_database: str = "IMDR"
-    mssql_driver: str = "ODBC+Driver+17+for+SQL+Server"
+    mssql_driver: str = "SQL+Server"  # legacy driver; required for DATETIMEOFFSET compat
+
+    # Qdrant (vector DB) — local Windows Service install, see docs/admin/qdrant/
+    qdrant_url: str = "http://127.0.0.1:6333"
+    qdrant_api_key: str = ""  # empty = no auth (loopback-bound server only)
+    qdrant_timeout: int = 30
+
+    # Research RAG ingest — read by playground/research/ingest_today_*.py scripts.
+    # Default OFF so a fresh checkout doesn't burn embedding spend by accident.
+    research_embed: bool = False
+    research_embed_model: str = "gemini-embedding-2"
+    # Drop single-name equity research at discovery time (see
+    # playground/research/ingest/relevance.py). Default ON — flip to
+    # false via IMDR_RESEARCH_DROP_SINGLE_NAME_EQUITY=false in the
+    # shell or .env for a one-off backfill that should pull single-name.
+    research_drop_single_name_equity: bool = True
+
+    # Inter-report pacing for research ingest. A random sleep in
+    # [min, max] seconds is inserted before every ingest_one() call so
+    # successive PDF downloads from the same vendor session look more
+    # like a human reader than an automated firehose. Set max=0 to
+    # disable. Apply per shell with IMDR_RESEARCH_PACING_SECONDS_MAX=0.
+    research_pacing_seconds_min: float = 3.0
+    research_pacing_seconds_max: float = 10.0
 
     # Connection Pool
     pool_size: int = 5
@@ -41,6 +73,9 @@ class Settings(BaseSettings):
     # API Keys (per provider)
     bidfx_api_key: str = ""
     citivelocity_api_key: str = ""
+    voyage_key: str = ""
+    gemini_key: str = ""
+    econ_fred_key: str = ""  # FRED (St. Louis Fed) — free key at https://fred.stlouisfed.org/docs/api/api_key.html
 
     # BidFX
     bidfx_username: str = ""
@@ -58,6 +93,9 @@ class Settings(BaseSettings):
     # Fall back to primary creds if not set.
     citi_hourly_client_id: str = ""
     citi_hourly_client_secret: str = ""
+    # Service-principal credentials for backfill runs (independent quota bucket).
+    sp_client_id: str = ""
+    sp_client_secret: str = ""
     citi_scope: str = "/api"
     citi_token_path: str = "/markets/cv/api/oauth2/token"
     citi_data_path: str = "/markets/analytics/chartingbe/rest/external/authed/data"
@@ -101,6 +139,9 @@ class Settings(BaseSettings):
     email_enabled: bool = False
     email_to: str = ""
     email_anomaly_to: str = ""
+
+    # Teams (Workflows webhook — "Post to a channel when a webhook request is received")
+    teams_polymarket_webhook: str = ""
 
     # Anomaly
     anomaly_pct_threshold: float = 50.0

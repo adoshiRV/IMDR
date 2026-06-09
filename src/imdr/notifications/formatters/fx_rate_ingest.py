@@ -83,6 +83,8 @@ class FXRateIngestFormatter:
         missing_pairs: list[str] | None = None,
         holiday_hits: list[dict[str, str]] | None = None,
         quality_flags: list[dict[str, Any]] | None = None,
+        api_messages: list[dict[str, Any]] | None = None,
+        quota_status: dict[str, Any] | None = None,
         health_passed: bool | None = None,
         health_details: list[dict[str, Any]] | None = None,
         elapsed_secs: float = 0.0,
@@ -96,6 +98,7 @@ class FXRateIngestFormatter:
         holiday_hits = holiday_hits or []
         quality_flags = quality_flags or []
         health_details = health_details or []
+        api_messages = api_messages or []
 
         now_utc = datetime.now(timezone.utc)
 
@@ -133,5 +136,8 @@ class FXRateIngestFormatter:
             "quality_flags": quality_flags,
             "missing_pairs": missing_pairs,
             "holiday_hits": holiday_hits,
+            "api_messages": api_messages,
+            "n_api_messages": sum(m.get("count", 0) for m in api_messages),
+            "quota_status": quota_status,
         }
         return self._template.render(**ctx)

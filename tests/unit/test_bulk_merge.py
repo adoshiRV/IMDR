@@ -105,7 +105,7 @@ class TestMergeSpec:
             natural_key=["pair_id"],
             value_columns=["value"],
         )
-        sql = spec._merge_sql()
+        sql = spec.merge_sql
         assert "tgt.updated_at = SYSDATETIMEOFFSET()" in sql
         assert "created_at" in sql
         assert "updated_at" in sql
@@ -119,7 +119,7 @@ class TestMergeSpec:
             value_columns=["value"],
             audit_columns={"created_at": "SYSDATETIMEOFFSET()"},
         )
-        sql = spec._merge_sql()
+        sql = spec.merge_sql
         assert "created_at" in sql
         assert "updated_at" not in sql
 
@@ -132,7 +132,7 @@ class TestMergeSpec:
             value_columns=["value"],
             audit_columns={},
         )
-        sql = spec._merge_sql()
+        sql = spec.merge_sql
         assert "created_at" not in sql
         assert "updated_at" not in sql
 
@@ -156,19 +156,19 @@ class TestMergeSpec:
         assert row["value"] == pytest.approx(1.23456)
 
     def test_staging_sql_creates_table(self) -> None:
-        sql = _SIMPLE_SPEC._create_staging_sql()
+        sql = _SIMPLE_SPEC.create_staging_sql
         assert "CREATE TABLE #test_staging" in sql
         assert "pair_id" in sql
         assert "value" in sql
 
     def test_insert_sql_has_params(self) -> None:
-        sql = _SIMPLE_SPEC._insert_sql()
+        sql = _SIMPLE_SPEC.insert_sql
         assert ":pair_id" in sql
         assert ":obs_date" in sql
         assert ":value" in sql
 
     def test_merge_sql_on_clause(self) -> None:
-        sql = _SIMPLE_SPEC._merge_sql()
+        sql = _SIMPLE_SPEC.merge_sql
         assert "tgt.pair_id = src.pair_id" in sql
         assert "tgt.obs_date = src.obs_date" in sql
 
@@ -191,3 +191,124 @@ class TestMergeSpec:
                 natural_key=["id", "missing"],
                 value_columns=[],
             )
+
+    def test_value_columns_not_in_columns_raises(self) -> None:
+        with pytest.raises(ValueError, match="value_columns not in columns"):
+            MergeSpec(
+                target_table="[fx].[t]",
+                staging_name="#test",
+                columns={"id": "INT"},
+                natural_key=["id"],
+                value_columns=["missing"],
+            )
+
+    def test_nullable_columns_not_in_columns_raises(self) -> None:
+        with pytest.raises(ValueError, match="nullable_columns not in columns"):
+            MergeSpec(
+                target_table="[fx].[t]",
+                staging_name="#test",
+                columns={"id": "INT"},
+                natural_key=["id"],
+                value_columns=[],
+                nullable_columns=["missing"],
+            )
+
+    def test_invalid_staging_name_raises(self) -> None:
+        with pytest.raises(ValueError, match="Invalid staging_name"):
+            MergeSpec(
+                target_table="[fx].[t]",
+                staging_name="bad_name_no_hash",
+                columns={"id": "INT"},
+                natural_key=["id"],
+                value_columns=[],
+            )
+
+    def test_invalid_column_name_raises(self) -> None:
+        with pytest.raises(ValueError, match="Invalid column"):
+            MergeSpec(
+                target_table="[fx].[t]",
+                staging_name="#test",
+                columns={"bad-name": "INT"},
+                natural_key=["bad-name"],
+                value_columns=[],
+            )
+
+    def test_audit_columns_appear_in_insert_clause(self) -> None:
+        spec = MergeSpec(
+            target_table="[fx].[t]",
+            staging_name="#test",
+            columns={"id": "INT", "value": "FLOAT"},
+            natural_key=["id"],
+            value_columns=["value"],
+            audit_columns={"created_at": "SYSDATETIMEOFFSET()"},
+        )
+        sql = spec.merge_sql
+        # INSERT side of the MERGE should reference the audit columns + their values
+        assert "INSERT (id, value, created_at)" in sql
+        assert "SYSDATETIMEOFFSET()" in sql
+
+
+# ── bulk_merge tests ────────────────────────────────────────────────────────
+
+
+class TestBulkMerge:
+    def test_empty_items_returns_zero(self) -> None:
+        session = MagicMock()
+        result = bulk_merge(session, _SIMPLE_SPEC, [])
+        assert result == 0
+        session.connection.assert_not_called()
+
+    def test_happy_path_executes_four_sql_phases(self) -> None:
+        """CREATE staging → INSERT batch → MERGE → DROP, in that order."""
+        session = MagicMock()
+        conn = session.connection.return_value
+        conn.execute.return_value.rowcount = 3
+
+        items = _make_items(3)
+        result = bulk_merge(session, _SIMPLE_SPEC, items)
+
+        assert result == 3
+        # 1 CREATE + 1 INSERT (one batch since 3 < default batch_size) + 1 MERGE + 1 DROP
+        assert conn.execute.call_count == 4
+
+        # First call: CREATE staging table
+        first_sql = str(conn.execute.call_args_list[0].args[0])
+        assert "CREATE TABLE #test_staging" in first_sql
+
+        # Last call: DROP staging table
+        last_sql = str(conn.execute.call_args_list[-1].args[0])
+        assert "DROP TABLE IF EXISTS #test_staging" in last_sql
+
+        # Second-to-last: MERGE
+        merge_sql = str(conn.execute.call_args_list[-2].args[0])
+        assert "MERGE [fx].[fact_vol]" in merge_sql
+
+    def test_batching_inserts_one_batch_per_chunk(self) -> None:
+        """items > batch_size triggers multiple INSERT calls into the staging table."""
+        spec_with_small_batch = MergeSpec(
+            target_table="[fx].[fact_vol]",
+            staging_name="#test_batch",
+            columns={"pair_id": "INT", "obs_date": "DATE", "value": "FLOAT"},
+            natural_key=["pair_id", "obs_date"],
+            value_columns=["value"],
+            batch_size=2,
+        )
+        session = MagicMock()
+        conn = session.connection.return_value
+        conn.execute.return_value.rowcount = 5
+
+        items = _make_items(5)  # 5 items, batch_size=2 → 3 batches (2+2+1)
+        result = bulk_merge(session, spec_with_small_batch, items)
+
+        assert result == 5
+        # 1 CREATE + 3 INSERTs + 1 MERGE + 1 DROP = 6
+        assert conn.execute.call_count == 6
+
+        # The 3 INSERTs all use the same compiled insert_sql with executemany-style row lists
+        insert_calls = [
+            c for c in conn.execute.call_args_list
+            if "INSERT INTO #test_batch" in str(c.args[0])
+        ]
+        assert len(insert_calls) == 3
+        # Batch sizes: 2, 2, 1
+        assert [len(c.args[1]) for c in insert_calls] == [2, 2, 1]

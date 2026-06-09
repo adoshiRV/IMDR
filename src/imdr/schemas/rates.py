@@ -6,8 +6,8 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-ALLOWED_QUOTES = {"par", "spread", "fwd", "bfly", "ssw", "rc"}
-ALLOWED_CURVE_TYPES = {"rfr", "ibor"}
+ALLOWED_QUOTES = {"par", "spread", "fwd", "bfly", "ssw", "rc", "basis"}
+ALLOWED_CURVE_TYPES = {"rfr", "ibor", "basis", "ccs"}
 ALLOWED_CURVE_STATUSES = {"active", "ceased", "reformed"}
 
 
@@ -54,6 +54,7 @@ class RatesObservationCreate(BaseModel):
     """Schema for creating a rates observation row."""
 
     curve_id: int = Field(..., gt=0)
+    vendor_id: int = Field(..., gt=0)
     ts: datetime
     quote: str = Field(..., min_length=1, max_length=10)
     tenor: str = Field(..., min_length=1, max_length=30)

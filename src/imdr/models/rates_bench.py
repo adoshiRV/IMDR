@@ -22,11 +22,8 @@ class RatesDimCentralBank(Base):
     cb_code: Mapped[str] = mapped_column(String(30), nullable=False)
     display_name: Mapped[str] = mapped_column(String(60), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
-    # Legacy VARCHAR market_code still populated; new code prefers market_id FK.
-    market_code: Mapped[str] = mapped_column(String(5), nullable=False)
-    # Added by migration 026 — FK to calendar.dim_market(id).
-    market_id: Mapped[int | None] = mapped_column(
-        TINYINT, ForeignKey("calendar.dim_market.id"), nullable=True
+    country_id: Mapped[int] = mapped_column(
+        TINYINT, ForeignKey("dbo.dim_country.id"), nullable=False
     )
     citi_tag: Mapped[str] = mapped_column(String(60), nullable=False)
 
@@ -35,7 +32,7 @@ class RatesDimCentralBank(Base):
     )
 
     def __repr__(self) -> str:
-        return f"<RatesDimCentralBank {self.cb_code} ({self.currency}/{self.market_code})>"
+        return f"<RatesDimCentralBank {self.cb_code} ({self.currency})>"
 
 
 class RatesFactBenchRates(Base):

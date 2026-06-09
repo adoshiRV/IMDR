@@ -212,13 +212,13 @@
 <table width="96%" cellpadding="5" cellspacing="0" style="margin:8px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;font-size:13px;">
   <tr style="background:#8e44ad;color:#fff;">
     <th style="border:1px solid #7d3c98;padding:6px;text-align:left;">Currency</th>
-    <th style="border:1px solid #7d3c98;padding:6px;text-align:left;">Market</th>
+    <th style="border:1px solid #7d3c98;padding:6px;text-align:left;">Country</th>
     <th style="border:1px solid #7d3c98;padding:6px;text-align:left;">Holiday</th>
   </tr>
   {% for h in holiday_hits %}
   <tr style="background:{{ '#f5eef8' if loop.index is odd else '#ebdef0' }};">
     <td style="border:1px solid #ddd;padding:5px;">{{ h.currency }}</td>
-    <td style="border:1px solid #ddd;padding:5px;">{{ h.market_code }}</td>
+    <td style="border:1px solid #ddd;padding:5px;">{{ h.country_code }}</td>
     <td style="border:1px solid #ddd;padding:5px;">{{ h.name }}</td>
   </tr>
   {% endfor %}
@@ -227,6 +227,40 @@
 <table width="96%" cellpadding="0" cellspacing="0" style="margin:8px auto 0 auto;">
   <tr><td style="padding:8px;color:#27ae60;">No holidays affecting this date.</td></tr>
 </table>
+{% endif %}
+
+<!-- Citi API Messages (per-tag ERROR / EMPTY) -->
+{% if quota_status or api_messages %}
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;">
+  <tr><td style="padding:0 24px;"><span style="font-size:16px;font-weight:bold;color:#0d2137;">CITI API MESSAGES{% if api_messages %} ({{ n_api_messages }} tag-level entries){% endif %}</span></td></tr>
+</table>
+{% if quota_status %}
+<table width="96%" cellpadding="5" cellspacing="0" style="margin:8px auto 0 auto;border-collapse:collapse;border:1px solid #c0392b;font-size:13px;background:#fdecea;">
+  <tr><td style="padding:8px;color:#922b21;">
+    <strong>Aggregate tag quota exceeded.</strong>
+    {% if quota_status.message %}<br/><span style="font-family:Consolas,monospace;">{{ quota_status.message }}</span>{% endif %}
+    <br/>current_usage = {{ quota_status.current_usage if quota_status.current_usage is not none else 'n/a' }} | available = {{ quota_status.available if quota_status.available is not none else 'n/a' }}
+  </td></tr>
+</table>
+{% endif %}
+{% if api_messages %}
+<table width="96%" cellpadding="5" cellspacing="0" style="margin:8px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;font-size:13px;">
+  <tr style="background:#34495e;color:#fff;">
+    <th style="border:1px solid #2c3e50;padding:6px;text-align:left;">Type</th>
+    <th style="border:1px solid #2c3e50;padding:6px;text-align:left;">Message</th>
+    <th style="border:1px solid #2c3e50;padding:6px;text-align:right;">Count</th>
+    <th style="border:1px solid #2c3e50;padding:6px;text-align:left;">Sample tags</th>
+  </tr>
+  {% for m in api_messages %}
+  <tr style="background:{{ '#fdecea' if m.type == 'ERROR' else '#fef5e7' }};">
+    <td style="border:1px solid #ddd;padding:5px;font-weight:bold;color:{{ '#922b21' if m.type == 'ERROR' else '#7d6608' }};">{{ m.type }}</td>
+    <td style="border:1px solid #ddd;padding:5px;font-family:Consolas,monospace;">{{ m.message }}</td>
+    <td style="border:1px solid #ddd;padding:5px;text-align:right;font-family:Consolas,monospace;">{{ m.count }}</td>
+    <td style="border:1px solid #ddd;padding:5px;font-family:Consolas,monospace;font-size:11px;">{{ m.sample_tags | join(', ') }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
 {% endif %}
 
 <!-- Footer -->

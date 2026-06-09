@@ -151,11 +151,11 @@ class TestCentralBankCreateSchema:
     def test_uppercase_cb_code(self):
         item = CentralBankCreate(
             cb_code="ecb", display_name="ECB Rate", currency="eur",
-            market_code="eu", citi_tag="RATES.BENCH_RATES.ECB",
+            country_code="eu", citi_tag="RATES.BENCH_RATES.ECB",
         )
         assert item.cb_code == "ECB"
         assert item.currency == "EUR"
-        assert item.market_code == "EU"
+        assert item.country_code == "EU"
 
 
 # ── Parquet Store ───────────────────────────────────────────────────
@@ -251,7 +251,7 @@ class TestUniverseBenchRates:
     def test_bench_rates_tags_returns_list(self, universe):
         tags = universe.bench_rates_tags()
         assert isinstance(tags, list)
-        assert len(tags) == 10
+        assert len(tags) == 8
 
     def test_bench_rates_tags_format(self, universe):
         for tag in universe.bench_rates_tags():
@@ -259,7 +259,7 @@ class TestUniverseBenchRates:
 
     def test_bench_rates_entries_returns_list(self, universe):
         entries = universe.bench_rates_entries()
-        assert len(entries) == 10
+        assert len(entries) == 8
 
     def test_bench_rates_tag_to_cb_code(self, universe):
         mapping = universe.bench_rates_tag_to_cb_code()

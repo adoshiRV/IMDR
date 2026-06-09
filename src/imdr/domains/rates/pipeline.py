@@ -39,6 +39,7 @@ from imdr.healthchecks.base import CheckStatus
 from imdr.healthchecks.quality import SymbolRangeCheck
 from imdr.models.frequency import DimFrequency
 from imdr.models.rates import RatesObservation
+from imdr.models.vendor import DimVendor
 from imdr.pipelines.base import BasePipeline
 from imdr.schemas.rates import RatesObservationCreate
 from imdr.universe.rates import RatesUniverse, get_rates_universe
@@ -93,6 +94,7 @@ class RatesHistoricalPipeline(BasePipeline[pd.DataFrame, list[RatesObservationCr
         self._raw_df: pd.DataFrame | None = None
         self._metadata_freshness: dict[str, Any] | None = None
         self._extraction_errors: list[dict] = []
+        self._tag_errors: list[dict] = []
         self._quota_usage: int | None = None
 
     def _check_metadata_freshness(self, client: CitiVelocityClient) -> dict[str, Any]:
@@ -154,19 +156,25 @@ class RatesHistoricalPipeline(BasePipeline[pd.DataFrame, list[RatesObservationCr
                 cache=cache,
                 quota_tracker=tracker,
             )
-            df = extractor.extract(
-                start=self._start,
-                end=self._end,
-                quotes=self._quotes,
-                frequency=self._frequency,
-                curves=self._curves,
-            )
+            # Alias the extractor's diagnostic lists so they're populated
+            # in-place even if extract() raises (e.g. TagQuotaExceeded).
+            self._extraction_errors = extractor._errors
+            self._tag_errors = extractor._tag_errors
+            try:
+                df = extractor.extract(
+                    start=self._start,
+                    end=self._end,
+                    quotes=self._quotes,
+                    frequency=self._frequency,
+                    curves=self._curves,
+                )
+            finally:
+                self._quota_usage = tracker.current_usage()
 
-        self._extraction_errors = extractor._errors
-        self._quota_usage = tracker.current_usage()
         self._raw_df = df
         _log.info("extract_complete", rows=len(df),
                    extraction_errors=len(self._extraction_errors),
+                   tag_errors=len(self._tag_errors),
                    quota_used=self._quota_usage)
         return df
 
@@ -197,6 +205,17 @@ class RatesHistoricalPipeline(BasePipeline[pd.DataFrame, list[RatesObservationCr
                 )
             frequency_id = frequency.id
 
+            # Resolve vendor_id (Citi pipeline always tags 'citi_velocity'; added by migration 029)
+            vendor = session.execute(
+                select(DimVendor).where(DimVendor.vendor_code == "citi_velocity")
+            ).scalar_one_or_none()
+            if vendor is None:
+                raise RuntimeError(
+                    "Vendor 'citi_velocity' missing from dbo.dim_vendor — "
+                    "run migration 029_add_vendor_id_to_rates_fact_observation.sql"
+                )
+            vendor_id = vendor.id
+
         if raw.empty:
             return []
 
@@ -212,6 +231,7 @@ class RatesHistoricalPipeline(BasePipeline[pd.DataFrame, list[RatesObservationCr
 
             obs = RatesObservationCreate(
                 curve_id=curve_id,
+                vendor_id=vendor_id,
                 ts=row["ts"],
                 quote=row["quote"],
                 tenor=row["tenor"],
@@ -223,7 +243,8 @@ class RatesHistoricalPipeline(BasePipeline[pd.DataFrame, list[RatesObservationCr
         if skipped:
             _log.warning("transform_skipped_unmapped_curves", count=skipped)
         _log.info("transform_complete", observations=len(observations),
-                  frequency=freq_code, frequency_id=frequency_id)
+                  frequency=freq_code, frequency_id=frequency_id,
+                  vendor="citi_velocity", vendor_id=vendor_id)
         return observations
 
     def load(self, data: list[RatesObservationCreate]) -> int:

@@ -184,6 +184,41 @@ Always call list_tables or describe_table first if unsure of schema.
 mcp = FastMCP("imdr-db", instructions=INSTRUCTIONS)
 
 
+# Tables hidden from non-admin users — internal infra / archived copies
+# the MCP consumer shouldn't browse or query. Tables matching `*_old`
+# are also hidden (legacy snapshots from migrations).
+_HIDDEN_TABLES: frozenset[tuple[str, str]] = frozenset({
+    ("admin", "mcp_query_log"),
+    ("audit", "pipeline_runs"),
+    ("rates", "cache_empty_combo"),
+})
+
+# Windows logins exempt from the hide — keyed off os.getlogin(), since
+# that's all the MCP server can see. adoshi@rvcapital.com → "adoshi".
+_ADMIN_USERS: frozenset[str] = frozenset({"adoshi"})
+
+
+def _is_admin_user() -> bool:
+    return _MCP_USER.lower() in _ADMIN_USERS
+
+
+def _is_hidden(schema: str, table: str) -> bool:
+    if (schema, table) in _HIDDEN_TABLES:
+        return True
+    return table.endswith("_old") or "_old_" in table
+
+
+def _assert_no_hidden_refs(sql: str) -> None:
+    """For non-admins, reject queries that reference a hidden table by name."""
+    if _is_admin_user():
+        return
+    for _, table in _HIDDEN_TABLES:
+        if re.search(rf"\b{re.escape(table)}\b", sql, re.IGNORECASE):
+            raise ValueError(f"Table not found.")
+    if re.search(r"\b\w+_old\b", sql, re.IGNORECASE):
+        raise ValueError("Table not found.")
+
+
 @mcp.tool()
 def list_tables(schema: str = "") -> str:
     """List all tables in IMDR, optionally filtered by schema name."""
@@ -209,9 +244,11 @@ def list_tables(schema: str = "") -> str:
                 )
             ).fetchall()
 
-    if not rows:
+    admin = _is_admin_user()
+    visible = [r for r in rows if admin or not _is_hidden(r[0], r[1])]
+    if not visible:
         return "No tables found."
-    return "\n".join(f"{r[0]}.{r[1]}" for r in rows)
+    return "\n".join(f"{r[0]}.{r[1]}" for r in visible)
 
 
 @mcp.tool()
@@ -219,6 +256,9 @@ def describe_table(schema: str, table: str) -> str:
     """Return column names, data types, and nullability for a table."""
     _validate_column(schema, "schema")
     _validate_column(table, "table")
+
+    if _is_hidden(schema, table) and not _is_admin_user():
+        return f"Table {schema}.{table} not found."
 
     with _engine.connect() as conn:
         cols = conn.execute(
@@ -264,14 +304,33 @@ _MAX_QUERY_LENGTH = 4000  # matches audit log sql_text column width
 
 
 def _inject_top(sql: str, max_rows: int) -> str:
-    """Inject TOP(N) into SELECT to limit work at the SQL Server level."""
+    """Inject TOP(N) into the outermost SELECT to limit work at the SQL Server level.
+
+    Uses the FIRST SELECT (outermost) — capping an inner subquery or CTE would
+    truncate intermediate rows before joins/filters complete, producing wrong
+    results. For ``WITH cte AS (SELECT …) SELECT … FROM cte``, the first SELECT
+    sits inside the CTE; we skip past leading ``WITH`` clauses to the top-level
+    SELECT.
+    """
     if re.search(r"\bTOP\s*\(?\s*\d+", sql, re.IGNORECASE):
         return sql
-    parts = list(re.finditer(r"\bSELECT\b(?:\s+DISTINCT)?", sql, re.IGNORECASE))
-    if not parts:
+    # If the query starts with WITH, target the first SELECT after the CTE
+    # definitions close. We approximate this by finding the SELECT that is
+    # not preceded by an unmatched '(' — i.e., at depth 0.
+    target: re.Match[str] | None = None
+    depth = 0
+    for m in re.finditer(r"\(|\)|\bSELECT\b(?:\s+DISTINCT)?", sql, re.IGNORECASE):
+        token = m.group(0)
+        if token == "(":
+            depth += 1
+        elif token == ")":
+            depth = max(0, depth - 1)
+        elif depth == 0:
+            target = m
+            break
+    if target is None:
         return sql
-    last = parts[-1]
-    return sql[: last.end()] + f" TOP({max_rows})" + sql[last.end() :]
+    return sql[: target.end()] + f" TOP({max_rows})" + sql[target.end() :]
 
 
 @mcp.tool()
@@ -284,6 +343,7 @@ def query(sql: str, max_rows: int = 500) -> str:
     if len(sql) > _MAX_QUERY_LENGTH:
         raise ValueError(f"Query too long ({len(sql)} chars). Maximum is {_MAX_QUERY_LENGTH}.")
     _assert_readonly(sql)
+    _assert_no_hidden_refs(sql)
     sql = _inject_top(sql, max_rows)
 
     start = time.perf_counter()

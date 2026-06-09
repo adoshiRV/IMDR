@@ -50,6 +50,9 @@ classifications:
   MYR: em_ndf
   SGD: em_deliverable
   HKD: em_deliverable
+  MXN: em_deliverable
+  PLN: em_deliverable
+  ILS: em_deliverable
 
 # Pair convention priority (higher = base currency in standard quoting)
 pair_priority:
@@ -130,6 +133,7 @@ vol:
     - [USD, PHP]
     # EM Deliverable
     - [USD, SGD]
+    - [USD, HKD]
 
   strikes:
     - ATM
@@ -294,19 +298,49 @@ fx_rate:
     - [USD, PHP]
     - [USD, INR]
     - [USD, MYR]
+    # LatAm / EMEA deliverable (BBG coverage)
+    - [USD, MXN]
+    - [USD, PLN]
+    - [USD, ILS]
+    # Onshore EM variants — BBG R-pipeline has these; Citi does not.
+    # Listed in `bbg_only_pairs` below so the Citi fetcher skips them.
+    - [USD, CNY]
+    - [USD, CNO]
+    - [USD, MYO]
+    - [USD, IDO]
 
   # Pairs without forward outrights on Citi — ingest SPOT only
   spot_only_pairs: []
 
-  # Curated tenor grid: spot + 10 forward curve points
+  # Pairs in `pairs` above that are BBG-only (no Citi tag analog).
+  # Citi extractor + tag-builder skip these; BBG extractor includes them.
+  bbg_only_pairs:
+    - [USD, CNY]
+    - [USD, CNO]
+    - [USD, MYO]
+    - [USD, IDO]
+
+  # Curated tenor grid: spot + dense 0–1Y grid + 3 long curve points
+  # 0–1Y dense coverage matches dashboards that interpolate forward curves.
   tenors:
     - SPOT
     - "ON"     # quoted to prevent YAML 1.1 from parsing as boolean True
+    - TN
+    - SN
     - 1W
+    - 2W
+    - 3W
     - 1M
+    - 2M
     - 3M
+    - 4M
+    - 5M
     - 6M
+    - 7M
+    - 8M
     - 9M
+    - 10M
+    - 11M
     - 1Y
     - 2Y
     - 5Y
@@ -338,6 +372,14 @@ fx_rate:
     USDPHP: {min: 30,    max: 80}
     USDINR: {min: 40,    max: 120}
     USDMYR: {min: 2.5,   max: 6.0}
+    USDMXN: {min: 10,    max: 30}
+    USDPLN: {min: 2.0,   max: 6.0}
+    USDILS: {min: 2.5,   max: 5.0}
+    # Onshore EM variants — same broad ranges as offshore counterparts
+    USDCNY: {min: 5.0,   max: 10.0}
+    USDCNO: {min: 5.0,   max: 10.0}
+    USDMYO: {min: 2.5,   max: 6.0}
+    USDIDO: {min: 5000,  max: 25000}
 
 # Per-symbol hard bounds — prices should NEVER fall outside these ranges.
 # Used by quality checks and ingest validation to flag corrupt data.

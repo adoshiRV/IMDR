@@ -59,7 +59,7 @@ class TestSuccessReport:
     def test_to_dict(self) -> None:
         now = datetime.now(timezone.utc)
         report = SuccessReport(
-            pipeline_name="fx.spot_rates",
+            pipeline_name="fx.citi_rate",
             domain="fx",
             run_date=date(2025, 1, 1),
             started_at=now,

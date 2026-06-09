@@ -98,7 +98,7 @@ class EquityUniverse(BaseUniverse):
                     currency=e["currency"],
                     region=region,
                     citi_tag=tpl.format(ticker=e["ticker"]),
-                    market_code=e.get("market_code"),
+                    country_code=e["country_code"],
                 ))
         return entries
 

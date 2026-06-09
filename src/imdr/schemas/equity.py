@@ -22,7 +22,7 @@ class IndexCreate(BaseModel):
     currency: str = Field(..., min_length=3, max_length=3)
     region: str = Field(..., min_length=2, max_length=20)
     citi_tag: str | None = Field(default=None, max_length=80)
-    market_code: str | None = Field(default=None, min_length=2, max_length=5)
+    country_code: str = Field(..., min_length=2, max_length=3)
 
     @field_validator("ticker")
     @classmethod
@@ -32,6 +32,11 @@ class IndexCreate(BaseModel):
     @field_validator("currency")
     @classmethod
     def uppercase_currency(cls, v: str) -> str:
+        return v.upper()
+
+    @field_validator("country_code")
+    @classmethod
+    def uppercase_country_code(cls, v: str) -> str:
         return v.upper()
 
 

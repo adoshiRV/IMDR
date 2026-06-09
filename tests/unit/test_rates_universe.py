@@ -15,7 +15,8 @@ class TestUniverseLoading:
         assert universe is not None
 
     def test_curve_count(self, universe):
-        assert len(universe.all_curves()) == 39
+        # 39 prior + 4 basis_swaps (USD/EUR/GBP/AUD 3S6S_BASIS) = 43
+        assert len(universe.all_curves()) == 43
 
     def test_target_currencies(self, universe):
         ccys = universe.target_currencies()
@@ -57,6 +58,9 @@ class TestMaturities:
 
     def test_swap_libor_count(self, universe):
         assert len(universe.maturities("swap_libor")) == 36
+
+    def test_basis_swaps_count(self, universe):
+        assert len(universe.maturities("basis_swaps")) == 20
 
     def test_maturities_for_curve(self, universe):
         mats = universe.maturities_for_curve("USD", "SOFR")
@@ -222,9 +226,48 @@ class TestCcyIndexPairs:
 class TestBaseUniverseABC:
     def test_instruments(self, universe):
         instruments = universe.instruments()
-        assert len(instruments) == 39
+        # 39 prior + 4 basis_swaps = 43
+        assert len(instruments) == 43
         assert "USD.SOFR" in instruments
 
     def test_api_symbols(self, universe):
         symbols = universe.api_symbols()
         assert "RATES.OIS.USD_SOFR" in symbols
+
+
+class TestBasisSwaps:
+    """3s6s tenor basis swaps — tag layout `{prefix}.{TENOR}.{QUOTE}`."""
+
+    def test_curves_loaded(self, universe):
+        for ccy in ("USD", "EUR", "GBP", "AUD"):
+            c = universe.get_curve(ccy, "3S6S_BASIS")
+            assert c.type == "basis"
+            assert c.providers["citi"]["instrument"] == "basis_swaps"
+
+    def test_eur_aud_active(self, universe):
+        assert universe.get_curve("EUR", "3S6S_BASIS").status == "active"
+        assert universe.get_curve("AUD", "3S6S_BASIS").status == "active"
+
+    def test_usd_gbp_ceased(self, universe):
+        assert universe.get_curve("USD", "3S6S_BASIS").status == "ceased"
+        assert universe.get_curve("GBP", "3S6S_BASIS").status == "ceased"
+
+    def test_build_tags_tenor_first_order(self, universe):
+        tags = universe.build_tags("EUR", "3S6S_BASIS", "BASIS_SPREAD", ["10Y"])
+        # Quote comes LAST, not after the prefix
+        assert tags == ["RATES.BASIS_SWAPS.3S6S_BASIS.EUR.SPOT.10Y.BASIS_SPREAD"]
+
+    def test_build_tags_all_tenors(self, universe):
+        tags = universe.build_tags("EUR", "3S6S_BASIS", "BASIS_SPREAD")
+        assert len(tags) == 20  # 3M..30Y
+
+    def test_par_returns_empty_on_basis_curve(self, universe):
+        # Quote-not-supported -> empty (lets extractor loop without false tags)
+        assert universe.build_tags("EUR", "3S6S_BASIS", "PAR") == []
+
+    def test_basis_returns_empty_on_ois_curve(self, universe):
+        assert universe.build_tags("USD", "SOFR", "BASIS_SPREAD") == []
+
+    def test_resolve_prefix(self, universe):
+        result = universe.resolve_prefix("RATES.BASIS_SWAPS.3S6S_BASIS.AUD.SPOT")
+        assert result == ("AUD", "3S6S_BASIS")

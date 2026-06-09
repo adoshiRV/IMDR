@@ -12,12 +12,13 @@ def get_index_coverage(
     year_filter = ", ".join(str(y) for y in years)
 
     df_cov = reader.query(
-        f"SELECT di.ticker, di.display_name, di.region, di.market_code, "
+        f"SELECT di.ticker, di.display_name, di.region, co.country_code, "
         f"MIN(f.obs_date) AS first_date, MAX(f.obs_date) AS last_date, COUNT(*) AS n "
         f"FROM {table} f "
         f"JOIN [equities].[dim_index] di ON di.id = f.index_id "
+        f"JOIN [dbo].[dim_country] co ON co.id = di.country_id "
         f"WHERE YEAR(f.obs_date) IN ({year_filter}) "
-        f"GROUP BY di.ticker, di.display_name, di.region, di.market_code "
+        f"GROUP BY di.ticker, di.display_name, di.region, co.country_code "
         f"ORDER BY di.region, di.ticker"
     )
 

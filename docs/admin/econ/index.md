@@ -1,6 +1,6 @@
 # IMDR Econ Documentation
 
-Last updated: 2026-06-05
+Last updated: 2026-06-10 (AU: 3 cells closed this session)
 
 Macro / country-economy data: the indicators sitting in `econ.dim_indicator` / `econ.fact_indicator`, the vendors that feed them, and the country-by-country wiring plan.
 
@@ -28,14 +28,14 @@ Each country has a folder with prod reference docs at the top + a `_playground/`
 | **Korea (KR)** | LIVE — 172 indicators across KOSIS + REB + FRED + BOK-mirror. **KOSIS + REB auto-load via `kr_weekly`/`kr_monthly` since 2026-06-05.** Ops: [korea_prod_pipeline.md](korea/korea_prod_pipeline.md) | [korea/](korea/) | [§7.13](macro_economy_wiring_map.md#713-south-korea-kr) | [korea_indicator_inventory.md](korea/korea_indicator_inventory.md) |
 | **United States (US)** | LIVE — 133 indicators via FRED | [united_states/](united_states/) | [§7.1](macro_economy_wiring_map.md#71-united-states-us) | — |
 | **Hong Kong (HK)** | LIVE — 29 indicators via HKMA | [hong_kong/](hong_kong/) | [§7.10](macro_economy_wiring_map.md#710-hong-kong-hk) | — |
-| **Australia (AU)** | Discovery only (ABS, RBA) | [australia/](australia/) | [§7.7](macro_economy_wiring_map.md#77-australia-au) | — |
+| **Australia (AU)** | DB-LIVE (manual load) — **379 indicators / 339,631 obs**; ABS 15 fetchers / 18 dataflows (141 indicators) + RBA 5 fetchers via CSV snapshot (78 indicators) + AOFM 5 fetchers (157 indicators) + FRED-mirror (3); 14 of 16 cells ✅. Phase G blocker lifted (AOFM in DB). IIP probed 2026-06-10. Production promotion pending user sign-off. | [australia/](australia/) | [§7.7](macro_economy_wiring_map.md#77-australia-au) | [australia_indicator_inventory.md](australia/australia_indicator_inventory.md) |
 | **New Zealand (NZ)** | Discovery only (RBNZ, Stats NZ) | [new_zealand/](new_zealand/) | [§7.8](macro_economy_wiring_map.md#78-new-zealand-nz) | — |
 | **India (IN)** | Discovery only (RBI DBIE → CIMS) | [india/](india/) | [§7.12](macro_economy_wiring_map.md#712-india-in) | — |
 | **Japan (JP)** | Source catalogue only (e-Stat, BOJ, BoJ docs) | [japan/](japan/) | [§7.4](macro_economy_wiring_map.md#74-japan-jp) | — |
 | **Eurozone (EU)** | Source catalogue only (ECB SDW, Eurostat, ECB docs) | [eurozone/](eurozone/) | [§7.2](macro_economy_wiring_map.md#72-eurozone-eu) | — |
 | **Philippines (PH)** | Source catalogue only (BSP, PSA, DBM, BTr) | [philippines/](philippines/) | [§7.15](macro_economy_wiring_map.md#715-philippines-ph) | — |
 | **Thailand (TH)** | Source catalogue only (BoT, NSO) | [thailand/](thailand/) | [§7.16](macro_economy_wiring_map.md#716-thailand-th) | — |
-| **Indonesia (ID)** | Source catalogue only (BPS, BI, MoF, DJPPR) | [indonesia/](indonesia/) | [§7.17](macro_economy_wiring_map.md#717-indonesia-id) | — |
+| **Indonesia (ID)** | DB-LIVE (manual load) — **250 indicators × 26,757 obs**, all 16 wiring-map cells covered, 13 of 16 are full ✅. BPS (82, REST JSON) + BI (162 across SEKI tables + Survey publications + bank rates) + BIS (6, SDMX). Most-populated country in the econ schema. MoF APBN deferred (covered by BI SEKI IV); OJK NPL + prod wiring still pending. | [indonesia/](indonesia/) | [§7.17](macro_economy_wiring_map.md#717-indonesia-id) | [_playground/bps.md](indonesia/_playground/bps.md) · [_playground/bi.md](indonesia/_playground/bi.md) · [_playground/bis.md](indonesia/_playground/bis.md) |
 
 Other countries appear in the wiring map (UK, CA, CH, DE, CN, SG, TW) via FRED OECD mirrors — they don't have their own folder yet. When one graduates from FRED-mirror to native-vendor, create a folder following the Korea reference shape.
 

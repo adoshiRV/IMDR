@@ -49,6 +49,10 @@ class CitiVelocityRatesExtractor:
         self._cache = cache
         self._quota_tracker = quota_tracker
         self._errors: list[dict] = []
+        # Per-tag ERROR / EMPTY entries reported by Citi — populated by
+        # fetch_and_parse_batched. Surfaces silent failures like the per-tag
+        # 10/24h rolling limit and unsupported-frequency rejections.
+        self._tag_errors: list[dict] = []
 
     def extract(
         self,
@@ -188,6 +192,7 @@ class CitiVelocityRatesExtractor:
             response_parser=_parse_response,
             quota_tracker=self._quota_tracker,
             pipeline_name="rates.citi_live",
+            tag_errors=self._tag_errors,
         )
         if df.empty:
             return pd.DataFrame(columns=COLUMNS)

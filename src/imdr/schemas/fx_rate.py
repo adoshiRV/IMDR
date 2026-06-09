@@ -7,7 +7,10 @@ from decimal import Decimal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 ALLOWED_TENORS = {
-    "SPOT", "ON", "1W", "1M", "3M", "6M", "9M", "1Y", "2Y", "5Y", "10Y",
+    "SPOT", "ON", "TN", "SN",
+    "1W", "2W", "3W",
+    "1M", "2M", "3M", "4M", "5M", "6M", "7M", "8M", "9M", "10M", "11M",
+    "1Y", "2Y", "5Y", "10Y",
 }
 
 

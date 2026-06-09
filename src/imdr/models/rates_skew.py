@@ -29,10 +29,8 @@ class RatesSkewSurface(Base):
         TINYINT, ForeignKey("dbo.dim_currency.id"), nullable=False
     )
     option_expiry: Mapped[str] = mapped_column(String(4), nullable=False)
-    market_code: Mapped[str | None] = mapped_column(String(5), nullable=True)
-    # Added by migration 026 — FK to calendar.dim_market(id). Prefer over market_code.
-    market_id: Mapped[int | None] = mapped_column(
-        TINYINT, ForeignKey("calendar.dim_market.id"), nullable=True
+    country_id: Mapped[int] = mapped_column(
+        TINYINT, ForeignKey("dbo.dim_country.id"), nullable=False
     )
 
     currency: Mapped[DimCurrency] = relationship()

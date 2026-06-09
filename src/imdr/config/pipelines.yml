@@ -1,32 +1,4 @@
 pipelines:
-  fx.spot_rates:
-    domain: fx
-    target_schema: fx
-    target_table: fx_spot_rates
-    date_column: rate_date
-    unique_columns:
-      - base_currency
-      - quote_currency
-      - rate_date
-    required_columns:
-      - mid
-      - base_currency
-      - quote_currency
-    health_checks:
-      row_count_min: 5
-      max_staleness_hours: 24
-      value_ranges:
-        mid:
-          min: 0.0001
-          max: 10000.0
-    sources:
-      bidfx:
-        type: rest
-        # API details to be filled in
-      citivelocity:
-        type: rest
-        # API details to be filled in
-
   fx.ohlc:
     domain: fx
     target_schema: fx
@@ -61,13 +33,6 @@ pipelines:
       trailing_months: 3
       pct_threshold: 5.0
       min_obs: 100
-    sources:
-      bidfx:
-        type: rest
-        auth: basic
-      citivelocity:
-        type: rest
-        auth: bearer
 
   fx.citi_rate:
     domain: fx
@@ -78,12 +43,13 @@ pipelines:
       - pair_id
       - vendor_id
       - frequency_id
-      - obs_date
+      - obs_ts
       - tenor
     required_columns:
       - pair_id
       - vendor_id
       - frequency_id
+      - obs_ts
       - obs_date
       - tenor
       - mid_rate
@@ -99,10 +65,6 @@ pipelines:
       trailing_months: 6
       pct_threshold: 10.0          # daily EOD — looser than hourly
       min_obs: 30
-    sources:
-      citivelocity:
-        type: rest
-        auth_type: bearer
 
   fx.vol:
     domain: fx
@@ -131,10 +93,6 @@ pipelines:
       trailing_months: 12
       pct_threshold: 30.0
       min_obs: 30
-    sources:
-      citivelocity:
-        type: rest
-        auth_type: bearer
 
   rates.vol:
     domain: rates
@@ -160,10 +118,6 @@ pipelines:
       trailing_months: 12
       pct_threshold: 50.0
       min_obs: 30
-    sources:
-      citivelocity:
-        type: rest
-        auth_type: bearer
 
   rates.skew:
     domain: rates
@@ -190,9 +144,6 @@ pipelines:
       trailing_months: 12
       pct_threshold: 50.0
       min_obs: 30
-    sources:
-      barclays_excel:
-        type: file
 
   rates.historical:
     domain: rates
@@ -225,10 +176,6 @@ pipelines:
       trailing_months: 12
       pct_threshold: 30.0
       min_obs: 30
-    sources:
-      citivelocity:
-        type: rest
-        auth: bearer
 
   rates.bench_rates:
     domain: rates
@@ -250,10 +197,6 @@ pipelines:
         rate:
           min: -2.0
           max: 20.0
-    sources:
-      citivelocity:
-        type: rest
-        auth: bearer
 
   commodities.spot:
     domain: commodities
@@ -274,10 +217,6 @@ pipelines:
         price:
           min: 0.01
           max: 100000.0
-    sources:
-      citivelocity:
-        type: rest
-        auth_type: bearer
 
   commodities.eia:
     domain: commodities
@@ -294,10 +233,6 @@ pipelines:
     health_checks:
       row_count_min: 10
       max_staleness_hours: 192
-    sources:
-      citivelocity:
-        type: rest
-        auth_type: bearer
 
   commodities.vol:
     domain: commodities
@@ -323,10 +258,6 @@ pipelines:
       trailing_months: 12
       pct_threshold: 40.0
       min_obs: 30
-    sources:
-      citivelocity:
-        type: rest
-        auth_type: bearer
 
   # ── Equity domain ──────────────────────────────────────────────────
 
@@ -349,10 +280,6 @@ pipelines:
         close_level:
           min: 1.0
           max: 100000.0
-    sources:
-      citivelocity:
-        type: rest
-        auth_type: bearer
 
   equity.vix:
     domain: equities
@@ -373,7 +300,3 @@ pipelines:
         close_level:
           min: 1.0
           max: 150.0
-    sources:
-      citivelocity:
-        type: rest
-        auth_type: bearer

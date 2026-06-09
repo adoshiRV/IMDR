@@ -10,6 +10,7 @@ shows what would change without writing.
 """
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import pandas as pd
@@ -18,6 +19,13 @@ from imdr.connectors.reader import AnalyticalReader
 from imdr.healthchecks.cleaning import CleaningAction, CleaningRule
 
 TABLE = "[commodities].[fact_implied_vol]"
+
+_SAFE_IDENT_RE = re.compile(r"^[A-Za-z0-9_./-]+$")
+
+
+def _assert_safe(value: str, label: str) -> None:
+    if not isinstance(value, str) or not _SAFE_IDENT_RE.match(value):
+        raise ValueError(f"Unsafe {label}: {value!r}")
 
 
 def _product_label(row: pd.Series) -> str:
@@ -36,6 +44,8 @@ class HardBoundViolationRule(CleaningRule):
     """NULL out rows where vol falls outside per-strike hard bounds."""
 
     def __init__(self, ranges: dict[str, tuple[float, float]]) -> None:
+        for strike in ranges:
+            _assert_safe(strike, "strike")
         self._ranges = ranges
 
     @property
@@ -56,11 +66,16 @@ class HardBoundViolationRule(CleaningRule):
         if not self._ranges:
             return pd.DataFrame()
 
+        merged_params: dict[str, Any] = dict(params or {})
         when_clauses = []
-        for strike, (lo, hi) in self._ranges.items():
+        for i, (strike, (lo, hi)) in enumerate(self._ranges.items()):
+            ks, klo, khi = f"hb_strike_{i}", f"hb_lo_{i}", f"hb_hi_{i}"
             when_clauses.append(
-                f"(v.[strike] = '{strike}' AND (v.[vol] < {lo} OR v.[vol] > {hi}))"
+                f"(v.[strike] = :{ks} AND (v.[vol] < :{klo} OR v.[vol] > :{khi}))"
             )
+            merged_params[ks] = strike
+            merged_params[klo] = lo
+            merged_params[khi] = hi
         filter_expr = " OR ".join(when_clauses)
 
         sql = f"""
@@ -70,10 +85,10 @@ class HardBoundViolationRule(CleaningRule):
             JOIN [commodities].[dim_commodity] c ON c.id = v.commodity_id
             WHERE ({filter_expr}) {where}
         """
-        return reader.read_sql(sql, params)
+        return reader.read_sql(sql, merged_params)
 
     def build_update_sql(self, ids: list[int]) -> str:
-        id_list = ", ".join(str(i) for i in ids)
+        id_list = ", ".join(str(int(i)) for i in ids)
         return (
             f"UPDATE {TABLE} SET [vol] = NULL, "
             f"[updated_at] = SYSDATETIMEOFFSET() "
@@ -153,7 +168,7 @@ class RobustOutlierRule(CleaningRule):
         return reader.read_sql(sql, params)
 
     def build_update_sql(self, ids: list[int]) -> str:
-        id_list = ", ".join(str(i) for i in ids)
+        id_list = ", ".join(str(int(i)) for i in ids)
         return (
             f"UPDATE {TABLE} SET [vol] = NULL, "
             f"[updated_at] = SYSDATETIMEOFFSET() "
@@ -214,7 +229,7 @@ class PercentageChangeRule(CleaningRule):
         return reader.read_sql(sql, params)
 
     def build_update_sql(self, ids: list[int]) -> str:
-        id_list = ", ".join(str(i) for i in ids)
+        id_list = ", ".join(str(int(i)) for i in ids)
         return (
             f"UPDATE {TABLE} SET [vol] = NULL, "
             f"[updated_at] = SYSDATETIMEOFFSET() "

@@ -21,31 +21,32 @@ def fq_name(schema: str, name: str) -> str:
 
 
 class ValueRangeConfig(BaseModel):
+    model_config = {"extra": "forbid"}
+
     min: float
     max: float
 
 
 class HealthCheckConfig(BaseModel):
+    model_config = {"extra": "forbid"}
+
     row_count_min: int = 1
     max_staleness_hours: int = 24
     value_ranges: dict[str, ValueRangeConfig] = {}
 
 
 class CleaningConfig(BaseModel):
+    model_config = {"extra": "forbid"}
+
     n_mad: float = 4.0
     trailing_months: int = 12
     pct_threshold: float | None = None
     min_obs: int = 30
 
 
-class SourceConfig(BaseModel):
-    type: str  # "rest", "csv", etc.
-    # Extensible — domain-specific keys can be added via model_config extra="allow"
-
-    model_config = {"extra": "allow"}
-
-
 class PipelineConfig(BaseModel):
+    model_config = {"extra": "forbid"}
+
     domain: str
     target_schema: str
     target_table: str
@@ -55,7 +56,6 @@ class PipelineConfig(BaseModel):
     default_quotes: list[str] = []
     health_checks: HealthCheckConfig = HealthCheckConfig()
     cleaning: CleaningConfig = CleaningConfig()
-    sources: dict[str, SourceConfig] = {}
 
     @property
     def fully_qualified_table(self) -> str:
@@ -63,6 +63,8 @@ class PipelineConfig(BaseModel):
 
 
 class PipelinesConfig(BaseModel):
+    model_config = {"extra": "forbid"}
+
     pipelines: dict[str, PipelineConfig]
 
 

@@ -145,7 +145,7 @@
     <th style="border:1px solid #555;padding:6px;text-align:left;">CB Code</th>
     <th style="border:1px solid #555;padding:6px;text-align:left;">Display Name</th>
     <th style="border:1px solid #555;padding:6px;text-align:center;">Currency</th>
-    <th style="border:1px solid #555;padding:6px;text-align:center;">Market</th>
+    <th style="border:1px solid #555;padding:6px;text-align:center;">Country</th>
     <th style="border:1px solid #555;padding:6px;text-align:right;">Rate (%)</th>
     <th style="border:1px solid #555;padding:6px;text-align:center;">Obs Date</th>
   </tr>
@@ -155,7 +155,7 @@
     <td style="border:1px solid #ddd;padding:5px;font-weight:bold;">{{ cb.cb_code }}</td>
     <td style="border:1px solid #ddd;padding:5px;">{{ cb.display_name }}</td>
     <td style="border:1px solid #ddd;padding:5px;text-align:center;">{{ cb.currency }}</td>
-    <td style="border:1px solid #ddd;padding:5px;text-align:center;">{{ cb.market_code }}</td>
+    <td style="border:1px solid #ddd;padding:5px;text-align:center;">{{ cb.country_code }}</td>
     <td style="border:1px solid #ddd;padding:5px;text-align:right;font-family:Consolas,monospace;">{{ cb.rate }}</td>
     <td style="border:1px solid #ddd;padding:5px;text-align:center;">{{ cb.obs_date }}</td>
   </tr>
@@ -189,13 +189,13 @@
 <table width="96%" cellpadding="5" cellspacing="0" style="margin:8px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;font-size:13px;">
   <tr style="background:#8e44ad;color:#fff;">
     <th style="border:1px solid #7d3c98;padding:6px;text-align:left;">CB Code</th>
-    <th style="border:1px solid #7d3c98;padding:6px;text-align:left;">Market</th>
+    <th style="border:1px solid #7d3c98;padding:6px;text-align:left;">Country</th>
     <th style="border:1px solid #7d3c98;padding:6px;text-align:left;">Holiday</th>
   </tr>
   {% for h in holiday_hits %}
   <tr style="background:{{ '#f5eef8' if loop.index is odd else '#ebdef0' }};">
     <td style="border:1px solid #ddd;padding:5px;">{{ h.cb_code }}</td>
-    <td style="border:1px solid #ddd;padding:5px;">{{ h.market_code }}</td>
+    <td style="border:1px solid #ddd;padding:5px;">{{ h.country_code }}</td>
     <td style="border:1px solid #ddd;padding:5px;">{{ h.name }}</td>
   </tr>
   {% endfor %}

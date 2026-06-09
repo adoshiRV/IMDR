@@ -6,7 +6,6 @@ Returns pandas or polars DataFrames for downstream analysis.
 
 from __future__ import annotations
 
-import re
 from datetime import date, datetime
 from typing import Any
 
@@ -14,25 +13,10 @@ import pandas as pd
 import structlog
 from sqlalchemy import text
 
+from imdr.connectors._sql_safety import validate_column, validate_identifier
 from imdr.connectors.mssql import MSSQLConnector
 
 log = structlog.get_logger(__name__)
-
-# Only allow [schema].[name] or [name] patterns — prevents SQL injection
-_IDENTIFIER_RE = re.compile(r"^\[[\w]+\](?:\.\[[\w]+\])?$")
-_COLUMN_RE = re.compile(r"^[\w]+$")
-
-
-def _validate_identifier(value: str, label: str) -> None:
-    """Ensure a table/view name matches [schema].[name] pattern."""
-    if not _IDENTIFIER_RE.match(value):
-        raise ValueError(f"Invalid {label}: {value!r}. Expected [schema].[name] format.")
-
-
-def _validate_column(value: str, label: str) -> None:
-    """Ensure a column name is a simple word (alphanumeric + underscore)."""
-    if not _COLUMN_RE.match(value):
-        raise ValueError(f"Invalid {label}: {value!r}. Expected alphanumeric column name.")
 
 
 class AnalyticalReader:
@@ -71,11 +55,11 @@ class AnalyticalReader:
             end: End date (inclusive)
             columns: Specific columns to select, or None for all
         """
-        _validate_identifier(table, "table")
-        _validate_column(date_column, "date_column")
+        validate_identifier(table, "table")
+        validate_column(date_column, "date_column")
         if columns:
             for c in columns:
-                _validate_column(c, "column")
+                validate_column(c, "column")
             cols = ", ".join(f"[{c}]" for c in columns)
         else:
             cols = "*"
@@ -97,7 +81,7 @@ class AnalyticalReader:
             order_by: Column name to order by (validated, not raw SQL)
             limit: Max rows to return
         """
-        _validate_identifier(view_name, "view_name")
+        validate_identifier(view_name, "view_name")
 
         limit_clause = ""
         if limit is not None:
@@ -111,14 +95,14 @@ class AnalyticalReader:
         if filters:
             clauses = []
             for col, val in filters.items():
-                _validate_column(col, "filter column")
+                validate_column(col, "filter column")
                 param_name = f"p_{col}"
                 clauses.append(f"[{col}] = :{param_name}")
                 params[param_name] = val
             sql += " WHERE " + " AND ".join(clauses)
 
         if order_by:
-            _validate_column(order_by, "order_by")
+            validate_column(order_by, "order_by")
             sql += f" ORDER BY [{order_by}]"
 
         return self.read_sql(sql, params)

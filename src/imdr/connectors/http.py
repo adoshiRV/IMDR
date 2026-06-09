@@ -7,6 +7,25 @@ from typing import Any
 import httpx
 import structlog
 
+# Param names whose values are secrets — masked when logged.
+_SENSITIVE_PARAM_KEYS = frozenset({
+    "api_key", "apikey", "api-key",
+    "access_token", "accesstoken",
+    "token", "auth", "authorization",
+    "key", "secret", "password",
+    "client_secret",
+})
+
+
+def _redact_params(params: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Return a copy of params with sensitive values masked for logging."""
+    if not params:
+        return params
+    return {
+        k: ("***REDACTED***" if k.lower() in _SENSITIVE_PARAM_KEYS else v)
+        for k, v in params.items()
+    }
+
 
 class HTTPClient:
     """Thin wrapper around httpx.Client with retry and logging."""
@@ -17,6 +36,7 @@ class HTTPClient:
         timeout: int = 30,
         retries: int = 3,
         headers: dict[str, str] | None = None,
+        follow_redirects: bool = True,
     ) -> None:
         self._log = structlog.get_logger("HTTPClient")
         transport = httpx.HTTPTransport(retries=retries)
@@ -25,18 +45,19 @@ class HTTPClient:
             timeout=timeout,
             transport=transport,
             headers=headers or {},
+            follow_redirects=follow_redirects,
         )
 
     def get_json(self, path: str, params: dict[str, Any] | None = None) -> Any:
         """GET request, raise on HTTP errors, return parsed JSON."""
-        self._log.info("http_get", path=path, params=params)
+        self._log.info("http_get", path=path, params=_redact_params(params))
         resp = self._client.get(path, params=params)
         resp.raise_for_status()
         return resp.json()
 
     def get_text(self, path: str, params: dict[str, Any] | None = None) -> str:
         """GET request, return response text (e.g. CSV)."""
-        self._log.info("http_get_text", path=path, params=params)
+        self._log.info("http_get_text", path=path, params=_redact_params(params))
         resp = self._client.get(path, params=params)
         resp.raise_for_status()
         return resp.text

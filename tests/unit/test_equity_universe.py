@@ -76,19 +76,19 @@ class TestEquityUniverse:
         for e in entries:
             assert e.region in ("us", "europe", "asia_pacific")
 
-    def test_index_create_entries_have_market_code(self, universe):
+    def test_index_create_entries_have_country_code(self, universe):
         entries = universe.index_create_entries()
         for e in entries:
-            assert e.market_code is not None, f"{e.ticker} missing market_code"
-            assert len(e.market_code) == 2
+            assert e.country_code is not None, f"{e.ticker} missing country_code"
+            assert len(e.country_code) == 2
 
-    def test_market_code_mapping(self, universe):
+    def test_country_code_mapping(self, universe):
         entries = {e.ticker: e for e in universe.index_create_entries()}
-        assert entries["SPX"].market_code == "US"
-        assert entries["N225"].market_code == "JP"
-        assert entries["FTSE"].market_code == "UK"
-        assert entries["STOXX50E"].market_code == "EU"
-        assert entries["FCHI"].market_code == "FR"
+        assert entries["SPX"].country_code == "US"
+        assert entries["N225"].country_code == "JP"
+        assert entries["FTSE"].country_code == "UK"
+        assert entries["STOXX50E"].country_code == "EU"
+        assert entries["FCHI"].country_code == "FR"
 
     def test_target_currencies(self, universe):
         ccys = universe.target_currencies()

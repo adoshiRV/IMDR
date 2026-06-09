@@ -76,9 +76,11 @@ class RatesIngestFormatter:
         rows_loaded: int = 0,
         has_errors: bool = False,
         is_historical: bool = False,
+        mode: str | None = None,
         **kwargs: Any,
     ) -> str:
-        mode = "Historical" if is_historical else "Daily"
+        if mode is None:
+            mode = "Historical" if is_historical else "Daily"
         status = "ERROR" if has_errors else "OK"
         date_str = run_date.strftime("%Y-%m-%d") if run_date else "N/A"
         return f"[IMDR] Rates {mode} Ingest {status} | {date_str} | {rows_loaded} obs"
@@ -99,8 +101,11 @@ class RatesIngestFormatter:
         health_passed: bool | None = None,
         health_details: list[dict[str, Any]] | None = None,
         quality_flags: list[dict[str, Any]] | None = None,
+        api_messages: list[dict[str, Any]] | None = None,
+        quota_status: dict[str, Any] | None = None,
         elapsed_secs: float = 0.0,
         is_historical: bool = False,
+        mode: str | None = None,
         has_errors: bool = False,
         **kwargs: Any,
     ) -> str:
@@ -110,6 +115,7 @@ class RatesIngestFormatter:
         holiday_hits = holiday_hits or []
         quality_flags = quality_flags or []
         health_details = health_details or []
+        api_messages = api_messages or []
 
         now_utc = datetime.now(timezone.utc)
 
@@ -138,7 +144,7 @@ class RatesIngestFormatter:
         curve_groups = _prepare_curve_groups(curves)
 
         ctx = {
-            "mode": "Historical" if is_historical else "Daily",
+            "mode": mode if mode is not None else ("Historical" if is_historical else "Daily"),
             "has_errors": has_errors,
             "pipeline_name": pipeline_name,
             "date_str": date_str,
@@ -162,5 +168,8 @@ class RatesIngestFormatter:
             "missing_curves": missing_curves,
             "holiday_hits": holiday_hits,
             "quality_flags": quality_flags,
+            "api_messages": api_messages,
+            "n_api_messages": sum(m.get("count", 0) for m in api_messages),
+            "quota_status": quota_status,
         }
         return self._template.render(**ctx)

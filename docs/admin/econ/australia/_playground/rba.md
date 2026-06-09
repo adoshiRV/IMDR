@@ -1,44 +1,49 @@
 # RBA — `playground/econ/rba/`
 
-**Status:** Discovery only. Not loaded. **Playwright required** (Akamai protection).
+Last updated: 2026-06-10
 
-Reserve Bank of Australia statistical tables (rba.gov.au/statistics). Excel + CSV downloads only — no JSON API. Direct GET is blocked by Akamai; persistent Playwright profile is required.
+**Status:** DB-LIVE (manual load) — 5 fetchers, 78 indicators. Data sourced from Playwright-captured CSV snapshots in `playground/econ/rba/discovery/samples/`, NOT live HTTP (Akamai blocks direct requests). Live-refresh deferred.
+
+Reserve Bank of Australia statistical tables (rba.gov.au/statistics). Excel + CSV downloads only — no JSON API.
 
 ## Contents
 
 | File | Purpose |
 |---|---|
-| `fetch.py` | Downloads RBA Excel statistical tables; extracts rates/yields. Docstring explicitly calls out Playwright requirement. |
+| `_rba_csv.py` | CSV parser — handles RBA's per-table header layouts, produces tidy long-form dataframes. |
+| `_rba_common.py` | Shared helpers mirroring `_abs_common.py` (parquet writer, indicator-key builder). |
+| `fetch_rates.py` | RBA F1 + F2 — money market rates (cash rate, BBSW 1m/3m/6m, OIS 1m/3m/6m) + govt bond yields (2y/3y/5y/10y). 11 indicators. Daily cadence. |
+| `fetch_fx.py` | RBA F11.1 — AUD/USD + TWI + 17 AUD crosses. 19 indicators. Daily cadence. |
+| `fetch_monetary.py` | RBA D3 — M1/M3/Broad money/Money base, NSA + SA. 14 indicators. Monthly cadence. |
+| `fetch_d2_e_tables.py` | **Discovery/Playwright fetcher** — pulled D2 + E1 + E2 + A2 CSVs into `discovery/samples/`. Not a loader; `fetch_credit_balsheet.py` parses and loads. Note: E3 returns 404 (renamed/removed by RBA). |
+| `fetch_credit_balsheet.py` | RBA D2 (14 credit aggregates: owner-occupier housing / investor housing / business / personal / total credit / narrow credit × NSA+SA) + E1+E2 (16 balance-sheet and ratio series) + A2 (4 cash-rate event-log series). 34 indicators. Cells 4.1 / 4.2 / 4.4. |
 | `explore.py` | Discovery — extracts table links from `rba.gov.au/statistics`. |
 | `discovery/webfetch_inventory.md` | "RBA Statistical Tables — Inventory" — table-by-table catalogue. |
-| `discovery/samples/` | CSV samples per table. |
-| `bulletin_downloads/` | Cached RBA bulletin PDFs (research context, not time-series). |
-| `profile/` | Playwright persistent Chrome profile (Akamai bypass). |
+| `discovery/samples/` | CSV snapshots per table — **source of truth for current load**. |
+| `profile_d2/` | Fresh Playwright profile used by `fetch_d2_e_tables.py` — wiped + re-created each run. |
+| `sample_output/` | Parquet snapshots per fetcher (loaded into DB via canonical loader). |
+
+## Loaded tables
+
+| Table | Topic | Cadence | Indicators |
+|---|---|:---:|:---:|
+| **F1 + F2** | Cash rate, BBSW 1m/3m/6m, OIS 1m/3m/6m, govt bonds 2y/3y/5y/10y | Daily | 11 |
+| **F11.1** | AUD/USD + TWI + 17 AUD crosses | Daily | 19 |
+| **D3** | M1/M3/Broad money/Money base (NSA + SA) | Monthly | 14 |
+| **D2** | Credit aggregates — owner-occupier housing / investor housing / business / personal / total credit / narrow credit × NSA+SA | Monthly | 14 |
+| **E1 + E2** | Household total assets/liabilities/net worth + business loans/liabilities + 8 gearing ratios (debt-to-income 177.0%, housing-DTI 133.7%, etc.) | Quarterly | 16 |
+| **A2** | Cash Rate Target + administered rate event log | Event | 4 |
 
 ## Transport
 
-Playwright-based, headed. Persistent profile in `profile/`. GET to `rba.gov.au/statistics` without the profile = 403 / JS challenge. With the profile (warmed once) the download links work.
+Current load: static CSV snapshots from `discovery/samples/`. Parsers in `_rba_csv.py` handle RBA's varied header layouts.
 
-## Why Akamai-protected
+Live refresh: Playwright-based, headed. `fetch_d2_e_tables.py` uses a fresh-per-run `profile_d2/` (Chrome channel) and that pattern is what the next live-refresh wiring should standardise on. GET to `rba.gov.au/statistics` without a warmed profile = 403 / Akamai JS challenge. Per `feedback_no_anti_detection_research.md` — do NOT add stealth plugins, automation-hiding flags, or aggressive parallelism. If a profile breaks, wipe + warm a fresh one (see `fetch_d2_e_tables.py:43-46`).
 
-RBA fronts statistics behind Akamai Bot Manager. Plain `requests`/`httpx` GET = blocked. Headed Playwright with persistent profile cookies = allowed. Treat the profile dir as part of the vendor's state — don't delete it casually.
+## Next moves
 
-## Next moves (to go LIVE)
-
-1. Stabilise the Playwright profile path under `playground/econ/rba/profile/` (already there — confirm it survives a fresh checkout).
-2. Standardise the Excel→parquet conversion (each RBA table has its own header layout).
-3. Wire into the canonical loader: `python -m scripts.migrations.load_econ_indicator_from_playground --vendor rba`.
-4. **Anti-detection guardrail:** per [[feedback-no-anti-detection-research]], do NOT add stealth plugins / automation-hiding flags / aggressive parallelism. If the profile breaks, warm a fresh one manually — don't try to evade.
-
-## Coverage potential
-
-RBA tables cover:
-- Cash rate target + corridor (F1)
-- Government bond yields by tenor (F2)
-- Money market rates (F1)
-- FX rates incl. TWI (F11)
-- Banking aggregates (D)
-- Monetary aggregates (D)
+1. Live-refresh stabilisation: confirm Playwright profile in `profile/` survives a fresh checkout, then wire all 5 loaded fetchers to pull live CSV before canonical loader runs.
+2. Production scheduler wiring requires explicit user OK.
 
 ## Related
 

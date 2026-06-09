@@ -30,12 +30,16 @@ QUOTE_TO_CITI = {
     "spread": "CURVES",
     "fwd":    "FWD",
     "bfly":   "BFLY",
+    # basis = single-scalar spread in bps. Same column for BBG cross-currency
+    # basis ([extractors_bbg.py](../extractors_bbg.py)) and Citi tenor-basis
+    # (RATES.BASIS_SWAPS.*); curve_id discriminates which kind.
+    "basis":  "BASIS_SPREAD",
 }
 
 CITI_TO_QUOTE = {v: k for k, v in QUOTE_TO_CITI.items()}
 
 # Quote types that use single tenors (e.g. 5Y)
-SINGLE_TENOR_QUOTES = {"par", "ssw", "rc"}
+SINGLE_TENOR_QUOTES = {"par", "ssw", "rc", "basis"}
 
 # Quote types that use multi-tenor encoding
 MULTI_TENOR_QUOTES = {"spread", "fwd", "bfly"}

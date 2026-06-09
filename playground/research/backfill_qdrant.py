@@ -52,7 +52,10 @@ from ingest.models import Chunk  # noqa: E402
 from ingest.qdrant_writer import ChunkPoint, QdrantWriter  # noqa: E402
 
 QDRANT_COLLECTION = "research_gemini_embedding_2_3072d"
-ALL_VENDORS = ("anz", "barclays", "goldman", "hsbc", "ms", "nomura")
+ALL_VENDORS = (
+    "anz", "barclays", "bnp", "db", "goldman", "hsbc", "jpm", "ms",
+    "nomura", "westpac",
+)
 PREVIEW_CHARS = 240
 
 

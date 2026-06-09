@@ -70,6 +70,7 @@ class TestRatesObservationCreate:
     def test_valid(self):
         o = RatesObservationCreate(
             curve_id=1,
+            vendor_id=1,
             ts="2024-01-15T00:00:00Z",
             quote="par",
             tenor="5Y",
@@ -79,11 +80,13 @@ class TestRatesObservationCreate:
         assert o.quote == "par"
         assert o.value == 3.85
         assert o.frequency_id == 5
+        assert o.vendor_id == 1
 
     def test_invalid_quote(self):
         with pytest.raises(ValidationError):
             RatesObservationCreate(
                 curve_id=1,
+                vendor_id=1,
                 ts="2024-01-15T00:00:00Z",
                 quote="invalid",
                 tenor="5Y",
@@ -95,6 +98,7 @@ class TestRatesObservationCreate:
         for q in ALLOWED_QUOTES:
             o = RatesObservationCreate(
                 curve_id=1,
+                vendor_id=1,
                 ts="2024-01-15T00:00:00Z",
                 quote=q,
                 tenor="5Y",
@@ -106,6 +110,7 @@ class TestRatesObservationCreate:
     def test_quote_normalized_to_lowercase(self):
         o = RatesObservationCreate(
             curve_id=1,
+            vendor_id=1,
             ts="2024-01-15T00:00:00Z",
             quote="PAR",
             tenor="5Y",

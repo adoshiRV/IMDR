@@ -2,11 +2,15 @@
 
 Queries every fact table in IMDR at the *per-key* level (per-curve,
 per-pair, per-commodity, per-index) and flags any key whose latest
-observation is older than its configured threshold.
+observation is older than its configured threshold. Optional secondary
+breakdowns (vendor, frequency, …) let the monitor surface partial
+outages — e.g. "Bloomberg dropped DAILY but Citi kept HOURLY" — that
+would otherwise be averaged away by a single-column GROUP BY.
 
 This module is domain-agnostic — each domain registers a StalenessSpec
-that describes how to query its table and what constitutes a stale key.
-The monitor runs all specs and returns a unified StalenessReport.
+that describes how to query its table and which secondary dimensions
+its schema supports. The monitor runs all specs and returns a unified
+StalenessReport.
 
 Usage:
     from imdr.connectors.mssql import MSSQLConnector
@@ -35,6 +39,72 @@ from imdr.connectors.reader import AnalyticalReader
 log = structlog.get_logger(__name__)
 
 
+# ── Breakdown dimensions ──────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class BreakdownDim:
+    """A secondary grouping dimension for staleness analysis.
+
+    Specs opt in to breakdowns by listing them in ``StalenessSpec.breakdowns``.
+    The monitor adds the dim's FK column to the GROUP BY, joins the dim
+    table for human-readable code/name, and emits a separate rollup per
+    breakdown in the resulting DomainSummary.
+
+    The output column aliases are derived from ``name``: a breakdown
+    named ``"vendor"`` produces ``vendor_code`` and ``vendor_name``
+    columns in the result DataFrame (and on each StaleKey).
+
+    Attributes:
+        name:        Short identifier used as dict key and column-alias
+                     prefix (e.g. "vendor", "frequency").
+        fk_column:   FK column on the fact table (e.g. "vendor_id").
+        dim_table:   Fully-qualified dim table (e.g. "[dbo].[dim_vendor]").
+        code_column: Short-code column on the dim (e.g. "vendor_code").
+        name_column: Display-name column on the dim (e.g. "display_name").
+        join_col:    PK column on the dim table.
+    """
+
+    name: str
+    fk_column: str
+    dim_table: str
+    code_column: str
+    name_column: str
+    join_col: str = "id"
+
+    @property
+    def code_alias(self) -> str:
+        return f"{self.name}_code"
+
+    @property
+    def name_alias(self) -> str:
+        return f"{self.name}_name"
+
+
+# Predefined breakdowns. Specs reference these constants rather than
+# repeating column names — keeps the spec list readable and lets a
+# rename in dim_vendor / dim_frequency stay in one place.
+
+VENDOR_BREAKDOWN = BreakdownDim(
+    name="vendor",
+    fk_column="vendor_id",
+    dim_table="[dbo].[dim_vendor]",
+    code_column="vendor_code",
+    name_column="display_name",
+)
+
+FREQUENCY_BREAKDOWN = BreakdownDim(
+    name="frequency",
+    fk_column="frequency_id",
+    dim_table="[dbo].[dim_frequency]",
+    code_column="frequency_code",
+    name_column="display_name",
+)
+
+
+# ── Spec ──────────────────────────────────────────────────────────────
+
+
 @dataclass(frozen=True)
 class StalenessSpec:
     """Describes how to check staleness for one domain table.
@@ -49,8 +119,16 @@ class StalenessSpec:
         dim_table:      Optional dimension table for human-readable labels.
         dim_join_col:   Column in dim_table to join on (matches key_column).
         dim_label_cols: Columns from dim_table to show in reports.
-        max_stale_days: How many calendar days behind today before a key
-                        is flagged stale.
+        dim_filter:     Optional SQL fragment applied as WHERE on the dim
+                        table (e.g. "curve_status <> 'ceased'") to skip
+                        decommissioned series. Only applied when dim_table
+                        is set.
+        breakdowns:     Optional secondary group-by dimensions (vendor,
+                        frequency, …). When non-empty, the query groups by
+                        ``(key, *breakdown_fks)`` and the resulting
+                        DomainSummary carries one rollup per breakdown.
+        max_stale_days: How many calendar days behind the reference date
+                        before a key is flagged stale.
     """
 
     domain: str
@@ -61,12 +139,31 @@ class StalenessSpec:
     dim_table: str | None = None
     dim_join_col: str = "id"
     dim_label_cols: tuple[str, ...] = ()
+    dim_filter: str | None = None
+    breakdowns: tuple[BreakdownDim, ...] = ()
     max_stale_days: int = 3
+
+    @property
+    def has_dim(self) -> bool:
+        return bool(self.dim_table and self.dim_label_cols)
+
+    @property
+    def has_breakdowns(self) -> bool:
+        return bool(self.breakdowns)
+
+
+# ── Result types ──────────────────────────────────────────────────────
 
 
 @dataclass
 class StaleKey:
-    """One key (series/pair/commodity) that is behind."""
+    """One stale row from the per-key staleness query.
+
+    ``breakdowns`` maps each enabled breakdown's name to its (code, name)
+    label tuple — e.g. ``{"vendor": ("bloomberg", "Bloomberg"),
+    "frequency": ("DAILY", "Daily")}``. Empty when the spec has no
+    breakdowns configured.
+    """
 
     domain: str
     pipeline_name: str
@@ -75,11 +172,53 @@ class StaleKey:
     latest_date: date
     days_behind: int
     max_stale_days: int
+    breakdowns: dict[str, tuple[str, str]] = field(default_factory=dict)
+
+    def breakdown_code(self, name: str) -> str | None:
+        pair = self.breakdowns.get(name)
+        return pair[0] if pair else None
+
+    def breakdown_name(self, name: str) -> str | None:
+        pair = self.breakdowns.get(name)
+        return pair[1] if pair else None
+
+
+@dataclass
+class BreakdownRollup:
+    """Per-value freshness rollup for a single breakdown dimension.
+
+    e.g. for the ``vendor`` breakdown: one rollup per vendor_code,
+    counting how many of that vendor's keys are stale vs fresh.
+    """
+
+    dim_name: str
+    code: str
+    display_name: str
+    total_keys: int
+    stale_keys: int
+    fresh_keys: int
+    latest_date: date | None
+
+    @property
+    def is_stale(self) -> bool:
+        return self.stale_keys > 0
 
 
 @dataclass
 class DomainSummary:
-    """Staleness summary for one domain."""
+    """Staleness summary for one domain.
+
+    ``total_keys`` counts grouping units, which is one row per key when
+    no breakdowns apply and one row per (key, *breakdowns) tuple when
+    they do. This keeps the arithmetic consistent: a curve served by
+    two vendors at two frequencies counts four times if both dims are
+    tracked, since each (vendor, frequency) feed is a separate
+    monitoring target.
+
+    ``by_breakdown`` is keyed by the breakdown's ``name`` and holds the
+    per-value rollup — e.g. ``by_breakdown["vendor"]`` lists one entry
+    per distinct vendor seen, with stale/fresh counts.
+    """
 
     domain: str
     pipeline_name: str
@@ -88,10 +227,19 @@ class DomainSummary:
     fresh_keys: int
     latest_date: date | None
     stale_items: list[StaleKey] = field(default_factory=list)
+    by_breakdown: dict[str, list[BreakdownRollup]] = field(default_factory=dict)
 
     @property
     def is_stale(self) -> bool:
         return self.stale_keys > 0
+
+    @property
+    def has_breakdowns(self) -> bool:
+        return bool(self.by_breakdown)
+
+    def rollup(self, dim_name: str) -> list[BreakdownRollup]:
+        """Convenience accessor — empty list if dim not tracked."""
+        return self.by_breakdown.get(dim_name, [])
 
 
 @dataclass
@@ -126,11 +274,27 @@ class StalenessReport:
         keys.sort(key=lambda k: k.days_behind, reverse=True)
         return keys
 
+    def breakdown_totals(self, dim_name: str) -> dict[str, int]:
+        """Aggregate stale key counts for one breakdown across all domains.
+
+        e.g. ``report.breakdown_totals("vendor")`` returns
+        ``{"bloomberg": 12, "citi_velocity": 0}``. Domains without that
+        breakdown are skipped. Returned dict is keyed by ``code`` so it's
+        stable for subject-line use.
+        """
+        totals: dict[str, int] = {}
+        for s in self.summaries:
+            for r in s.rollup(dim_name):
+                if r.stale_keys:
+                    totals[r.code] = totals.get(r.code, 0) + r.stale_keys
+        return totals
+
 
 # ── Default specs for all IMDR domains ────────────────────────────────
 
-# These match the current schema.  When new domains are added, add a
-# spec here.
+# These match the current schema. When new domains are added, add a
+# spec here. Tables that already carry vendor_id / frequency_id (per
+# migrations 017, 020, 023, 024, 029) opt in via ``breakdowns``.
 
 DEFAULT_SPECS: list[StalenessSpec] = [
     # ── Rates ──────────────────────────────────────────────────────
@@ -143,6 +307,8 @@ DEFAULT_SPECS: list[StalenessSpec] = [
         dim_table="[rates].[dim_curve]",
         dim_join_col="id",
         dim_label_cols=("ccy", "curve"),
+        dim_filter="curve_status <> 'ceased'",
+        breakdowns=(VENDOR_BREAKDOWN, FREQUENCY_BREAKDOWN),
         max_stale_days=3,
     ),
     StalenessSpec(
@@ -165,9 +331,34 @@ DEFAULT_SPECS: list[StalenessSpec] = [
         dim_table="[rates].[dim_skew_surface]",
         dim_join_col="id",
         dim_label_cols=("ccy", "option_expiry"),
+        breakdowns=(VENDOR_BREAKDOWN,),
+        max_stale_days=3,
+    ),
+    StalenessSpec(
+        domain="Rates Benchmark",
+        pipeline_name="rates.bench_rates",
+        table="[rates].[fact_bench_rates]",
+        date_column="obs_date",
+        key_column="cb_id",
+        dim_table="[rates].[dim_central_bank]",
+        dim_join_col="id",
+        dim_label_cols=("currency", "cb_code"),
+        breakdowns=(VENDOR_BREAKDOWN,),
         max_stale_days=3,
     ),
     # ── FX ─────────────────────────────────────────────────────────
+    StalenessSpec(
+        domain="FX Rate",
+        pipeline_name="fx.citi_rate",
+        table="[fx].[fact_fx_rate]",
+        date_column="obs_ts",
+        key_column="pair_id",
+        dim_table="[fx].[dim_currency_pair]",
+        dim_join_col="id",
+        dim_label_cols=("base_ccy", "quote_ccy"),
+        breakdowns=(VENDOR_BREAKDOWN, FREQUENCY_BREAKDOWN),
+        max_stale_days=3,
+    ),
     StalenessSpec(
         domain="FX Vol",
         pipeline_name="fx.vol",
@@ -238,13 +429,78 @@ DEFAULT_SPECS: list[StalenessSpec] = [
 ]
 
 
+# ── SQL builder ───────────────────────────────────────────────────────
+
+
+def _build_query(spec: StalenessSpec) -> str:
+    """Compose a per-key staleness SQL query from a spec.
+
+    The query emits one row per grouping unit:
+      - ``(key)`` when no breakdowns are configured
+      - ``(key, *breakdown_fks)`` when breakdowns are configured
+
+    Identifiers are taken from the spec verbatim and wrapped in brackets
+    by the caller; specs are static module-level data, so this is safe
+    against injection by construction.
+    """
+    select: list[str] = [f"f.[{spec.key_column}] AS key_id"]
+    group: list[str] = [f"f.[{spec.key_column}]"]
+    joins: list[str] = []
+    where: list[str] = []
+
+    # Dimension join for human-readable label
+    if spec.has_dim:
+        label_expr = " + ' / ' + ".join(
+            f"CAST(d.[{c}] AS VARCHAR(100))" for c in spec.dim_label_cols
+        )
+        select.append(f"{label_expr} AS label")
+        for col in spec.dim_label_cols:
+            select.append(f"d.[{col}]")
+            group.append(f"d.[{col}]")
+        joins.append(
+            f"JOIN {spec.dim_table} d ON d.[{spec.dim_join_col}] = f.[{spec.key_column}]"
+        )
+        if spec.dim_filter:
+            where.append(f"d.{spec.dim_filter}")
+    else:
+        select.append(f"CAST(f.[{spec.key_column}] AS VARCHAR(100)) AS label")
+
+    # Secondary breakdowns (vendor, frequency, …)
+    for i, b in enumerate(spec.breakdowns):
+        alias = f"b{i}"
+        select.append(f"{alias}.[{b.code_column}] AS {b.code_alias}")
+        select.append(f"{alias}.[{b.name_column}] AS {b.name_alias}")
+        group.append(f"{alias}.[{b.code_column}]")
+        group.append(f"{alias}.[{b.name_column}]")
+        joins.append(
+            f"JOIN {b.dim_table} {alias} "
+            f"ON {alias}.[{b.join_col}] = f.[{b.fk_column}]"
+        )
+
+    select.append(f"CAST(MAX(f.[{spec.date_column}]) AS DATE) AS latest_date")
+
+    parts = [
+        f"SELECT {', '.join(select)}",
+        f"FROM {spec.table} f",
+        *joins,
+    ]
+    if where:
+        parts.append("WHERE " + " AND ".join(where))
+    parts.append("GROUP BY " + ", ".join(group))
+    parts.append("ORDER BY latest_date ASC")
+    return "\n".join(parts)
+
+
+# ── Monitor ───────────────────────────────────────────────────────────
+
+
 class StalenessMonitor:
     """Runs per-key freshness checks across all registered domain tables.
 
     For each StalenessSpec, queries ``MAX(date_column)`` grouped by
-    ``key_column``, optionally joining to a dimension table for labels.
-    Keys whose latest observation is older than ``max_stale_days`` are
-    flagged.
+    ``key_column`` (and any configured breakdown FKs), optionally
+    joining to a dim table for labels. Keys whose latest observation is
+    older than ``max_stale_days`` are flagged.
     """
 
     def __init__(
@@ -283,6 +539,10 @@ class StalenessMonitor:
                         domain=spec.domain,
                         stale_keys=summary.stale_keys,
                         total_keys=summary.total_keys,
+                        breakdowns={
+                            dim: {r.code: r.stale_keys for r in rollups if r.stale_keys}
+                            for dim, rollups in summary.by_breakdown.items()
+                        } or None,
                     )
                 else:
                     log.info(
@@ -316,11 +576,7 @@ class StalenessMonitor:
     def _check_spec(self, spec: StalenessSpec) -> DomainSummary:
         """Run staleness check for a single domain spec."""
         cutoff = self._reference_date - timedelta(days=spec.max_stale_days)
-
-        if spec.dim_table and spec.dim_label_cols:
-            df = self._query_with_dim(spec)
-        else:
-            df = self._query_no_dim(spec)
+        df = self._reader.read_sql(_build_query(spec))
 
         if df.empty:
             return DomainSummary(
@@ -339,16 +595,34 @@ class StalenessMonitor:
         stale_mask = df["latest_date"] < cutoff
         stale_df = df[stale_mask]
         stale_keys_count = len(stale_df)
-        fresh_keys = total_keys - stale_keys_count
-
         latest_date = pd.Timestamp(df["latest_date"].max()).date()
 
-        stale_items: list[StaleKey] = []
+        return DomainSummary(
+            domain=spec.domain,
+            pipeline_name=spec.pipeline_name,
+            total_keys=total_keys,
+            stale_keys=stale_keys_count,
+            fresh_keys=total_keys - stale_keys_count,
+            latest_date=latest_date,
+            stale_items=self._build_stale_items(stale_df, spec),
+            by_breakdown=self._build_breakdowns(df, spec, cutoff),
+        )
+
+    def _build_stale_items(
+        self, stale_df: pd.DataFrame, spec: StalenessSpec
+    ) -> list[StaleKey]:
+        """Convert stale rows into StaleKey items, worst-first."""
+        items: list[StaleKey] = []
         for _, row in stale_df.iterrows():
             latest = pd.Timestamp(row["latest_date"]).date()
             days_behind = (self._reference_date - latest).days
             label = row.get("label", str(row["key_id"]))
-            stale_items.append(
+            breakdowns = {
+                b.name: (str(row[b.code_alias]), str(row[b.name_alias]))
+                for b in spec.breakdowns
+                if b.code_alias in row.index
+            }
+            items.append(
                 StaleKey(
                     domain=spec.domain,
                     pipeline_name=spec.pipeline_name,
@@ -357,48 +631,43 @@ class StalenessMonitor:
                     latest_date=latest,
                     days_behind=days_behind,
                     max_stale_days=spec.max_stale_days,
+                    breakdowns=breakdowns,
                 )
             )
-        stale_items.sort(key=lambda k: k.days_behind, reverse=True)
+        items.sort(key=lambda k: k.days_behind, reverse=True)
+        return items
 
-        return DomainSummary(
-            domain=spec.domain,
-            pipeline_name=spec.pipeline_name,
-            total_keys=total_keys,
-            stale_keys=stale_keys_count,
-            fresh_keys=fresh_keys,
-            latest_date=latest_date,
-            stale_items=stale_items,
-        )
+    def _build_breakdowns(
+        self, df: pd.DataFrame, spec: StalenessSpec, cutoff: date
+    ) -> dict[str, list[BreakdownRollup]]:
+        """Aggregate per-breakdown stale/fresh counts for a domain.
 
-    def _query_with_dim(self, spec: StalenessSpec) -> pd.DataFrame:
-        """Query MAX(date) per key, joining to dim table for labels."""
-        label_select = ", ".join(f"d.[{c}]" for c in spec.dim_label_cols)
-        label_concat = " + ' / ' + ".join(
-            f"CAST(d.[{c}] AS VARCHAR(100))" for c in spec.dim_label_cols
-        )
-        sql = f"""
-            SELECT
-                f.[{spec.key_column}] AS key_id,
-                {label_concat} AS label,
-                {label_select},
-                CAST(MAX(f.[{spec.date_column}]) AS DATE) AS latest_date
-            FROM {spec.table} f
-            JOIN {spec.dim_table} d ON d.[{spec.dim_join_col}] = f.[{spec.key_column}]
-            GROUP BY f.[{spec.key_column}], {label_select}
-            ORDER BY latest_date ASC
+        For each enabled breakdown, group the result DataFrame on that
+        single column (collapsing any other dims) and produce a rollup
+        per distinct value. This way two breakdowns produce two
+        independent views of the same underlying rows.
         """
-        return self._reader.read_sql(sql)
+        out: dict[str, list[BreakdownRollup]] = {}
+        if not spec.has_breakdowns:
+            return out
 
-    def _query_no_dim(self, spec: StalenessSpec) -> pd.DataFrame:
-        """Query MAX(date) per key without a dimension join."""
-        sql = f"""
-            SELECT
-                f.[{spec.key_column}] AS key_id,
-                f.[{spec.key_column}] AS label,
-                CAST(MAX(f.[{spec.date_column}]) AS DATE) AS latest_date
-            FROM {spec.table} f
-            GROUP BY f.[{spec.key_column}]
-            ORDER BY latest_date ASC
-        """
-        return self._reader.read_sql(sql)
+        for b in spec.breakdowns:
+            if b.code_alias not in df.columns:
+                continue
+            rollups: list[BreakdownRollup] = []
+            for (code, name), group in df.groupby([b.code_alias, b.name_alias]):
+                stale_n = int((group["latest_date"] < cutoff).sum())
+                rollups.append(
+                    BreakdownRollup(
+                        dim_name=b.name,
+                        code=str(code),
+                        display_name=str(name),
+                        total_keys=len(group),
+                        stale_keys=stale_n,
+                        fresh_keys=len(group) - stale_n,
+                        latest_date=pd.Timestamp(group["latest_date"].max()).date(),
+                    )
+                )
+            rollups.sort(key=lambda r: r.code)
+            out[b.name] = rollups
+        return out

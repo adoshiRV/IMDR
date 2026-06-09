@@ -11,6 +11,7 @@ shows what would change without writing.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import pandas as pd
@@ -19,6 +20,15 @@ from imdr.connectors.reader import AnalyticalReader
 from imdr.healthchecks.cleaning import CleaningAction, CleaningRule
 
 TABLE = "[fx].[fact_vol]"
+
+# Config keys that get embedded into SQL must be simple identifiers — no
+# whitespace, quotes, or comment markers. Validated once at rule construction.
+_SAFE_CONFIG_KEY_RE = re.compile(r"^[A-Za-z0-9_./-]+$")
+
+
+def _assert_safe_config_key(value: str, label: str) -> None:
+    if not isinstance(value, str) or not _SAFE_CONFIG_KEY_RE.match(value):
+        raise ValueError(f"Unsafe {label} config key: {value!r}")
 
 
 def _pair_label(row: pd.Series) -> str:
@@ -40,6 +50,9 @@ class HardBoundViolationRule(CleaningRule):
         self,
         ranges: dict[tuple[str, str], tuple[float, float]],
     ) -> None:
+        for strike, vol_type in ranges:
+            _assert_safe_config_key(strike, "strike")
+            _assert_safe_config_key(vol_type, "vol_type")
         self._ranges = ranges
 
     @property
@@ -60,12 +73,18 @@ class HardBoundViolationRule(CleaningRule):
         if not self._ranges:
             return pd.DataFrame()
 
+        merged_params: dict[str, Any] = dict(params or {})
         when_clauses = []
-        for (strike, vol_type), (lo, hi) in self._ranges.items():
+        for i, ((strike, vol_type), (lo, hi)) in enumerate(self._ranges.items()):
+            ks, kvt, klo, khi = f"hb_s_{i}", f"hb_vt_{i}", f"hb_lo_{i}", f"hb_hi_{i}"
             when_clauses.append(
-                f"(v.[strike] = '{strike}' AND v.[vol_type] = '{vol_type}' "
-                f"AND (v.[value] < {lo} OR v.[value] > {hi}))"
+                f"(v.[strike] = :{ks} AND v.[vol_type] = :{kvt} "
+                f"AND (v.[value] < :{klo} OR v.[value] > :{khi}))"
             )
+            merged_params[ks] = strike
+            merged_params[kvt] = vol_type
+            merged_params[klo] = lo
+            merged_params[khi] = hi
         filter_expr = " OR ".join(when_clauses)
 
         sql = f"""
@@ -75,10 +94,10 @@ class HardBoundViolationRule(CleaningRule):
             JOIN [fx].[dim_currency_pair] p ON p.id = v.pair_id
             WHERE ({filter_expr}) {where}
         """
-        return reader.read_sql(sql, params)
+        return reader.read_sql(sql, merged_params)
 
     def build_update_sql(self, ids: list[int]) -> str:
-        id_list = ", ".join(str(i) for i in ids)
+        id_list = ", ".join(str(int(i)) for i in ids)
         return f"UPDATE {TABLE} SET [value] = NULL WHERE [id] IN ({id_list})"
 
     def build_action(self, row: pd.Series) -> CleaningAction:
@@ -190,7 +209,7 @@ class RobustOutlierRule(CleaningRule):
         return result.sort_values("robust_z", ascending=False)
 
     def build_update_sql(self, ids: list[int]) -> str:
-        id_list = ", ".join(str(i) for i in ids)
+        id_list = ", ".join(str(int(i)) for i in ids)
         return f"UPDATE {TABLE} SET [value] = NULL WHERE [id] IN ({id_list})"
 
     def build_action(self, row: pd.Series) -> CleaningAction:
@@ -242,6 +261,14 @@ class PercentageChangeRule(CleaningRule):
         pct_thresholds: dict[str, dict[str, float]] | None = None,
         min_abs_prev: float = 0.5,
     ) -> None:
+        for s in (abs_change_strikes or {}):
+            _assert_safe_config_key(s, "abs_change_strikes key")
+        for vt in (abs_change_vol_types or {}):
+            _assert_safe_config_key(vt, "abs_change_vol_types key")
+        for ccy_class, tenor_map in (pct_thresholds or {}).items():
+            _assert_safe_config_key(ccy_class, "pct_thresholds ccy_class")
+            for tenor in tenor_map:
+                _assert_safe_config_key(tenor, "pct_thresholds tenor")
         self._threshold = threshold_pct
         self._abs_strikes = abs_change_strikes or {}
         self._abs_vol_types = abs_change_vol_types or {}
@@ -342,7 +369,7 @@ class PercentageChangeRule(CleaningRule):
         return reader.read_sql(sql, params)
 
     def build_update_sql(self, ids: list[int]) -> str:
-        id_list = ", ".join(str(i) for i in ids)
+        id_list = ", ".join(str(int(i)) for i in ids)
         return f"UPDATE {TABLE} SET [value] = NULL WHERE [id] IN ({id_list})"
 
     def build_action(self, row: pd.Series) -> CleaningAction:

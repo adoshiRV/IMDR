@@ -56,6 +56,9 @@ class RatesVolPipeline(BasePipeline[pd.DataFrame, list[RatesSwaptionVolCreate], 
         end: datetime,
         currencies: list[str] | None = None,
         chunk_size: int | None = None,
+        client_id: str | None = None,
+        client_secret: str | None = None,
+        quota_file: str | None = None,
     ) -> None:
         super().__init__(connector)
         self._settings = settings
@@ -65,6 +68,9 @@ class RatesVolPipeline(BasePipeline[pd.DataFrame, list[RatesSwaptionVolCreate], 
         self._end = end
         self._currencies = currencies
         self._chunk_size = chunk_size
+        self._client_id = client_id
+        self._client_secret = client_secret
+        self._quota_file = quota_file
         self._raw_df: pd.DataFrame | None = None
         self._quality_results: list[dict[str, Any]] = []
         self._extraction_errors: list[dict] = []
@@ -74,10 +80,14 @@ class RatesVolPipeline(BasePipeline[pd.DataFrame, list[RatesSwaptionVolCreate], 
         """Fetch vol surfaces from Citi Velocity Historical API."""
         tracker = TagQuotaTracker(
             quota_limit=self._settings.citi_tag_quota_limit,
-            tracker_path=self._settings.citi_tag_quota_file or None,
+            tracker_path=self._quota_file or self._settings.citi_tag_quota_file or None,
         )
 
-        with CitiVelocityClient(self._settings) as client:
+        with CitiVelocityClient(
+            self._settings,
+            client_id=self._client_id or None,
+            client_secret=self._client_secret or None,
+        ) as client:
             extractor = CitiVelocityRatesVolExtractor(
                 client=client,
                 settings=self._settings,
@@ -118,19 +128,18 @@ class RatesVolPipeline(BasePipeline[pd.DataFrame, list[RatesSwaptionVolCreate], 
         # 3. Resolve surface_ids, validate via Pydantic
         observations: list[RatesSwaptionVolCreate] = []
         skipped = 0
-        for _, row in raw.iterrows():
-            key = (row["ccy"], row["data_type"], row["quote_type"],
-                   row["vol_window"], row["freq"])
+        for row in raw.itertuples(index=False):
+            key = (row.ccy, row.data_type, row.quote_type, row.vol_window, row.freq)
             surface_id = surface_id_cache.get(key)
             if surface_id is None:
                 skipped += 1
                 continue
             observations.append(RatesSwaptionVolCreate(
                 surface_id=surface_id,
-                obs_date=row["ts"].date() if hasattr(row["ts"], "date") else row["ts"],
-                option_expiry=row["option_expiry"],
-                swap_tenor=row["swap_tenor"],
-                value=row["value"],
+                obs_date=row.ts.date() if hasattr(row.ts, "date") else row.ts,
+                option_expiry=row.option_expiry,
+                swap_tenor=row.swap_tenor,
+                value=row.value,
             ))
 
         if skipped:

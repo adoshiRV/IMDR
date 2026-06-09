@@ -39,10 +39,13 @@ def should_relax_checks(run_date: date, market_code: str = "US") -> bool:
 
     On non-trading days (weekends, holidays), row-count and freshness checks
     should expect no new data rather than flagging missing data as failures.
+    Uses each country's project-wide default calendar (see
+    ``imdr.market_calendar.countries.DEFAULT_CALENDAR_BY_COUNTRY``).
     """
     from imdr.market_calendar.calendar import is_trading_day
+    from imdr.market_calendar.countries import default_calendar
 
-    return not is_trading_day(market_code, run_date)
+    return not is_trading_day(market_code, default_calendar(market_code), run_date)
 
 
 # ---------------------------------------------------------------------------

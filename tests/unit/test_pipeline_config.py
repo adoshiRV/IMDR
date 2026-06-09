@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 from pathlib import Path
-from tempfile import NamedTemporaryFile
 
 import pytest
 
 from imdr.config.pipeline_config import (
-    PipelineConfig,
     PipelinesConfig,
     get_pipeline_config,
     load_pipelines_config,
@@ -18,31 +16,30 @@ from imdr.config.pipeline_config import (
 class TestPipelineConfig:
     def test_load_default_config(self) -> None:
         config = load_pipelines_config()
-        assert "fx.spot_rates" in config.pipelines
+        assert "fx.citi_rate" in config.pipelines
 
-    def test_fx_spot_rates_config(self) -> None:
-        cfg = get_pipeline_config("fx.spot_rates")
+    def test_fx_citi_rate_config(self) -> None:
+        cfg = get_pipeline_config("fx.citi_rate")
         assert cfg.domain == "fx"
         assert cfg.target_schema == "fx"
-        assert cfg.target_table == "fx_spot_rates"
-        assert cfg.date_column == "rate_date"
-        assert "mid" in cfg.required_columns
-        assert cfg.health_checks.row_count_min == 5
+        assert cfg.target_table == "fact_fx_rate"
+        assert cfg.date_column == "obs_date"
+        assert "mid_rate" in cfg.required_columns
 
     def test_fully_qualified_table(self) -> None:
-        cfg = get_pipeline_config("fx.spot_rates")
-        assert cfg.fully_qualified_table == "[fx].[fx_spot_rates]"
+        cfg = get_pipeline_config("fx.citi_rate")
+        assert cfg.fully_qualified_table == "[fx].[fact_fx_rate]"
 
     def test_unknown_pipeline_raises(self) -> None:
         with pytest.raises(KeyError, match="not found"):
             get_pipeline_config("nonexistent.pipeline")
 
     def test_value_ranges_parsed(self) -> None:
-        cfg = get_pipeline_config("fx.spot_rates")
-        assert "mid" in cfg.health_checks.value_ranges
-        vr = cfg.health_checks.value_ranges["mid"]
-        assert vr.min == 0.0001
-        assert vr.max == 10000.0
+        cfg = get_pipeline_config("commodities.spot")
+        assert "price" in cfg.health_checks.value_ranges
+        vr = cfg.health_checks.value_ranges["price"]
+        assert vr.min == 0.01
+        assert vr.max == 100000.0
 
     def test_load_custom_yaml(self, tmp_path: Path) -> None:
         yml = tmp_path / "test_pipelines.yml"

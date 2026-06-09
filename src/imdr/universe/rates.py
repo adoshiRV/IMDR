@@ -89,7 +89,7 @@ class BenchRateEntry(BaseModel):
     cb_code: str
     display_name: str
     currency: str
-    market_code: str
+    country_code: str
     citi_tag: str
 
 
@@ -234,8 +234,20 @@ class RatesUniverse(BaseUniverse):
         maturity list.  For multi-tenor quotes (FWD, CURVES, BFLY) uses
         the ``multi_tenor_combos`` config to build multi-part tags, e.g.
         ``RATES.OIS.USD_SOFR.FWD.5Y.5Y``.
+
+        Returns ``[]`` when the curve's instrument doesn't declare the
+        requested ``quote`` — lets the extractor loop over (curve, quote)
+        without producing nonsense tags for mismatched combos.
         """
         prefix = self.citi_prefix(ccy, curve)
+        instr = self._instrument_for_curve(ccy, curve)
+
+        # Skip quotes not declared for this instrument. Lets the extractor
+        # loop over (curve x quote) without producing nonsense tags for
+        # mismatched combos (e.g. PAR on a basis_swaps curve).
+        if instr is not None and instr.quote_types:
+            if quote not in instr.quote_types.values():
+                return []
 
         # Multi-tenor quote types need combo-based tag generation
         internal_qt = CITI_TO_QUOTE.get(quote, quote.lower())
@@ -243,10 +255,22 @@ class RatesUniverse(BaseUniverse):
             combos = self._config.multi_tenor_combos.get(internal_qt, [])
             return [f"{prefix}.{quote}.{'.'.join(legs)}" for legs in combos]
 
-        # Single-tenor (existing behavior)
+        # Single-tenor
         if tenors is None:
             tenors = self.maturities_for_curve(ccy, curve)
+
+        # Some instruments (basis_swaps) put the quote AFTER the tenor.
+        if instr is not None and instr.tag_format == "tenor_first":
+            return [f"{prefix}.{t}.{quote}" for t in tenors]
         return [f"{prefix}.{quote}.{t}" for t in tenors]
+
+    def _instrument_for_curve(self, ccy: str, curve: str) -> "InstrumentConfig | None":
+        """Look up the instrument config a curve belongs to (via providers.citi.instrument)."""
+        c = self.get_curve(ccy, curve)
+        instr_key = c.providers.get("citi", {}).get("instrument")
+        if not instr_key:
+            return None
+        return self._config.instruments.get(instr_key)
 
     def multi_tenor_combos_for(self, quote: str) -> list[list[str]]:
         """Return the configured multi-tenor combos for a quote type (e.g. 'fwd')."""

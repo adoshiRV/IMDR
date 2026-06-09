@@ -1,9 +1,8 @@
 """Generic pipeline runner.
 
 Usage:
-    python -m scripts.run_pipeline fx.spot_rates --source csv --path data/fx.csv
-    python -m scripts.run_pipeline fx.spot_rates --source bidfx
     python -m scripts.run_pipeline fx.ohlc --hour 2026-03-09T13:00:00
+    python -m scripts.run_pipeline fx.citi_rate --start 2026-01-01 --end 2026-01-31
     python -m scripts.run_pipeline rates.historical --start 2024-01-01 --end 2024-01-31 --quotes par,spread
 """
 
@@ -24,36 +23,6 @@ from imdr.utils.logging import configure_logging
 PipelineFactory = Callable[[MSSQLConnector, argparse.Namespace], BasePipeline[Any, Any, Any]]
 
 
-def _build_fx_pipeline(
-    connector: MSSQLConnector, args: argparse.Namespace
-) -> BasePipeline[Any, Any, Any]:
-    """Build an FX pipeline based on CLI args."""
-    from imdr.domains.fx.pipeline import FXSpotRatePipeline
-
-    settings = get_settings()
-
-    if args.source == "csv":
-        if not args.path:
-            print("ERROR: --path is required when source=csv")
-            sys.exit(1)
-        return FXSpotRatePipeline(connector, source_path=Path(args.path))
-
-    if args.source in ("bidfx", "citivelocity"):
-        from imdr.connectors.http import HTTPClient
-        from imdr.domains.fx.extractors import BidFXExtractor, CitiVelocityExtractor
-
-        api_key = settings.bidfx_api_key if args.source == "bidfx" else settings.citivelocity_api_key
-        http = HTTPClient(
-            timeout=settings.http_timeout,
-            headers={"Authorization": f"Bearer {api_key}"} if api_key else {},
-        )
-        extractor = BidFXExtractor(http) if args.source == "bidfx" else CitiVelocityExtractor(http)
-        return FXSpotRatePipeline(connector, extractor=extractor)
-
-    print(f"ERROR: Unknown source '{args.source}'")
-    sys.exit(1)
-
-
 def _build_fx_ohlc_pipeline(
     connector: MSSQLConnector, args: argparse.Namespace
 ) -> BasePipeline[Any, Any, Any]:
@@ -61,7 +30,7 @@ def _build_fx_ohlc_pipeline(
     from datetime import datetime, timezone
 
     from imdr.domains.fx.pipeline_ohlc import FXOHLCPipeline
-    from imdr.domains.fx.time_utils import HourWindow, last_full_utc_hour
+    from imdr.utils.time_windows import HourWindow, last_full_utc_hour
     from imdr.universe.fx import get_fx_universe
 
     settings = get_settings()
@@ -465,7 +434,6 @@ def _build_fx_rate_pipeline(
 
 
 PIPELINE_REGISTRY: dict[str, PipelineFactory] = {
-    "fx.spot_rates": _build_fx_pipeline,
     "fx.ohlc": _build_fx_ohlc_pipeline,
     "fx.vol": _build_fx_vol_pipeline,
     "fx.citi_rate": _build_fx_rate_pipeline,
@@ -484,8 +452,6 @@ PIPELINE_REGISTRY: dict[str, PipelineFactory] = {
 def main() -> int:
     parser = argparse.ArgumentParser(description="IMDR Pipeline Runner")
     parser.add_argument("pipeline", choices=PIPELINE_REGISTRY.keys(), help="Pipeline to run")
-    parser.add_argument("--source", default="csv", help="Data source (csv, bidfx, citivelocity)")
-    parser.add_argument("--path", type=str, help="File path (when source=csv)")
     parser.add_argument("--hour", type=str, help="Hour override for fx.ohlc (ISO format)")
     parser.add_argument("--start", type=str, help="Start date (YYYY-MM-DD)")
     parser.add_argument("--end", type=str, help="End date (YYYY-MM-DD)")

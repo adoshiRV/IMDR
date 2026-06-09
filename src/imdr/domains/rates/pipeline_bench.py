@@ -37,6 +37,7 @@ from imdr.healthchecks.checks import (
     RowCountCheck,
     ValueRangeCheck,
 )
+from imdr.models.country import DimCountry
 from imdr.models.rates_bench import RatesDimCentralBank, RatesFactBenchRates
 from imdr.models.vendor import DimVendor
 from imdr.pipelines.base import BasePipeline
@@ -109,10 +110,16 @@ class CentralBankRepository:
 
     def bulk_seed_from_universe(self, entries: list[CentralBankCreate]) -> int:
         """Seed dimension table from universe config. Skips existing rows."""
+        country_id_by_code = {
+            c.country_code: c.id
+            for c in self._session.scalars(select(DimCountry)).all()
+        }
         count = 0
         for data in entries:
             if not self.get_by_code(data.cb_code):
-                self._session.add(RatesDimCentralBank(**data.model_dump()))
+                payload = data.model_dump()
+                payload["country_id"] = country_id_by_code[payload.pop("country_code")]
+                self._session.add(RatesDimCentralBank(**payload))
                 count += 1
         self._session.flush()
         return count
@@ -271,7 +278,7 @@ class BenchRatesPipeline(BasePipeline[pd.DataFrame, list[BenchRateCreate], int])
                     cb_code=e.cb_code,
                     display_name=e.display_name,
                     currency=e.currency,
-                    market_code=e.market_code,
+                    country_code=e.country_code,
                     citi_tag=e.citi_tag,
                 )
                 for e in self._universe.bench_rates_entries()

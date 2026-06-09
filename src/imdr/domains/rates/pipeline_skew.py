@@ -33,6 +33,9 @@ from imdr.healthchecks.checks import (
     RowCountCheck,
 )
 from imdr.models.rates_skew import RatesFactSwaptionSkew
+# Side-effect: load country model so SQLAlchemy can resolve
+# rates.dim_skew_surface.country_id → dbo.dim_country.id FK at flush time.
+import imdr.models.country  # noqa: F401, E402
 from imdr.pipelines.base import BasePipeline
 from imdr.schemas.rates_skew import RatesSkewSurfaceCreate, RatesSwaptionSkewCreate
 

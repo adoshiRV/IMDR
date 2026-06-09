@@ -38,11 +38,8 @@ class RatesCurve(Base):
     supersedes: Mapped[str | None] = mapped_column(String(30), nullable=True)
     superseded_by: Mapped[str | None] = mapped_column(String(30), nullable=True)
     notes: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    # Legacy market_code VARCHAR (migration 010) still in DB; new code uses market_id FK.
-    market_code: Mapped[str | None] = mapped_column(String(5), nullable=True)
-    # Added by migration 026 — FK to calendar.dim_market(id).
-    market_id: Mapped[int | None] = mapped_column(
-        TINYINT, ForeignKey("calendar.dim_market.id"), nullable=True
+    country_id: Mapped[int] = mapped_column(
+        TINYINT, ForeignKey("dbo.dim_country.id"), nullable=False
     )
 
     observations: Mapped[list[RatesObservation]] = relationship(back_populates="curve")
@@ -67,21 +64,35 @@ class RatesCacheEmptyCombo(Base):
 
 
 class RatesObservation(Base):
-    """Rate observations fact table — one row per curve/ts/quote/tenor."""
+    """Rate observations fact table — one row per curve/vendor/ts/quote/tenor/freq.
+
+    Natural key updated by migrations 025 (frequency_id) and 029 (vendor_id) —
+    multi-vendor (Citi + Bloomberg) and multi-frequency (DAILY + HOURLY +
+    SNAPSHOT) coexist on the same fact table, each row tagged.
+    """
 
     __tablename__ = "fact_observation"
     __table_args__ = (
-        UniqueConstraint("curve_id", "ts", "quote", "tenor", name="uq_rates_fact_obs"),
+        UniqueConstraint(
+            "curve_id", "vendor_id", "ts", "quote", "tenor", "frequency_id",
+            name="uq_rates_fact_obs",
+        ),
         {"schema": "rates"},
     )
 
     curve_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("rates.dim_curve.id"), nullable=False
     )
+    vendor_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("dbo.dim_vendor.id"), nullable=False, index=True
+    )
     ts: Mapped[datetime] = mapped_column(DATETIMEOFFSET, nullable=False, index=True)
     quote: Mapped[str] = mapped_column(String(10), nullable=False)
     tenor: Mapped[str] = mapped_column(String(30), nullable=False)
     value: Mapped[float] = mapped_column(Float, nullable=False)
+    frequency_id: Mapped[int] = mapped_column(
+        TINYINT, ForeignKey("dbo.dim_frequency.id"), nullable=False
+    )
 
     curve: Mapped[RatesCurve] = relationship(back_populates="observations")
 

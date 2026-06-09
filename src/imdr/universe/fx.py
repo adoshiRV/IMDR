@@ -92,6 +92,7 @@ class FXRateConfig(BaseModel):
 
     pairs: list[list[str]]                       # [[base, quote], ...] in Citi ordering
     spot_only_pairs: list[list[str]] = []        # excluded from forward fetch
+    bbg_only_pairs: list[list[str]] = []         # listed in `pairs` but not on Citi — Citi fetcher must skip
     tenors: list[str]                            # SPOT first, then forward tenors
     spot_tag_template: str
     outright_tag_template: str
@@ -331,6 +332,14 @@ class FXUniverse(BaseUniverse):
     def fx_rate_spot_only_pairs(self) -> set[tuple[str, str]]:
         return {tuple(p) for p in self._fx_rate_config().spot_only_pairs}
 
+    def fx_rate_bbg_only_pairs(self) -> set[tuple[str, str]]:
+        """Pairs in the universe that exist only on BBG, not on Citi.
+
+        Citi fetchers must skip these to avoid 404s from invalid tags.
+        BBG-side fetchers iterate the full ``fx_rate_pairs()`` set.
+        """
+        return {tuple(p) for p in self._fx_rate_config().bbg_only_pairs}
+
     def build_fx_rate_spot_tag(self, ccy1: str, ccy2: str) -> str:
         return self._fx_rate_config().spot_tag_template.format(ccy1=ccy1, ccy2=ccy2)
 
@@ -343,10 +352,17 @@ class FXUniverse(BaseUniverse):
         return [tmpl.format(ccy1=ccy1, ccy2=ccy2, tenor=t) for t in self.fx_rate_forward_tenors()]
 
     def build_all_fx_rate_tags(self) -> list[str]:
-        """All Citi tags needed for an fx_rate daily ingest."""
+        """All Citi tags needed for an fx_rate daily ingest.
+
+        Excludes ``bbg_only_pairs`` — those have no Citi tag analog and
+        a request for them would 404.
+        """
         tags: list[str] = []
         spot_only = self.fx_rate_spot_only_pairs()
+        bbg_only = self.fx_rate_bbg_only_pairs()
         for ccy1, ccy2 in self.fx_rate_pairs():
+            if (ccy1, ccy2) in bbg_only:
+                continue
             tags.append(self.build_fx_rate_spot_tag(ccy1, ccy2))
             if (ccy1, ccy2) in spot_only:
                 continue

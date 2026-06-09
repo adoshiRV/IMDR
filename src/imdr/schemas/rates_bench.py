@@ -13,7 +13,7 @@ class CentralBankCreate(BaseModel):
     cb_code: str = Field(..., min_length=2, max_length=30)
     display_name: str = Field(..., min_length=3, max_length=60)
     currency: str = Field(..., min_length=3, max_length=3)
-    market_code: str = Field(..., min_length=2, max_length=5)
+    country_code: str = Field(..., min_length=2, max_length=3)
     citi_tag: str = Field(..., min_length=10, max_length=60)
 
     @field_validator("cb_code")
@@ -26,9 +26,9 @@ class CentralBankCreate(BaseModel):
     def uppercase_currency(cls, v: str) -> str:
         return v.upper()
 
-    @field_validator("market_code")
+    @field_validator("country_code")
     @classmethod
-    def uppercase_market_code(cls, v: str) -> str:
+    def uppercase_country_code(cls, v: str) -> str:
         return v.upper()
 
 

@@ -7,8 +7,9 @@ Handles the legacy 'SQL Server' ODBC driver quirk: datetime.date objects
 cannot be bound via SQLBindParameter (HYC00 error). DATE columns are staged
 as VARCHAR(10) with ISO strings; SQL Server converts implicitly on MERGE.
 
-Low-volume repos (FX OHLC: ~17 rows/hour) use row-by-row ORM upsert instead
-— different pattern, not included here.
+Every fact-table repository that writes through MSSQL routes its upserts
+through `bulk_merge`, including the hourly FX OHLC repo (~17 rows/hour) —
+ORM row-by-row was the pre-2026 pattern and has been retired.
 
 Usage:
     spec = MergeSpec(
@@ -23,7 +24,6 @@ Usage:
 from __future__ import annotations
 
 import math
-import re
 from collections.abc import Sequence
 from datetime import date, datetime
 from typing import TYPE_CHECKING, Any
@@ -33,36 +33,22 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from imdr.connectors._sql_safety import (
+    validate_column,
+    validate_identifier,
+    validate_staging,
+)
+
 if TYPE_CHECKING:
     from imdr.connectors.mssql import MSSQLConnector
 
 _log = structlog.get_logger("bulk_merge")
-
-# Identifier validation — prevents SQL injection in dynamic SQL
-_IDENTIFIER_RE = re.compile(r"^\[[\w]+\](?:\.\[[\w]+\])?$")
-_COLUMN_RE = re.compile(r"^[\w]+$")
-_STAGING_RE = re.compile(r"^#[\w]+$")
 
 # Legacy ODBC driver can't bind these Python types.
 # Staged as VARCHAR; SQL Server converts implicitly on MERGE.
 _DATE_TYPES = frozenset({"DATE", "SMALLDATETIME"})
 
 _DEFAULT_BATCH_SIZE = 1000
-
-
-def _validate_identifier(value: str, label: str) -> None:
-    if not _IDENTIFIER_RE.match(value):
-        raise ValueError(f"Invalid {label}: {value!r}. Expected [schema].[name] format.")
-
-
-def _validate_column(value: str, label: str) -> None:
-    if not _COLUMN_RE.match(value):
-        raise ValueError(f"Invalid {label}: {value!r}. Expected alphanumeric column name.")
-
-
-def _validate_staging(value: str, label: str) -> None:
-    if not _STAGING_RE.match(value):
-        raise ValueError(f"Invalid {label}: {value!r}. Expected #temp_name format.")
 
 
 class MergeSpec:
@@ -95,16 +81,16 @@ class MergeSpec:
         audit_columns: dict[str, str] | None = None,
         nullable_columns: list[str] | None = None,
     ) -> None:
-        _validate_identifier(target_table, "target_table")
-        _validate_staging(staging_name, "staging_name")
+        validate_identifier(target_table, "target_table")
+        validate_staging(staging_name, "staging_name")
         for col in columns:
-            _validate_column(col, "column")
+            validate_column(col, "column")
         for col in natural_key:
-            _validate_column(col, "natural_key column")
+            validate_column(col, "natural_key column")
         for col in value_columns:
-            _validate_column(col, "value_column")
+            validate_column(col, "value_column")
         for col in (nullable_columns or []):
-            _validate_column(col, "nullable_column")
+            validate_column(col, "nullable_column")
 
         all_cols = set(columns)
         if not set(natural_key).issubset(all_cols):
@@ -152,7 +138,14 @@ class MergeSpec:
             for col, sql_type in columns.items()
         }
 
-    def _create_staging_sql(self) -> str:
+        # SQL strings depend only on the immutable fields above, so build them
+        # once at construction time instead of recomputing on every bulk_merge call.
+        self.create_staging_sql = self._build_create_staging_sql()
+        self.insert_sql = self._build_insert_sql()
+        self.merge_sql = self._build_merge_sql()
+        self.drop_staging_sql = f"DROP TABLE IF EXISTS {self.staging_name};"
+
+    def _build_create_staging_sql(self) -> str:
         col_defs = ",\n                ".join(
             f"{col}  {self._staging_types[col]}  "
             f"{'NULL' if col in self.nullable_columns else 'NOT NULL'}"
@@ -166,7 +159,7 @@ class MergeSpec:
             );
         """
 
-    def _insert_sql(self) -> str:
+    def _build_insert_sql(self) -> str:
         col_list = ", ".join(self.columns)
         param_list = ", ".join(f":{col}" for col in self.columns)
         return f"""
@@ -174,7 +167,7 @@ class MergeSpec:
             VALUES ({param_list})
         """
 
-    def _merge_sql(self) -> str:
+    def _build_merge_sql(self) -> str:
         on_clause = " AND ".join(
             f"tgt.{col} = src.{col}" for col in self.natural_key
         )
@@ -236,17 +229,17 @@ def bulk_merge(
     conn = session.connection()
 
     # 1. Create staging table
-    conn.execute(text(spec._create_staging_sql()))
+    conn.execute(text(spec.create_staging_sql))
 
     # 2. Batch insert into staging
-    insert_sql = text(spec._insert_sql())
+    insert_sql = text(spec.insert_sql)
     for i in range(0, len(items), spec.batch_size):
         batch = items[i : i + spec.batch_size]
         rows = [spec.serialize_row(item) for item in batch]
         conn.execute(insert_sql, rows)
 
     # 3. MERGE
-    result = conn.execute(text(spec._merge_sql()))
+    result = conn.execute(text(spec.merge_sql))
     merged = result.rowcount
     _log.info(
         "bulk_merge_complete",
@@ -256,7 +249,7 @@ def bulk_merge(
     )
 
     # 4. Cleanup
-    conn.execute(text(f"DROP TABLE IF EXISTS {spec.staging_name};"))
+    conn.execute(text(spec.drop_staging_sql))
 
     return len(items)
 

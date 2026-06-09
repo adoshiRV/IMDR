@@ -40,7 +40,7 @@ class TestAuditSchemas:
         from imdr.schemas.audit import PipelineRunCreate
 
         data = PipelineRunCreate(
-            pipeline_name="fx.spot_rates",
+            pipeline_name="fx.citi_rate",
             domain="fx",
             started_at=datetime.now(timezone.utc),
         )
@@ -63,7 +63,7 @@ class TestAuditSchemas:
         now = datetime.now(timezone.utc)
         data = PipelineRunResponse(
             id=1,
-            pipeline_name="fx.spot_rates",
+            pipeline_name="fx.citi_rate",
             domain="fx",
             run_status="success",
             started_at=now,

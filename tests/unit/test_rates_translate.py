@@ -69,6 +69,32 @@ class TestCitiTagToInternal:
         assert result["ccy"] == "CNY"
         assert result["curve"] == "NDIRS"
 
+    def test_basis_swaps_3s6s(self, universe):
+        # Quote LAST: {prefix}.{TENOR}.BASIS_SPREAD
+        result = citi_tag_to_internal(
+            "RATES.BASIS_SWAPS.3S6S_BASIS.AUD.SPOT.10Y.BASIS_SPREAD", universe,
+        )
+        assert result == {"ccy": "AUD", "curve": "3S6S_BASIS", "quote": "basis", "tenor": "10Y"}
+
+    def test_basis_swaps_18m(self, universe):
+        result = citi_tag_to_internal(
+            "RATES.BASIS_SWAPS.3S6S_BASIS.EUR.SPOT.18M.BASIS_SPREAD", universe,
+        )
+        assert result is not None
+        assert result["tenor"] == "18M"
+        assert result["quote"] == "basis"
+
+    def test_basis_swaps_unknown_prefix(self, universe):
+        assert citi_tag_to_internal(
+            "RATES.BASIS_SWAPS.ZZZ_BASIS.AUD.SPOT.5Y.BASIS_SPREAD", universe,
+        ) is None
+
+    def test_basis_swaps_too_short(self, universe):
+        # Missing the trailing BASIS_SPREAD
+        assert citi_tag_to_internal(
+            "RATES.BASIS_SWAPS.3S6S_BASIS.AUD.SPOT.5Y", universe,
+        ) is None
+
 
 # ── Internal → Tag ──────────────────────────────────────────────
 
@@ -84,6 +110,10 @@ class TestInternalToCitiTags:
     def test_all_maturities(self, universe):
         tags = internal_to_citi_tags("USD", "SOFR", "par", universe=universe)
         assert len(tags) == 44  # OIS has 44 maturities
+
+    def test_basis_swaps_roundtrip(self, universe):
+        tags = internal_to_citi_tags("AUD", "3S6S_BASIS", "basis", ["10Y"], universe=universe)
+        assert tags == ["RATES.BASIS_SWAPS.3S6S_BASIS.AUD.SPOT.10Y.BASIS_SPREAD"]
 
 
 # ── Response → DataFrame ───────────────────────────────────────

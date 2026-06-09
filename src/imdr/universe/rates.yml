@@ -754,11 +754,11 @@ vol:
 
   quality:
     ranges:
+      # ATM.PREMIUM / ATM.FWDPREMIUM are option premiums in bps (not vol %),
+      # so we don't bound them here — they range up to thousands for long tenors.
       ATM.BLACK: { min: 0.1, max: 200.0 }
       ATM.NORMAL: { min: 1.0, max: 500.0 }
-      ATM.PREMIUM: { min: 0.0, max: 50.0 }
-      ATM.FWDPREMIUM: { min: 0.0, max: 50.0 }
-      REALIZED: { min: 0.0, max: 200.0 }
+      REALIZED: { min: 0.0, max: 400.0 }
       VOL_RATIO: { min: 0.0, max: 5.0 }
     pct_change_threshold: 50.0
     n_mad: 4.0
@@ -846,42 +846,42 @@ bench_rates:
   - cb_code: ECB
     display_name: "ECB Deposit Facility"
     currency: EUR
-    market_code: EU
+    country_code: EU
     citi_tag: "RATES.BENCH_RATES.ECB"
   - cb_code: FED_FUNDS
     display_name: "Fed Effective Rate"
     currency: USD
-    market_code: US
+    country_code: US
     citi_tag: "RATES.BENCH_RATES.FED_FUNDS"
   - cb_code: US_FED_FUNDS_TARGET
     display_name: "Fed Target Rate"
     currency: USD
-    market_code: US
+    country_code: US
     citi_tag: "RATES.BENCH_RATES.US_FED_FUNDS_TARGET"
   - cb_code: UK_BASE
     display_name: "BoE Bank Rate"
     currency: GBP
-    market_code: UK
+    country_code: UK
     citi_tag: "RATES.BENCH_RATES.UK_BASE"
   - cb_code: US_FED_PRIME
     display_name: "US Prime Rate"
     currency: USD
-    market_code: US
+    country_code: US
     citi_tag: "RATES.BENCH_RATES.US_FED_PRIME"
   - cb_code: US_FED_CP_1M
     display_name: "Fed Commercial Paper 1M"
     currency: USD
-    market_code: US
+    country_code: US
     citi_tag: "RATES.BENCH_RATES.US_FED_CP_1M"
   - cb_code: US_FED_CP_2M
     display_name: "Fed Commercial Paper 2M"
     currency: USD
-    market_code: US
+    country_code: US
     citi_tag: "RATES.BENCH_RATES.US_FED_CP_2M"
   - cb_code: US_FED_CP_3M
     display_name: "Fed Commercial Paper 3M"
     currency: USD
-    market_code: US
+    country_code: US
     citi_tag: "RATES.BENCH_RATES.US_FED_CP_3M"
   # Removed 2026-04-23: Citi's JPY_DISCOUNT stopped updating 2020-11-18
   # (stuck at 0.3% for 5yr — BoJ's Official Discount Rate is a legacy
@@ -893,10 +893,10 @@ bench_rates:
 # Keyed by quote type (matches 'quote' column in fact_observation).
 
 expected_ranges:
-  par:    { min: -3.0, max: 20.0 }
-  spread: { min: -500.0, max: 500.0 }
-  fwd:    { min: -5.0, max: 25.0 }
-  bfly:   { min: -100.0, max: 100.0 }
-  ssw:    { min: -500.0, max: 500.0 }
-  rc:     { min: -200.0, max: 200.0 }
-  basis:  { min: -300.0, max: 50.0 }
+  par:    { min: -3.0, max: 20.0 }       # percent (IRS, OIS, CCS swap rates)
+  spread: { min: -500.0, max: 500.0 }    # bps (curve spreads e.g. 2s10s)
+  fwd:    { min: -5.0, max: 25.0 }       # percent (forward rates)
+  bfly:   { min: -100.0, max: 100.0 }    # bps (butterfly)
+  ssw:    { min: -500.0, max: 500.0 }    # bps (swap-spread to govt)
+  rc:     { min: -200.0, max: 200.0 }    # bps (roll-carry)
+  basis:  { min: -300.0, max: 50.0 }     # bps (BBG cross-currency basis spreads)

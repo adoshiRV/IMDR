@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from imdr.connectors.bulk import MergeSpec, bulk_merge
+from imdr.models.country import DimCountry
 from imdr.models.equity import EquityDimIndex, EquityFactIndexLevel, EquityFactVix
 from imdr.schemas.equity import IndexCreate, IndexLevelCreate, VixCreate
 
@@ -54,11 +55,22 @@ class EquityIndexRepository:
             select(EquityDimIndex).where(EquityDimIndex.ticker == ticker.upper())
         ).scalar_one_or_none()
 
+    def _country_id_by_code(self) -> dict[str, int]:
+        return {
+            c.country_code: c.id
+            for c in self._session.scalars(select(DimCountry)).all()
+        }
+
+    def _to_orm_payload(self, data: IndexCreate, cache: dict[str, int]) -> dict:
+        payload = data.model_dump()
+        payload["country_id"] = cache[payload.pop("country_code")]
+        return payload
+
     def get_or_create(self, data: IndexCreate) -> EquityDimIndex:
         existing = self.get_by_key(data.ticker)
         if existing:
             return existing
-        row = EquityDimIndex(**data.model_dump())
+        row = EquityDimIndex(**self._to_orm_payload(data, self._country_id_by_code()))
         self._session.add(row)
         self._session.flush()
         return row
@@ -68,10 +80,11 @@ class EquityIndexRepository:
 
     def bulk_seed_from_universe(self, entries: list[IndexCreate]) -> int:
         """Seed dimension table from universe config. Skips existing rows."""
+        cache = self._country_id_by_code()
         count = 0
         for data in entries:
             if not self.get_by_key(data.ticker):
-                self._session.add(EquityDimIndex(**data.model_dump()))
+                self._session.add(EquityDimIndex(**self._to_orm_payload(data, cache)))
                 count += 1
         self._session.flush()
         return count

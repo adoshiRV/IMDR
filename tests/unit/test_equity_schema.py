@@ -15,9 +15,11 @@ class TestIndexCreate:
             display_name="S&P 500",
             currency="USD",
             region="us",
+            country_code="US",
         )
         assert ic.ticker == "SPX"
         assert ic.currency == "USD"
+        assert ic.country_code == "US"
 
     def test_uppercase_ticker(self):
         ic = IndexCreate(
@@ -25,9 +27,11 @@ class TestIndexCreate:
             display_name="S&P 500",
             currency="usd",
             region="us",
+            country_code="us",
         )
         assert ic.ticker == "SPX"
         assert ic.currency == "USD"
+        assert ic.country_code == "US"
 
     def test_with_citi_tag(self):
         ic = IndexCreate(
@@ -35,28 +39,29 @@ class TestIndexCreate:
             display_name="S&P 500",
             currency="USD",
             region="us",
+            country_code="US",
             citi_tag="EQUITY.EQUITY_INDEX..SPX.LEVEL.REUTERS",
         )
         assert ic.citi_tag == "EQUITY.EQUITY_INDEX..SPX.LEVEL.REUTERS"
 
-    def test_with_market_code(self):
+    def test_with_country_code(self):
         ic = IndexCreate(
             ticker="N225",
             display_name="Nikkei 225",
             currency="JPY",
             region="asia_pacific",
-            market_code="JP",
+            country_code="JP",
         )
-        assert ic.market_code == "JP"
+        assert ic.country_code == "JP"
 
-    def test_market_code_optional(self):
-        ic = IndexCreate(
-            ticker="SPX",
-            display_name="S&P 500",
-            currency="USD",
-            region="us",
-        )
-        assert ic.market_code is None
+    def test_country_code_required(self):
+        with pytest.raises(Exception):
+            IndexCreate(
+                ticker="SPX",
+                display_name="S&P 500",
+                currency="USD",
+                region="us",
+            )
 
     def test_ticker_too_short(self):
         with pytest.raises(Exception):

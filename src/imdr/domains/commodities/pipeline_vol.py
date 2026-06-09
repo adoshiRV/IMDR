@@ -190,7 +190,7 @@ class CmdtyImpliedVolPipeline(BasePipeline[pd.DataFrame, list[ImpliedVolCreate],
 
         checks = [
             SymbolRangeCheck(
-                ranges={strike: {"min": lo, "max": hi} for strike, (lo, hi) in quality_ranges.items()},
+                ranges=quality_ranges,
                 value_column="vol",
                 symbol_column="strike",
             ),

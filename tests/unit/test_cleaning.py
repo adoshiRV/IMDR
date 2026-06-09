@@ -92,11 +92,17 @@ class TestHardBoundViolationRule:
         ranges = {"EURUSD": (0.3, 3.0), "USDJPY": (60.0, 200.0)}
         rule = HardBoundViolationRule(ranges=ranges)
         rule.detect(reader, "[fx].[fact_ohlc]")
-        sql = reader.read_sql.call_args[0][0]
-        assert "'EURUSD'" in sql
-        assert "'USDJPY'" in sql
-        assert "< 0.3 OR" in sql
-        assert "> 200.0" in sql
+        sql, sent_params = reader.read_sql.call_args[0]
+        # Symbols, lo, hi must be passed as bound parameters, not f-stringed.
+        assert "[symbol] = :hb_sym_0" in sql
+        assert "[symbol] = :hb_sym_1" in sql
+        assert sent_params["hb_sym_0"] == "EURUSD"
+        assert sent_params["hb_sym_1"] == "USDJPY"
+        assert sent_params["hb_lo_0"] == 0.3
+        assert sent_params["hb_hi_1"] == 200.0
+        # Defence-in-depth: no raw quoted symbol literals in the SQL.
+        assert "'EURUSD'" not in sql
+        assert "'USDJPY'" not in sql
 
     def test_describe_includes_bounds(self) -> None:
         ranges = {"USDKRW": (800.0, 1600.0)}

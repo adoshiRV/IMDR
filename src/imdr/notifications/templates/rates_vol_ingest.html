@@ -179,13 +179,13 @@
 <table width="96%" cellpadding="5" cellspacing="0" style="margin:8px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;font-size:13px;">
   <tr style="background:#8e44ad;color:#fff;">
     <th style="border:1px solid #7d3c98;padding:6px;text-align:left;">Currency</th>
-    <th style="border:1px solid #7d3c98;padding:6px;text-align:left;">Market</th>
+    <th style="border:1px solid #7d3c98;padding:6px;text-align:left;">Country</th>
     <th style="border:1px solid #7d3c98;padding:6px;text-align:left;">Holiday</th>
   </tr>
   {% for h in holiday_hits %}
   <tr style="background:{{ '#f5eef8' if loop.index is odd else '#ebdef0' }};">
     <td style="border:1px solid #ddd;padding:5px;">{{ h.currency }}</td>
-    <td style="border:1px solid #ddd;padding:5px;">{{ h.market_code }}</td>
+    <td style="border:1px solid #ddd;padding:5px;">{{ h.country_code }}</td>
     <td style="border:1px solid #ddd;padding:5px;">{{ h.name }}</td>
   </tr>
   {% endfor %}

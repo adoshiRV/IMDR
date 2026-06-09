@@ -2,19 +2,23 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
-from unittest.mock import MagicMock, patch
+from datetime import date, datetime, timezone
+from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
 
 from imdr.healthchecks.staleness import (
+    BreakdownRollup,
     DEFAULT_SPECS,
     DomainSummary,
+    FREQUENCY_BREAKDOWN,
     StaleKey,
     StalenessMonitor,
     StalenessReport,
     StalenessSpec,
+    VENDOR_BREAKDOWN,
+    _build_query,
 )
 from imdr.notifications.formatters.staleness_alert import StalenessAlertFormatter
 
@@ -53,6 +57,16 @@ def _make_reader_df(
     return pd.DataFrame(rows)
 
 
+def _make_breakdown_df(rows: list[dict]) -> pd.DataFrame:
+    """Mimic a SQL result with breakdown columns.
+
+    Each row dict supplies key_id, label, latest_date, and any
+    breakdown alias columns (e.g. vendor_code, vendor_name,
+    frequency_code, frequency_name).
+    """
+    return pd.DataFrame(rows)
+
+
 # ── StalenessSpec tests ─────────────────────────────────────────────
 
 
@@ -73,6 +87,13 @@ class TestStalenessSpec:
         assert spec.max_stale_days == 3
         assert spec.dim_table is None
         assert spec.dim_label_cols == ()
+        assert spec.breakdowns == ()
+        assert spec.has_breakdowns is False
+        assert spec.has_dim is False
+
+    def test_has_breakdowns(self) -> None:
+        spec = _make_spec(breakdowns=(VENDOR_BREAKDOWN,))
+        assert spec.has_breakdowns is True
 
 
 # ── DomainSummary tests ─────────────────────────────────────────────
@@ -86,6 +107,11 @@ class TestDomainSummary:
     def test_not_stale_when_zero(self) -> None:
         s = DomainSummary("D", "d.p", 10, 0, 10, date(2026, 4, 13))
         assert s.is_stale is False
+
+    def test_rollup_returns_empty_for_unknown_dim(self) -> None:
+        s = DomainSummary("D", "d.p", 10, 0, 10, date(2026, 4, 13))
+        assert s.rollup("vendor") == []
+        assert s.has_breakdowns is False
 
 
 # ── StalenessReport tests ───────────────────────────────────────────
@@ -130,6 +156,66 @@ class TestStalenessReport:
         all_keys = report.all_stale_keys()
         assert len(all_keys) == 3
         assert all_keys[0].days_behind >= all_keys[-1].days_behind
+
+    def test_breakdown_totals_aggregates_across_domains(self) -> None:
+        r1 = BreakdownRollup("vendor", "bloomberg", "Bloomberg", 5, 3, 2, date(2026, 4, 1))
+        r2 = BreakdownRollup("vendor", "citi_velocity", "Citi", 5, 0, 5, date(2026, 4, 13))
+        r3 = BreakdownRollup("vendor", "bloomberg", "Bloomberg", 4, 2, 2, date(2026, 4, 1))
+        s1 = DomainSummary("A", "a.a", 10, 3, 7, date(2026, 4, 13), by_breakdown={"vendor": [r1, r2]})
+        s2 = DomainSummary("B", "b.b", 4, 2, 2, date(2026, 4, 13), by_breakdown={"vendor": [r3]})
+        report = StalenessReport(
+            checked_at=datetime.now(timezone.utc),
+            reference_date=date(2026, 4, 13),
+            summaries=[s1, s2],
+        )
+        totals = report.breakdown_totals("vendor")
+        assert totals == {"bloomberg": 5}
+
+    def test_breakdown_totals_empty_for_unknown_dim(self) -> None:
+        r1 = BreakdownRollup("vendor", "bloomberg", "Bloomberg", 5, 3, 2, date(2026, 4, 1))
+        s1 = DomainSummary("A", "a.a", 5, 3, 2, date(2026, 4, 13), by_breakdown={"vendor": [r1]})
+        report = StalenessReport(datetime.now(timezone.utc), date(2026, 4, 13), [s1])
+        assert report.breakdown_totals("frequency") == {}
+
+
+# ── _build_query tests ──────────────────────────────────────────────
+
+
+class TestBuildQuery:
+    def test_no_dim_no_breakdowns(self) -> None:
+        spec = _make_spec(dim_table=None, dim_label_cols=())
+        sql = _build_query(spec)
+        assert "JOIN" not in sql
+        assert "GROUP BY f.[key_id]" in sql
+
+    def test_with_dim(self) -> None:
+        spec = _make_spec()
+        sql = _build_query(spec)
+        assert "JOIN [test].[dim_key] d" in sql
+        assert "d.[name]" in sql
+        assert "GROUP BY f.[key_id], d.[name]" in sql
+
+    def test_with_dim_filter(self) -> None:
+        spec = _make_spec(dim_filter="status <> 'ceased'")
+        sql = _build_query(spec)
+        assert "WHERE d.status <> 'ceased'" in sql
+
+    def test_with_vendor_breakdown(self) -> None:
+        spec = _make_spec(breakdowns=(VENDOR_BREAKDOWN,))
+        sql = _build_query(spec)
+        assert "JOIN [dbo].[dim_vendor] b0" in sql
+        assert "b0.[vendor_code] AS vendor_code" in sql
+        assert "b0.[display_name] AS vendor_name" in sql
+        # Vendor cols should be in GROUP BY
+        assert "b0.[vendor_code]" in sql.split("GROUP BY")[1]
+
+    def test_with_two_breakdowns(self) -> None:
+        spec = _make_spec(breakdowns=(VENDOR_BREAKDOWN, FREQUENCY_BREAKDOWN))
+        sql = _build_query(spec)
+        assert "JOIN [dbo].[dim_vendor] b0" in sql
+        assert "JOIN [dbo].[dim_frequency] b1" in sql
+        assert "b0.[vendor_code] AS vendor_code" in sql
+        assert "b1.[frequency_code] AS frequency_code" in sql
 
 
 # ── StalenessMonitor tests ──────────────────────────────────────────
@@ -308,6 +394,98 @@ class TestStalenessMonitor:
         assert report.summaries[0].stale_items[0].days_behind == 4
 
 
+# ── Breakdown-aware tests ───────────────────────────────────────────
+
+
+class TestBreakdownAggregation:
+    def test_vendor_breakdown_splits_stale_per_vendor(self) -> None:
+        """Same key can be fresh from one vendor and stale from another."""
+        reader = MagicMock()
+        today = date(2026, 4, 13)
+        # Curve 1: Citi fresh, BBG stale.  Curve 2: both fresh.
+        df = _make_breakdown_df([
+            {"key_id": 1, "label": "USD / SOFR", "vendor_code": "citi_velocity",
+             "vendor_name": "Citi", "latest_date": date(2026, 4, 13)},
+            {"key_id": 1, "label": "USD / SOFR", "vendor_code": "bloomberg",
+             "vendor_name": "Bloomberg", "latest_date": date(2026, 3, 31)},
+            {"key_id": 2, "label": "EUR / ESTR", "vendor_code": "citi_velocity",
+             "vendor_name": "Citi", "latest_date": date(2026, 4, 13)},
+            {"key_id": 2, "label": "EUR / ESTR", "vendor_code": "bloomberg",
+             "vendor_name": "Bloomberg", "latest_date": date(2026, 4, 12)},
+        ])
+        reader.read_sql.return_value = df
+
+        spec = _make_spec(breakdowns=(VENDOR_BREAKDOWN,))
+        monitor = StalenessMonitor(reader, specs=[spec], reference_date=today)
+        report = monitor.run()
+
+        summary = report.summaries[0]
+        assert summary.total_keys == 4  # one row per (key, vendor)
+        assert summary.stale_keys == 1  # only USD/SOFR-bbg
+
+        rollups = summary.rollup("vendor")
+        assert len(rollups) == 2
+        by_code = {r.code: r for r in rollups}
+        assert by_code["bloomberg"].stale_keys == 1
+        assert by_code["bloomberg"].fresh_keys == 1
+        assert by_code["citi_velocity"].stale_keys == 0
+        assert by_code["citi_velocity"].fresh_keys == 2
+
+        # Stale item carries vendor info
+        sk = summary.stale_items[0]
+        assert sk.breakdown_code("vendor") == "bloomberg"
+        assert sk.breakdown_name("vendor") == "Bloomberg"
+
+    def test_two_breakdowns_independent_rollups(self) -> None:
+        """Vendor and frequency rollups are computed from the same rows."""
+        reader = MagicMock()
+        today = date(2026, 4, 13)
+        # Two curves, two vendors, two frequencies -> 8 rows.
+        # Make HOURLY-bbg the only stale combo.
+        rows = []
+        for kid in (1, 2):
+            for vendor in ("citi_velocity", "bloomberg"):
+                for freq in ("DAILY", "HOURLY"):
+                    is_stale = (vendor == "bloomberg" and freq == "HOURLY")
+                    rows.append({
+                        "key_id": kid,
+                        "label": f"key{kid}",
+                        "vendor_code": vendor,
+                        "vendor_name": vendor.title(),
+                        "frequency_code": freq,
+                        "frequency_name": freq.title(),
+                        "latest_date": date(2026, 3, 1) if is_stale else date(2026, 4, 13),
+                    })
+        reader.read_sql.return_value = pd.DataFrame(rows)
+
+        spec = _make_spec(breakdowns=(VENDOR_BREAKDOWN, FREQUENCY_BREAKDOWN))
+        monitor = StalenessMonitor(reader, specs=[spec], reference_date=today)
+        report = monitor.run()
+
+        summary = report.summaries[0]
+        assert summary.total_keys == 8
+        assert summary.stale_keys == 2  # bbg+HOURLY for both keys
+
+        vendor_rollup = {r.code: r for r in summary.rollup("vendor")}
+        assert vendor_rollup["bloomberg"].stale_keys == 2
+        assert vendor_rollup["citi_velocity"].stale_keys == 0
+
+        freq_rollup = {r.code: r for r in summary.rollup("frequency")}
+        assert freq_rollup["HOURLY"].stale_keys == 2
+        assert freq_rollup["DAILY"].stale_keys == 0
+
+    def test_no_breakdowns_means_no_rollups(self) -> None:
+        reader = MagicMock()
+        df = _make_reader_df([(1,)], [date(2026, 4, 13)])
+        reader.read_sql.return_value = df
+
+        spec = _make_spec()
+        monitor = StalenessMonitor(reader, specs=[spec], reference_date=date(2026, 4, 13))
+        report = monitor.run()
+
+        assert report.summaries[0].by_breakdown == {}
+
+
 # ── StalenessMonitor.from_config tests ──────────────────────────────
 
 
@@ -346,6 +524,8 @@ class TestDefaultSpecs:
             "rates.historical",
             "rates.vol",
             "rates.skew_barclays_daily",
+            "rates.bench_rates",
+            "fx.citi_rate",
             "fx.vol",
             "commodities.spot",
             "commodities.vol",
@@ -359,6 +539,22 @@ class TestDefaultSpecs:
         eia = [s for s in DEFAULT_SPECS if s.pipeline_name == "commodities.eia"][0]
         assert eia.max_stale_days == 10
 
+    def test_dual_vendor_specs_have_vendor_breakdown(self) -> None:
+        """rates.historical and fx.citi_rate ingest from multiple vendors."""
+        for pipeline in ("rates.historical", "fx.citi_rate"):
+            spec = next(s for s in DEFAULT_SPECS if s.pipeline_name == pipeline)
+            assert VENDOR_BREAKDOWN in spec.breakdowns, (
+                f"{pipeline} should have vendor breakdown"
+            )
+
+    def test_hourly_capable_specs_have_frequency_breakdown(self) -> None:
+        """rates.historical and fx.citi_rate carry frequency_id."""
+        for pipeline in ("rates.historical", "fx.citi_rate"):
+            spec = next(s for s in DEFAULT_SPECS if s.pipeline_name == pipeline)
+            assert FREQUENCY_BREAKDOWN in spec.breakdowns, (
+                f"{pipeline} should have frequency breakdown"
+            )
+
 
 # ── StalenessAlertFormatter tests ───────────────────────────────────
 
@@ -368,14 +564,43 @@ class TestStalenessAlertFormatter:
         now = datetime.now(timezone.utc)
         ref = date(2026, 4, 13)
         if has_stale:
-            sk = StaleKey("Rates Curves", "rates.historical", 1, "USD / SOFR", date(2026, 3, 31), 13, 3)
-            stale = DomainSummary("Rates Curves", "rates.historical", 39, 1, 38, date(2026, 4, 13), [sk])
+            sk = StaleKey("Rates Curves", "rates.historical", 1, "USD / SOFR",
+                          date(2026, 3, 31), 13, 3)
+            stale = DomainSummary("Rates Curves", "rates.historical", 39, 1, 38,
+                                  date(2026, 4, 13), [sk])
             fresh = DomainSummary("FX Vol", "fx.vol", 17, 0, 17, date(2026, 4, 13))
             return StalenessReport(now, ref, [stale, fresh])
         else:
             f1 = DomainSummary("Rates Curves", "rates.historical", 39, 0, 39, date(2026, 4, 13))
             f2 = DomainSummary("FX Vol", "fx.vol", 17, 0, 17, date(2026, 4, 13))
             return StalenessReport(now, ref, [f1, f2])
+
+    def _make_breakdown_report(self) -> StalenessReport:
+        """Report with vendor + frequency breakdowns."""
+        now = datetime.now(timezone.utc)
+        ref = date(2026, 4, 13)
+        sk = StaleKey(
+            "Rates Curves", "rates.historical", 1, "USD / SOFR",
+            date(2026, 3, 31), 13, 3,
+            breakdowns={
+                "vendor": ("bloomberg", "Bloomberg"),
+                "frequency": ("HOURLY", "Hourly"),
+            },
+        )
+        v_rollups = [
+            BreakdownRollup("vendor", "bloomberg", "Bloomberg", 4, 1, 3, date(2026, 4, 13)),
+            BreakdownRollup("vendor", "citi_velocity", "Citi", 4, 0, 4, date(2026, 4, 13)),
+        ]
+        f_rollups = [
+            BreakdownRollup("frequency", "DAILY", "Daily", 4, 0, 4, date(2026, 4, 13)),
+            BreakdownRollup("frequency", "HOURLY", "Hourly", 4, 1, 3, date(2026, 4, 13)),
+        ]
+        s = DomainSummary(
+            "Rates Curves", "rates.historical", 8, 1, 7, date(2026, 4, 13),
+            stale_items=[sk],
+            by_breakdown={"vendor": v_rollups, "frequency": f_rollups},
+        )
+        return StalenessReport(now, ref, [s])
 
     def test_subject_when_stale(self) -> None:
         formatter = StalenessAlertFormatter()
@@ -392,6 +617,13 @@ class TestStalenessAlertFormatter:
         assert "OK" in subject
         assert "All domains fresh" in subject
 
+    def test_subject_includes_breakdown_totals(self) -> None:
+        formatter = StalenessAlertFormatter()
+        report = self._make_breakdown_report()
+        subject = formatter.format_subject(report=report)
+        assert "vendor: bloomberg=1" in subject
+        assert "frequency: HOURLY=1" in subject
+
     def test_body_renders_html(self) -> None:
         formatter = StalenessAlertFormatter()
         report = self._make_report(has_stale=True)
@@ -401,6 +633,26 @@ class TestStalenessAlertFormatter:
         assert "USD / SOFR" in body
         assert "STALE DOMAINS" in body
         assert "HEALTHY DOMAINS" in body
+
+    def test_body_renders_breakdown_section(self) -> None:
+        formatter = StalenessAlertFormatter()
+        report = self._make_breakdown_report()
+        body = formatter.format_body(report=report)
+        assert "By Vendor" in body
+        assert "By Frequency" in body
+        assert "bloomberg" in body
+        assert "HOURLY" in body
+        # Stale-by-breakdown row in summary
+        assert "Stale by Vendor" in body
+        assert "Stale by Frequency" in body
+
+    def test_body_per_key_table_includes_breakdown_columns(self) -> None:
+        formatter = StalenessAlertFormatter()
+        report = self._make_breakdown_report()
+        body = formatter.format_body(report=report)
+        # Per-key detail table should show the codes
+        assert ">bloomberg<" in body or ">bloomberg " in body
+        assert ">HOURLY<" in body or ">HOURLY " in body
 
     def test_body_all_fresh(self) -> None:
         formatter = StalenessAlertFormatter()

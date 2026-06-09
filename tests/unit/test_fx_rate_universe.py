@@ -11,9 +11,20 @@ def universe():
 
 
 class TestFXRateUniverse:
-    def test_19_pairs(self, universe) -> None:
+    def test_26_pairs(self, universe) -> None:
+        # 19 Citi+BBG shared + 3 BBG-deliverable (MXN/PLN/ILS) + 4 BBG-only onshore (CNY/CNO/MYO/IDO)
         pairs = universe.fx_rate_pairs()
-        assert len(pairs) == 19
+        assert len(pairs) == 26
+
+    def test_bbg_only_pairs(self, universe) -> None:
+        bbg_only = universe.fx_rate_bbg_only_pairs()
+        assert ("USD", "CNY") in bbg_only
+        assert ("USD", "CNO") in bbg_only
+        assert ("USD", "MYO") in bbg_only
+        assert ("USD", "IDO") in bbg_only
+        # Citi-eligible pairs must NOT be in bbg_only
+        assert ("EUR", "USD") not in bbg_only
+        assert ("USD", "JPY") not in bbg_only
 
     def test_all_tuples(self, universe) -> None:
         pairs = universe.fx_rate_pairs()
@@ -59,14 +70,21 @@ class TestFXRateUniverse:
         assert len(tags) == 10
 
     def test_total_tag_count(self, universe) -> None:
-        # 19 spots + (19 pairs × 10 outright + 10 points = 20) = 19 + 380 = 399
+        # 26 universe pairs minus 4 bbg_only = 22 Citi-eligible pairs
+        # × (1 spot + 10 outright + 10 points) = 22 × 21 = 462
         tags = universe.build_all_fx_rate_tags()
-        assert len(tags) == 399
+        assert len(tags) == 462
 
-    def test_all_pairs_get_both_spot_and_forward(self, universe) -> None:
-        # Every Phase 1 pair has Citi forwards; spot + outright + points per pair
+    def test_all_citi_pairs_get_both_spot_and_forward(self, universe) -> None:
+        # Every Citi-eligible pair (i.e. universe minus bbg_only) has spot +
+        # outright + points Citi tags. BBG-only pairs are excluded by design.
         all_tags = universe.build_all_fx_rate_tags()
+        bbg_only = universe.fx_rate_bbg_only_pairs()
         for ccy1, ccy2 in universe.fx_rate_pairs():
+            if (ccy1, ccy2) in bbg_only:
+                # BBG-only pairs MUST NOT have Citi tags
+                assert f"FX.SPOT.{ccy1}.{ccy2}.CITI" not in all_tags
+                continue
             assert f"FX.SPOT.{ccy1}.{ccy2}.CITI" in all_tags
             assert f"FX.FORWARD.FWD_OUTRIGHT.{ccy1}.{ccy2}.1M.CITI" in all_tags
             assert f"FX.FORWARD.FWD_POINT.{ccy1}.{ccy2}.1M.CITI" in all_tags
@@ -89,7 +107,7 @@ class TestFXRateUniverse:
 
     def test_dim_seed_entries(self, universe) -> None:
         entries = universe.fx_rate_pair_create_entries()
-        assert len(entries) == 19
+        assert len(entries) == 26
         ccy_classes = {e.ccy_class for e in entries}
         # At minimum we should see all three classes
         assert "g10" in ccy_classes

@@ -13,6 +13,7 @@ shows what would change without writing.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import pandas as pd
@@ -21,6 +22,16 @@ from imdr.connectors.reader import AnalyticalReader
 from imdr.healthchecks.cleaning import CleaningAction, CleaningRule
 
 TABLE = "[fx].[fact_ohlc]"
+
+# Identifier-safe pattern for column / symbol keys that get embedded as SQL
+# identifiers or string literals. Validated once at rule construction so the
+# detect()/build_update_sql() paths can stay lean.
+_SAFE_IDENT_RE = re.compile(r"^[A-Za-z0-9_./-]+$")
+
+
+def _assert_safe(value: str, label: str) -> None:
+    if not isinstance(value, str) or not _SAFE_IDENT_RE.match(value):
+        raise ValueError(f"Unsafe {label}: {value!r}")
 
 PRICE_COLUMNS = [
     "open_px",
@@ -45,7 +56,10 @@ class NonPositivePriceRule(CleaningRule):
     """NULL out rows where any price column is non-positive."""
 
     def __init__(self, columns: list[str] | None = None) -> None:
-        self._columns = columns or PRICE_COLUMNS
+        cols = columns or PRICE_COLUMNS
+        for c in cols:
+            _assert_safe(c, "price column")
+        self._columns = cols
 
     @property
     def name(self) -> str:
@@ -72,7 +86,7 @@ class NonPositivePriceRule(CleaningRule):
         return reader.read_sql(sql, params)
 
     def build_update_sql(self, ids: list[int]) -> str:
-        id_list = ", ".join(str(i) for i in ids)
+        id_list = ", ".join(str(int(i)) for i in ids)
         return f"UPDATE {TABLE} SET {_NULL_SET} WHERE [id] IN ({id_list})"
 
     def build_action(self, row: pd.Series) -> CleaningAction:
@@ -98,6 +112,9 @@ class HardBoundViolationRule(CleaningRule):
         ranges: dict[str, tuple[float, float]],
         value_column: str = "close_px",
     ) -> None:
+        for sym in ranges:
+            _assert_safe(sym, "symbol")
+        _assert_safe(value_column, "value_column")
         self._ranges = ranges
         self._value_col = value_column
 
@@ -119,11 +136,17 @@ class HardBoundViolationRule(CleaningRule):
         if not self._ranges:
             return pd.DataFrame()
 
+        merged_params: dict[str, Any] = dict(params or {})
         when_clauses = []
-        for sym, (lo, hi) in self._ranges.items():
+        for i, (sym, (lo, hi)) in enumerate(self._ranges.items()):
+            ks, klo, khi = f"hb_sym_{i}", f"hb_lo_{i}", f"hb_hi_{i}"
             when_clauses.append(
-                f"([symbol] = '{sym}' AND ([{self._value_col}] < {lo} OR [{self._value_col}] > {hi}))"
+                f"([symbol] = :{ks} AND ([{self._value_col}] < :{klo} "
+                f"OR [{self._value_col}] > :{khi}))"
             )
+            merged_params[ks] = sym
+            merged_params[klo] = lo
+            merged_params[khi] = hi
         filter_expr = " OR ".join(when_clauses)
 
         sql = f"""
@@ -145,10 +168,10 @@ class HardBoundViolationRule(CleaningRule):
             FROM flagged
             WHERE ({filter_expr})
         """
-        return reader.read_sql(sql, params)
+        return reader.read_sql(sql, merged_params)
 
     def build_update_sql(self, ids: list[int]) -> str:
-        id_list = ", ".join(str(i) for i in ids)
+        id_list = ", ".join(str(int(i)) for i in ids)
         return f"UPDATE {TABLE} SET {_NULL_SET} WHERE [id] IN ({id_list})"
 
     def build_action(self, row: pd.Series) -> CleaningAction:
@@ -186,8 +209,13 @@ class RobustOutlierRule(CleaningRule):
         ts_column: str = "ts",
         min_obs: int = 100,
     ) -> None:
+        _assert_safe(value_column, "value_column")
+        _assert_safe(ts_column, "ts_column")
+        group_cols = group_columns or ["symbol", "series"]
+        for c in group_cols:
+            _assert_safe(c, "group column")
         self._value_col = value_column
-        self._group_cols = group_columns or ["symbol", "series"]
+        self._group_cols = group_cols
         self._n_mad = n_mad
         self._trailing_months = trailing_months
         self._ts_col = ts_column
@@ -268,7 +296,7 @@ class RobustOutlierRule(CleaningRule):
         return result.sort_values("robust_z", ascending=False)
 
     def build_update_sql(self, ids: list[int]) -> str:
-        id_list = ", ".join(str(i) for i in ids)
+        id_list = ", ".join(str(int(i)) for i in ids)
         return f"UPDATE {TABLE} SET {_NULL_SET} WHERE [id] IN ({id_list})"
 
     def build_action(self, row: pd.Series) -> CleaningAction:
@@ -300,6 +328,7 @@ class PercentageChangeRule(CleaningRule):
         value_column: str = "close_px",
         threshold_pct: float = 5.0,
     ) -> None:
+        _assert_safe(value_column, "value_column")
         self._value_col = value_column
         self._threshold = threshold_pct
 
@@ -343,7 +372,7 @@ class PercentageChangeRule(CleaningRule):
         return reader.read_sql(sql, params)
 
     def build_update_sql(self, ids: list[int]) -> str:
-        id_list = ", ".join(str(i) for i in ids)
+        id_list = ", ".join(str(int(i)) for i in ids)
         return f"UPDATE {TABLE} SET {_NULL_SET} WHERE [id] IN ({id_list})"
 
     def build_action(self, row: pd.Series) -> CleaningAction:
@@ -404,7 +433,7 @@ class OHLCOrderRule(CleaningRule):
         return reader.read_sql(sql, params)
 
     def build_update_sql(self, ids: list[int]) -> str:
-        id_list = ", ".join(str(i) for i in ids)
+        id_list = ", ".join(str(int(i)) for i in ids)
         return f"UPDATE {TABLE} SET {_NULL_SET} WHERE [id] IN ({id_list})"
 
     def build_action(self, row: pd.Series) -> CleaningAction:
@@ -462,7 +491,7 @@ class BidAskInversionRule(CleaningRule):
         return reader.read_sql(sql, params)
 
     def build_update_sql(self, ids: list[int]) -> str:
-        id_list = ", ".join(str(i) for i in ids)
+        id_list = ", ".join(str(int(i)) for i in ids)
         # MSSQL evaluates RHS before assignment, so this swap is correct.
         return (
             f"UPDATE t SET t.[bid] = t.[ask], t.[ask] = t.[bid] "

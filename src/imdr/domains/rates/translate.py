@@ -33,8 +33,9 @@ def citi_tag_to_internal(
     doesn't match any catalog entry.
 
     Tag formats:
-      OIS:        RATES.OIS.{CCY}_{INDEX}.{QUOTE_TYPE}.{MATURITY}     (5+ parts)
-      SWAP_LIBOR: RATES.SWAP_LIBOR.{CCY}.{QUOTE_TYPE}.{MATURITY}      (5+ parts)
+      OIS:         RATES.OIS.{CCY}_{INDEX}.{QUOTE_TYPE}.{MATURITY}            (5+ parts)
+      SWAP_LIBOR:  RATES.SWAP_LIBOR.{CCY}.{QUOTE_TYPE}.{MATURITY}             (5+ parts)
+      BASIS_SWAPS: RATES.BASIS_SWAPS.{BASIS}.{CCY}.{START}.{TENOR}.{QUOTE}    (7 parts; quote LAST)
       Multi-tenor: ... .{QT}.{MAT1}.{MAT2} (6 parts) or .{MAT1}.{MAT2}.{MAT3} (7 parts)
     """
     if universe is None:
@@ -45,21 +46,28 @@ def citi_tag_to_internal(
     if len(parts) < 5 or parts[0] != "RATES":
         return None
 
-    instrument = parts[1]  # OIS or SWAP_LIBOR
+    instrument = parts[1]  # OIS, SWAP_LIBOR, BASIS_SWAPS
 
     if instrument == "OIS":
         pair = parts[2]  # e.g. "USD_SOFR"
         citi_qt = parts[3]
         tenor_parts = parts[4:]
+        prefix = f"RATES.{instrument}.{pair}"
     elif instrument == "SWAP_LIBOR":
         pair = parts[2]  # e.g. "USD" or "CNY_NDIRS"
         citi_qt = parts[3]
         tenor_parts = parts[4:]
+        prefix = f"RATES.{instrument}.{pair}"
+    elif instrument == "BASIS_SWAPS":
+        # RATES.BASIS_SWAPS.{BASIS}.{CCY}.{START}.{TENOR}.{QUOTE}
+        if len(parts) < 7:
+            return None
+        prefix = ".".join(parts[:5])  # RATES.BASIS_SWAPS.{BASIS}.{CCY}.{START}
+        tenor_parts = [parts[5]]
+        citi_qt = parts[6]
     else:
         return None
 
-    # Resolve ccy/curve via universe prefix matching
-    prefix = f"RATES.{instrument}.{pair}"
     resolved = universe.resolve_prefix(prefix)
     if resolved is None:
         return None

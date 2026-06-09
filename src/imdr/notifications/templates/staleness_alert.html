@@ -51,6 +51,16 @@
       {% endif %}
     </td>
   </tr>
+  {% for gb in global_breakdowns %}
+  <tr {% if loop.index is even %}style="background:#f5f5f5;"{% endif %}>
+    <td style="border:1px solid #ddd;font-weight:bold;">Stale by {{ gb.name|capitalize }}</td>
+    <td style="border:1px solid #ddd;">
+      {% for t in gb.totals %}
+      <span style="display:inline-block;background:#fdecea;color:#c0392b;padding:2px 8px;margin-right:6px;border-radius:3px;font-family:Consolas,monospace;font-size:12px;">{{ t.code }} = <b>{{ t.stale_keys }}</b></span>
+      {% endfor %}
+    </td>
+  </tr>
+  {% endfor %}
 </table>
 
 <!-- Stale Domains Detail -->
@@ -70,9 +80,39 @@
     </td>
   </tr>
 </table>
+
+{% for bd in domain.breakdowns %}
+<table width="96%" cellpadding="4" cellspacing="0" style="margin:4px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;font-size:12px;">
+  <tr style="background:#34495e;color:#fff;">
+    <th colspan="5" style="border:1px solid #2c3e50;padding:5px 8px;text-align:left;">By {{ bd.name|capitalize }}</th>
+  </tr>
+  <tr style="background:#5d6d7e;color:#fff;">
+    <th style="border:1px solid #2c3e50;padding:4px 8px;text-align:left;">{{ bd.name|capitalize }}</th>
+    <th style="border:1px solid #2c3e50;padding:4px 8px;text-align:center;">Stale</th>
+    <th style="border:1px solid #2c3e50;padding:4px 8px;text-align:center;">Fresh</th>
+    <th style="border:1px solid #2c3e50;padding:4px 8px;text-align:center;">Total</th>
+    <th style="border:1px solid #2c3e50;padding:4px 8px;text-align:center;">Latest Date</th>
+  </tr>
+  {% for r in bd.rollups %}
+  <tr style="background:{{ '#fdf2f0' if r.is_stale else '#eafaf1' }};">
+    <td style="border:1px solid #ddd;padding:5px 8px;font-weight:bold;font-family:Consolas,monospace;">{{ r.code }} <span style="color:#888;font-weight:normal;">({{ r.display_name }})</span></td>
+    <td style="border:1px solid #ddd;padding:5px 8px;text-align:center;">
+      {% if r.is_stale %}<span style="color:#c0392b;font-weight:bold;">{{ r.stale_keys }}</span>{% else %}<span style="color:#27ae60;">0</span>{% endif %}
+    </td>
+    <td style="border:1px solid #ddd;padding:5px 8px;text-align:center;">{{ r.fresh_keys }}</td>
+    <td style="border:1px solid #ddd;padding:5px 8px;text-align:center;">{{ r.total_keys }}</td>
+    <td style="border:1px solid #ddd;padding:5px 8px;text-align:center;font-family:Consolas,monospace;">{{ r.latest_date }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endfor %}
+
 <table width="96%" cellpadding="5" cellspacing="0" style="margin:4px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;font-size:12px;">
   <tr style="background:#c0392b;color:#fff;">
     <th style="border:1px solid #922b21;padding:6px;text-align:left;">Series / Key</th>
+    {% for dim in domain.breakdown_dim_names %}
+    <th style="border:1px solid #922b21;padding:6px;text-align:left;">{{ dim|capitalize }}</th>
+    {% endfor %}
     <th style="border:1px solid #922b21;padding:6px;text-align:center;">Latest Date</th>
     <th style="border:1px solid #922b21;padding:6px;text-align:center;">Days Behind</th>
     <th style="border:1px solid #922b21;padding:6px;text-align:center;">Threshold</th>
@@ -80,6 +120,9 @@
   {% for item in domain.stale_items %}
   <tr style="background:{{ '#fdf2f0' if loop.index is odd else '#fdecea' }};">
     <td style="border:1px solid #ddd;padding:5px;font-weight:bold;">{{ item.label }}</td>
+    {% for code in item.breakdown_codes %}
+    <td style="border:1px solid #ddd;padding:5px;font-family:Consolas,monospace;">{{ code }}</td>
+    {% endfor %}
     <td style="border:1px solid #ddd;padding:5px;text-align:center;font-family:Consolas,monospace;">{{ item.latest_date }}</td>
     <td style="border:1px solid #ddd;padding:5px;text-align:center;">
       {% if item.days_behind > 7 %}
@@ -106,6 +149,7 @@
   <tr style="background:#27ae60;color:#fff;">
     <th style="border:1px solid #1e8449;padding:6px;text-align:left;">Domain</th>
     <th style="border:1px solid #1e8449;padding:6px;text-align:left;">Pipeline</th>
+    <th style="border:1px solid #1e8449;padding:6px;text-align:left;">Breakdowns</th>
     <th style="border:1px solid #1e8449;padding:6px;text-align:center;">Keys</th>
     <th style="border:1px solid #1e8449;padding:6px;text-align:center;">Latest Date</th>
   </tr>
@@ -113,6 +157,13 @@
   <tr style="background:{{ '#eafaf1' if loop.index is odd else '#d5f5e3' }};">
     <td style="border:1px solid #ddd;padding:5px;font-weight:bold;">{{ d.domain }}</td>
     <td style="border:1px solid #ddd;padding:5px;font-family:Consolas,monospace;font-size:12px;">{{ d.pipeline_name }}</td>
+    <td style="border:1px solid #ddd;padding:5px;font-family:Consolas,monospace;font-size:12px;">
+      {% if d.has_breakdowns %}
+        {% for bd in d.breakdowns %}<b>{{ bd.name }}</b>: {% for r in bd.rollups %}{{ r.code }}{% if not loop.last %},{% endif %}{% endfor %}{% if not loop.last %} &nbsp; {% endif %}{% endfor %}
+      {% else %}
+        <span style="color:#888;">&mdash;</span>
+      {% endif %}
+    </td>
     <td style="border:1px solid #ddd;padding:5px;text-align:center;">{{ d.total_keys }}</td>
     <td style="border:1px solid #ddd;padding:5px;text-align:center;font-family:Consolas,monospace;">{{ d.latest_date }}</td>
   </tr>

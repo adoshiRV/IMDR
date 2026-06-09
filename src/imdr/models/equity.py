@@ -4,6 +4,7 @@ from __future__ import annotations
 from datetime import date
 
 from sqlalchemy import Date, Float, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy.dialects.mssql import TINYINT
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from imdr.models.base import Base
@@ -23,7 +24,9 @@ class EquityDimIndex(Base):
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
     region: Mapped[str] = mapped_column(String(20), nullable=False)
     citi_tag: Mapped[str | None] = mapped_column(String(80), nullable=True)
-    market_code: Mapped[str | None] = mapped_column(String(5), nullable=True)
+    country_id: Mapped[int] = mapped_column(
+        TINYINT, ForeignKey("dbo.dim_country.id"), nullable=False
+    )
 
     index_levels: Mapped[list[EquityFactIndexLevel]] = relationship(
         back_populates="index"
