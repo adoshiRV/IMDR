@@ -42,7 +42,7 @@ from imdr.universe.fx import FXUniverse
 
 _log = structlog.get_logger("BloombergFXRatePipeline")
 
-VENDOR_CODE = "bloomberg"
+VENDOR_CODE = "BBG"
 
 # Default mapping from IMDR pair → BBG ccy folder.
 # BBG names files by the non-USD leg, e.g. ``FX_EUR.csv`` for EUR/USD,

@@ -15,3 +15,7 @@ from __future__ import annotations
 
 # Importing a module here runs its top-level ``register_feed(...)`` call.
 from imdr.vendors.specs import barclays_skew  # noqa: F401
+from imdr.vendors.specs import bbg_fx_snapshot  # noqa: F401
+from imdr.vendors.specs import bbg_fx_daily  # noqa: F401
+from imdr.vendors.specs import bbg_rates_snapshot  # noqa: F401
+from imdr.vendors.specs import bbg_rates_daily  # noqa: F401

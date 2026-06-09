@@ -68,22 +68,30 @@ def run_vendor_feed_daily(name: str, *, headless: bool = True) -> int:
         )
 
         # ── Phase 3: archive + success email ──────────────────────────────
-        archive_dir = result.saved_files[0].parent / _ARCHIVE_SUBDIR
-        moved = _archive_files(list(result.saved_files), archive_dir)
-        report.info(
-            "vendor_fetch.archive",
-            f"Archived {len(moved)} file(s)",
-            details={"archive_dir": str(archive_dir)},
-        )
+        if feed.archive_after_load:
+            archive_dir = result.saved_files[0].parent / _ARCHIVE_SUBDIR
+            moved = _archive_files(list(result.saved_files), archive_dir)
+            report.info(
+                "vendor_fetch.archive",
+                f"Archived {len(moved)} file(s)",
+                details={"archive_dir": str(archive_dir)},
+            )
+        else:
+            report.info(
+                "vendor_fetch.archive",
+                "Archive skipped (feed.archive_after_load=False)",
+                details={"n_files": len(result.saved_files)},
+            )
 
-        _send_success_email(
-            settings=settings,
-            feed=feed,
-            result=result,
-            pipeline=pipeline,
-            rows_loaded=rows,
-            elapsed_s=elapsed,
-        )
+        if feed.email_on_zero_rows or rows > 0:
+            _send_success_email(
+                settings=settings,
+                feed=feed,
+                result=result,
+                pipeline=pipeline,
+                rows_loaded=rows,
+                elapsed_s=elapsed,
+            )
         return 0
 
     finally:
@@ -167,6 +175,8 @@ def _send_success_email(
         "has_errors": False,
         "elapsed_secs": elapsed_s,
         "feed": feed.name,
+        "pipeline_name": feed.staleness_pipeline_name,
+        "run_date": datetime.now(timezone.utc),
     }
     if feed.success_context_builder is not None:
         try:

@@ -9,8 +9,14 @@ from imdr.vendors.acquirers.email_linked import (
     EmailLinkedDownloadAcquirer,
     EmailLinkedDownloadSpec,
 )
+from imdr.vendors.acquirers.filesystem import (
+    LocalFilesystemAcquirer,
+    LocalFilesystemSpec,
+)
 
 __all__ = [
     "EmailLinkedDownloadAcquirer",
     "EmailLinkedDownloadSpec",
+    "LocalFilesystemAcquirer",
+    "LocalFilesystemSpec",
 ]

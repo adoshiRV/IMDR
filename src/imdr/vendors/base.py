@@ -100,6 +100,15 @@ class VendorFeed:
     success_formatter: "EmailFormatter"
     staleness_pipeline_name: str
     success_context_builder: SuccessContextBuilder | None = None
+    archive_after_load: bool = True
+    # Set False when the acquirer's source files are owned by an external
+    # process that overwrites them in place (e.g. the BBG R pipeline). Moving
+    # the file would break the next poll. Default True suits feeds like
+    # ``barclays_skew`` that download fresh artefacts each day.
+    email_on_zero_rows: bool = True
+    # Set False for high-cadence pollers where most fires are MERGE no-ops
+    # (e.g. BBG snapshot polled every 30 min). Default True preserves the
+    # existing one-email-per-run contract for daily feeds.
 
 
 def utcnow() -> datetime:
