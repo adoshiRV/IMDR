@@ -1,8 +1,27 @@
 # Onboarding a new country — econ data playbook
 
-Last updated: 2026-06-09
+Last updated: 2026-06-10
 
-The 5-step workflow for adding a new country to `econ.dim_indicator`. Korea ([korea/](korea/)) is the worked reference example.
+> ## ⛔ HARD RULE — playground-only until user sign-off
+>
+> **Everything in this playbook stays inside `playground/econ/{vendor}/` (Track A) or `playground/econ/{cc}/govt/` (Track B) until the work is finished AND the user has explicitly approved promotion.**
+>
+> Do NOT, under any circumstance, without explicit user OK:
+> - Create files under `scripts/econ/{vendor}/`, `scripts/econ/{cc}/`, or `src/imdr/domains/econ/`
+> - Register pipelines in `scripts/imdr_{daily,hourly,weekly,monthly,quarterly,retry}.py:PIPELINES`
+> - Apply migrations that touch `dbo.dim_vendor`, `econ.*`, or any prod schema
+> - Write to `econ.fact_indicator`, `research.dim_report`, Qdrant, or SharePoint from a production code path
+>
+> Build the playground discovery + manifest-only output, summarise findings to the user, and **stop**. Promotion is a separate, gated workflow — see **[`econ_to_prod.md`](econ_to_prod.md)** for the prod-promotion playbook (Track A Phase G + Track B Phase J). Never inline prod-promotion work into a discovery PR.
+>
+> Reinforces [[feedback-no-prod-wiring-without-permission]] + [[feedback-playground-only-for-exploration]].
+
+The workflow for adding a new country has **two parallel tracks**:
+
+- **Track A — Data series** (Steps 1-5 + Phase G): time-series indicators that land in `econ.fact_indicator`. Korea ([korea/](korea/)) + Indonesia ([indonesia/](indonesia/)) are the worked references.
+- **Track B — Government & CB documents** (Phase H): policy text (MPC minutes, SMP, FSR, Budget Papers, ministry press) that lands in `research.dim_report` + Qdrant + SharePoint — same RAG corpus as sell-side research, discriminated by `dim_vendor.vendor_category`. Korea ([korea/govt_doc_sources.md](korea/govt_doc_sources.md)) + Australia ([australia/au_cb_documents.md](australia/au_cb_documents.md)) are the worked references.
+
+The two tracks share the country folder + index.md but produce different artifacts, hit different storage layers, and use different transports. Don't conflate.
 
 The **what** lives in [country_econ_blueprint.md](country_econ_blueprint.md) (indicator catalogue) and [macro_economy_wiring_map.md](macro_economy_wiring_map.md) (16-cell coverage map).
 The **where** lives in the country-specific `_playground/{vendor}.md` notes you'll write along the way.
@@ -12,17 +31,25 @@ The **where** lives in the country-specific `_playground/{vendor}.md` notes you'
 ```
 docs/admin/econ/{country}/
 ├── index.md                          ← country landing page (required)
+│
+│   ── Track A: data series ──
 ├── {country}_indicator_inventory.md  ← canonical "what we have" (mirrors blueprint §1-4)
 ├── {vendor}_api_reference.md         ← per-vendor API mechanics, if API has quirks
 ├── {country}_coverage_plan.md        ← maps wiring-map cells to vendor table IDs
 ├── {country}_indicator_targets.md    ← shopping list with imdr_code + source_code
+│
+│   ── Track B: govt/CB documents (Phase H) ──
+├── {country}_govt_doc_sources.md     ← agency × stream inventory + Tier 1/2/3 + crawl-pattern clusters
+│                                       (Korea uses `govt_doc_sources.md`; AU uses `au_cb_documents.md`;
+│                                       both names are acceptable — country folder picks one and sticks)
+│
 └── _playground/                      ← only when playground/econ/{vendor}/ code exists
     ├── index.md                      ← only when multiple vendors
     ├── {vendor}.md                   ← one per playground/econ/{vendor}/ folder
     └── ...
 ```
 
-You don't need every doc on day one. The minimum to graduate from "discovery only" to "loaded" is: `index.md` + `_playground/{vendor}.md` + parquet at `playground/econ/{vendor}/sample_output/`. A source-catalogue-only country (no playground code yet) needs only `index.md`.
+You don't need every doc on day one. The minimum to graduate from "discovery only" to "loaded" on **Track A** is: `index.md` + `_playground/{vendor}.md` + parquet at `playground/econ/{vendor}/sample_output/`. The minimum to graduate **Track B** is: `index.md` § Policy & fiscal document sources + `{country}_govt_doc_sources.md` + `playground/econ/{cc}/govt/fetch_*.py` per Tier-1 agency + a `daily_pull.py` orchestrator writing manifest-only snapshots (no DB writes yet). A source-catalogue-only country (no playground code yet) needs only `index.md`.
 
 ### Naming conventions
 
@@ -230,122 +257,133 @@ If the country needs something genuinely off-map (e.g. China RRR ratios, India S
 ## Code conventions
 
 - **Playground first**: every vendor starts at `playground/econ/{vendor}/` with a `fetch.py` (or discovery probe). Document it in `docs/admin/econ/{country}/_playground/{vendor}.md`. See [korea/_playground/](korea/_playground/) for the shape.
-- **Canonical loader**: `python -m scripts.migrations.load_econ_indicator_from_playground --vendor {vendor}`. Works for any vendor producing parquet pairs at `playground/econ/{vendor}/sample_output/**/*_{dim,fact}.parquet` matching `playground/econ/schema_prototype.py`. Vendor-agnostic.
-- **No prod wiring without sign-off** ([[feedback-no-prod-wiring-without-permission]]): build the playground fetcher + canonical loader run. Do NOT register into `scripts/imdr_daily.py` etc. without explicit user OK.
-- **Add vendor row**: every new vendor needs a `dbo.dim_vendor` migration before its first row goes into `econ.dim_indicator`.
+- **Canonical loader (playground-scoped)**: `python -m scripts.migrations.load_econ_indicator_from_playground --vendor {vendor}`. Works for any vendor producing parquet pairs at `playground/econ/{vendor}/sample_output/**/*_{dim,fact}.parquet` matching `playground/econ/schema_prototype.py`. This loader is acceptable from playground during discovery because it reads from `playground/` and writes via the user-supervised one-shot path; **prod scheduler wiring is still gated** ([`econ_to_prod.md`](econ_to_prod.md)).
+- **NO prod wiring without sign-off** — see the ⛔ HARD RULE banner at the top of this doc and [`econ_to_prod.md`](econ_to_prod.md). Reinforces [[feedback-no-prod-wiring-without-permission]].
+- **Add vendor row**: every new vendor needs a `dbo.dim_vendor` migration before its first row goes into `econ.dim_indicator`. **Drafting** the migration during discovery is fine; **applying** it is part of [`econ_to_prod.md`](econ_to_prod.md).
 
 ---
 
 ---
 
-## Phase G — Promote to production
+## End-of-discovery — STOP HERE pending user sign-off
 
-> Lessons from the Korea (2026-06-05) and Indonesia (2026-06-09) promotions. Both countries followed this sequence; it is now the stable playbook.
+After Steps 1-5 + Phase H discovery work below, the country has:
 
-### G.1 Hard rule — zero playground imports in prod
+- A populated `{country}_indicator_inventory.md` + `_playground/{vendor}.md` (Track A)
+- `playground/econ/{vendor}/sample_output/*.parquet` paired files matching `schema_prototype.py` (Track A)
+- A populated `{country}_govt_doc_sources.md` + `playground/econ/{cc}/govt/{fetch_*.py, daily_pull.py}` (Track B)
+- `playground/econ/{cc}/govt/data/snapshots/{YYYY-MM-DD}.json` manifest-only output (Track B)
 
-`scripts/econ/{vendor}/` and `src/imdr/domains/econ/` must have **zero `playground.*` imports**. Playground stays as the development surface; production is its own tree. Verify with a grep before any docs step:
+**That is the deliverable.** Summarise findings to the user (counts, blockers, Tier-1 coverage) and **stop**. Do NOT proceed to prod promotion in the same session unless explicitly instructed.
 
-```
-grep -r "playground" scripts/econ/{vendor}/ src/imdr/domains/econ/
-```
+Prod promotion — copying helpers to `src/imdr/domains/econ/`, building `scripts/econ/{vendor}/`, the country orchestrator at `scripts/econ/{cc}/{cc}_monthly.py`, scheduler registration, code-review gate, prod-pipeline doc — is a **separate, gated workflow**. See **[`econ_to_prod.md`](econ_to_prod.md)** for the full playbook (Track A Phase G + Track B Phase J, including migration apply + scheduler wiring gates).
 
-No matches = safe to proceed.
+---
 
-### G.2 Promotion sequence
+## Phase H — Government & CB document sources (Track B)
 
-**Step 1 — Promote helpers to `src/`.**
-Copy `playground/econ/{vendor}/_{vendor}_*.py` to `src/imdr/domains/econ/{vendor}_*.py` (drop the leading underscore — they become first-class library modules). Update `_REPO_ROOT = Path(__file__).resolve().parents[N]` to match the new depth (typically `parents[4]` for `src/imdr/domains/econ/`).
+> Worked references: Korea ([korea/govt_doc_sources.md](korea/govt_doc_sources.md), 7 agencies, ~317 items captured) and Australia ([australia/au_cb_documents.md](australia/au_cb_documents.md), 6 fetchers, ~33 items/day baseline). Both shipped 2026-06-10. Use whichever pattern is the closest fit — Korea is the deep-discovery example (5 crawler shapes, patient-retry TLS, body+PDF resolution recipes per agency); AU is the lighter example (RBA Akamai-bypass via Playwright, Treasury/APRA plain httpx).
 
-**Step 2 — Re-implement fetchers as prod scripts.**
-For each `playground/econ/{vendor}/fetch_*.py`, create `scripts/econ/{vendor}/{vendor}_{topic}.py`. Reference pattern: `scripts/econ/kosis/kosis_cpi.py`.
+### H.1 What Track B is — and is NOT
 
-Required structure:
-- Short docstring (1-2 paragraphs; trim playground exploration commentary)
-- Imports from `imdr.domains.econ.{helper}` + `imdr.domains.econ.schema` + `scripts.econ._runner`
-- `run_fetch(since, until) -> (indicators, observations)` — body lifted from playground, import paths swapped
-- `main()` delegates to `scripts.econ._runner.run_main(vendor, topic, fetch_fn, description)`
-- Strip: `sys.stdout = io.TextIOWrapper(...)`, `sys.path.insert(0, str(_REPO_ROOT))`, leftover `cli_main(...)` stubs
+**IS**: PDF and HTML documents from central banks, ministries, regulators, statistical agencies, fiscal councils, debt-management offices, quasi-government think tanks, and market infrastructure. The text that **accompanies** the data — MPC minutes, monetary-policy statements, financial-stability reviews, budget papers, ministry press releases, think-tank outlooks, governor speeches.
 
-**Step 3 — Build the country orchestrator.**
-`scripts/econ/{cc}/{cc}_monthly.py` calls `scripts.econ._country_runner.run(...)`. Do NOT fork a per-country `_runner.py` — `_country_runner.py` is parametrised by `country_code`, `country_label`, `country_name`, `orchestrator_path`, `pipelines`, `frequency_scope`. Reuse it.
+**IS NOT**: time-series data. Anything that lands in `econ.fact_indicator` is Track A and belongs in `{country}_indicator_inventory.md`. The 10-day customs trade quick-estimate is Track A; the customs press release that narrates it is Track B.
 
-**Step 4 — Register into the scheduler (gated).**
-Add the orchestrator to `scripts/imdr_monthly.py:PIPELINES`. **Requires explicit user sign-off** per the no-prod-wiring rule before this line is flipped. Build the code first; let the user flip the switch.
+**Where it lands**: `research.dim_report` + Qdrant chunks + SharePoint mirror — the **same RAG corpus as sell-side research** (JPM/MS/Goldman/etc.). Discrimination is by `dbo.dim_vendor.vendor_category` (`official_cb` / `official_ministry` / `official_regulator` / `official_thinktank` / `official_statistics` / `official_market_infra` / `official_supranational`). One filter flag separates "sell-side view" from "official voice" in Mycroft/Lois prompts.
 
-### G.3 One orchestrator, many cadences
+### H.2 Inventory shape — `{country}_govt_doc_sources.md`
 
-`frequency_scope` accepts `["MONTHLY","QUARTERLY","SEMIANNUAL","ANNUAL","DAILY"]` in one bundle. Idempotent MERGE makes over-running cheap. Default: a single `{cc}_monthly.py`. Only add `{cc}_weekly.py` if the country actually has weekly-cadence data (Korea has REB; Indonesia doesn't).
+Mirror the section structure Korea uses. Each agency gets a table with `Stream × URL × Cadence × Lang × Listing × Auth × Crawl × Why it matters`. Group into sections by agency category:
 
-For policy-rate-style series that change rarely (e.g. BIS `WS_CBPOL`), wire the fetcher into `scripts/imdr_daily.py:PIPELINES` *in addition to* the monthly bundle when 24h-latency matters. The same fetcher in both schedulers is fine — MERGE-on-PK makes daily re-runs free; monthly stays as backstop. Indonesia BIS uses this pattern.
+1. **Central bank** (BoK / RBA / BoJ / BoT / BI / …) — the highest-signal source. Subsections: monetary-policy decisions, MPC minutes, monetary-policy report, financial-stability report, working papers, regional report ("Beige Book" equivalent), governor speeches, press releases.
+2. **Cabinet ministries** — finance/treasury, trade/industry, labour, housing, foreign affairs. Each has a press-release stream + topical RSS / sub-boards.
+3. **Financial-system regulators** — banking supervisor, capital-market regulator, deposit insurance.
+4. **Statistical agencies** — CPI / labour / trade releases come with narrative commentary distinct from the time-series.
+5. **Quasi-government think tanks** — state-funded research institutes (KDI / KIEP / KIF / KIET in KR; PC / Grattan / e61 in AU). Para-public voice on policy direction.
+6. **Fiscal council & legislative research** — independent budget projections (NABO in KR; PBO in AU).
+7. **Debt management / state banks / deposit insurance** — issuance plans, auction results, AOFM/PDMO publications, KDB/KDIC IR.
+8. **Market infrastructure** — exchange notices (KRX / ASX), securities depository, clearing.
+9. **Pensions & sovereign wealth** — NPS / KIC / Future Fund / GPIF / NZ Super. Allocation-flow signal.
+10. **Other / cross-cutting** — antitrust, energy regulator, data-protection commissioner, all-government aggregator (korea.net-style).
 
-### G.4 Schema additions land in two places
+Within each section, mark already-known sources from `index.md` § Policy & fiscal document sources with **(already-known)**; flag unverified URLs with **❓**.
 
-If the country needs a new `frequency_code` (e.g. `SEMIANNUAL` for BPS Sakernas), add to both:
-- `src/imdr/domains/econ/schema.py:VALID_FREQUENCIES`
-- `src/imdr/notifications/econ_snapshot.py:_STALE_DAYS`
+### H.3 Crawl-complexity legend (per row)
 
-A migration to seed `dbo.dim_frequency` is also required.
+Reuse the legend from the "Required country index.md structure" section above, plus four named **crawler shapes** that the Korea+AU probes confirmed cover ~80% of agencies:
 
-### G.5 Category placeholder pattern
+| Shape | Pattern | Where it appears | Transport |
+|---|---|---|---|
+| **Shape 1 — RSS-fan** | One handler reads N RSS URLs and normalises | MOEF (10 boards in KR), most ministries with `/rss.do` endpoints | plain httpx |
+| **Shape 2 — egov BBS GET-listing** | `/eng/bbs/{board}/list.do?menuNo={m}` server-renders rows; `fileDown.do?atchFileId=…&fileSn=…` for attachments | FSS, KCS, KDIC, KIPF; most KR statistical agencies | plain httpx + patient retry |
+| **Shape 3 — egov BBS POST-listing** | Chrome at `list.do`, rows via **POST** to `listCont.do` with `X-Requested-With: XMLHttpRequest` + Referer | BoK (20+ board streams from one config) | plain httpx + patient retry |
+| **Shape 4 — DT-rendered list / Akamai-gated** | Server-rendered `<dt>` titles inside `<dl>`; sometimes Akamai-protected (RBA-style 403 to plain `requests`) | FSC (KR, patient retry), RBA (AU, Playwright fresh-profile per run) | plain httpx + patient retry **OR** Playwright headed |
+| **Shape 5 — JS-onclick article handler** | Listing uses `onclick="article.view('id','type')"`; detail URL assembled from JS | MOTIR (KR) | plain httpx + JS-handler parsing |
 
-If a vendor emits a topic that doesn't fit an existing `dim_indicator_category` code, bucket it under `"other"` with a named constant + comment pointing at the follow-on work:
+Document which shapes apply to which agencies in `{country}_govt_doc_sources.md` § "Crawl-pattern clustering" — this directly maps to how many distinct fetcher templates the country needs.
 
-```python
-# Bucketed under "other" until a dedicated "fiscal" code is added to
-# econ.dim_indicator_category + VALID_CATEGORIES in
-# src/imdr/domains/econ/schema.py. Tracked in
-# docs/admin/econ/{country}/{cc}_coverage_plan.md (Phase E follow-on).
-_FISCAL_CATEGORY_PLACEHOLDER = "other"
-```
+### H.4 Tier classification
 
-Also: avoid `if/elif` on a prefix string when building `imdr_code` — encode variable dimensions (suffix, category) as columns in your `_TABLES` row tuples instead.
+Triage every row into one of three tiers. Korea's split (15 / 20 / 25+) and AU's split (6 / 2 / 4) are the calibration points.
 
-### G.6 Code-review gate (HARD GATE)
+| Tier | Definition | Build now? |
+|---|---|---|
+| **Tier 1** | Drives FX / govt-bond / equity curve within 24h of release **OR** carries the canonical policy text behind a market-moving decision | Yes — Phase H must ship Tier 1 |
+| **Tier 2** | Useful colour: depth, divergence signal, sector-specific insight; not market-moving on release | Build after Tier 1 + a topic filter exists if volume is high |
+| **Tier 3** | Reference, academic, sectoral. Defer until 1-2 operational | Skip in v1 |
 
-Run `imdr-code-reviewer` on the new prod tree before touching docs. Hard checklist (8 items max):
+### H.5 Discovery-probe workflow
 
-1. Zero `playground.*` imports in `scripts/econ/{vendor}/` and `src/imdr/domains/econ/`
-2. No back-compat shims for files deleted during generalisation
-3. Existing countries (Korea) still pass their smoke tests
-4. Fetcher structure matches `scripts/econ/kosis/kosis_cpi.py`
-5. `imdr_code` built via dimension columns in `_TABLES`, not `if/elif` on a prefix string
-6. Placeholder constants carry their rationale comment
-7. `_REPO_ROOT` depth correct for new file location
-8. No `sys.path` manipulation in prod scripts
+Mirror the Korea pattern at `playground/econ/{cc}/govt/`:
 
-Address all IMPORTANT findings before the docs step.
+1. **Inventory first** — write `{country}_govt_doc_sources.md` from web research; do not write code yet. The act of writing the table forces the Tier decision per stream.
+2. **Per-cluster probe** — for each crawler shape present in the inventory, write one probe script in `playground/econ/{cc}_govt_docs/probe_{cluster}.py` (Korea has `probe_moef_rss.py`, `probe_bok_ajax.py`, `probe_cdef.py`, `probe_corrections.py`). Save raw HTML/RSS responses under `raw/{cluster}/` for downstream debugging.
+3. **Resolve recipes** — for each agency, capture BOTH `body_text` AND `pdf_bytes` paths in `probe_resolve.py`. Most agencies have one but not the other; some have neither (KCS publishes JPG scans, MOTIR PDFs are TLS-blocked from our network). Document recipes in `{country}_govt_doc_sources.md` § "Per-agency body + PDF resolution recipes".
+4. **Per-agency fetchers** — once probes confirm a cluster works, lift the probe into `playground/econ/{cc}/govt/fetch_{agency}.py` returning a uniform `FetchResult` of `FilingItem` rows. Each fetcher is ~100-200 LoC.
+5. **Daily-pull orchestrator** — `playground/econ/{cc}/govt/daily_pull.py` runs all fetchers, dedupes via rolling `data/seen.json`, writes per-day snapshot to `data/snapshots/{YYYY-MM-DD}.json`, prints summary table. Cadence is **daily even though most agencies publish less frequently** — empty days are evidence of cadence drift, not bugs.
 
-### G.7 Docs to update on prod-promotion
+### H.6 Network reality checks (HARD GATE)
 
-| Doc | What to do |
-|---|---|
-| NEW `docs/admin/econ/{country}/{country}_prod_pipeline.md` | Create mirroring `korea_prod_pipeline.md` section-by-section (architecture → library code table → cadence → invocation → CLI flags → archive layout → idempotency → failure modes → smoke tests → playground footer) |
-| `docs/admin/econ/{country}/index.md` | Flip Phase G row to ✅; add Quick Links row to new prod-pipeline doc |
-| `docs/admin/econ/{country}/{cc}_coverage_plan.md` | Strike "Phase G pending"; add prod-live timestamp |
-| `docs/admin/econ/{country}/{country}_indicator_inventory.md` | Add a "Production fetchers" section listing the N prod fetcher modules |
-| `docs/admin/econ/macro_economy_wiring_map.md` §{country} | Extend with prod-wiring sentence |
-| `docs/admin/econ/economics_data_ingest.md` | Add country roster row referencing the orchestrator(s) |
+Before declaring an agency Tier 3 "blocked", verify the block is real:
 
-Canonical prod-live wording for any of these docs:
-> "Wired into `scripts/imdr_monthly.py:PIPELINES` YYYY-MM-DD"
-Extend with `+ scripts/imdr_daily.py` if the country has a daily-bound fetcher.
+- **TLS flakiness vs. corp firewall** — many KR govt edges (FSC, KCS, MOTIR, BoK) intermittently reset TLS 1.2 from RV's network. User-browser loads fine. Default 4-retry helper is too short. Confirmed pattern: 10-retry session with 2.5s base backoff fixes it. **Do NOT declare "blocked" without confirming the URL fails in the user's browser too.**
+- **Akamai 403** — RBA blocks plain `requests`/`httpx` but works with Playwright headed + fresh profile per run. Treat as "needs Playwright transport", not "blocked".
+- **Host-specific corp firewall** — AOFM `aofm.gov.au/sites/default/files/*` is genuinely blocked from RV's network. APRA's identical Drupal-path pattern at `apra.gov.au/sites/default/files/*` works fine. The AOFM block is host-specific, not a `.gov.au` blanket rule. Test the actual host before assuming.
+- **Subscriber-gated** — KCIF (KR FX desk reports) carries the highest signal but most reports are subscriber-only. Confirm with user whether institutional credentials exist before scoping for inclusion.
 
-### G.8 Email formatter
+See [[feedback-kr-govt-flaky-tls-patient-retry]] and [[project_motie_renamed_to_motir]] for the canonical patient-retry + URL-rename lessons.
 
-The country orchestrator's email report is produced by `imdr.notifications.formatters.country_econ_ingest.CountryEconIngestFormatter` (template at `templates/country_econ_ingest.html`). No per-country formatter needed — it's parametrised.
+### H.7 Discovery deliverable — STOP HERE
 
-### G.9 Worked examples
+At the end of Phase H discovery, the country has:
 
-- **Korea** — `docs/admin/econ/korea/korea_prod_pipeline.md`, `scripts/econ/kr/kr_monthly.py`, `scripts/econ/kosis/`
-- **Indonesia** — `docs/admin/econ/indonesia/indonesia_prod_pipeline.md`, `scripts/econ/id/id_monthly.py`, `scripts/econ/{bps,bi,bis}/`
+- `{country}_govt_doc_sources.md` populated (sections 1-10 + crawl-pattern clusters + Tier 1/2/3 + per-agency resolution recipes)
+- `playground/econ/{cc}/govt/fetch_{agency}.py` per Tier-1 agency
+- `playground/econ/{cc}/govt/daily_pull.py` running end-to-end, writing **manifest-only** snapshots to `data/snapshots/{YYYY-MM-DD}.json`
+- `data/seen.json` rolling-dedup proving the daily-pull is idempotent
+
+**Do NOT, without explicit user OK:**
+- Apply `migrations/086_add_dim_vendor_category.sql` or any `{NNN}_seed_{cc}_official_vendors.sql` to the database
+- Implement `src/imdr/research/filings.py:ingest_filing()` beyond the existing skeleton
+- Register `scripts/econ/{cc}/{cc}_govt_daily.py` into `scripts/imdr_daily.py:PIPELINES`
+- Write a single `FilingItem` to `research.dim_report`, Qdrant, or SharePoint from any production code path
+
+Summarise findings (item counts per agency, blockers, Tier-1 coverage) and stop. Prod promotion of Track B — migrations apply, ingest helper completion, scheduler wiring, prod-pipeline doc — is covered in **[`econ_to_prod.md`](econ_to_prod.md) § Track B (Phase J)**.
+
+### H.8 Worked examples
+
+- **Korea** — 7 agencies (bok / moef / motir / fsc / fss / kcs / kdi), 5 crawler shapes, ~317 items captured in baseline pull, body+PDF recipes for 6/7 agencies (KCS deferred — image-only). Inventory at `docs/admin/econ/korea/govt_doc_sources.md` (~960 lines). Migrations 086/087 awaiting apply.
+- **Australia** — 6 fetchers (RBA Governor's Statement + Board Minutes + SMP + FSR via Playwright + Treasury + APRA via plain httpx), ~33 items/day baseline. RBA Akamai-bypass via fresh-profile-per-run. Inventory at `docs/admin/econ/australia/au_cb_documents.md` (~150 lines).
 
 ---
 
 ## Cross-refs
 
+- **[`econ_to_prod.md`](econ_to_prod.md)** — prod-promotion playbook (Track A Phase G + Track B Phase J). DO NOT do prod work without going through this doc.
 - [country_econ_blueprint.md](country_econ_blueprint.md) — the indicator catalogue (§1-4, the *what*)
 - [macro_economy_wiring_map.md](macro_economy_wiring_map.md) — the 16-cell coverage tracker
 - [economics_data_ingest.md](economics_data_ingest.md) — schema + loader + per-vendor build log
-- [korea/](korea/) — worked reference example (Korea prod pipeline: [korea/korea_prod_pipeline.md](korea/korea_prod_pipeline.md))
-- [indonesia/](indonesia/) — second worked example (Indonesia prod pipeline: [indonesia/indonesia_prod_pipeline.md](indonesia/indonesia_prod_pipeline.md))
+- [korea/](korea/) — worked reference: Track A (Korea prod pipeline: [korea/korea_prod_pipeline.md](korea/korea_prod_pipeline.md)) + Track B (govt docs: [korea/govt_doc_sources.md](korea/govt_doc_sources.md), execution tracker: [`../development/kr_govt_filings.md`](../development/kr_govt_filings.md))
+- [indonesia/](indonesia/) — second worked example for Track A (Indonesia prod pipeline: [indonesia/indonesia_prod_pipeline.md](indonesia/indonesia_prod_pipeline.md))
+- [australia/](australia/) — worked reference for Track B (CB+treasury docs: [australia/au_cb_documents.md](australia/au_cb_documents.md))
