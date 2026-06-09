@@ -357,14 +357,16 @@ HK score: **0 ✅ / 7 ⚠️ / 9 ❌** (was 0/1/15 before v2). All right-side cl
 
 ### 7.12 India (IN)
 
-Scoping plan landed 2026-06-10: [`india/in_coverage_plan.md`](india/in_coverage_plan.md) — dual-track DBIE + CIMS (per user direction) plus MOSPI / DGCIS / MoF / DPIIT / CCIL / NSDL / BIS cascade. 0 indicators loaded; 36 discovered-but-unloaded in `playground/econ/rbi/sample_output/`. Phase A (DBIE auth-durability check) is the unblocker.
+Scoping plan landed 2026-06-10: [`india/in_coverage_plan.md`](india/in_coverage_plan.md) — dual-track DBIE + CIMS (per user direction) plus MOSPI / DGCIS / MoF / DPIIT / CCIL / NSDL / BIS cascade.
+
+**Live 2026-06-10:** BIS India package shipped via `scripts.econ.bis.bis_india` — **6 indicators × 24,957 obs** in `econ.fact_indicator` covering NEER/REER broad, Private-NFS DSR, Credit-to-GDP ratio + gap, and RBI repo rate (daily, 1946→). First IN data live in DB.
 
 | Engine | A | B | C | D |
 |---|:---:|:---:|:---:|:---:|
 | **Growth** | ❌ | ❌ | ❌ | ❌ |
 | **Inflation** | ❌ | ❌ | ❌ | ⚠️ CPI *(RBI Bulletin T19C — combined rural+urban)* |
-| **External** | ❌ | ❌ | ⚠️ Capital Acc *(RBI DBIE FX reserves, 5 components)* | ❌ |
-| **Policy** | ❌ | ❌ | ⚠️ Fin Conditions *(RBI Bulletin T27 call money)* | ❌ |
+| **External** | ❌ | ❌ | ⚠️ Capital Acc *(RBI DBIE FX reserves, 5 components)* | ⚠️ FX/REER *(BIS NEER + REER broad, M, 1994→)* |
+| **Policy** | ❌ | ⚠️ Balance Sheets *(BIS Private-NFS DSR + Credit-to-GDP ratio + gap, Q, 1951→)* | ⚠️ Fin Conditions *(RBI Bulletin T27 call money)* | ⚠️ Policy *(BIS CBPOL — RBI repo rate, D, 1946→)* |
 
 ### 7.13 South Korea (KR)
 

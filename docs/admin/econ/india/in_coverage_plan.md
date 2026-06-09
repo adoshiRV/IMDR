@@ -274,8 +274,8 @@ and occasionally trim sub-components.
 | INR vs USD / EUR / JPY / GBP (RBI ref) | RBI | DBIE Exchange Rate | D | ⚠ |
 | NEER 6-currency + 40-currency (trade-weighted) | RBI | DBIE — NEER + REER Bulletin tables | M | ⚠ DBIE — XLSX captured in `discovery/samples/neer_reer.xlsx` |
 | REER 6-currency + 40-currency | RBI | DBIE — same publication | M | ⚠ DBIE — XLSX captured |
-| BIS NEER broad | BIS | `WS_EER` key=M.N.B.IN | M | ⚠ BIS SDMX |
-| BIS REER broad | BIS | `WS_EER` key=M.R.B.IN | M | ⚠ |
+| BIS NEER broad | BIS | `WS_EER` key=M.N.B.IN | M | ✅ `scripts.econ.bis.bis_india` (388 obs, 1994→) |
+| BIS REER broad | BIS | `WS_EER` key=M.R.B.IN | M | ✅ `scripts.econ.bis.bis_india` (388 obs, 1994→) |
 | CB FX intervention (spot + forward book) | RBI | DBIE — Sale/Purchase of US Dollar (RBI net interv.) | M | ⚠ DBIE |
 | Forward book outstanding (RBI net long/short USD fwd) | RBI | DBIE — RBI's outstanding forward sales/purchases | M | ⚠ |
 | **FBIL onshore USD/INR forward premia** 1M / 3M / 6M / 1Y | FBIL via CCIL | fbil.org.in daily reference fixings (annualised %) | D | ⚠ CCIL — desk-reference fwd premia, distinct from Citi market-data fwd points |
@@ -297,7 +297,7 @@ and occasionally trim sub-components.
 | WALR / WAFR / WATDR (lending + funding rates) | RBI | DBIE — Interest Rate Statistics | M | ⚠ DBIE |
 | MCLR (Marginal Cost of Funds based Lending Rate) | RBI | DBIE Key Rates | M | ⚠ DBIE |
 | External Benchmark Lending Rate (EBLR) | RBI | DBIE Key Rates | M | ⚠ DBIE |
-| BIS credit-to-GDP gap | BIS | `WS_CREDIT_GAP` key=Q.IN.P.A.C | Q | ⚠ BIS SDMX |
+| BIS credit-to-GDP gap | BIS | `WS_CREDIT_GAP` key=Q.IN.P.A.C | Q | ✅ `scripts.econ.bis.bis_india` (258 obs, 1961→) |
 | MFI / NBFC credit | RBI | DBIE — NBFC statistics | Q | ⚠ |
 
 ### 4.2 Balance Sheets (sectoral leverage, NPL)
@@ -305,9 +305,10 @@ and occasionally trim sub-components.
 | Concept | Vendor | Dataset / table | Cadence | Status |
 |---|:---:|---|:---:|:---:|
 | Household debt to GDP | BIS | `WS_CREDIT` key=Q.IN.H.A.M.770.A | Q | ⚠ BIS |
-| Household DSR | BIS | `WS_DSR` key=Q.IN.H | Q | ❌ likely absent for IN (EM coverage gap; use private NFS) |
-| Private NFS DSR | BIS | `WS_DSR` key=Q.IN.P | Q | ⚠ BIS |
-| Credit-to-GDP ratio | BIS | `WS_CREDIT_GAP` key=Q.IN.P.A.A | Q | ⚠ BIS |
+| Household DSR | BIS | `WS_DSR` key=Q.IN.H | Q | ❌ confirmed absent — BIS returns HTTP 404 (EM coverage gap); use private NFS |
+| NFC (non-financial corp) DSR | BIS | `WS_DSR` key=Q.IN.N | Q | ❌ confirmed absent — BIS returns HTTP 404 for IN; use private NFS |
+| Private NFS DSR | BIS | `WS_DSR` key=Q.IN.P | Q | ✅ `scripts.econ.bis.bis_india` (107 obs, 1999→) |
+| Credit-to-GDP ratio | BIS | `WS_CREDIT_GAP` key=Q.IN.P.A.A | Q | ✅ `scripts.econ.bis.bis_india` (298 obs, 1951→) |
 | Corporate sector financials (Listed Non-Govt Non-Financial Companies) | RBI | DBIE Statistics → Corporate Sector | A + Q | ⚠ DBIE — 5 sub-categories |
 | Bank Asset Quality (GNPA + NNPA ratio) | RBI | DBIE Statistics → Banking → Performance | H | ⚠ DBIE |
 | Bank CRAR / Tier-1 / CET1 | RBI | DBIE — Capital Adequacy | H | ⚠ DBIE |
@@ -362,7 +363,7 @@ and occasionally trim sub-components.
 | M3 (broad money) | RBI | DBIE — Monetary Statistics | F | ⚠ DBIE — XLSX captured |
 | Currency in circulation | RBI | DBIE — Reserve Money | W | ⚠ DBIE |
 | RBI Balance Sheet (assets + liabilities) | RBI | DBIE Indicators → Financial Sector → RBI Balance Sheet | W | ⚠ DBIE |
-| Policy rate (BIS cross-check) | BIS | `WS_CBPOL` key=D.IN | D / EVENT | ⚠ BIS |
+| Policy rate (BIS cross-check) | BIS | `WS_CBPOL` key=D.IN | D / EVENT | ✅ `scripts.econ.bis.bis_india` (23,518 obs, 1946→ — daily RBI repo rate) |
 | Net OMO (outright open market operations) | RBI | DBIE — OMO publications | EVENT | ⚠ |
 | **VRR (Variable Rate Repo) auction history** — durable liquidity infusion | RBI | DBIE — Auctions / RBI press release | EVENT | ⚠ DBIE + press release scrape |
 | **VRRR (Variable Rate Reverse Repo) auction history** — durable absorption (sterilisation post-FCNR-type inflows) | RBI | DBIE — Auctions / RBI press release | EVENT | ⚠ DBIE + press release scrape |
@@ -470,7 +471,7 @@ XLSX scraping work.
 | **J — DGCIS trade scrape** | `tradestat.commerce.gov.in` monthly XLSX (totals + petroleum split + partner country + HS chapter). Promotes 1.3 External Demand + 3.1 ToT. | `playground/econ/dgcis/fetch_trade.py` |
 | **K — DPIIT WPI scrape** | Monthly WPI release XLSX. Promotes 2.2. | `playground/econ/dpiit/fetch_wpi.py` |
 | **L — MoF / CGA fiscal scrape** | Monthly Accounts of GoI XLSX from `cga.nic.in`. Promotes 1.2. | `playground/econ/mof/fetch_monthly_accounts.py` |
-| **M — BIS IN package** | Mirror the ID `fetch_indonesia.py` pattern for IN. SDMX keys for `WS_EER` / `WS_DSR` / `WS_CREDIT_GAP` / `WS_CBPOL` / `WS_TC` with `IN`. | `playground/econ/bis/fetch_india.py` (6 indicators) |
+| **M — BIS IN package** ✅ | `scripts/econ/bis/bis_india.py` shipped 2026-06-10. 6 of 8 candidate indicators live (DSR.HOUSEHOLDS + DSR.NFC return HTTP 404 — confirmed BIS gap for IN). **24,957 obs loaded** to `econ.fact_indicator` covering NEER/REER 1994→, Private-NFS DSR 1999→, Credit-to-GDP ratio 1951→, Credit-to-GDP gap 1961→, RBI repo rate daily 1946→. | `scripts.econ.bis.bis_india` |
 | **N — Audit + promotion** | Run the load-from-playground command per vendor; verify Phase G coverage map; update wiring map §7.12 and §6 tables; commit. | `econ.fact_indicator` IN rows live; coverage table flipped |
 | **O — Prod wiring** | Build `scripts/econ/in/in_monthly.py` (BBG-style orchestrator); user-OK before registering in `scripts/imdr_monthly.py:PIPELINES`. | Orchestrator script committed but **not auto-wired** until user signs off (per [[feedback-no-prod-wiring-without-permission]]) |
 
@@ -579,7 +580,7 @@ Mark items in PRs that close them.
 - [ ] **A18** Labour Bureau — CPI-IW + CPI-AL + WRI + rural wages
 - [ ] **A19** PPAC — crude basket + petrol/diesel/LPG prices
 - [ ] **A20** EPFO monthly payroll release
-- [ ] **A21** BIS package for IN — `fetch_india.py` mirroring `fetch_indonesia.py` — NEER/REER broad + DSR private NFS + credit-to-GDP gap + CBPOL policy rate + total credit (6 indicators)
+- [x] **A21** BIS package for IN — `scripts.econ.bis.bis_india` shipped 2026-06-10; 6/8 indicators × 24,957 obs live (NEER/REER broad · DSR PNFS · credit-to-GDP ratio · credit-to-GDP gap · RBI repo rate daily 1946→). DSR.HOUSEHOLDS + DSR.NFC return 404 — confirmed BIS gap for IN.
 - [ ] **A22** FRED OECD India mirror — CPI YoY + IP + unemployment + 10Y yield (fallback / cross-check)
 - [ ] **A23** GSTN monthly GST collections scrape
 
