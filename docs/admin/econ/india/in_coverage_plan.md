@@ -574,7 +574,7 @@ Mark items in PRs that close them.
 - [ ] **A11** MOSPI PLFS — unemployment / LFPR / earnings (annual + quarterly urban)
 - [ ] **A12** DPIIT WPI release scrape — All Commodities + 3 major + Food Index
 - [ ] **A13** DGCIS trade scrape — totals + petroleum split + partner country + HS chapter + UVI/QI indices
-- [ ] **A14** MoF / CGA Monthly Accounts scrape — receipts + expenditure + fiscal deficit cumulative
+- [x] **A14 (playground)** MoF / CGA Monthly Accounts scrape — **30 line items × 143 months = 4,182 obs** decoded in playground 2026-06-10. Single `.xlsm` (~520KB) at `cga.nic.in/writereaddata/MonthAccount/MonthAccountDashboard/DAMA dashboard {Month YYYY} Data file{...}.xlsm` carries the full series back to FY 2014-15. Covers: direct taxes (Corp/Inc/STT) · indirect taxes (CGST/IGST/UTGST/CompCess/Customs/Excise/Service Tax legacy) · non-tax receipts (Interest/Dividends/Other) · capital receipts (Loan Recovery/Disinvestment) · expenditure decomp (Revenue/Capital/Interest Pmts/Defence/Pensions/Subsidies/Grants) · 4 deficits (Revenue/Effective Revenue/Fiscal/Primary). Values in INR crore, **cumulative-since-April** (Indian FY convention). See [`playground/econ/cga/discovery/findings.md`](../../../playground/econ/cga/discovery/findings.md). **Prod-promotion gated on**: `cga` vendor migration, BERE + GDP sheet parsers for Budget vs Actual variance, user sign-off.
 - [ ] **A15** DPIIT FDI quarterly inflows
 - [ ] **A16** NSDL FPI flows — debt + equity, daily + monthly
 - [ ] **A17** CCIL feed — MIBOR + **MIFOR/MMIFOR** + **FBIL onshore fwd premia** + G-Sec yields 1Y/5Y/10Y + corp bond curve + OIS curve (credentials check needed)
