@@ -35,7 +35,12 @@ import httpx
 
 
 _BASE_DBIE = "https://data.rbi.org.in/CIMS_Gateway_DBIE/GATEWAY/SERVICES"
-_BASE_LOGIN = "https://data.rbi.org.in/CIMS_Gateway_LOGIN/GATEWAY/SERVICES"
+# Note: the captured discovery payloads (2026-06-03) also show calls to
+# `CIMS_Gateway_LOGIN/GATEWAY/SERVICES/login_CIMSaudit` and
+# `.../login_getSapToken`. Those weren't needed to drive the data
+# endpoints we've exercised so far (only the DBIE-side
+# `security_generateSessionToken` is). Add a `_BASE_LOGIN` constant here
+# if/when a future endpoint requires that flow.
 
 _BASE_HEADERS = {
     "User-Agent": (
@@ -66,6 +71,11 @@ class DBIEClient:
     first service call.  If a service call returns a 4xx/5xx error code from
     the JSON envelope (DBIE returns HTTP 200 with ``header.status="error"``
     on auth failure), the client re-runs ``bootstrap()`` once and retries.
+
+    Not thread-safe: ``_token`` is an instance attribute mutated by
+    ``bootstrap()``. Two simultaneous ``call()`` invocations on the same
+    client can both detect a stale token and race on the refresh. For
+    parallel fetchers, build one ``DBIEClient`` per thread.
     """
 
     timeout: int = 30
@@ -161,8 +171,7 @@ class DBIEClient:
         currency_code: str = "USD",
         frequency: str = "Weekly",
     ) -> list[dict]:
-        """``dbie_foreignExchangeReserves`` — 5 reserve codes: TR / FCA /
-        GOLD / SDR / IMF.
+        """``dbie_foreignExchangeReserves`` — 5 reserve codes: TR / FCA / GOLD / SDR / IMF.
 
         Dates are passed as ``YYYY-MM-DD HH:MM:SS``. Returns the
         ``resultList`` array directly (caller picks ``timeDate`` /

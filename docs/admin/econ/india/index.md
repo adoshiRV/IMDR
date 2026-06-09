@@ -1,6 +1,6 @@
 # India — Econ Documentation
 
-Last updated: 2026-06-05
+Last updated: 2026-06-10
 
 IN macroeconomic data. **Status: pre-prod.** RBI DBIE (Database on Indian Economy) is the discovery target — SPA-driven, requires Playwright + network interception to capture the underlying API patterns.
 
@@ -25,7 +25,15 @@ India is the weakest API landscape in Asia. Real-economy series (CPI, IIP, GDP) 
 
 ## Loading status
 
-Per [[project-econ-loaded]]: "RBI FX (5/1305), RBI Bulletin (31/168)" — 36 indicators discovered with 1473 metadata cells, **0 loaded**. Parquet exists at `playground/econ/rbi/sample_output/`.
+**Live as of 2026-06-10: 18 indicators × 39,561 observations in `econ.fact_indicator`.**
+
+| Vendor | Indicators | Obs | Coverage |
+|---|---:|---:|---|
+| BIS | 6 | 24,957 | NEER/REER broad · Private-NFS DSR · Credit-to-GDP ratio + gap · RBI repo daily 1946→ |
+| FRED | 7 | 11,589 | CPI YoY + level (1990→) · IIP (1994→2023) · Real GDP PWT annual · Call money · INR/USD daily + monthly |
+| RBI DBIE | 5 | 3,015 | FX reserves — Total + FCA + Gold + SDR + IMF position (weekly 2015→) |
+
+5 of 16 wiring-map cells now covered; 3.3 Capital Account is the only ✅ today. See [`in_coverage_plan.md`](in_coverage_plan.md) §"Final India Checklist" for the full punch-list (A0+A1+A21+A22 done; A2–A20 remaining).
 
 ## Policy & fiscal document sources
 

@@ -70,7 +70,7 @@ def run_fetch(
                 imdr_code=imdr_code, vendor_name="RBI",
                 source_code=f"dbie_foreignExchangeReserves/USD/{reserve_code}/Weekly",
                 display_name=display, unit="usd", frequency="WEEKLY",
-                country_iso="IN", category="balance_sheet",
+                country_iso="IN", category="cb_balance_sheet",
                 is_seasonally_adjusted=False, bbg_ticker=None,
             ))
             for row in rows:
