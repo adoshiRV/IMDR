@@ -55,16 +55,33 @@ delegates to one subsystem today; more KR daily entries can extend the
 
 | Sub-orchestrator | Purpose | Cadence per source |
 |---|---|---|
-| `scripts.econ.kr.govt.ingest_filings` | Discovers + ingests govt policy filings (BoK, MOEF, MOTIR, FSC, FSS, KCS, KDI, MoDS) into `research.dim_report` + `research.fact_chunk` + Qdrant + SharePoint via `imdr.research.filings.ingest_filing`. Dedups via rolling `data/seen.json`; failed items retry on next run. | per-source — BoK ~1/day, MOEF ~5/day, MOTIR ~2/day, FSS ~0.3/day, FSC ~0.4/day, KDI ~0.1/day, MoDS monthly (CPI) |
+| `scripts.econ.kr.govt.ingest_filings` | Discovers + ingests govt policy filings (BoK, MOEF, MOTIR, FSC, FSS, KCS, KDI, MoDS) into `research.dim_report` + `research.fact_chunk` + Qdrant + SharePoint via `imdr.research.filings.ingest_filing`. Per-vendor dedup at `data/econ/kr/govt/{vendor}/seen.json`; daily new-items manifest at `data/econ/kr/govt/{vendor}/snapshots/{YYYY-MM-DD}.json`; orchestrator log at `data/econ/kr/govt/_last_run.log`. Failed items retry on next run. | per-source — BoK ~1/day, MOEF ~5/day, MOTIR ~2/day, FSS ~0.3/day, FSC ~0.4/day, KDI ~0.1/day, MoDS monthly (CPI) |
 
-Writes to:
+Writes to (per-filing — 3 or 4 layers depending on source type):
 - `research.dim_report` (one row per filing, `vendor_category` ∈ `official_cb / official_ministry / official_regulator / official_thinktank / official_statistics`)
-- `research.fact_chunk` (one row per ~800-token slice)
+- `research.fact_chunk` (one row per ~800-token slice — always written, both PDF and body-text sources)
 - Qdrant collection `research_gemini_embedding_2_3072d` (one point per chunk with payload `vendor_category`, `country_code`, `doc_type`, `stream`)
-- SharePoint at `{YYYY}/{MM}/{DD}/econ/kr/{vendor}/{slug}_{hash8}.pdf`
-  (date-first canonical layout — fits inside the existing sell-side
-  research convention; HTML-only sources like MOEF/MOTIR write chunks
-  with no SharePoint mirror)
+- **SharePoint at `{YYYY}/{MM}/{DD}/econ/kr/{vendor}/{slug}_{hash8}.pdf`** — date-first canonical layout matching the sell-side research convention. **PDF-source vendors only**: BoK (96% of items), FSS (99%), FSC (84%), MODS (100%), KDI (100%). **Body-text-source vendors NOT mirrored to SharePoint**: MOEF (100% body), MOTIR (100% body), KCS (100% body). FSC / BoK / FSS have a small body-text tail where the PDF download fails or the release is HTML-only — those items also skip SharePoint. Mechanism: writes go to local OneDrive sync (`C:\Users\adoshi\OneDrive - RV Capital...\Trade Knowledge Core - IMDR\`) which OneDrive uploads to the SharePoint library.
+
+#### Current Track B coverage (2026-06-11, post-backfill)
+
+**2,135 filings across 8 agencies.** Source paths come from `research.dim_report` joined to `dim_vendor`.
+
+| Agency | n | Earliest | Latest | SP-mirrored | Notes |
+|---|---|---|---|---|---|
+| FSC | 998 | 2020-04-13 | 2026-06-10 | 838 (84%) | Densest source — regulatory policy / household debt / VASP / IPO rules |
+| BoK | 487 | 2025-04-11 | 2026-06-10 | 467 (96%) | 14 mo only; 4,500 more reachable upstream (see [kr_govt_filings.md](../../development/kr_govt_filings.md) backfill backlog) |
+| FSS | 250 | 2024-04-29 | 2026-06-10 | 247 (99%) | Bank / insurer / securities supervision |
+| MOEF | 216 | 2009-03-31 | 2026-06-10 | 0 | RSS body — already 17yr deep, no SharePoint mirror |
+| MOTIR | 160 | 2026-01-26 | 2026-06-10 | 0 | HTML body — no SharePoint mirror; portal pagination caps at ~200 items |
+| KCS | 10 | 2021-01-21 | 2024-11-21 | 0 | English board stale to 2024-11; Phase 2 |
+| MODS | 10 | 2025-10-02 | 2026-06-02 | 10 | One-off backfill (KOSTAT CPI releases) |
+| KDI | 4 | 2026-04-13 | 2026-05-13 | 4 | Landing pages only — full visible catalogue |
+| **TOTAL** | **2,135** | 2009-03-31 | 2026-06-10 | **1,749 (82%)** | |
+
+**BoK menuNo gotcha** (commit `9c9d1ae` 2026-06-11): the prod fetcher previously used `menuNo=400007` which is server-side capped at ~250 items / 7 months. Switched to `menuNo=400423` (full firehose back to 2011-09-08). See [BoK gotcha section](govt_doc_sources.md#cluster-b) in `govt_doc_sources.md`.
+
+**BoK MSB-noise denylist** (commit `8b068a7` 2026-06-11): 131 of 487 BoK items (27%) were one-line MSB auction announcements with zero macro commentary. [`fetch_bok.py`](../../../scripts/econ/kr/govt/fetch_bok.py)`:_DROP_TITLE_RE` drops them at discovery so they never enter the FilingItem stream. Forward-only — existing 131 noise rows left in DB.
 
 Email summary sent to `Settings.email_to` after each run:
 > Subject: `[IMDR Daily KR] ✓ all ok — N new filings, M chunks (T min)`
@@ -89,8 +106,8 @@ Fans out to 2 fetchers sequentially:
 
 | Fetcher | Vendor | Series | Cadence |
 |---|---|---|---|
-| `scripts.econ.reb.reb_housing` | REB R-ONE | 4 (KR_NAT + KR_SEOUL × Sale + Jeonse) | Weekly (apt sale + jeonse data) |
-| `scripts.econ.kosis.kosis_reb_housing` | KOSIS mirror of REB | 4 (same 4 series, 2021-07→) | Weekly |
+| `scripts.econ.kr.reb.reb_housing` | REB R-ONE | 4 (KR_NAT + KR_SEOUL × Sale + Jeonse) | Weekly (apt sale + jeonse data) |
+| `scripts.econ.kr.kosis.kosis_reb_housing` | KOSIS mirror of REB | 4 (same 4 series, 2021-07→) | Weekly |
 
 Smoke result 2026-06-05: 22 s total, 2/2 OK, 4 parquet files written.
 
@@ -146,8 +163,8 @@ python -m scripts.econ.kr.kr_monthly
 ### Run a single fetcher
 
 ```
-python -m scripts.econ.kosis.kosis_cpi
-python -m scripts.econ.reb.reb_housing
+python -m scripts.econ.kr.kosis.kosis_cpi
+python -m scripts.econ.kr.reb.reb_housing
 ```
 
 ### Per-fetcher CLI flags (all fetchers via `_runner.run_main`)
@@ -163,13 +180,13 @@ Examples:
 
 ```
 # Check what CPI would produce without writing anything
-python -m scripts.econ.kosis.kosis_cpi --no-parquet
+python -m scripts.econ.kr.kosis.kosis_cpi --no-parquet
 
 # Fetch only 2026 data, write parquet, skip DB load
-python -m scripts.econ.kosis.kosis_bop --since 2026-01-01 --no-load
+python -m scripts.econ.kr.kosis.kosis_bop --since 2026-01-01 --no-load
 
 # Full fetch + load for a single topic
-python -m scripts.econ.kosis.kosis_gdp
+python -m scripts.econ.kr.kosis.kosis_gdp
 ```
 
 ---
@@ -269,8 +286,8 @@ Do not work around by disabling FK checks.
 ```
 python -m scripts.migrations.load_econ_indicator_from_playground \
     --vendor kosis \
-    --dim-parquet data/econ/kosis/cpi/2026/06/05/kosis_cpi_20260605_1437_dim.parquet \
-    --fact-parquet data/econ/kosis/cpi/2026/06/05/kosis_cpi_20260605_1437_fact.parquet
+    --dim-parquet data/econ/kr/kosis/cpi/2026/06/05/kosis_cpi_20260605_1437_dim.parquet \
+    --fact-parquet data/econ/kr/kosis/cpi/2026/06/05/kosis_cpi_20260605_1437_fact.parquet
 ```
 
 The parquet files are on disk — no need to re-fetch from the vendor.
@@ -287,10 +304,10 @@ python -m scripts.econ.kr.kr_weekly
 python -m scripts.econ.kr.kr_monthly
 
 # Spot-check a single fetcher without touching DB
-python -m scripts.econ.kosis.kosis_cpi --no-load
+python -m scripts.econ.kr.kosis.kosis_cpi --no-load
 
 # Confirm idempotency: re-run and expect 0 new DB rows
-python -m scripts.econ.kosis.kosis_cpi
+python -m scripts.econ.kr.kosis.kosis_cpi
 ```
 
 ---

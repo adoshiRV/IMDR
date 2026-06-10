@@ -118,9 +118,38 @@ SharePoint at `{YYYY}/{MM}/{DD}/econ/kr/{vendor}/...`.
 
 15. **BoK MSB-noise denylist** — commit `8b068a7`. Audit of the BoK 487-item slice found 131 (27%) were one-line MSB operational notices with zero macro commentary. Added `_DROP_TITLE_RE` in [`fetch_bok.py`](../../../scripts/econ/kr/govt/fetch_bok.py) to drop at discovery — items matching never enter the FilingItem stream, so no future re-ingest. Forward-only; the 131 noise rows already in DB are left in place (down-ranked by Mycroft relevance scoring).
 
+## Storage layers per filing
+
+Each filing writes to **3 or 4 layers** depending on source type. The SharePoint mirror is PDF-source only — body-text sources (HTML release prose, RSS feeds) are searchable via SQL + Qdrant only, no PDF artefact on the file share.
+
+| Layer | What | Always written? |
+|---|---|---|
+| `research.dim_report` (SQL) | One row per filing — title, publish_date, vendor_id, content_hash, pdf_path | ✅ always |
+| `research.fact_chunk` (SQL) | One row per ~800-token slice of body | ✅ always (both PDF and body-text sources) |
+| Qdrant `research_gemini_embedding_2_3072d` | One vector per chunk; payload includes `vendor_category`, `country_code`, `doc_type`, `stream` | ✅ always (when `--ingest` runs with `embed=yes`) |
+| **SharePoint PDF** at `{YYYY}/{MM}/{DD}/econ/kr/{vendor}/{slug}_{hash8}.pdf` | The original PDF (or fetched PDF for sources that publish PDFs only) | **❌ PDF sources only.** Body-text sources (MOEF RSS, MOTIR HTML, KCS HTML) skip SharePoint — there's no PDF to upload. |
+
+Mechanism: SharePoint writes go via **local OneDrive sync** (`C:\Users\adoshi\OneDrive - RV Capital...\Trade Knowledge Core - IMDR\`) which OneDrive then uploads to the SharePoint library. See [[project-sharepoint-via-onedrive-sync]] in MEMORY for why this beats the Graph API path on this machine.
+
+Per-vendor SharePoint mirror rate (post-backfill 2026-06-11):
+
+| Vendor | Items | SP-mirrored | % |
+|---|---|---|---|
+| FSC | 998 | 838 | 84% (16% body-text fallback when PDF fails) |
+| BoK | 487 | 467 | 96% |
+| FSS | 250 | 247 | 99% |
+| MOEF | 216 | 0 | 0% (RSS body) |
+| MOTIR | 160 | 0 | 0% (HTML body, MOTIR PDF TLS-blocked from rvsg-fs01) |
+| KCS | 10 | 0 | 0% (HTML body) |
+| MODS | 10 | 10 | 100% |
+| KDI | 4 | 4 | 100% |
+| **TOTAL** | **2,135** | **1,749** | **82%** |
+
+The 386 non-SP-mirrored items are still fully searchable (SQL + Qdrant) — Mycroft/Lois can ground macro reasoning on them; they just can't link to a PDF download.
+
 ## Current corpus state (2026-06-11)
 
-**2,135 KR govt filings** across 8 agencies, all 4-layer indexed (SQL `dim_report` + `fact_chunk` + Qdrant + SharePoint PDF at `{YYYY}/{MM}/{DD}/econ/kr/{vendor}/...`):
+**2,135 KR govt filings** across 8 agencies, all SQL + Qdrant indexed; 1,749 (82%) also mirrored to SharePoint:
 
 | Agency | n | Coverage | Density |
 |---|---|---|---|
@@ -139,9 +168,42 @@ What's left to pull from upstream that we haven't yet:
 
 ### High-value, deferred pending decision
 
-| Item | Estimate | Why valuable |
-|---|---|---|
-| **BoK 2011-2025 deep backfill** (`backfill_kr_govt.py --vendor bok --pages 500`) | ~4,500 items (minus ~30% MSB noise dropped at discovery = **~3,150 keepers**); ~4 hr ingest; ~15k Qdrant chunks; Voyage + Gemini embed cost | 15 years of BoK MPR (quarterly), FSR (semiannual), MPB minutes (~8/yr), working papers, economic outlooks. Highest macro-narrative coverage unlock available for KR — the policy-text corpus would jump from 14 mo to 15 yr of BoK history. |
+#### BoK 2011-2025 deep backfill
+
+**Command**: `python -m scripts.econ.kr.govt.backfill_kr_govt --vendor bok --pages 500`
+
+**What gets pulled** (upstream limits, confirmed by [`playground/econ/kr_govt_docs/probe_backfill_depth.py`](../../../playground/econ/kr_govt_docs/probe_backfill_depth.py) 2026-06-11):
+- ~5,000 items reachable on `menuNo=400423`, dates 2011-09-08 → 2026-06-10
+- ~487 already in DB (the post-fix recent slice)
+- ~131 dropped at discovery by the MSB-noise denylist
+- ≈ **~3,150 new keepers** after dedup + denylist
+
+**Content composition** (sampled from the 2025-04 → 2026-06 slice already in DB, projected back):
+- Monetary Policy Report (quarterly, ~60 across 15 years)
+- Financial Stability Report (semiannual, ~30 across 15 years)
+- MPB Minutes (~8/yr, ~120 across 15 years)
+- BoK Working Papers + Issue Notes (~30/yr, ~450 across 15 years)
+- Economic Outlooks (quarterly, ~60 across 15 years)
+- Press releases for BoP, IIP, GDP advance, household credit, FX reserves, industrial loans (multi-hundred per year)
+- Speeches by the Governor (~10/yr, ~150 across 15 years)
+- Trade settlement / international investment position / official statistics releases
+
+**Storage cost**:
+- `dim_report`: ~3,150 rows
+- `fact_chunk`: avg 15 pages × ~5 chunks/page ≈ **~47k chunks** (BoK PDFs are richer than FSC/FSS — Q3 2025 GDP release was 6 chunks alone)
+- Qdrant: 47k × 3,072-dim vectors ≈ **~580 MB** added (compressed Voyage embeddings smaller than 16-bit dense; budget ~300-600 MB)
+- SharePoint: ~3,000 PDFs × ~500 KB avg ≈ **~1.5 GB** added to the IMDR library
+
+**Embed cost** (Voyage `voyage-3` + Gemini `gemini-embedding-2`, latest pricing seen on 2026-06-11 daily run):
+- Voyage chunks: ~47k @ ~$0.12/1M tokens × ~600 tokens/chunk ≈ **~$3.40**
+- Gemini summary calls: ~3,150 @ ~$0.001/call ≈ **~$3.15**
+- **Total LLM spend: ~$7 one-off**
+
+**Wall time**: tight-scope backfill ran 1,828 items in 2h 17m = ~4.5s/item. BoK deep adds ~3,150 items at higher per-item cost (richer PDFs, more chunks per item), call it **~4-5 hours background**. Same `backfill_kr_govt.py` script, idempotent via content_hash dedup, retryable per-item on failures.
+
+**Why valuable**: 15 years of BoK policy text would push the KR macro-narrative corpus from 14 months → 15 years, covering 4 BoK governor terms (Kim Choongsoo · Lee Juyeol · Rhee Changyong · current), every easing + tightening cycle since 2011, and every FSR's view of household-debt buildup through the cycle. The single biggest macro-narrative coverage unlock available for KR.
+
+**Why deferred**: ~4-5 hr unattended ingest + ~$7 spend is small but the user's call. Hold for now per 2026-06-11 decision.
 
 ### Bounded upstream (cannot extend further without other vendors)
 

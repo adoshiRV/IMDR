@@ -1,6 +1,10 @@
 # Korea — Econ Documentation
 
-Last updated: 2026-06-10
+Last updated: 2026-06-11
+
+> **Current corpus state (2026-06-11):**
+> - **Track A (`econ.fact_indicator`)** — 172 indicators / ~52k obs. KOSIS depth: GDP 1961→ (65yr), BoP 1980→ (45yr), CPI/retail/IIP 2000→. See [korea_prod_pipeline.md](korea_prod_pipeline.md) Track A section.
+> - **Track B (`research.dim_report` + Qdrant + SharePoint)** — **2,135 govt policy filings** across 8 agencies. MOEF 2009→ (17yr), FSC 2020→ (6yr), FSS 2024→, BoK 2025-04→ (14mo, deep-backfill to 2011 pending decision). Backfill landed 2026-06-11; tracker at [`../../development/kr_govt_filings.md`](../../development/kr_govt_filings.md).
 
 Korean macroeconomic data source. BOK's Economic Statistics System (ECOS)
 is the authoritative publisher of Korea's Balance of Payments, IIP, FX
