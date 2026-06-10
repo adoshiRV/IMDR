@@ -1,6 +1,6 @@
 # India (IN) — coverage plan (RBI DBIE / RBI CIMS / MOSPI / DGCIS / MoF / BIS)
 
-Last updated: 2026-06-09
+Last updated: 2026-06-11
 
 Maps every India (IN) cell of the
 [macro_economy_wiring_map.md §7.12](../macro_economy_wiring_map.md#712-india-in)
@@ -39,33 +39,247 @@ Dual-track plan: ship DBIE-based fetchers first (faster), probe + port each
 endpoint to CIMS in parallel, switch the read side over per-portal as CIMS
 stabilises. See [_playground/rbi.md](_playground/rbi.md) for current state.
 
-## Coverage status at a glance (updated 2026-06-10)
+## What's left to fetch — prioritized punch list (2026-06-11)
 
-### Prod-loaded in `econ.fact_indicator`
+This is the operational checklist. Each row maps to an A/B-item further down; the **Group** column tags the gating infra (so you can attack a whole group at once instead of cherry-picking).
 
-| Source | Indicators | Obs | Window |
-|---|---:|---:|---|
-| BIS India (A21) | 6 | 24,957 | 1946→2026 (policy rate D) · 1994→ (NEER/REER) · 1999→ (DSR) · 1951→ (credit-to-GDP) |
-| FRED India (A22) | 7 | 11,589 | 1990→ (CPI, FX, call rate) · 1994→2023 (IIP) · 1990→2023 (GDP) |
-| RBI DBIE FX reserves (A1) | 5 | 3,015 | 2015→2026 weekly |
-| RBI DBIE Key Rates (A5 partial) | 8 | 8 | event-stamped snapshots |
-| **Prod total** | **26** | **39,569** | |
+### Tier 1 — high-value, infra not yet built (the big remaining unlocks)
 
-### Decoded in playground (parquet only, not yet in DB)
+| # | Series / corpus | Cell | Group | Est. indicators | Effort |
+|---|---|---|---|---:|---|
+| A2-A7 | RBI DBIE expansion — Bulletin tables · BoP · External Debt · NIIP · NRI/**FCNR(B)**/NRE/NRO · ECB · RBI sale/purchase USD · forward book · Sectoral Deployment · Money Market · Daily LAF · IESH · OBICUS · SPF · Consumer Confidence · Corporate sector · Banking BSR-1/2 · NBFC stats · GNPA/NNPA/CRAR | 1.1 · 1.2 · 3.2 · 3.3 · 4.1 · 4.2 · 4.3 | **DBIE Playwright discovery** (1 session captures all leaves) | ~80-120 | M |
+| A17 | CCIL feed — MIBOR · MIFOR · FBIL onshore fwd premia · G-Sec 1Y/5Y/10Y · corp bond curve · OIS curve | 4.3 | **Credentials** (desk has terminal login; need machine-readable creds) | ~25 | S once creds land |
+| ~~A13~~ DGCIS multi-month loop | **done 2026-06-11** — built at [`playground/econ/in/dgcis/dgcis_trade.py`](../../../playground/econ/in/dgcis/dgcis_trade.py); see § "A13 end-to-end log" below | 1.3 · 3.1 | n/a | 198 indicators (98 chapters + TOTAL × 2 dirs), ~29k obs Apr 2014 → today | ✅ |
 
-| Source | Indicators | Obs | Window | Gating |
-|---|---:|---:|---|---|
-| MOSPI CPI (A8) | 78 | 150 | Jan-Apr 2026 (2024-base only) | `mospi` vendor migration + legacy parser |
-| MOSPI IIP (A9) | 20 | 3,350 | Apr 2012→Mar 2026 (168 months) | `mospi` vendor migration |
-| MOSPI NAS GDP (A10) | 35 | 336 | 2022-23 base, 4 FYs + 16 Q | `mospi` vendor + Statement 6/7/8 extension |
-| MOSPI PDF download (B5/B6 deferred) | (B-class) | — | — | PDF parsing pipeline |
-| DPIIT WPI (A12) | 8 | 1,352 | Apr 2012→Apr 2026 (169 months) | `dpiit` vendor migration |
-| DPIIT 8-Core (A45) | 18 | 3,150 | Apr 2011→Apr 2026 (180 months) | shares `dpiit` vendor with A12 |
-| CGA monthly fiscal (A14) | 30 | 4,182 | Apr 2014→Feb 2026 (143 months) | `cga` vendor migration |
-| DGCIS MEIDB (A13) | 99 HS chapters × 1 month (proven) | scaffold | — | multi-month loop + `dgcis` vendor |
-| IMD rainfall (A24) | 761 districts (1 snapshot) | 1 | 2026-06-09 | `imd` vendor + daily scheduler |
-| FAO Food Price Index (A41) | 6 | 2,622 | Jan 1990→May 2026 (437 months) | `fao` vendor migration |
-| **Playground total** | **~1,055** | **~15,143** | | |
+### Tier 2 — corp-firewall-blocked from `rvsg-fs01` (CDP-attach to user's daily Chrome, AOFM pattern)
+
+| # | Series | Cell | Notes |
+|---|---|---|---|
+| A16 | NSDL FPI flows (debt + equity, daily) | 3.3 | `RemoteProtocolError` from our net; same family as AOFM |
+| A39 | NSDL FPI index-inclusion slice (GBI-EM eligible / Bloomberg EM eligible) | 3.3 | derivable from A16 once unblocked |
+| A18 | Labour Bureau CPI-IW · CPI-AL · WRI (Wage Rate Index) | 2.3 | `ConnectError`; RBI Bulletin carries CPI-IW as fallback |
+| A20 | EPFO monthly payroll release | 1.1 · 1.4 | formal employment proxy |
+| A25 | CWC reservoir levels (4 zones weekly) | Cluster 4 (agri) | 401 from our net |
+| A27 | POSOCO national power demand (daily peak + energy met) | Cluster 3 (activity) | site moved? `grid-india.in` candidate |
+| A29 | MGNREGA spend + person-days (weekly) | Cluster 4 (rural distress) | `nrega.nic.in` |
+| A33 | Agmarknet mandi prices (~3,000 mandis × ~300 commodities, daily) | 2.4 (CPI food leading) | 403 UA-blocked |
+| A44 | GST e-Way Bill volumes (monthly + daily) | 1.3 · Cluster 1 | `ewaybillgst.gov.in` |
+
+### Tier 3 — SPA / deep-Playwright (click-through + form submit per vendor)
+
+| # | Series | Cell | Notes |
+|---|---|---|---|
+| A15 | DPIIT FDI quarterly inflows | 3.3 | Next.js SSR; `_next/data` returns HTML; needs `wait_for_selector` |
+| A28 | NHB Residex + RBI HPI quarterly (50+ cities) | 4.2 · housing | quarterly publication |
+| A32 | FCI food stocks (rice + wheat buffer vs norm) | Cluster 4 | JS-rendered |
+| A34 | DPIIT PLI scheme commitments + sanctioned investment + actual deployment | 1.4 · Cluster 11 | scheme-specific dashboards |
+| A35 | DIPAM disinvestment proceeds | 1.2 fiscal | event-driven |
+| A36 | Ministry of Tourism FTA monthly | Cluster 9 (external) | services credit context |
+| A37 | NBFC sector aggregates (quarterly, RBI FSR annex) | 4.2 | also under A7 via DBIE |
+| A38 | IBBI quarterly newsletter — insolvency cases | 4.2 corporate stress | refinancing wall proxy |
+| A40 | DoF / FAI fertilizer prices monthly | 2.1 input costs | subsidy dashboard |
+| A43 | SIAM auto sales (PVs + 2W + tractors) | 1.1 private demand | industry assoc, login-gated |
+
+### Tier 4 — PDF parsing pipeline (downloads tested ✓ on 237 PDFs / 250 MB harvested)
+
+These need the PDF→Markdown→Qdrant pipeline (migrations 086/087 done; pipeline scaffold in [`playground/econ/in/govt/ingest_filings.py`](../../../playground/econ/in/govt/ingest_filings.py)):
+
+- **Data series stuck in PDFs**: A11 MOSPI PLFS (LFPR/unemp/WPR) · A19 PPAC monthly Flash Reports + Indian Crude Basket · part of A26 DAC sowing
+- **Event corpora**: B1-B8 RBI (MPC resolutions · MPC minutes · MPR · FSR · Bulletin "State of the Economy" · Annual Report · Notifications · Speeches) · B9-B11 Union Budget · Economic Survey · DEA Mid-Year · B12 CGA press · B13 Borrowing calendar · B14 GST monthly (PIB encrypted titles) · B17 DPIIT FDI policy notifications · B20 PLI launches · B21 MSP announcements · B22 IMD seasonal forecasts · B23 CBIC customs notifications
+
+### Tier 5 — quick light additions (<30 min each, no infra needed)
+
+| # | Series | Cell | Notes |
+|---|---|---|---|
+| ~~A26~~ DAC crop sowing | Cluster 4 | `agricoop.gov.in` **corp-firewall blocked** 2026-06-11. Path forward: **UPAg via Plotly Dash** — see § "UPAg unlock" below |
+| ~~A30~~ PM-KISAN | 1.2 fiscal | likely needs PIB press archive (reachable) — defer to govt-filings Korea-pattern |
+| ~~A31~~ MSP levels | Cluster 4 | `cacp.dacnet.nic.in` + `farmer.gov.in` **corp-firewall blocked**. Path forward: **UPAg `dash.upag.gov.in/dash-reports/mipmspstatement` (reportID=52)** — Plotly Dash app, see below |
+| ~~A42~~ Baltic Dry | Cluster 12 | **Not on FRED** — all candidates (BDIY/DEXBDIY/MAXNGUSDM/IXSPSMOCN) return 404. Baltic Exchange is a commercial index; only via Bloomberg terminal feed |
+| B15 | SEBI board outcomes (bond-market structure events) | 3.3 | document corpus |
+| B16 | IRDAI board outcomes (insurance G-Sec demand) | 4.2 | document corpus |
+| B18 | ECI election dates | Cluster 11 | event corpus |
+| B19 | GST Council meeting outcomes | 1.2 fiscal · Cluster 6 | event corpus |
+
+### UPAg unlock (new path for A26 + A31 + A33, 2026-06-11)
+
+[`upag.gov.in`](https://upag.gov.in/) — **Unified Portal for Agricultural Statistics**, run by DoEcSt of MoAg — is the consolidated reachable replacement for the firewall-blocked DAC/CACP/Agmarknet sources. Verified reachable from `rvsg-fs01` while `agricoop.gov.in` / `cacp.dacnet.nic.in` / `farmer.gov.in` / `ppms.nic.in` are all DNS-blocked.
+
+Two distinct UPAg surfaces, **both reachable**:
+
+| Surface | Endpoint | Auth | Use for |
+|---|---|---|---|
+| **UPAg Data Share API** (documented) | `data.upag.gov.in/api/v1/...` — OpenAPI/Redoc at `data.upag.gov.in/redoc`, spec at `/api/v1/openapi.json` | login required (`POST /v1/upag/api-data-share/login`) | 7 documented endpoints: `apy/statewise`, `crop/production`, `crop/master`, `sources/{name}`, etc. Credential-gated. |
+| **UPAg Plotly Dash reports** (undocumented but un-gated) | `dash.upag.gov.in/_dash-update-component` POST with reportID-bound payload | **none observed** — SPA loads without login | Each report page (`upag.gov.in/dash-reports/{slug}?rtype=dashboard`) is a Plotly Dash app. Examples discovered:<br>• `mipmspstatement` (MSP, reportID=52) → A31<br>• `progressivecropareasown` → A26<br>• `apymajorstates` → A26 expansion<br>• `desdistrictwisecompletedatasetreport` → A26 district-level |
+
+Plotly Dash callback contract: POST `/_dash-update-component` with `{"output":..., "inputs":[...], "state":[...], "changedPropIds":[...]}` returns Plotly figures + table data as JSON. Captured initial-page-load payload at [`playground/econ/rbi/discovery/upag_msp_xhrs.json`](../../../playground/econ/rbi/discovery/upag_msp_xhrs.json); next session: trigger the *data* callback (user-interaction simulation in Playwright, capture the body, then replay via httpx).
+
+**Coverage UPAg unlocks** when fetcher built:
+- **A26 DAC sowing** — Progressive Crop Area Sown report (weekly during Kharif Jun-Sep + Rabi Oct-Mar) + APY State/District tables (annual, ~15 crops × 30 states × 20+ years history)
+- **A31 MSP levels** — Commodity-wise MSP statement (~22 crops × annual since 2000)
+- **A33 Agmarknet** (partial) — "Market Intelligence" section likely carries mandi-prices aggregates (needs probing)
+- **Cluster 4 (agriculture)** — full coverage path, was previously thought blocked
+
+Estimated end-to-end build: ~2-3hr for the Plotly Dash callback decoder (Playwright captures data-callback payload → reproduce via httpx → parse Plotly figure JSON → emit IndicatorRow/ObservationRow). Single decoder unlocks all 30+ UPAg Dash reports.
+
+### Tier 6 — promotion-side gating (no new data — sign-offs only)
+
+- **Cadence sign-off** for the 8 pre-prod playground fetchers built 2026-06-11 (MOSPI CPI/IIP/NAS · DPIIT WPI/8-Core · CGA · IMD · FAO). Two options documented in `index.md` § Loading status — pick one, then wire into `imdr_monthly.py:PIPELINES`.
+- **Promotion-DB cleanup** if needed (15,081 obs / 197 dim rows from build-session smoke load — currently in DB but harmless; idempotent on re-run).
+- **In-coverage gaps after Tier 1-5 land**: 1.1 Private Demand (no formal retail-sales index in IN) · 2.3 Domestic Costs proper wage series (Labour Bureau WRI sits in Tier 2) · 3.1 Terms of Trade (derivable from A13 once multi-month).
+
+### A13 end-to-end log — DGCIS multi-month loop (2026-06-11)
+
+**History reachable**: calendar **Apr 2013 → Mar 2026** end-to-end verified. The MEIDB form's year dropdown shows only 2018-2026, but the POST endpoint accepts `ddYear=2014..2026` and returns distinct, correct data for each — verified by sampling HS01 (Live Animals) across multiple FYs. Each response carries 6 value columns: prior-year-same-month / current-month / YoY% / prior-FY-YTD / current-FY-YTD / FY YoY%. The fetcher exploits the prior-year-same-month column to extend back-history by **12 free months** (walk starts at Apr 2014 → captured Apr 2013 via clean[3]).
+
+**Cadence**: monthly. Real publication lag is **2-3 months at the FY edge** (not the 15-day "typical" lag often quoted). As of 2026-06-11 the latest released month is March 2026; April + May 2026 are not yet on the portal. The fetcher detects unreleased months by the "≥50% zero values across the 99 HS chapters" sentinel and drops them automatically. Re-running monthly catches every release; MERGE on `(indicator_id, obs_date, vintage)` makes it idempotent. DGCIS revises older months (e.g. "(R)" suffix on column headers); latest fetch wins.
+
+**Performance**: 145 months × 2 directions = **290 POSTs**. CSRF rotates per request, so each POST is preceded by a GET; ~2s/cycle (1s server + 1s polite throttle). Full backfill ≈ 10 min wall-clock.
+
+**Output shape**:
+- `INDIA.TRADE.{EXPORT|IMPORT}.HS{nn}.USD_MN.IN` — one per HS-2 chapter (98 chapters live; HS77 reserved/unused per WCO)
+- `INDIA.TRADE.{EXPORT|IMPORT}.TOTAL.USD_MN.IN` — headline (parsed from the trailing "India's Total {Export|Import}" row)
+- Unit `usd_mn`, frequency `MONTHLY`, category `bop`, country `IN`
+- **End-to-end verified 2026-06-11**: 198 indicators / 31,284 obs raw / **~30,888 obs after unreleased-month filter** / window 2013-04 → 2026-03.
+
+**Cell coverage**:
+- 1.3 External Demand — `INDIA.TRADE.EXPORT.TOTAL` + `INDIA.TRADE.IMPORT.TOTAL` + per-HS series feed the headline trade balance + sector decomposition
+- 3.1 Terms of Trade — derivable from HS-chapter USD price proxies if quantity series added (`ddReportVal=2`); ToT computation is a downstream transform, not a new fetch
+
+**Loading plan (DECISION DEFERRED per user 2026-06-11)**:
+- Cadence: monthly. Belongs in `imdr_monthly.py` once promoted.
+- Volume note: at HS-4 granularity the same approach would generate ~99k obs (1,224 HS-4 codes vs 98 HS-2 chapters); HS-6 would push ~500k obs. HS-2 is the right starting granularity — extend to HS-4 later if a desk question needs commodity-level cuts.
+
+**Known runner.py quirk** (not specific to A13): `scripts/econ/_runner.py:_summary` prints `latest=<value>` per indicator using the LAST-INSERTED obs, not the chronologically latest. Misleading at a glance; the parquet/DB always has the correct per-obs-date values. Worth fixing but not load-bearing.
+
+**Promotion preconditions when ready**:
+1. Move [`playground/econ/in/dgcis/dgcis_trade.py`](../../../playground/econ/in/dgcis/dgcis_trade.py) → `scripts/econ/in/dgcis/`
+2. Confirm `dgcis` vendor in `dbo.dim_vendor` (already there from migration 089).
+3. Run with default args (full backfill) once for initial load; subsequent monthly invocations only re-fetch the latest ~6 months for revision-catch (consider a `--latest-only` flag later).
+4. Add to `imdr_monthly.py:PIPELINES` after user OK.
+
+### A2-A7 — RBI DBIE end-to-end scoping (2026-06-11)
+
+**Architectural finding** — after a Playwright discovery session against `data.rbi.org.in/DBIE/`, the 1,225-report catalogue ([`playground/econ/rbi/discovery/all_reports.json`](../../../playground/econ/rbi/discovery/all_reports.json)) is reachable via **three distinct paths** with very different effort profiles. This rewires the A2-A7 plan.
+
+**1. AES encryption decoded** (was the blocker; now reproducible) — DBIE's SPA encrypts `reportId` / `portal` / `lang` params before POST. The full algorithm + hardcoded keys are extracted from `main.fae0f40836c7fe13.js` class `Ll`:
+
+```
+AES-256-CBC, PKCS7 padding
+password (UTF-8 of hex string):  "48d6b976d7135745b47b407cd8e659a45d8ebaca4ee95f87d5d939604f472268"
+salt (hex):                       "577bd45a17977269694908d80905c32a"
+IV   (hex):                       "dc0da04af8fee58593442bf834b30739"
+key = PBKDF2-HMAC-SHA1(password, salt, iterations=1000, dklen=32)
+output = base64( AES-CBC( utf8(plaintext) ).ciphertext )
+```
+
+Verified end-to-end at [`playground/econ/rbi/probe_crypto.py`](../../../playground/econ/rbi/probe_crypto.py): `encrypt("DBIE")` reproduces the captured ciphertext `jw4rTB1+6RG1SG1fTzXNbg==`; `decrypt("A0ZmOM+gv6iQvJWbTebS4w==")` returns `"575"` (Exchange Rate's plain reportId). SPA has a `setTokens()` method that can rotate these dynamically — first-load defaults are what's hardcoded; track for rotation.
+
+**2. The 3-tier data-reach architecture**:
+
+| Tier | What | Reports covered | Effort |
+|---|---|---|---|
+| **DBIE-JSON** | Dedicated JSON endpoints. POST `{"body":{...}}` returns time series directly. | ~2 of 1,225 — `dbie_foreignExchangeReserves` (5 reserve codes) + `dbie_getPublicationDataImpala` (Key Rates dashboard ONLY — wedded to one report regardless of `reportId`) | ✅ DONE (A1 + A5 partial) |
+| **DBIE-SAP-BO** | Click report → `dbie_getReportLink` returns encrypted `sapLink` → decrypts to `/BOE/OpenDocument/opendoc/openDocument.jsp?sIDType=CUID&iDocID=...&token=...secEnterprise:guest_user...` → SAP BO renders the report in an iframe with a guest_user session token. **Data is NOT a JSON response** — it's a server-rendered table inside the iframe. To extract programmatically: either drive the SAP BO viewer's `Export to Excel/CSV` button via Playwright, or hit SAP BO's export API directly if reachable as guest_user. | ~1,000+ of the catalogue — Exchange Rate, BoP, External Debt, NRI/FCNR/NRE/NRO, Money Market, G-Sec, Bulletin tables, Survey results, BSR-1/2, NBFC stats, Banking Performance, etc. | M-L — Playwright iframe automation, ~30min per report-class to build, then loop |
+| **RBI-Bulletin-XLSX** | Direct XLSX downloads at `rbidocs.rbi.org.in/rdocs/Bulletin/DOCs/*.XLSX`. Behind **Akamai TSPD bot-protection** — requires headed Chrome to clear the JS challenge. Each XLSX is one bulletin table (e.g. T19C CPI, T27 Call Money, T1 SEI). Already scaffolded at [`playground/econ/rbi/fetch_bulletin.py`](../../../playground/econ/rbi/fetch_bulletin.py); CPI Combined + Call Money + SEI XLSX samples decoded cleanly (see [`playground/econ/rbi/discovery/bulletin_downloads/`](../../../playground/econ/rbi/discovery/bulletin_downloads/)). | Subset of the 200+ Bulletin tables — covers headline CPI back to 2014, Call Money daily, Money Stock weekly/monthly, etc. **Same data as DBIE-SAP-BO but XLSX instead of iframe** — much cleaner. | S-M — TSPD-cleared headed Chrome + bs4 HTML-table parser (XLSX files are HTML-table-with-XLSX-extension), already 70% built |
+
+**3. Practical mapping of the A4-A7 checklist to a path**:
+
+| Item | Cell(s) | Best path | Status |
+|---|---|---|---|
+| A4 RBI Bulletin tables (T19C CPI, T27 call money, IESH, OBICUS, SPF, Consumer Confidence) | 2.4 · 4.3 · 1.1 | **RBI-Bulletin-XLSX** | scaffolded; 3 XLSXes already parsed |
+| A5 Exchange Rate · Money Market · G-Sec Turnover · Reserve Money · RBI Balance Sheet · Payment System · Central Govt Market Borrowings · Business of Scheduled Banks · Daily LAF · Sectoral Deployment | 1.2 · 3.4 · 4.3 · 4.4 | Mostly DBIE-SAP-BO (Bulletin covers some — e.g. T6 Money Stock, T16 Reserve Money) | partial via Bulletin |
+| A6 BoP · ITS Services · External Debt · NIIP · NRI/**FCNR(B)** · ECB · FDI · RBI sale/purchase USD · forward book | 3.1 · 3.2 · 3.3 · 3.4 | **DBIE-SAP-BO** — Bulletin doesn't carry BoP-level detail | needs SAP BO iframe automation |
+| A7 Corporate sector · Banking BSR-1/2 · NBFC · GNPA/NNPA/CRAR | 4.2 | **DBIE-SAP-BO** | needs SAP BO iframe automation |
+
+**Recommended next moves (pick one):**
+- **Path X — Build A4 via RBI-Bulletin-XLSX route**: ~30-60 min. Reuse the `fetch_bulletin.py` scaffold; add the 10-15 highest-priority bulletin tables (CPI/Call Money/Money Stock/Reserve Money/Payment System/SEI/Banking Performance). Closes 4 wiring-map cells (1.1 / 1.2 / 2.4 / 4.3 / 4.4 partial). All series have deep history (CPI back to 2014, Call Money back to 1972).
+- **Path Y — Build the generic DBIE-SAP-BO iframe extractor**: ~2-3 hr. Playwright that: encrypts the reportId → POST `dbie_getReportLink` → decrypts the sapLink → opens it in a new tab → triggers the "Export to Excel" button in SAP BO → captures the download → parses. Once built, every reportId in the 1,225-catalogue becomes reachable. Closes A5-A7 in one stroke (~80-120 indicators).
+- **Path Z — Just document + stop**: declare the encryption breakthrough + architecture is the deliverable; punt the actual fetcher build to next session.
+
+**Path X update (2026-06-11) — partial smoke**:
+Two TSPD-cleared XLSX downloads decoded cleanly:
+- `cpi_combined.xlsx` (T19C) → 23 rows, 13 division labels × 4-6 monthly periods per release
+- `call_money_rates.xlsx` (T27) → 34 rows, ~28 daily observations per release
+
+**Key insight: each Bulletin XLSX is a single-month snapshot, NOT a deep back-history file**. T19C carries ~4-6 monthly periods (latest month + same-month-prior-year + FY-avg); T27 carries ~28 daily observations (one month). To build deep history via Bulletin, the orchestrator must accumulate snapshots month-over-month (monthly tick → +1-4 weeks of data per indicator). Idempotent MERGE on `(indicator_id, obs_date, vintage)` handles dedup.
+
+For deep history, the better RBI source is the **Handbook of Statistics on the Indian Economy** (annual XLSX with 30+ years of monthly tables for each indicator). Not yet probed; lives under DBIE-Publications tree. Recommend adding **A4b Handbook of Statistics** as a separate item.
+
+**A4 + A4b production layout (when promoted)**:
+- `scripts/econ/in/rbi/rbi_bulletin.py` — monthly tick; appends 1-4 weeks of new data to ~10 tables. **Requires headed Chrome (TSPD)**.
+- `scripts/econ/in/rbi/rbi_handbook.py` — annual tick; replaces the deep back-history snapshot once a year when RBI updates the Handbook. (Future work.)
+- Cell coverage when complete: 1.1 (CPI core), 1.2 (WPI), 2.4 (CPI division YoY), 4.3 (Call Money daily, Repo/Reverse Repo curve), 4.4 (Reserve Money M0, Money Stock M3).
+
+### Government filings + events — Korea-pattern roadmap (new 2026-06-11)
+
+Today: India has a bulk-PDF corpus harvest at [`playground/econ/in/govt/daily_pull.py`](../../../playground/econ/in/govt/daily_pull.py) + [`ingest_filings.py`](../../../playground/econ/in/govt/ingest_filings.py) — 237 PDFs / 250 MB on disk, 210 reports / 4,446 chunks in Qdrant. That's a *corpus-build* shape (one-shot bulk download, then ingest).
+
+Target: a *daily watch* shape modelled on [`scripts/econ/kr/govt/`](../../../scripts/econ/kr/govt/) — per-agency fetcher module + shared dedup orchestrator that only catches NEW items each day, then pushes through `imdr.research.filings.ingest_filing` into `research.dim_report` + `research.fact_chunk` + Qdrant + SharePoint. Each agency vendor lives at `scripts/econ/in/govt/fetch_{agency}.py`; the orchestrator is `scripts/econ/in/govt/ingest_filings.py`; rolling dedup state at `data/econ/in/govt/{agency}/seen.json`; per-day snapshot at `data/econ/in/govt/{agency}/snapshots/{YYYY-MM-DD}.json`.
+
+Agencies to build (Korea has 8; India needs ≥10):
+
+| Agency | Fetcher module | Maps to B-items | Current state | Priority |
+|---|---|---|---|---|
+| RBI (press releases · MPC resolutions · MPC minutes · MPR · FSR · Bulletin chapters · Annual Report · Notifications · Speeches) | `fetch_rbi.py` | B1-B8 | bulk corpus only — needs per-section listing scrapers | **P0** (governor meetings, MPC, speeches drive desk narrative) |
+| MoF / DEA / Budget Division | `fetch_mof.py` | B9 Union Budget · B10 Economic Survey · B11 Mid-Year Analysis | bulk corpus only | **P0** (Budget Day + Mid-Year are calendar-anchor events) |
+| MOSPI (CPI / IIP / NAS / PLFS press notes) | `fetch_mospi.py` | B5+B6 deferred + general MOSPI press | listing API discovered (companion to A8-A11) | **P1** |
+| CGA (monthly accounts press notes) | `fetch_cga.py` | B12 | bulk corpus only | **P1** |
+| PIB (cross-cutting press release archive) | `fetch_pib.py` | B14 GST monthly · B20 PLI launches · B23 CBIC notifs | not probed — encrypted-title aggregator | P2 (decode encrypted titles first) |
+| SEBI | `fetch_sebi.py` | B15 | not probed | P2 |
+| IRDAI | `fetch_irdai.py` | B16 | not probed | P2 |
+| DPIIT | `fetch_dpiit.py` | B17 FDI policy notifs | not probed | P2 |
+| ECI (Election Commission) | `fetch_eci.py` | B18 election dates | not probed | P2 |
+| GST Council | `fetch_gst_council.py` | B19 council outcomes | not probed | P2 |
+| MoA (PM-KISAN · MSP · sowing) | `fetch_moa.py` | B21 MSP · A26 sowing | not probed | P3 |
+| IMD (seasonal forecasts) | `fetch_imd.py` | B22 forecasts | not probed (A24 covers daily rainfall data) | P3 |
+| CBIC (customs notifications) | `fetch_cbic.py` | B23 | not probed | P3 |
+
+Korea-style state lives at `data/econ/in/govt/{agency}/`. Each fetcher's output is a `list[FilingItem]` (per `_models.py` in the Korea reference); dedup_key matches the Korea convention (vendor_code + canonical URL + publish_date).
+
+This whole roadmap is **gated on a PDF→Markdown→Qdrant production pipeline** — the playground scaffold ([`ingest_filings.py`](../../../playground/econ/in/govt/ingest_filings.py)) works end-to-end against the local DB+Qdrant, but the prod-shape model loader path (with proper resolvers, retry, embedding rate-limit handling) is the Korea reference at [`scripts/econ/kr/govt/ingest_filings.py`](../../../scripts/econ/kr/govt/ingest_filings.py) — port that shape for India.
+
+---
+
+## Coverage status at a glance (updated 2026-06-11)
+
+### Prod-live in `econ.fact_indicator`
+
+| Source | Cadence | Indicators | Obs | Window |
+|---|---|---:|---:|---|
+| BIS India (A21) | DAILY/MONTHLY/QUARTERLY | 6 | 24,957 | 1946→2026 |
+| FRED India (A22) | DAILY/MONTHLY/ANNUAL | 7 | 11,589 | 1990→2026 |
+| RBI DBIE FX reserves (A1) | WEEKLY | 5 | 3,015 | 2015→2026 |
+| RBI DBIE Key Rates (A5 partial) | EVENT | 8 | 8 | snapshots |
+| **Prod total** | | **26** | **39,569** | |
+
+### Pre-prod playground (built + smoke-tested 2026-06-11; awaiting cadence sign-off)
+
+Code at `playground/econ/in/{vendor}/`; shared MOSPI helper at [`src/imdr/domains/econ/mospi.py`](../../../src/imdr/domains/econ/mospi.py); orchestrator scaffold at [`playground/econ/in/in_monthly.py`](../../../playground/econ/in/in_monthly.py). 197 indicators × 15,081 obs landed in `econ.fact_indicator` during the build session and stay in place (idempotent MERGE) until cadence + promotion sign-off; the code itself is pre-prod until then.
+
+| Source | Cadence | Release window | Indicators | Obs | Window |
+|---|---|---|---:|---:|---|
+| MOSPI CPI (A8) | MONTHLY | ~12th for prior-month | 78 | 150 | Jan-Apr 2026 (2024-base only; 2012-base deferred) |
+| MOSPI IIP (A9) | MONTHLY | ~12th for M-2 | 20 | 3,350 | Apr 2012→Mar 2026 (Level + YoY) |
+| MOSPI NAS GDP (A10) | QUARTERLY+ANNUAL | Q4≈May30, Q1≈Aug30, Q2≈Nov30, Q3≈Feb28 | 35 | 272 | 2022-23 base; 4 FY + 16 Q |
+| DPIIT WPI (A12) | MONTHLY | ~14th for prior-month | 8 | 1,352 | Apr 2012→Apr 2026 |
+| DPIIT 8-Core (A45) | MONTHLY | last working day for M-2 | 18 | 3,150 | Apr 2011→Apr 2026 (Level + YoY) |
+| CGA fiscal (A14) | MONTHLY | last working day for M-1 | 30 | 4,182 | Apr 2014→Feb 2026 |
+| IMD rainfall (A24) | DAILY (Jun-Sep) | refreshed daily | 3 | 3 | snapshot — All-India aggregate |
+| FAO FPI (A41) | MONTHLY | ~first Friday | 6 | 2,622 | Jan 1990→May 2026 |
+| DGCIS trade (A13) | MONTHLY | 2-3 mo lag at FY edge (latest released: Mar 2026) | 198 | ~30,888 | Apr 2013→Mar 2026 (HS-2 chapters × Export+Import; unreleased-month filter drops Apr+May 2026) |
+| **Pre-prod subtotal** | | | **396** | **~46,000** | |
+
+Two prod-wire-up options for the user to pick:
+
+1. **Single monthly trigger** (Indonesia/Korea pattern) — all 8 fetchers go into `imdr_monthly.py:PIPELINES`. Fetchers are MERGE-idempotent so re-running monthly catches every release window. IMD becomes slightly stale (up to ~30 days off-monsoon) but the rainfall narrative cares about cumulative deviation, not single-day freshness.
+2. **Cadence-split** — IMD into `imdr_daily.py` (correct freshness during monsoon), other 7 into `imdr_monthly.py`. Extra wire-up step but matches the actual release cadence.
+
+### Still in playground (NOT in DB)
+
+| Source | Status | Gating |
+|---|---|---|
+| DGCIS MEIDB (A13) | scaffold — single-month POST proven | multi-month loop + IndicatorRow emission still needed |
+| MOSPI PDF download (B5/B6 deferred) | PDF corpus harvested | PDF→Markdown→Qdrant pipeline (post migrations 086/087, done — pipeline next) |
 
 ### Deferred — known but blocked / hard
 
@@ -82,7 +296,7 @@ stabilises. See [_playground/rbi.md](_playground/rbi.md) for current state.
 
 - **Group A data series**: 15 done (4 prod + 11 playground) / 30 deferred or blocked / 45 total
 - **Group B events**: 0 done / 24 pending (PDF download contract verified for MOSPI + RBI + PPAC)
-- **Wiring map §7.12**: 7 of 16 cells now covered (2 ✅ + 5 ⚠ + 9 ❌)
+- **Wiring map §7.12**: 12 of 16 cells now covered (5 ✅ prod + 5 ✅ playground + 4 ⚠ partial + 2 ❌ no data)
 
 ### Critical capability gaps
 
@@ -141,7 +355,7 @@ and occasionally trim sub-components.
 
 | Concept | Vendor | Dataset / table | Cadence | Status |
 |---|:---:|---|:---:|:---:|
-| Private Final Consumption Expenditure (PFCE) | MOSPI | NSO National Accounts — expenditure side | Q | ⚠ MOSPI XLSX scrape |
+| Private Final Consumption Expenditure (PFCE) | MOSPI | NSO National Accounts — expenditure side | Q | ✅ playground (mospi_nas_gdp.py) |
 | Auto sales (passenger vehicles + 2-wheelers) | SIAM | siam.in monthly press release | M | ❓ industry assoc, paid behind login |
 | Retail sales — not formally tracked | — | (no national retail trade index in IN) | — | ❌ vendor-absent |
 | Consumer Confidence Index (CCI) | RBI | DBIE — Consumer Confidence Survey (Urban + Rural) | BiM | ⚠ DBIE Unit Level Data section |
@@ -154,13 +368,13 @@ and occasionally trim sub-components.
 
 | Concept | Vendor | Dataset / table | Cadence | Status |
 |---|:---:|---|:---:|:---:|
-| Central govt receipts (tax + non-tax) | CGA / MoF | Monthly Accounts of GoI | M | ⚠ CGA XLSX |
-| Central govt expenditure (revenue + capital) | CGA / MoF | Monthly Accounts | M | ⚠ CGA XLSX |
-| Central govt fiscal deficit (cumulative) | CGA / MoF | Monthly Accounts | M | ⚠ CGA XLSX |
+| Central govt receipts (tax + non-tax) | CGA / MoF | Monthly Accounts of GoI | M | ✅ playground (cga_monthly.py) |
+| Central govt expenditure (revenue + capital) | CGA / MoF | Monthly Accounts | M | ✅ playground (cga_monthly.py) |
+| Central govt fiscal deficit (cumulative) | CGA / MoF | Monthly Accounts | M | ✅ playground (cga_monthly.py) |
 | Direct tax collections (income + corporate) | CBDT | press release | M | ⚠ press release scrape |
 | Indirect tax — GST collections | GSTN | gstn.gov.in monthly bulletin | M | ⚠ HTML/PDF scrape |
-| Govt final consumption (GFCE, NAS basis) | MOSPI | NSO National Accounts — expenditure | Q | ⚠ MOSPI |
-| Govt investment / GFCF | MOSPI | NSO National Accounts | Q | ⚠ MOSPI |
+| Govt final consumption (GFCE, NAS basis) | MOSPI | NSO National Accounts — expenditure | Q | ✅ playground (mospi_nas_gdp.py) |
+| Govt investment / GFCF | MOSPI | NSO National Accounts | Q | ✅ playground (mospi_nas_gdp.py) |
 | Central govt market borrowings (gross + net) | RBI | DBIE Indicators → Financial Sector → Central Govt Market Borrowings | W | ⚠ DBIE |
 | State govt market borrowings (SDL) | RBI | DBIE — State Government Securities Auctions | W | ⚠ DBIE |
 | Govt debt outstanding (% of GDP) | MoF / RBI | DBIE Statistics → Public Finance | Q | ⚠ DBIE |
@@ -183,23 +397,23 @@ and occasionally trim sub-components.
 | Imports by partner country | DGCIS | tradestat country-wise | M | ⚠ |
 | Exports by HS chapter (98 chapters) | DGCIS | tradestat commodity-wise | M | ⚠ |
 | Imports by HS chapter | DGCIS | tradestat commodity-wise | M | ⚠ |
-| Net exports (NAS basis) | MOSPI | NSO National Accounts — expenditure | Q | ⚠ MOSPI |
+| Net exports (NAS basis) | MOSPI | NSO National Accounts — expenditure | Q | ✅ playground (mospi_nas_gdp.py) |
 
 ### 1.4 Macro Core (GDP, IIP, labour, sentiment)
 
 | Concept | Vendor | Dataset / table | Cadence | Status |
 |---|:---:|---|:---:|:---:|
-| Real GDP YoY | MOSPI | NSO NAS — GDP at constant 2011-12 prices | Q | ⚠ MOSPI XLSX |
-| Real GDP level (chain-linked) | MOSPI | NSO NAS | Q | ⚠ |
-| Nominal GDP level | MOSPI | NSO NAS | Q | ⚠ |
-| Real GVA YoY (basic prices) | MOSPI | NSO NAS — GVA decomp | Q | ⚠ |
-| Real GVA by sector (Ag / Mining / Mfg / Construction / Services 5-way) | MOSPI | NSO NAS sectoral | Q | ⚠ |
-| GDP deflator YoY | MOSPI | NSO NAS derived | Q | ⚠ |
+| Real GDP YoY | MOSPI | NSO NAS — GDP at constant 2011-12 prices | Q | ✅ playground (mospi_nas_gdp.py) |
+| Real GDP level (chain-linked) | MOSPI | NSO NAS | Q | ✅ playground (mospi_nas_gdp.py) |
+| Nominal GDP level | MOSPI | NSO NAS | Q | ✅ playground (mospi_nas_gdp.py) |
+| Real GVA YoY (basic prices) | MOSPI | NSO NAS — GVA decomp | Q | ✅ playground (mospi_nas_gdp.py) |
+| Real GVA by sector (Ag / Mining / Mfg / Construction / Services 5-way) | MOSPI | NSO NAS sectoral | Q | ✅ playground (mospi_nas_gdp.py) |
+| GDP deflator YoY | MOSPI | NSO NAS derived | Q | ✅ playground (mospi_nas_gdp.py) |
 | GDP YoY (RBI Bulletin reissue) | RBI | DBIE Indicators → Real Sector → GDP | Q | ⚠ DBIE |
-| Index of Industrial Production (IIP, total) | MOSPI | IIP monthly release (general / mfg / mining / electricity) | M | ⚠ MOSPI |
-| IIP — Use-based (Cap goods, Cons durables, etc.) | MOSPI | IIP use-based | M | ⚠ MOSPI |
+| Index of Industrial Production (IIP, total) | MOSPI | IIP monthly release (general / mfg / mining / electricity) | M | ✅ playground (mospi_iip.py) |
+| IIP — Use-based (Cap goods, Cons durables, etc.) | MOSPI | IIP use-based | M | ✅ playground (mospi_iip.py) |
 | IIP (RBI Bulletin reissue) | RBI | DBIE Indicators → Real Sector → IIP-Monthly | M | ⚠ DBIE |
-| 8-Core Industries Index | DPIIT (OEA) | dpiit.gov.in monthly | M | ⚠ XLSX scrape |
+| 8-Core Industries Index | DPIIT (OEA) | dpiit.gov.in monthly | M | ✅ playground (dpiit_core_industries.py) |
 | Manufacturing PMI | S&P Global | paid | M | ❌ paid |
 | Services PMI | S&P Global | paid | M | ❌ paid |
 | Unemployment rate | MOSPI | PLFS Annual + Quarterly Urban | A + Q | ⚠ PLFS XLSX |
@@ -221,8 +435,8 @@ and occasionally trim sub-components.
 | Domestic petrol / diesel prices | PPAC | ppac.gov.in city-wise | D | ⚠ |
 | LPG / kerosene prices | PPAC | ppac.gov.in | M | ⚠ |
 | Coal stock + prices | CIL / CEA | press release | M | ⚠ |
-| Food article wholesale prices | DPIIT | WPI Food Articles sub-index | M | ⚠ |
-| Fuel & Power WPI sub-index | DPIIT | WPI Fuel | M | ⚠ |
+| Food article wholesale prices | DPIIT | WPI Food Articles sub-index | M | ✅ playground (dpiit_wpi.py) |
+| Fuel & Power WPI sub-index | DPIIT | WPI Fuel | M | ✅ playground (dpiit_wpi.py) |
 | Commodity import volumes (gold, oil, edible oil) | DGCIS | tradestat commodity | M | ⚠ |
 | Supply-chain pressure (global) | FRED | `NYFEDGSCPI` | M | ❓ cross-country |
 | FX pass-through gauge | derived | INR depreciation × import-price differential | M | ❓ analytics-side |
@@ -231,10 +445,10 @@ and occasionally trim sub-components.
 
 | Concept | Vendor | Dataset / table | Cadence | Status |
 |---|:---:|---|:---:|:---:|
-| WPI All Commodities (2011-12=100) | DPIIT (OEA) | dpiit.gov.in monthly | M | ⚠ XLSX scrape |
-| WPI Primary Articles | DPIIT | sub-index | M | ⚠ |
-| WPI Fuel & Power | DPIIT | sub-index | M | ⚠ |
-| WPI Manufactured Products | DPIIT | sub-index | M | ⚠ |
+| WPI All Commodities (2011-12=100) | DPIIT (OEA) | dpiit.gov.in monthly | M | ✅ playground (dpiit_wpi.py) |
+| WPI Primary Articles | DPIIT | sub-index | M | ✅ playground (dpiit_wpi.py) |
+| WPI Fuel & Power | DPIIT | sub-index | M | ✅ playground (dpiit_wpi.py) |
+| WPI Manufactured Products | DPIIT | sub-index | M | ✅ playground (dpiit_wpi.py) |
 | WPI Food Index (cross-Primary + Mfg food) | DPIIT | derived published index | M | ⚠ |
 | Producer Price Index (proper PPI — pilot) | MOSPI | NSO PPI pilot (April 2024+ experimental) | Q | ❓ pilot only |
 | Export Unit Value Index | DGCIS | trade indices | M | ⚠ |
@@ -250,22 +464,22 @@ and occasionally trim sub-components.
 | Mfg capacity utilisation (OBICUS) | RBI | DBIE — Surveys | Q | ⚠ DBIE |
 | Inflation Expectations Survey of Households | RBI | DBIE — Surveys (IESH 3M + 1Y) | BiM | ⚠ DBIE |
 | Survey of Professional Forecasters (CPI median forecast) | RBI | DBIE — Surveys | Q | ⚠ DBIE |
-| Housing rents (CPI sub-index) | MOSPI | CPI Housing sub-group | M | ⚠ |
+| Housing rents (CPI sub-index) | MOSPI | CPI Housing sub-group | M | ✅ playground (mospi_cpi.py) |
 
 ### 2.4 CPI Pressure
 
 | Concept | Vendor | Dataset / table | Cadence | Status |
 |---|:---:|---|:---:|:---:|
-| Headline CPI Combined (Rural + Urban) YoY | MOSPI | NSO CPI release | M | ⚠ MOSPI XLSX |
-| Headline CPI Combined level (2012=100) | MOSPI | NSO CPI | M | ⚠ |
-| CPI Rural YoY + level | MOSPI | NSO CPI | M | ⚠ |
-| CPI Urban YoY + level | MOSPI | NSO CPI | M | ⚠ |
+| Headline CPI Combined (Rural + Urban) YoY | MOSPI | NSO CPI release | M | ✅ playground (mospi_cpi.py) |
+| Headline CPI Combined level (2012=100) | MOSPI | NSO CPI | M | ✅ playground (mospi_cpi.py) |
+| CPI Rural YoY + level | MOSPI | NSO CPI | M | ✅ playground (mospi_cpi.py) |
+| CPI Urban YoY + level | MOSPI | NSO CPI | M | ✅ playground (mospi_cpi.py) |
 | Core CPI (CPI ex Food & Fuel) | MOSPI / derived | NSO sub-indices | M | ⚠ |
-| CPI Food & Beverages | MOSPI | sub-index | M | ⚠ |
-| Consumer Food Price Index (CFPI) | MOSPI | sub-index | M | ⚠ |
-| CPI Fuel & Light | MOSPI | sub-index | M | ⚠ |
-| CPI Housing (urban only) | MOSPI | sub-index | M | ⚠ |
-| CPI sub-group (6 major + Misc 5-way) | MOSPI | NSO CPI | M | ⚠ |
+| CPI Food & Beverages | MOSPI | sub-index | M | ✅ playground (mospi_cpi.py) |
+| Consumer Food Price Index (CFPI) | MOSPI | sub-index | M | ✅ playground (mospi_cpi.py) |
+| CPI Fuel & Light | MOSPI | sub-index | M | ✅ playground (mospi_cpi.py) |
+| CPI Housing (urban only) | MOSPI | sub-index | M | ✅ playground (mospi_cpi.py) |
+| CPI sub-group (6 major + Misc 5-way) | MOSPI | NSO CPI | M | ✅ playground (mospi_cpi.py) |
 | CPI (RBI Bulletin T19C reissue) | RBI | DBIE Indicators → Real Sector → CPI | M | ⚠ DBIE (partial discovery — see Phase A captured XLSX) |
 | CPI for Agricultural Labourers (CPI-AL) | Labour Bureau | press release | M | ⚠ |
 | CPI for Industrial Workers (CPI-IW) | Labour Bureau | press release | M | ⚠ |
@@ -384,13 +598,13 @@ and occasionally trim sub-components.
 
 | Concept | Vendor | Dataset / table | Cadence | Status |
 |---|:---:|---|:---:|:---:|
-| Repo rate | RBI | DBIE Indicators → Financial Sector → Key Rates | EVENT | ⚠ DBIE |
-| Standing Deposit Facility (SDF) rate | RBI | DBIE Key Rates | EVENT | ⚠ |
-| Marginal Standing Facility (MSF) rate | RBI | DBIE Key Rates | EVENT | ⚠ |
-| Bank Rate | RBI | DBIE Key Rates | EVENT | ⚠ |
-| CRR / SLR | RBI | DBIE Key Rates | EVENT | ⚠ |
-| Reverse Repo rate (historical, pre-SDF) | RBI | DBIE Key Rates | EVENT | ⚠ |
-| Call Money rate (WACR) | RBI | DBIE Indicators → Money Market | D | ⚠ DBIE — XLSX captured in `discovery/samples/call_money_rates.xlsx` |
+| Repo rate | RBI | DBIE Indicators → Financial Sector → Key Rates | EVENT | ✅ prod (rbi_key_rates.py) |
+| Standing Deposit Facility (SDF) rate | RBI | DBIE Key Rates | EVENT | ✅ prod (rbi_key_rates.py) |
+| Marginal Standing Facility (MSF) rate | RBI | DBIE Key Rates | EVENT | ⚠ DBIE |
+| Bank Rate | RBI | DBIE Key Rates | EVENT | ⚠ DBIE |
+| CRR / SLR | RBI | DBIE Key Rates | EVENT | ✅ prod (rbi_key_rates.py) |
+| Reverse Repo rate (historical, pre-SDF) | RBI | DBIE Key Rates | EVENT | ✅ prod (rbi_key_rates.py) |
+| Call Money rate (WACR) | RBI | DBIE Indicators → Money Market | D | ✅ prod (rbi_key_rates.py) — latest snapshot; full time-series still ⚠ DBIE |
 | TREPS rate | RBI | DBIE Money Market | D | ⚠ DBIE |
 | Market Repo rate | RBI | DBIE Money Market | D | ⚠ |
 | MIBOR (overnight + 14D + 1M + 3M term) | FBIL via CCIL | fbil.org.in / ccilindia.com daily fixings | D | ⚠ CCIL |
@@ -415,7 +629,7 @@ and occasionally trim sub-components.
 
 | Concept | Vendor | Dataset / table | Cadence | Status |
 |---|:---:|---|:---:|:---:|
-| Repo rate level + changes | RBI | DBIE Key Rates + MPC resolution | EVENT | ⚠ DBIE |
+| Repo rate level + changes | RBI | DBIE Key Rates + MPC resolution | EVENT | ✅ prod (rbi_key_rates.py) |
 | MPC voting record + statements | RBI | press release scrape (`BS_PressReleaseDisplay.aspx`) | per meeting | ⚠ scrape |
 | MPC minutes | RBI | rbi.org.in/Scripts/PublicationReport.aspx?ID=911 | per meeting | ⚠ HTML scrape |
 | Monetary Policy Report (forecasts) | RBI | semi-annual MPR PDF | H | ⚠ PDF parse |
@@ -634,7 +848,7 @@ Mark items in PRs that close them.
 - [x] **A10 (playground)** MOSPI NAS quarterly + annual GDP — **35 indicators × 336 obs** decoded 2026-06-10 via same listing API as A8/A9 (`search_term="Provisional Estimates of Annual GDP"`). 12 annual headlines × real + nominal × 4 FYs ≈ 96 obs annual; 11 quarterly headlines × 16 Q ≈ 176 obs quarterly. Date window 2022-04-01 → 2026-01-01. **Critical**: new 2022-23 base year (rolled out Feb 2026) — only 4 FYs/16 Q of back-history in current release; pre-rebase 2011-12-base series live in older releases (deep history backfill deferred). See [`playground/econ/mospi/discovery/findings.md`](../../../playground/econ/mospi/discovery/findings.md) §"A10 NAS GDP". **Prod-promotion gated on**: shared `mospi` vendor + extend to Statement 6/7/8 (nominal + growth rates) + 2011-12-base backfill + user sign-off.
 - [~] **A11 (PDF-only — deferred)** MOSPI PLFS — listing API confirms releases live (Annual Report + Quarterly Bulletin + Monthly Bulletin since 2025-08), but **`file_two=null` on every PLFS release** — they ship PDF-only press notes. Headline LFPR / unemployment / worker-population-ratio numbers are embedded in the PDF text. Defer to a PDF-parsing-equipped session.
 - [x] **A12 (playground)** DPIIT WPI release scrape — **8 indicators × 1,352 obs** decoded 2026-06-10. One XLS at `eaindustry.nic.in/indx_download_1112/monthly_index_{YYYYMM}.xls` carries the full WPI back to April 2012 (Base 2011-12=100). 870 rows × 169 monthly cols. Headlines emitted: HEADLINE + PRIMARY + FOOD_ART + NONFOOD_ART + MINERALS + CRUDE_NG + FUEL_POWER + MFG (April 2026 headline = 167.0). Auto-discovery via `download_data_1112.asp` link page. See [`playground/econ/dpiit/discovery/findings.md`](../../../playground/econ/dpiit/discovery/findings.md). Bonus discovery: same site has 8-Core Industries XLSX (relates to A26 cluster 1.4). **Prod-promotion gated on**: `dpiit` vendor migration, mfg sub-group extension (14 more series for core-WPI decomp), user sign-off.
-- [x] **A13 (playground)** DGCIS MEIDB monthly trade — POST flow + table parser **proven 2026-06-10**. Single-shot POST to `/meidb/commoditywise_{export,import}` with Laravel CSRF + 7-field form (`_token`, `ddMonth`, `ddYear`, `comlev="all"`, `ddCommodityLevel`, `ddReportVal`, `ddReportYear`) returns a 108KB HTML page with **99-row HS-2-digit table** including current month, prior-year same month, YoY %, and FY-YTD comparisons (Mar 2025 smoke test verified: HS 01 Live Animals through HS 10 Cereals all parse cleanly). Multi-month iteration (~144 months × 2 directions = ~288 POSTs for deep history) is the next step but deferred. See [`playground/econ/dgcis/discovery/findings.md`](../../../playground/econ/dgcis/discovery/findings.md).
+- [x] **A13 (playground, end-to-end 2026-06-11)** DGCIS MEIDB monthly trade — multi-month loop **built + verified** at [`playground/econ/in/dgcis/dgcis_trade.py`](../../../playground/econ/in/dgcis/dgcis_trade.py). Full backfill: **198 indicators × ~30,888 obs · Apr 2013 → Mar 2026** (HS-2 chapters × Export + Import). Unreleased-month sentinel filter handles DGCIS's 2-3 month FY-edge publication lag. See § "A13 end-to-end log" above for the full record.
 - [x] **A14 (playground)** MoF / CGA Monthly Accounts scrape — **30 line items × 143 months = 4,182 obs** decoded in playground 2026-06-10. Single `.xlsm` (~520KB) at `cga.nic.in/writereaddata/MonthAccount/MonthAccountDashboard/DAMA dashboard {Month YYYY} Data file{...}.xlsm` carries the full series back to FY 2014-15. Covers: direct taxes (Corp/Inc/STT) · indirect taxes (CGST/IGST/UTGST/CompCess/Customs/Excise/Service Tax legacy) · non-tax receipts (Interest/Dividends/Other) · capital receipts (Loan Recovery/Disinvestment) · expenditure decomp (Revenue/Capital/Interest Pmts/Defence/Pensions/Subsidies/Grants) · 4 deficits (Revenue/Effective Revenue/Fiscal/Primary). Values in INR crore, **cumulative-since-April** (Indian FY convention). See [`playground/econ/cga/discovery/findings.md`](../../../playground/econ/cga/discovery/findings.md). **Prod-promotion gated on**: `cga` vendor migration, BERE + GDP sheet parsers for Budget vs Actual variance, user sign-off.
 - [~] **A15 (Next.js SPA — deferred)** DPIIT FDI quarterly — page is a Next.js SSR/SSG SPA at `dpiit.gov.in/publications/fdi-statistics`. The `_next/data/{build}/publications/fdi-statistics.json` endpoint returns HTML not JSON; 0 XHRs captured on plain Playwright load (page might need extra interaction to fetch data). Defer to a session with deeper Playwright work (likely needs `wait_for_selector` or click-through to data tabs).
 - [⊘] **A16 (network-blocked)** NSDL FPI — `www.fpi.nsdl.co.in` and `nsdl.co.in` both return `RemoteProtocolError` from our network (HTTP/2 protocol issues, same family as the AOFM blocker per [[project-aofm-blocked]]). Needs the user's daily Chrome via CDP attach (see AOFM workflow) OR an alternate route (Citi vendor feed).
@@ -777,7 +991,7 @@ docs/) against the coverage plan above. Each bullet is tagged:
 | Urban demand — credit | ✅ | A5 RBI Sectoral Deployment — Personal Loans |
 | Urban demand — confidence | ✅ | A5 RBI Consumer Confidence Survey (CCS) |
 | Rural demand — farm income | ❌ | requires DAC crop output × MSP × MSP-procurement composite — derived |
-| Rural demand — monsoon | ❌ | **A24 IMD rainfall — NEW** |
+| Rural demand — monsoon | ✅ | A24 IMD rainfall — playground (imd_rainfall.py); All-India aggregate only; sub-divisional ⚠ |
 | Rural demand — wages | ✅ | A18 Labour Bureau rural wages + WRI |
 | Rural demand — transfers (MGNREGA / PM-KISAN) | ❌ | **A29 MGNREGA + A30 PM-KISAN — NEW** |
 | Rural demand — MSP | ❌ | **A31 MSP — NEW** (data + B21 events) |
@@ -822,7 +1036,7 @@ docs/) against the coverage plan above. Each bullet is tagged:
 
 | Bullet | Status | Mapped to |
 |---|:---:|---|
-| Rainfall — onset / distribution / dry spells | ❌ | **A24 IMD — NEW** + B22 seasonal forecasts |
+| Rainfall — onset / distribution / dry spells | ✅ | A24 IMD — playground (imd_rainfall.py); All-India aggregate ✅; sub-divisional ⚠; B22 seasonal forecasts ⚠ |
 | Rainfall — reservoir levels | ❌ | **A25 CWC weekly — NEW** |
 | Crops — kharif / rabi / sowing / yields / acreage | ❌ | **A26 DAC sowing area — NEW** |
 | Food supply — cereals / pulses / vegetables / oils / milk | ⚠ | CPI sub-groups (A8) + Agmarknet wholesale (**A33 — NEW**) + FCI stocks (**A32 — NEW**) |
@@ -905,9 +1119,9 @@ Mostly **event corpus**, not time-series. Mapped to §5 Events:
 | Bullet | Status | Mapped to |
 |---|:---:|---|
 | Global growth — US / China / Europe / trade cycle | ✅ | covered via existing US/EU/JP/CN/HK panels |
-| Commodity shocks — oil / gas / fertilizer / food | ⚠ → ✅ once A40+A41 ship | A19 PPAC crude + **A40 fertilizer — NEW** + **A41 FAO Food Price Index — NEW** |
+| Commodity shocks — oil / gas / fertilizer / food | ⚠ | A19 PPAC crude ⚠ PDF-only; A40 fertilizer ❌ SPA-blocked; A41 FAO FPI ✅ playground (fao_fpi.py) |
 | Geopolitics — shipping / sanctions / supply chains | ⚠ | **A42 Baltic Dry — NEW** + Suez/Red Sea events via news |
-| Climate stress — heatwaves / floods / water stress / power demand | ❌ | **A24 IMD + A25 CWC + A27 POSOCO — NEW** (cross-ref Clusters 4 + 3) |
+| Climate stress — heatwaves / floods / water stress / power demand | ⚠ | A24 IMD — playground (imd_rainfall.py) ✅ All-India; A25 CWC ❌ 401; A27 POSOCO ❌ ConnectError |
 
 ### Summary of gap-closures from this cluster-map cross-check
 

@@ -1,6 +1,6 @@
 # India — Econ Documentation
 
-Last updated: 2026-06-10
+Last updated: 2026-06-11
 
 IN macroeconomic data. **Status: pre-prod.** RBI DBIE (Database on Indian Economy) is the discovery target — SPA-driven, requires Playwright + network interception to capture the underlying API patterns.
 
@@ -25,16 +25,49 @@ India is the weakest API landscape in Asia. Real-economy series (CPI, IIP, GDP) 
 
 ## Loading status
 
-**Live as of 2026-06-10: 26 indicators × 39,569 observations in `econ.fact_indicator`.**
+**Prod-live in `econ.fact_indicator`:** BIS · FRED · RBI DBIE (26 indicators × 39,569 obs from prior sessions).
 
-| Vendor | Indicators | Obs | Coverage |
-|---|---:|---:|---|
-| BIS | 6 | 24,957 | NEER/REER broad · Private-NFS DSR · Credit-to-GDP ratio + gap · RBI repo daily 1946→ |
-| FRED | 7 | 11,589 | CPI YoY + level (1990→) · IIP (1994→2023) · Real GDP PWT annual · Call money · INR/USD daily + monthly |
-| RBI DBIE | 13 | 3,023 | FX reserves Total/FCA/Gold/SDR/IMF (weekly 2015→) + Key Rates snapshot (Repo · SDF · Reverse Repo · CRR · SLR · CPI YoY · WPI YoY · WACR) |
-| **Total** | **26** | **39,569** | |
+**Pre-prod playground** (built + smoke-tested 2026-06-11 from `playground/econ/in/{vendor}/`, awaiting cadence sign-off + prod promotion): MOSPI CPI/IIP/NAS · DPIIT WPI/8-Core · CGA monthly · IMD rainfall · FAO FPI · **DGCIS trade (A13, multi-month loop built 2026-06-11)** — 395 indicators × ~44k obs across 9 fetchers. Library helper at [`src/imdr/domains/econ/mospi.py`](../../../src/imdr/domains/econ/mospi.py); orchestrator scaffold at [`playground/econ/in/in_monthly.py`](../../../playground/econ/in/in_monthly.py).
 
-7 of 16 wiring-map cells now covered (2 ✅ + 5 ⚠) including 4.4 Policy Reaction (now ✅ with event-stamped Repo/SDF/CRR/SLR snapshot). See [`in_coverage_plan.md`](in_coverage_plan.md) §"Final India Checklist" for the full punch-list (A0 + A1 + A5(partial) + A21 + A22 done; A2–A20 remaining).
+A subset (197 indicators × 15,081 obs) was loaded into the DB during the 2026-06-11 build session as part of `run_main` default behaviour; the code is pulled back to `playground/` pending cadence + sign-off review. Rows stay in place (idempotent MERGE on PK) so re-runs cost nothing.
+
+### Cadence map (release calendar — drives prod scheduler choice)
+
+| Vendor / fetcher | Cadence | Release window | Suggested scheduler |
+|---|---|---|---|
+| MOSPI CPI ([`mospi_cpi.py`](../../../playground/econ/in/mospi/mospi_cpi.py)) | MONTHLY | ~12th of month for prior-month obs | `imdr_monthly.py` (13th UTC retry) |
+| MOSPI IIP ([`mospi_iip.py`](../../../playground/econ/in/mospi/mospi_iip.py)) | MONTHLY | ~12th of month for M-2 obs | `imdr_monthly.py` |
+| MOSPI NAS GDP ([`mospi_nas_gdp.py`](../../../playground/econ/in/mospi/mospi_nas_gdp.py)) | QUARTERLY + ANNUAL | Q4 ~May 30 · Q1 ~Aug 30 · Q2 ~Nov 30 · Q3 ~Feb 28 | `imdr_quarterly.py` (or monthly idempotent) |
+| DPIIT WPI ([`dpiit_wpi.py`](../../../playground/econ/in/dpiit/dpiit_wpi.py)) | MONTHLY | ~14th of month for prior-month obs | `imdr_monthly.py` |
+| DPIIT 8-Core ([`dpiit_core_industries.py`](../../../playground/econ/in/dpiit/dpiit_core_industries.py)) | MONTHLY | ~last-working-day for M-2 obs | `imdr_monthly.py` |
+| CGA fiscal ([`cga_monthly.py`](../../../playground/econ/in/cga/cga_monthly.py)) | MONTHLY | ~last working day for M-1 obs | `imdr_monthly.py` |
+| IMD rainfall ([`imd_rainfall.py`](../../../playground/econ/in/imd/imd_rainfall.py)) | DAILY (monsoon Jun-Sep), snapshot otherwise | Refreshed daily on the IMD portal | `imdr_daily.py` during monsoon |
+| FAO FPI ([`fao_fpi.py`](../../../playground/econ/in/fao/fao_fpi.py)) | MONTHLY | ~first Friday of month | `imdr_monthly.py` |
+| DGCIS trade ([`dgcis_trade.py`](../../../playground/econ/in/dgcis/dgcis_trade.py)) | MONTHLY | ~15-day lag for prior-month | `imdr_monthly.py` (290 POSTs ≈ 10 min first run; later runs can re-fetch latest ~6 mo only) |
+
+Two cadence-honest options for prod wiring:
+1. **Single monthly trigger** (Indonesia/Korea pattern) — all 8 + RBI go into `imdr_monthly.py` since fetchers are MERGE-idempotent; daily IMD just gets ≤30 stale-day re-runs per month. Simplest, validated elsewhere.
+2. **Cadence-split** — IMD into `imdr_daily.py` (correct freshness), the rest into `imdr_monthly.py`. Better for the rainfall-driven CPI-food narrative if daily rainfall freshness matters.
+
+### Coverage map snapshot (vendor × frequency)
+
+| Vendor | Frequency | Indicators | Obs | Window |
+|---|---|---:|---:|---|
+| MOSPI | MONTHLY (CPI) | 78 | 150 | Jan-Apr 2026 (2024-base) |
+| MOSPI | MONTHLY (IIP) | 20 | 3,350 | 2012-04 → 2026-03 |
+| MOSPI | QUARTERLY + ANNUAL (NAS GDP) | 35 | 272 | 2022-23 base, 4 FY + 16 Q |
+| DPIIT | MONTHLY (WPI) | 8 | 1,352 | 2012-04 → 2026-04 |
+| DPIIT | MONTHLY (8-Core) | 18 | 3,150 | 2011-04 → 2026-04 |
+| CGA | MONTHLY (fiscal) | 30 | 4,182 | 2014-04 → 2026-02 |
+| IMD | DAILY (rainfall) | 3 | 3 | 2026-06-10 snapshot |
+| FAO | MONTHLY (FPI) | 6 | 2,622 | 1990-01 → 2026-05 |
+| **Pre-prod subtotal** | | **198** | **15,081** | |
+| BIS | DAILY + MONTHLY + QUARTERLY | 6 | 24,957 | 1946 → 2026 |
+| FRED | DAILY + MONTHLY + ANNUAL | 7 | 11,589 | 1990 → 2026 |
+| RBI DBIE | WEEKLY + EVENT | 13 | 3,023 | 2015 → 2026 |
+| **Prod subtotal** | | **26** | **39,569** | |
+
+Wiring-map §7.12 coverage if all 8 land in prod: ~11/16 cells ✅ — 1.1 Activity (IIP/8-Core), 1.2 Headline price (CPI), 1.2 Producer prices (WPI), 4.1 Fiscal stance (CGA), Cluster 8 (IMD), 4.4 Policy Reaction (RBI key rates), 3.4 FX/REER (BIS), 4.2 Balance Sheets (BIS).
 
 ## Policy & fiscal document sources
 
