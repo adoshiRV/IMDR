@@ -196,16 +196,108 @@ Update [`au_prod_ready_todo.md`](../../development/au_prod_ready_todo.md):
 - ❌ `au_weekly.py` NOT NEEDED — explicitly omit, document the reasoning
 - ❌ `au_full.py` NOT BUILT — manual-run aggregator over daily + monthly. Build alongside `au_monthly.py` since it depends on the monthly orchestrator existing.
 
-## Caveats / open questions
+## Resolved caveats (checked 2026-06-11)
 
-1. **RBA CSV snapshots are NOT automatic** — `fetch_rates.py` / `fetch_fx.py` / etc. consume CSVs in `playground/econ/rba/discovery/samples/` that were manually downloaded via `fetch_d2_e_tables.py` (Playwright). For daily prod cadence, the snapshot-refresh job needs to run first. Two options:
-   - **(a)** Wire the Playwright snapshot-refresh into the same `au_daily.py` pipeline step (before the loader fetchers fire)
-   - **(b)** Live HTTP-pull from rba.gov.au using the per-fetcher Akamai bypass (rebuild the fetchers to do HTTP not CSV-read)
-   - Decision deferred; current `au_daily.py` only has filings, so this isn't blocking today
+### Item 1 — RBA CSV snapshot refresh — RESOLVED, build added to Phase G
 
-2. **AOFM monthly manual-Edge dependency** — the 5 AOFM fetchers will fail unless someone has refreshed the XLSXs first. Need a monthly checklist / runbook reminder. Maybe the orchestrator should `--check-xlsx-fresh` and email "AOFM XLSX > 35 days old" rather than silently load stale data.
+**Verified state:** RBA CSVs in `playground/econ/rba/discovery/samples/` are stale:
 
-3. **Cotality daily snapshot accumulates** — `fetch_hvi.py` captures today's value each run; missing a day = missing data point. Cron reliability matters here more than for the discovery-based fetchers.
+| File | Last mtime | Cadence | Days stale today (2026-06-11) |
+|---|---|---|---|
+| f1-data.csv (cash/BBSW/OIS) | Jun 2 | daily business-day | **9 days** ⚠ |
+| f2-data.csv (AGB yields + TIB) | Jun 2 | daily business-day | **9 days** ⚠ |
+| f11.1-data.csv (AUD FX + TWI) | Jun 2 | daily business-day | **9 days** ⚠ |
+| d3-data.csv (monetary aggregates) | Jun 2 | monthly | 9 days (OK — monthly) |
+| g1-data.csv | Jun 2 | quarterly | 9 days (OK — quarterly) |
+| d2 / e1 / e2 / a2 / i1 / i2 / f15 / f16 / f17-* | Jun 10 | monthly/quarterly | 1 day |
+
+`fetch_d2_e_tables.py` currently grabs 11 tables but **f1, f2, f11.1, d3, g1 are NOT in its TABLES list** — they were originally captured by an earlier ad-hoc one-off Playwright run that never got formalised.
+
+**Resolution — Phase G additions:**
+
+1. Extend `fetch_d2_e_tables.py` TABLES to include f1, f2, f11.1, d3, g1 (5 more entries — Playwright re-runs ~30 sec extra)
+2. Promote to `scripts/econ/au/rba/rba_snapshot_refresh.py` during Phase G
+3. Wire as FIRST PIPELINES entry in `au_daily.py` BEFORE the rate/FX/curve loaders:
+
+   ```python
+   PIPELINES = [
+       # Refresh RBA daily-cadence CSVs first; loaders are downstream consumers
+       [sys.executable, "-m", "scripts.econ.au.rba.rba_snapshot_refresh", "--daily-only"],
+       # Then daily Track A loaders consume the fresh CSVs
+       [sys.executable, "-m", "scripts.econ.au.rba.rba_rates"],
+       [sys.executable, "-m", "scripts.econ.au.rba.rba_fx"],
+       [sys.executable, "-m", "scripts.econ.au.rba.rba_zerocoupon"],
+       [sys.executable, "-m", "scripts.econ.au.cotality.cotality_hvi"],
+       # Filings ingest can run anytime
+       [sys.executable, "-m", "scripts.econ.au.govt.ingest_filings", "--ingest"],
+   ]
+   ```
+
+4. `au_monthly.py` calls `rba_snapshot_refresh` with `--monthly-only` (or no flag) to grab the slower tables.
+
+This avoids re-architecting fetchers to live-HTTP — the CSV-snapshot pattern is reused as-is, just on a fresh snapshot each run.
+
+### Item 2 — AOFM staleness — RESOLVED (user handles manual Edge refresh; orchestrator emails warning)
+
+User confirmed they'll handle the manual Edge download themselves. Orchestrator surfaces staleness in the daily email.
+
+**Verified state today:** AOFM XLSXs at `playground/econ/aofm/discovery/xlsx/` all have mtime 2026-06-10 (1 day stale — fine for monthly cadence).
+
+**Implementation** in `au_monthly.py` `_render_email()`:
+
+```python
+def _aofm_staleness(threshold_days: int = 35) -> dict:
+    xlsx_dir = _REPO_ROOT / "data" / "econ" / "au" / "aofm" / "xlsx"  # post Phase G
+    newest_mtime = max(
+        (p.stat().st_mtime for p in xlsx_dir.glob("*.xlsx")),
+        default=0,
+    )
+    age_days = (time.time() - newest_mtime) / 86400 if newest_mtime else None
+    stale = age_days is not None and age_days > threshold_days
+    return {"age_days": age_days, "stale": stale, "threshold_days": threshold_days}
+```
+
+If `stale=True`, the email subject prefix gets `[AOFM STALE]` and a banner section reminds the user to refresh XLSXs via Edge. If `age_days is None` (no XLSXs found at all), surface as error.
+
+### Item 3 — Cotality cron-reliability — RESOLVED, daily email surfacing required
+
+**Verified state:** Only 6 obs in DB total (one per series, one date 2026-06-10). Already missing today's data.
+
+```sql
+SELECT i.imdr_code, COUNT(*), MIN(obs_date), MAX(obs_date)
+FROM econ.fact_indicator f JOIN econ.dim_indicator i ON i.id=f.indicator_id
+WHERE i.imdr_code LIKE 'COTALITY.HVI.%' GROUP BY i.imdr_code;
+-- 6 rows, all n=1, all 2026-06-10
+```
+
+**Why this matters:** the Cotality `/au/our-data/indices` page only exposes TODAY's value — there is no published history at the free tier. Missed cron runs = permanent gaps in the time series.
+
+**Resolution** — surface daily Cotality activity in the `au_daily.py` email:
+
+```python
+def _cotality_today_check(today: date) -> dict:
+    """Sanity: did Cotality HVI get fresh obs for today?"""
+    eng = _engine()
+    with eng.connect() as conn:
+        row = conn.execute(text(
+            "SELECT COUNT(*) AS n FROM econ.fact_indicator f "
+            "JOIN econ.dim_indicator i ON i.id = f.indicator_id "
+            "WHERE i.imdr_code LIKE 'COTALITY.HVI.%' AND f.obs_date = :d"
+        ), {"d": today}).first()
+    eng.dispose()
+    n_series = int(row.n) if row else 0
+    return {"date": today.isoformat(), "n_series_with_today": n_series, "expected": 6}
+```
+
+If `n_series_with_today < 6`, the email banner reads `[Cotality gap]` and the run is flagged. User can re-run `au_daily.py` to catch up (since the page still shows today's value, idempotent MERGE recovers).
+
+If the gap is yesterday (2026-06-11 run noticed 2026-06-10 had only 6 obs but no 2026-06-11 obs), Cotality cron skipped a day — alert.
+
+## Concrete Phase G build items (added by this cadence analysis)
+
+1. **`scripts/econ/au/rba/rba_snapshot_refresh.py`** — promotes `fetch_d2_e_tables.py` + adds f1/f2/f11.1/d3/g1 to TABLES. Accepts `--daily-only` (f1/f2/f11.1) and full-run modes.
+2. **`au_monthly.py:_aofm_staleness_check()`** — surfaces XLSX age in monthly email; banner `[AOFM STALE]` when age > 35 days.
+3. **`au_daily.py:_cotality_today_check()`** — surfaces today's obs count in daily email; banner `[Cotality gap]` when fewer than 6 series have today's date.
 
 ## Related
 
