@@ -90,6 +90,26 @@ def _stream_from_menu_no(menu_no: str) -> str:
     }.get(menu_no, f"bok_menu_{menu_no}")
 
 
+# Operational-notice patterns to drop at discovery.
+#
+# These are MSB (Monetary Stabilization Bond) auction announcements -- one-line
+# notices with auction parameters (size, tenor, date) and no macro commentary.
+# The underlying data (MSB issuance plans, bond yields, policy rate) is captured
+# in the BANK_RATE / MONEY KOSIS time-series; keeping the announcements in
+# research.dim_report just dilutes Qdrant search rankings.
+#
+# Confirmed 2026-06-11 after the BoK 14-month backfill: 131 of 487 BoK reports
+# (27%) matched these patterns. Going forward they're dropped at discovery.
+_DROP_TITLE_RE = re.compile(
+    r"^(?:"
+    r"MSB Issuance Notice"
+    r"|Notice for Competitive Bidding on Buybacks of Monetary Stabilization Bonds"
+    r"|Regular MSB Fixed Rate Tender Issuance Announcement"
+    r")",
+    re.IGNORECASE,
+)
+
+
 def _refine_doc_type(title: str, t1: str) -> str | None:
     """Override the t1-category-based doc_type when the title is more specific.
 
@@ -121,6 +141,9 @@ def _parse_row(li_html: str) -> FilingItem | None:
     title = re.sub(r"\s+", " ", title_a.get_text(" ")).strip()
     href = str(title_a.get("href") or "")
     if not title or not href:
+        return None
+    # Drop operational MSB auction notices -- zero macro signal, pure noise.
+    if _DROP_TITLE_RE.match(title):
         return None
     m_ntt = re.search(r"nttId=(\d+)", href)
     if not m_ntt:
