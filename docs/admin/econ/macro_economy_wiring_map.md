@@ -152,7 +152,7 @@ Countries in scope (Phase 1–3): G10 + key APAC. Edit this table as fetchers la
 | UK | ❌ | ❌ | ❌ | ❌ |
 | JP | ❌ | ❌ | ❌ | ❌ |
 | CA | ❌ | ❌ | ❌ | ❌ |
-| AU | ❌ | ❌ | ❌ | ❌ |
+| AU | ✅ (ABS Retail Trade 10 + ABS Lending 11 + Cotality Daily HVI 6 + ABS RPPI 17) | ✅ (AOFM portfolio agg 16 + issuance/buybacks 10) | ✅ (ABS BOP 14 + BOP_GOODS 7 + ITPI 24 + ANA_EXP 10) | ✅ (ABS ANA_AGG GDP 7 + LF 6 + LF_UNDER 3 + ANA_EXP 10 + JV 3 + CAPEX 4) |
 | NZ | ❌ | ❌ | ❌ | ❌ |
 | CN | ❌ | ❌ | ❌ | ❌ |
 | HK | ❌ | ❌ | ❌ | ❌ |
@@ -173,7 +173,7 @@ Countries in scope (Phase 1–3): G10 + key APAC. Edit this table as fetchers la
 | UK | ❌ | ❌ | ❌ | ❌ |
 | JP | ❌ | ❌ | ❌ | ❌ |
 | CA | ❌ | ❌ | ❌ | ❌ |
-| AU | ❌ | ❌ | ❌ | ❌ |
+| AU | ✅ (ABS ITPI SITC 1-digit 18 + RBA ICP 21 sub-indices × A$/SDR/US$) | ✅ (ABS PPI_FD 3 — TSEST=TOTXE) | ✅ (ABS WPI 6 — OHRPEB total, NSA-only) | ✅ (ABS CPI 16 — headline Q + Trimmed Mean M + Weighted Median M + subcategories) |
 | NZ | ❌ | ❌ | ❌ | ⚠️ (Stats NZ CPI release) |
 | CN | ❌ | ❌ | ❌ | ❌ |
 | HK | ❌ | ❌ | ❌ | ❌ |
@@ -194,7 +194,7 @@ Countries in scope (Phase 1–3): G10 + key APAC. Edit this table as fetchers la
 | UK | ❌ | ❌ | ❌ | ❌ |
 | JP | ❌ | ❌ | ❌ | ❌ |
 | CA | ❌ | ❌ | ❌ | ❌ |
-| AU | ❌ | ❌ | ❌ | ❌ |
+| AU | ❌ (derivable from ITPI_EXP/ITPI_IMP ratio, analytics-only) | ✅ (ABS BOP CA + primary + secondary + capital + financial 14) | ✅ (ABS BOP FA 13 + AOFM foreign holdings 34 + ABS IIP 33) | ✅ (RBA F11.1 AUD/USD + TWI + 17 crosses 19 + RBA F15 REER 3) |
 | NZ | ❌ | ❌ | ❌ | ❌ |
 | CN | ❌ | ❌ | ❌ | ❌ |
 | HK | ❌ | ❌ | ❌ | ❌ |
@@ -215,7 +215,7 @@ Countries in scope (Phase 1–3): G10 + key APAC. Edit this table as fetchers la
 | UK | ❌ | ❌ | ❌ | ❌ |
 | JP | ❌ | ❌ | ❌ | ❌ |
 | CA | ❌ | ❌ | ❌ | ❌ |
-| AU | ❌ | ❌ | ❌ | ❌ |
+| AU | ✅ (RBA D2 14 credit aggregates × NSA+SA + ABS Lending 11 new commitments) | ✅ (RBA E1+E2 16 household + business balance sheets + 8 gearing ratios) | ✅ (RBA F1+F2 12 cash/BBSW/OIS/AGB/TIB + AOFM term premium 30 + turnover 67 + F17 zero-coupon curve 16) | ✅ (RBA D3 14 monetary aggregates NSA+SA + RBA A2 4 cash-rate event log) |
 | NZ | ❌ | ❌ | ❌ | ❌ |
 | CN | ❌ | ❌ | ❌ | ❌ |
 | HK | ❌ | ❌ | ❌ | ⚠️ (HKMA aggregate balance + EFBN) |
@@ -359,14 +359,18 @@ HK score: **0 ✅ / 7 ⚠️ / 9 ❌** (was 0/1/15 before v2). All right-side cl
 
 Scoping plan landed 2026-06-10: [`india/in_coverage_plan.md`](india/in_coverage_plan.md) — dual-track DBIE + CIMS (per user direction) plus MOSPI / DGCIS / MoF / DPIIT / CCIL / NSDL / BIS cascade.
 
-**Live 2026-06-10:** BIS + FRED + RBI DBIE India packages shipped — **26 indicators × 39,569 obs** in `econ.fact_indicator`. BIS: NEER/REER broad, Private-NFS DSR, Credit-to-GDP ratio + gap, RBI repo daily (1946→). FRED: CPI YoY + level (1990→), IIP (1994→2023), Real GDP annual (PWT 1990→), Call money rate (1990→), INR/USD daily + monthly (1990→). RBI DBIE: FX reserves total + FCA + Gold + SDR + IMF position (weekly, 2015→) plus 8-row Key Rates snapshot (Repo / SDF / Reverse Repo / CRR / SLR + CPI/WPI YoY latest + WACR). First IN data live in DB; DBIE bootstrap-auth client at [`src/imdr/domains/econ/rbi_dbie.py`](../../src/imdr/domains/econ/rbi_dbie.py).
+**Prod-live 2026-06-11:** BIS + FRED + RBI DBIE India — **26 indicators × 39,569 obs** in `econ.fact_indicator` via [`scripts/econ/in/{bis,rbi}/`](../../scripts/econ/in/). DBIE bootstrap-auth client at [`src/imdr/domains/econ/rbi_dbie.py`](../../src/imdr/domains/econ/rbi_dbie.py).
+
+**Pre-prod playground (2026-06-11; smoke-tested, awaiting cadence sign-off):** 8 more fetchers built at [`playground/econ/in/{vendor}/`](../../playground/econ/in/) — MOSPI CPI/IIP/NAS · DPIIT WPI/8-Core · CGA · IMD · FAO. 198 indicators × 15,081 obs landed via the build-session smoke runs (idempotent MERGE, stay in place). Orchestrator scaffold at [`playground/econ/in/in_monthly.py`](../../playground/econ/in/in_monthly.py).
 
 | Engine | A | B | C | D |
 |---|:---:|:---:|:---:|:---:|
-| **Growth** | ❌ | ❌ | ❌ | ⚠️ Macro Core *(FRED IIP 1994→2023 + Real GDP PWT annual 1990→2023)* |
-| **Inflation** | ❌ | ❌ | ❌ | ⚠️ CPI *(FRED OECD MEI YoY + level 1990→ + RBI DBIE WPI/CPI latest snapshot + RBI Bulletin T19C)* |
-| **External** | ❌ | ❌ | ✅ Capital Acc *(RBI DBIE FX reserves — TR + FCA + Gold + SDR + IMF, weekly 2015→)* | ⚠️ FX/REER *(BIS NEER + REER broad M, 1994→ + FRED DEXINUS daily 1990→)* |
-| **Policy** | ❌ | ⚠️ Balance Sheets *(BIS Private-NFS DSR + Credit-to-GDP ratio + gap, Q, 1951→)* | ⚠️ Fin Conditions *(RBI DBIE WACR daily + FRED OECD Call Money 1990→ + RBI Bulletin T27)* | ✅ Policy Reaction *(RBI DBIE Repo + SDF + Reverse Repo + CRR + SLR event-stamped + BIS CBPOL daily 1946→)* |
+| **Growth** | ❌ Private Demand | ⚠️ Fiscal Demand *(CGA 30 line items playground)* | ⚠️ External Demand *(DGCIS scaffold; one HS-month proven, no loop)* | ✅ Macro Core *(MOSPI IIP 20 × 168mo playground + DPIIT 8-Core 18 × 180mo playground + MOSPI NAS GDP 35 series playground + FRED IIP/PWT)* |
+| **Inflation** | ⚠️ Input Costs *(DPIIT 8-Core fuel/energy sub-aggregates)* | ✅ Producer Prices *(DPIIT WPI 8 × 169mo playground)* | ❌ Domestic Costs | ✅ CPI Pressure *(MOSPI CPI 78 × 4mo playground 2024-base + FRED OECD MEI 1990→ + FAO FPI global benchmark)* |
+| **External** | ❌ Terms of Trade | ❌ Current Acc | ✅ Capital Acc *(RBI DBIE FX reserves weekly 2015→)* | ⚠️ FX/REER *(BIS NEER+REER broad M 1994→ + FRED DEXINUS daily 1990→)* |
+| **Policy** | ❌ Demand Trans | ⚠️ Balance Sheets *(BIS DSR + Credit-to-GDP Q 1951→)* | ⚠️ Fin Conditions *(RBI DBIE WACR daily + FRED OECD Call Money 1990→)* | ✅ Policy Reaction *(RBI DBIE Repo + SDF + Reverse Repo + CRR + SLR event-stamped + BIS CBPOL daily 1946→)* |
+
+IN went from **1 ✅ / 4 ⚠️ / 11 ❌** (pre-session) to **4 ✅ / 6 ⚠️ / 6 ❌** if the playground pre-prod is promoted. Remaining ❌ cells: 1.1 Private Demand · 2.3 Domestic Costs · 3.1 Terms of Trade · 3.2 Current Account · 4.1 Demand Transmission · plus partials on DGCIS (3.1 External Demand needs the multi-month loop). All RBI DBIE expansion (BoP / NRI-FCNR / Bulletin tables / Banking BSR / Money Market) sits behind the A2-A7 Playwright discovery session.
 
 ### 7.13 South Korea (KR)
 
