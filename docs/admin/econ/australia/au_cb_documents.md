@@ -14,6 +14,23 @@ Status: discovery scaffold + **10 fetchers** landed 2026-06-10 at [`playground/e
 
 **Reachability finding (2026-06-10):** Treasury, Budget, and APRA hosts all return 200 OK over plain HTTPS, including PDF/XLSX downloads from `apra.gov.au/sites/default/files/*`. The corp TLS-inspection block on AOFM is **host-specific to `aofm.gov.au`** — not a generic `*.gov.au/sites/default/files/*` pattern as previously assumed.
 
+## Production fetchers
+
+8 prod fetchers in `scripts/econ/au/govt/` writing to `research.dim_report` via `scripts.econ.au.govt.ingest_filings`. See [`australia_govt_prod_pipeline.md`](australia_govt_prod_pipeline.md) for the full pipeline reference.
+
+| Fetcher | Stream | Vendor | Status |
+|---|---|---|---|
+| `fetch_rba_governors_statement.py` | `rba_governors_statement` | `rba` (official_cb) | ✅ LIVE 2026-06-11 |
+| `fetch_rba_board_minutes.py` | `rba_board_minutes` | `rba` (official_cb) | ✅ LIVE 2026-06-11 |
+| `fetch_rba_smp.py` | `rba_smp` | `rba` (official_cb) | ✅ LIVE 2026-06-11 |
+| `fetch_rba_fsr.py` | `rba_fsr` | `rba` (official_cb) | ✅ LIVE 2026-06-11 |
+| `fetch_rba_speeches.py` | `rba_speeches` | `rba` (official_cb) | ✅ LIVE 2026-06-11 |
+| `fetch_treasury.py` | `treasury_publications` | `treasury_au` (official_ministry) | ✅ LIVE 2026-06-11 |
+| `fetch_apra_quarterly.py` | `apra_adi_performance` / `apra_gi_performance` | `apra` (official_regulator) | ✅ LIVE 2026-06-11 |
+| `fetch_abs_commentary.py` | `abs_cpi_release` / `abs_labour_force_release` / `abs_national_accounts_release` | `abs` (official_statistics) | ✅ LIVE 2026-06-11 |
+| `fetch_westpac_cci.py` | `westpac_mi_consumer_sentiment` | `westpac` (sell_side) | ⛔ excluded — sell_side ingest path, covered by `playground/research/ingest/crawler_westpac.py` |
+| `fetch_nab_business_survey.py` | `nab_monthly_business_survey` | `nab` (sell_side) | ⛔ excluded — no sell-side fetcher yet; playground discovery remains |
+
 ---
 
 ## RBA — Reserve Bank of Australia

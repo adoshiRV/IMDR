@@ -30,7 +30,16 @@ Some AU coverage is already filled via FRED's OECD-mirror feeds (see [`../united
 - [`_playground/rba.md`](_playground/rba.md) — RBA playground: 5 fetchers (rates F1+F2, FX F11.1, monetary D3, credit/balance-sheet D2+E1+E2+A2) reading CSV snapshots. 78 indicators DB-loaded. Live-refresh pending Playwright stabilisation.
 - [`_playground/aofm.md`](_playground/aofm.md) — AOFM playground: **DB-LIVE**. 5 fetchers, 157 indicators. Manual monthly refresh via Edge (Chrome blocked by corp TLS-inspection). Phase G blocker lifted.
 - [`australia_indicator_inventory.md`](australia_indicator_inventory.md) — 4×4 wiring-map tracker, ABS dataflow inventory, RBA table inventory, identity checks, quality bar.
-- [`au_cb_documents.md`](au_cb_documents.md) — download checklist for RBA / AOFM / Treasury / APRA / ABS document-style sources (Board minutes, SMP, FSR, Budget Papers, etc.). Document pipeline (not data pipeline). **Tier-1 fully LIVE 2026-06-10** at [`playground/econ/au/govt/`](../../../playground/econ/au/govt/) — **10 fetchers, 67 items captured**: Governor's Statement + Board Minutes + SMP + FSR + filtered Speeches (Playwright/Akamai) + Treasury publications + APRA quarterly stats + ABS release commentary + Westpac-MI CCI + NAB Monthly Business Survey (plain httpx). Only AOFM remains Tier-3 (corp-firewall-blocked, host-specific). Manifest-only — no DB writes until research-doc pipeline absorbs filings.
+- [`au_cb_documents.md`](au_cb_documents.md) — download checklist for RBA / AOFM / Treasury / APRA / ABS document-style sources (Board minutes, SMP, FSR, Budget Papers, etc.). Document pipeline (not data pipeline). **Phase J PROD-BUILT 2026-06-11 ✅** — promoted to [`scripts/econ/au/govt/`](../../../scripts/econ/au/govt/) with 8 official streams writing to `research.dim_report` + `research.fact_chunk` + Qdrant + SharePoint via `imdr.research.filings.ingest_filing`. 9 reports / 201 chunks live in DB. Migration 092 applied (apra/treasury_au/nab seeded). Final scheduler gate (`scripts/imdr_daily.py:PIPELINES` registration) pending explicit OK. Sell-side AU streams (Westpac CCI, NAB BSI) explicitly excluded — covered by sell-side ingest path.
+
+## Quick links
+
+| Doc | Purpose |
+|---|---|
+| [`australia_govt_prod_pipeline.md`](australia_govt_prod_pipeline.md) | Phase J prod-pipeline reference — architecture, fetcher table, archive layout, idempotency, smoke checks |
+| [`au_cb_documents.md`](au_cb_documents.md) | Agency inventory + per-stream crawl recipes |
+| [`../../development/au_govt_filings.md`](../../development/au_govt_filings.md) | Phase J execution tracker — scope, bugs fixed, smoke results, DB state |
+| [`australia_indicator_inventory.md`](australia_indicator_inventory.md) | Track A 4×4 wiring-map tracker (464 indicators / 16 of 16 cells ✅) |
 
 ## Policy & fiscal document sources
 

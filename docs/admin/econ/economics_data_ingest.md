@@ -171,6 +171,8 @@ Cadence / format / why for every source we intend to ingest. Priority comes from
 
 ### 2.1 Australia
 
+**Status 2026-06-11:** Track A (data series) DB-LIVE manually-loaded — **464 indicators / 397,118 obs**, 16 of 16 wiring-map cells ✅. Phase G prod-promotion pending (scripts/econ/au/{abs,rba,aofm,cotality}/ not yet built; `australia_prod_pipeline.md` not yet drafted). Track B (govt filings) **Phase J PROD-BUILT 2026-06-11** — `scripts/econ/au/govt/` + `scripts/econ/au/au_daily.py` in place; 8 official streams writing to `research.dim_report` + Qdrant + SharePoint; 9 reports / 201 chunks live. Final gate: `scripts/imdr_daily.py:PIPELINES` registration pending OK. See [`australia/australia_govt_prod_pipeline.md`](australia/australia_govt_prod_pipeline.md).
+
 | Source | Cadence | Format | Why we want it |
 |---|---|---|---|
 | **ABS — CPI** ([url](https://www.abs.gov.au/statistics/economy/price-indexes-and-inflation/consumer-price-index-australia)) | Monthly + quarterly | XLSX, Data Explorer | Headline + component CPI, trimmed mean / weighted median, tradables vs non-tradables, capital-city splits. |
