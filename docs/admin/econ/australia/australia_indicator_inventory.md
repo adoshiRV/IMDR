@@ -4,7 +4,7 @@ Last updated: 2026-06-10
 
 Tracker forked from [`../country_econ_blueprint.md`](../country_econ_blueprint.md) §1-4 per the [onboarding playbook](../onboarding_new_country.md#step-1--fork-the-blueprint-into-a-country-tracker).
 
-**Status (2026-06-10):** DB-LIVE — **436 indicators / 357,623 obs** (verified against `econ.fact_indicator`). ABS **17 fetchers across 20 dataflows (176 indicators)** + RBA 7 fetchers via CSV snapshot (100 indicators incl. TIB + ICP) + AOFM 5 fetchers (157 indicators) + FRED-mirror (3 indicators). **15 of 16 wiring-map cells ✅** — 3.3 stock-side closed via IIP load 2026-06-10; 3.1 ToT remains derivable from ITPI ratio (now also addressable via RBA ICP). Second-most-populated country after Indonesia. Phase G blocker lifted (AOFM in DB). Production promotion can proceed with user sign-off.
+**Status (2026-06-10):** DB-LIVE — **447 indicators / 359,245 obs** (verified against `econ.fact_indicator`). ABS **17 fetchers across 20 dataflows (178 indicators incl. BA value + count)** + RBA 8 fetchers via CSV snapshot (103 indicators incl. TIB + ICP + REER) + AOFM 5 fetchers (157 indicators) + **Cotality (new vendor, 6 daily HVI series)** + FRED-mirror (3 indicators). **15 of 16 wiring-map cells ✅** — 3.3 stock-side closed via IIP; 3.4 REER closed via RBA F15; 3.1 ToT remains derivable from ITPI ratio (now also addressable via RBA ICP). Second-most-populated country after Indonesia. Phase G blocker lifted. Production promotion can proceed with user sign-off.
 
 ## Status markers
 
@@ -40,7 +40,7 @@ Tracker forked from [`../country_econ_blueprint.md`](../country_econ_blueprint.m
 
 ## Playground fetcher inventory
 
-All 28 playground fetchers as of 2026-06-10. All loaded into DB.
+All 30 playground fetchers as of 2026-06-10. All loaded into DB.
 
 | Fetcher | Vendor | Dataflow / Table | Cell | Indicators |
 |---|---|---|:---:|:---:|
@@ -60,7 +60,9 @@ All 28 playground fetchers as of 2026-06-10. All loaded into DB.
 | `fetch_gdp_expenditure.py` | ABS | `ANA_EXP` | 1.3 / 1.4 | 10 |
 | `fetch_job_vacancies.py` | ABS | `JV` | 1.4 | 3 |
 | `fetch_iip.py` | ABS | `IIP` (International Investment Position — stocks, 33 series) | 3.3 | 33 |
-| `fetch_building_approvals.py` | ABS | `BA_GCCSA` — national NSA dwellings count (Total Res + Houses) | 1.1 / 4.2 | 2 |
+| `fetch_building_approvals.py` | ABS | `BA_GCCSA` — national NSA dwellings count (Total Res + Houses) + value of jobs (Total Res + Commercial) | 1.1 / 4.2 | 4 |
+| `fetch_reer.py` | RBA | F15 — Real Exchange Rate Measures (TWI + import-weighted + export-weighted) | 3.4 | 3 |
+| `fetch_hvi.py` (cotality/) | Cotality | Daily Home Value Index for 5 capitals + 5-capital aggregate (Playwright render) | 4.2 / 1.1 | 6 |
 | `fetch_rates.py` | RBA | F1 + F2 (cash rate, BBSW, OIS, AGB 2/3/5/10Y, **TIB 10Y real yield**) | 4.3 / 2.4 | 12 |
 | `fetch_icp.py` | RBA | I2 — Index of Commodity Prices (7 sub-indices × A$/SDR/US$) | 3.1 / 3.4 commodity driver | 21 |
 | `fetch_fx.py` | RBA | F11.1 | 3.4 | 19 |
@@ -73,7 +75,7 @@ All 28 playground fetchers as of 2026-06-10. All loaded into DB.
 | `fetch_turnover.py` | AOFM | Turnover XLSX | 4.3 | 67 |
 | `fetch_issuance_buybacks.py` | AOFM | Issuance/buybacks XLSX | 1.2 | 10 |
 
-**Total: 436 indicators (ABS 176 + RBA 100 + AOFM 157 + FRED-mirror 3) / 357,623 obs.** ABS sub-totals reconcile: CPI 16 + GDP 7 + Labour 6 + LF_UNDER 3 + WPI 6 + PPI_FD 3 + Retail 10 + CAPEX 4 + Lending 11 + RPPI 17 + BOP 14 + BOP_GOODS 7 + Trade Prices 24 + GDP_EXP 10 + JV 3 + IIP 33 + BA 2 = 176. RBA: F1+F2 12 + F11.1 19 + D3 14 + D2+E1+E2+A2 34 + I2 ICP 21 = 100.
+**Total: 447 indicators (ABS 178 + RBA 103 + AOFM 157 + Cotality 6 + FRED-mirror 3) / 359,245 obs.** ABS sub-totals reconcile: CPI 16 + GDP 7 + Labour 6 + LF_UNDER 3 + WPI 6 + PPI_FD 3 + Retail 10 + CAPEX 4 + Lending 11 + RPPI 17 + BOP 14 + BOP_GOODS 7 + Trade Prices 24 + GDP_EXP 10 + JV 3 + IIP 33 + BA 4 = 178. RBA: F1+F2 12 + F11.1 19 + D3 14 + D2+E1+E2+A2 34 + I2 ICP 21 + F15 REER 3 = 103.
 
 ## Phase G — BLOCKER LIFTED
 
@@ -104,12 +106,12 @@ official series. Prioritised by signal-per-effort:
 | 3 | **Westpac–Melbourne Institute Consumer Sentiment** (CCI) | The flagship AU consumer-side confidence indicator. | Monthly | plain httpx | 🟡 **Filing discovery LIVE 2026-06-10** — `playground/econ/au/govt/fetch_westpac_cci.py` (lives in govt-filings playground; manifest-only). 13 monthly releases parsed from `westpaciq.com.au/topic.consumersentiment` with PDF URL pattern `er{YYYYMMDD}BullConsumerSentiment.pdf`. Actual numeric CCI value lives in the PDF — extraction deferred to research-doc pipeline. |
 | 4 | **TIBs breakeven-inflation curve** | We have AGB nominal yields (RBA F2). Need indexed yields to compute breakeven. | Daily | RBA CSV snapshot | ✅ **LIVE 2026-06-10** — F2 already publishes 10Y indexed-bond yield (series `FCMYGBAGID`); added as `RBA.RATES.GOVTBOND_INDEXED_10Y.AU`. 2,884 obs back to 2014-11-20. Latest real 10Y = 2.501%, breakeven 10Y inflation = 4.863% − 2.501% = **2.36%** (derived analytics-side). |
 | 5 | **RBA Index of Commodity Prices** (ICP, I2 stat table) | AU is the textbook commodity FX; ToT is the dominant AUD driver. | Monthly | RBA CSV snapshot | ✅ **LIVE 2026-06-10** — `fetch_icp.py` loads all 21 series (7 sub-indices × A$/SDR/US$): Total, Rural, Non-rural, Base metals, Bulk commodities export-price + spot-price. Monthly since 1982. 9,159 obs. |
-| 6 | **CoreLogic Daily Home Value Index** | ABS RPPI is quarterly. CoreLogic is daily, RBA cites it every FSR. | Daily | plain httpx | Not yet probed. |
-| 7 | **ABS Building Approvals** + Motor Vehicle Sales | Building Approvals = classical leading construction indicator. Motor Vehicle Sales likely XLSX-only. | Monthly | ABS SDMX | ✅ **Building Approvals LIVE 2026-06-10** — `fetch_building_approvals.py`, 2 NSA national series (Total Residential dwellings + Houses dwellings) loaded. SA series 404 at building-type level (only NSA published). Value-of-jobs series deferred pending `aud_th` unit seed in `dim_unit`. Motor Vehicle Sales not in SDMX (XLSX-only) — separate XLSX-parser build required. |
-| 8 | **State govt bonds** (TCV / NSWTC / QTC / WATC / SAFA — semis curve) | Semis trade as their own curve vs Commonwealth. | Daily | Per-state probe; fragmented | Not yet probed. |
+| 6 | **CoreLogic (now Cotality) Daily Home Value Index** | ABS RPPI is quarterly. Cotality is daily, RBA cites it every FSR. | Daily | Playwright (JS-rendered table) | ✅ **LIVE 2026-06-10** — `playground/econ/cotality/fetch_hvi.py`. New vendor row in `dim_vendor` (migration 090). Each run captures 6 daily-HVI series (Sydney/Melbourne/Brisbane/Adelaide/Perth + 5-capital aggregate). Domain rebranded `corelogic.com.au` → `cotality.com`. |
+| 7 | **ABS Building Approvals** + Motor Vehicle Sales | Building Approvals = classical leading construction indicator. Motor Vehicle Sales likely XLSX-only. | Monthly | ABS SDMX | ✅ **Building Approvals fully LIVE 2026-06-10** — `fetch_building_approvals.py`, 4 NSA national series (2 dwelling-count: Total Residential + Houses; 2 value-of-jobs: Total Residential + Commercial, AUD thousands after `aud_th` unit seeded via migration 091). SA series 404 at building-type level (only NSA published). Motor Vehicle Sales not in SDMX (XLSX-only) — separate XLSX-parser build required. |
+| 8 | **State govt bonds** (TCV / NSWTC / QTC / WATC / SAFA — semis curve) | Semis trade as their own curve vs Commonwealth. | Daily | Per-state probe; fragmented | 🟡 **Probed 2026-06-10, deferred** — 3 of 5 state treasury sites (TCV /investors, NSW TCorp, SAFA) return 403 (Akamai/CDN gated, would need Playwright); QTC + WATC reachable. Each treasury has a different URL pattern + table shape → ~half-day per source. Substituted in this pass by RBA F16 awareness (per-bond AGB ISINs available but deferred to future `dim_bond_instrument` schema). |
 | 9 | **China macro panel** (CPI / credit impulse / PMI / iron ore) | China is AU's #1 trade partner. | Various | Separate country buildout | Major (separate scope). |
 
-**Latest build pass (2026-06-10):** items 4 + 5 (TIBs verification + RBA ICP); items 7 ABS Building Approvals partial (count series shipped, value series pending unit seed); item 3 Westpac CCI filing-discovery shipped (govt-filings, not time-series). Item 1 (AiG) blocked behind Flourish-only viz — FRED mirror retry pending reachability. Item 2 (NAB) parked. Items 6 / 8 / 9 unblocked but lower priority.
+**Latest build pass (2026-06-10):** items 4 + 5 (TIBs verification + RBA ICP) ✅; item 7 ABS Building Approvals — count series shipped, then value series shipped after `aud_th` unit seed ✅; item 3 Westpac CCI filing-discovery shipped (govt-filings, not time-series); item 6 Cotality Daily HVI ✅ (new vendor); bonus: RBA F15 REER ✅. Item 1 (AiG) blocked behind Flourish-only viz — FRED mirror retried, FRED API connection-failed from this network. Item 2 (NAB) parked. Item 8 (state semis) probed and deferred (3 of 5 sites Akamai-gated, half-day each).
 
 ## Build order (historical reference)
 
@@ -139,7 +141,9 @@ Completed in this order:
 23. ABS IIP International Investment Position (3.3 stock-side) — `fetch_iip.py`, 33 indicators, category `instr_outstand`, quarterly 1988-Q3 → 2026-Q1. [✓ loaded 2026-06-10]
 24. RBA F2 indexed-bond yield (TIB, breakeven-inflation enabler) — added 1 series (`RBA.RATES.GOVTBOND_INDEXED_10Y.AU`) to `fetch_rates.py`. 2,884 obs daily 2014-11-20 → 2026-05-27. [✓ loaded 2026-06-10]
 25. RBA I2 Index of Commodity Prices (commodity-FX / ToT driver) — `fetch_icp.py`, 21 series across 7 sub-indices × 3 currencies (A$ / SDR / US$). Monthly since 1982. [✓ loaded 2026-06-10]
-26. ABS Building Approvals (BA_GCCSA dataflow, cell 1.1 leading indicator) — `fetch_building_approvals.py`, 2 NSA national-headline count series (Total Residential + Houses). Monthly since 1983/1986. SA + Value-of-jobs deferred (SA returns 404; AUD-thousands unit not in `dim_unit`). [✓ loaded 2026-06-10]
+26. ABS Building Approvals (BA_GCCSA dataflow, cell 1.1 leading indicator) — `fetch_building_approvals.py`, 4 NSA national-headline series: 2 count (Total Residential + Houses dwellings, monthly since 1983/1986) + 2 value-of-jobs (Total Residential + Commercial, monthly since 1973/2000, unit `aud_th` after migration 091). [✓ loaded 2026-06-10]
+27. Cotality (formerly CoreLogic) Daily HVI — new vendor (migration 090, `dim_vendor.cotality` id=69). `playground/econ/cotality/fetch_hvi.py` Playwright-renders the JS-only indices page and emits 6 daily-frequency series (5 capitals + 5-capital aggregate). Each run captures today's snapshot; daily reruns accumulate the time-series. [✓ loaded 2026-06-10]
+28. RBA F15 REER — `fetch_reer.py`, 3 quarterly series (Real TWI + Real import-weighted + Real export-weighted), since 1970. Closes cell 3.4 REER sub-bullet previously addressable only via BIS WS_EER. [✓ loaded 2026-06-10]
 
 ## Expected ❌ cells
 

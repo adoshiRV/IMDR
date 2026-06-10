@@ -2,7 +2,7 @@
 
 Last updated: 2026-06-10
 
-AU macroeconomic data. **Status: DB-LIVE (manual load) — 436 indicators / 357,623 obs. ABS 17 fetchers across 20 dataflows (176 indicators, incl. IIP + Building Approvals) + RBA 7 fetchers via CSV snapshot (100 indicators, incl. TIB + I2 ICP) + AOFM 5 fetchers (157 indicators) + FRED OECD mirror (3 indicators). 15 of 16 wiring-map cells ✅. Second-most-populated country after Indonesia.**
+AU macroeconomic data. **Status: DB-LIVE (manual load) — 447 indicators / 359,245 obs. ABS 17 fetchers / 20 dataflows (178 indicators, incl. IIP + Building Approvals value & count) + RBA 8 fetchers via CSV snapshot (103 indicators, incl. TIB + I2 ICP + F15 REER) + AOFM 5 fetchers (157 indicators) + Cotality (new vendor, 6 daily HVI series) + FRED OECD mirror (3 indicators). 15 of 16 wiring-map cells ✅ (3.4 REER closed via RBA F15). Second-most-populated country after Indonesia.**
 
 > **Phase G blocker lifted 2026-06-10.** AOFM data is now in DB (157 indicators / 268,195 obs). Production promotion can proceed with explicit user sign-off. AOFM refresh is manual-monthly via Edge (corp TLS-inspection blocks Chrome/Playwright on `*.gov.au/sites/default/files/*.xlsx`; Edge uses Schannel and is unaffected). See [`_playground/aofm.md`](_playground/aofm.md).
 
@@ -25,7 +25,8 @@ Some AU coverage is already filled via FRED's OECD-mirror feeds (see [`../united
 
 ## Playground
 
-- [`_playground/abs.md`](_playground/abs.md) — ABS SDMX playground: 16 fetchers live across 19 dataflows (CPI, GDP, Labour + LF_UNDER, WPI, PPI_FD, Retail, BOP, BOP_GOODS, ITPI imp+exp, ANA_EXP, JV, CAPEX, Lending, RPPI, **IIP**). 174 indicators DB-loaded (IIP 33-series loaded 2026-06-10, category=`instr_outstand`, 1988 Q3 → 2026 Q1).
+- [`_playground/abs.md`](_playground/abs.md) — ABS SDMX playground: 17 fetchers live across 20 dataflows (CPI, GDP, Labour + LF_UNDER, WPI, PPI_FD, Retail, BOP, BOP_GOODS, ITPI imp+exp, ANA_EXP, JV, CAPEX, Lending, RPPI, IIP, **Building Approvals**). 178 indicators DB-loaded.
+- [`_playground/cotality.md`](_playground/cotality.md) — Cotality (formerly CoreLogic) playground (NEW 2026-06-10): Daily Home Value Index for 5 capitals + 5-capital aggregate via Playwright render. 6 daily-frequency indicators.
 - [`_playground/rba.md`](_playground/rba.md) — RBA playground: 5 fetchers (rates F1+F2, FX F11.1, monetary D3, credit/balance-sheet D2+E1+E2+A2) reading CSV snapshots. 78 indicators DB-loaded. Live-refresh pending Playwright stabilisation.
 - [`_playground/aofm.md`](_playground/aofm.md) — AOFM playground: **DB-LIVE**. 5 fetchers, 157 indicators. Manual monthly refresh via Edge (Chrome blocked by corp TLS-inspection). Phase G blocker lifted.
 - [`australia_indicator_inventory.md`](australia_indicator_inventory.md) — 4×4 wiring-map tracker, ABS dataflow inventory, RBA table inventory, identity checks, quality bar.

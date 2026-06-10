@@ -9,7 +9,7 @@ This file is the **coverage target** for `econ.dim_indicator`. Every cluster bel
 - **Onboarding playbook**: [onboarding_new_country.md](onboarding_new_country.md) — 5-step workflow with vendor cascade, build order, identity checks, quality bar, ❌→⚠→✅ promotion rules.
 - **Indicator catalogue**: [country_econ_blueprint.md](country_econ_blueprint.md) — country-agnostic master list of series per cluster.
 - **Schema + build log**: [economics_data_ingest.md](economics_data_ingest.md) — pipeline + per-vendor build state.
-- **Date**: 2026-06-09 (AU sweep complete: **502 indicators / 389,504 obs / 11 countries**; AU 132 indicators / 63,925 obs — 11 of 16 cells now ✅, 4.1/4.2/2.1/1.2 remain ❌; second-most-populated after ID)
+- **Date**: 2026-06-10 (ID SRBI added: **292 indicators / 110,961 obs** for ID alone — 289 econ indicators + 3 SRBI rates; **AU 447 indicators / 359,245 obs — 15 of 16 cells ✅** (+11 this pass: Cotality 6 daily HVI + ABS BA value 2 + RBA F15 REER 3); total across all countries updated)
 
 ---
 
@@ -297,7 +297,7 @@ US score: **4 ✅ / 11 ⚠️ / 1 ❌** (was 4/8/4 before v2 expansion). Only Te
 
 ### 7.7 Australia (AU)
 
-Updated 2026-06-10: **436 indicators / 357,623 obs DB-LIVE** (manual load). **15 of 16 cells ✅**. ABS 17 fetchers / 20 dataflows (176 indicators incl. IIP + Building Approvals) + RBA 7 fetchers via CSV snapshot (100 indicators incl. TIB + I2 ICP) + AOFM 5 fetchers (157 indicators) + FRED-mirror (3). Phase G blocker lifted. Second-most-populated country after Indonesia.
+Updated 2026-06-10: **447 indicators / 359,245 obs DB-LIVE** (manual load). **15 of 16 cells ✅**. ABS 17 fetchers / 20 dataflows (178 indicators incl. IIP + BA value+count) + RBA 8 fetchers via CSV snapshot (103 indicators incl. TIB + I2 ICP + F15 REER) + AOFM 5 fetchers (157 indicators) + Cotality (new vendor, 6 daily HVI) + FRED-mirror (3). Phase G blocker lifted. Second-most-populated country after Indonesia.
 
 | Engine | A | B | C | D |
 |---|:---:|:---:|:---:|:---:|
@@ -418,8 +418,8 @@ Source-catalogue scoped 2026-06-05: BoT REST JSON API (free key, rates/FX/moneta
 
 ### 7.17 Indonesia (ID)
 
-**Prod-promoted 2026-06-09 via `scripts/econ/id/id_monthly.py`; wired into `scripts/imdr_monthly.py:PIPELINES` 2026-06-09. `scripts.econ.bis.bis_indonesia` additionally registered in `scripts/imdr_daily.py:PIPELINES` for same-day BI policy-rate capture.**
-Source-catalogue scoped 2026-06-05; Phases A+B+C+C2+D+D2+D3+D4+D5+D6+F+G complete 2026-06-09 — **250 indicators × 26,757 observations live in `econ.fact_indicator`** (BPS 82 + BI 162 + BIS 6). 25 prod fetchers: 10 BPS + 14 BI (9 SEKI + 3 Survey publications + SKDU macro + bank rates) + 1 BIS SDMX. See [indonesia/index.md](../econ/indonesia/index.md), [prod-pipeline](../econ/indonesia/indonesia_prod_pipeline.md), [indicator-inventory](../econ/indonesia/indonesia_indicator_inventory.md), [coverage-plan](../econ/indonesia/id_coverage_plan.md), [bps_api_reference](../econ/indonesia/bps_api_reference.md), [_playground/bps.md](../econ/indonesia/_playground/bps.md), [_playground/bi.md](../econ/indonesia/_playground/bi.md), [_playground/bis.md](../econ/indonesia/_playground/bis.md).
+**Prod-promoted 2026-06-09 via `scripts/econ/id/id_monthly.py`; wired into `scripts/imdr_monthly.py:PIPELINES` 2026-06-09. `scripts.econ.bis.bis_indonesia` and `scripts.econ.bi.bi_srbi` registered in `scripts/imdr_daily.py:PIPELINES` for same-day capture of event-driven series (BI policy rate + SRBI auction yields).**
+Source-catalogue scoped 2026-06-05; Phases A+B+C+C2+D+D2+D3+D4+D5+D6+F+G+H complete 2026-06-10 — **289 indicators × 110,476 observations live in `econ.fact_indicator`** (BPS 82 + BI 165 + BIS 6 + DJPPR 36). 27 prod fetchers: 10 BPS + 15 BI (9 SEKI + 3 Survey publications + SKDU macro + bank rates + SRBI auction) + 1 BIS SDMX + 1 DJPPR. See [indonesia/index.md](../econ/indonesia/index.md), [prod-pipeline](../econ/indonesia/indonesia_prod_pipeline.md), [indicator-inventory](../econ/indonesia/indonesia_indicator_inventory.md), [coverage-plan](../econ/indonesia/id_coverage_plan.md), [bps_api_reference](../econ/indonesia/bps_api_reference.md), [_playground/bps.md](../econ/indonesia/_playground/bps.md), [_playground/bi.md](../econ/indonesia/_playground/bi.md), [_playground/bis.md](../econ/indonesia/_playground/bis.md).
 
 `*` denotes partial coverage at the cell. **All 16 cells covered; 13 of 16 are full ✅.** Three cells still ⚠ partial:
 - 2.1 Input Costs — BPS import prices only (2/7 sub-bullets)
@@ -431,7 +431,7 @@ Source-catalogue scoped 2026-06-05; Phases A+B+C+C2+D+D2+D3+D4+D5+D6+F+G complet
 | **Growth** (1.1 Private / 1.2 Fiscal / 1.3 External / 1.4 Macro) | ✅ | ✅ | ✅ | ✅ |
 | **Inflation** (2.1 Input / 2.2 Producer / 2.3 Domestic / 2.4 CPI) | ⚠* | ✅ | ✅ | ✅ |
 | **External** (3.1 ToT / 3.2 CA / 3.3 FA / 3.4 FX) | ⚠* | ✅ | ✅ | ⚠* |
-| **Policy** (4.1 Demand / 4.2 BS / 4.3 FinCond / 4.4 PolReaction) | ✅ | ✅ | ✅ | ✅ |
+| **Policy** (4.1 Demand / 4.2 BS / 4.3 FinCond / 4.4 PolReaction) | ✅ | ✅ | ✅ *(added: BI SRBI 6M/9M/12M auction yields 2026-06-10)* | ✅ |
 
 ---
 
