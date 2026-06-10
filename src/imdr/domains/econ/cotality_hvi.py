@@ -54,10 +54,12 @@ def _fetch_html() -> str:
     _PROFILE.mkdir(parents=True, exist_ok=True)
 
     with sync_playwright() as pw:
+        # Headless verified 2026-06-11: page JS still populates the tbody
+        # under headless and the 6 series extract cleanly.
         ctx = pw.chromium.launch_persistent_context(
             user_data_dir=str(_PROFILE),
             channel="chrome",
-            headless=False,
+            headless=True,
             ignore_https_errors=True,
             viewport={"width": 1400, "height": 900},
             locale="en-AU",

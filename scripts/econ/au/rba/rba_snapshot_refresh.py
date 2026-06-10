@@ -61,17 +61,19 @@ def _download_tables(tables: list[tuple[str, str]]) -> int:
         shutil.rmtree(_PROFILE, ignore_errors=True)
     _PROFILE.mkdir(parents=True, exist_ok=True)
 
-    print(f"[rba_snapshot_refresh] launching headed Chrome ({len(tables)} tables)")
+    print(f"[rba_snapshot_refresh] launching headless Chrome ({len(tables)} tables)")
     successes, failures = [], []
 
     with sync_playwright() as pw:
+        # Headless verified 2026-06-11: the warmup goto to /statistics/tables/
+        # seeds the Akamai cookie under headless and ctx.request.get pulls
+        # f1-data.csv (~300KB) without an interstitial.
         ctx = pw.chromium.launch_persistent_context(
             user_data_dir=str(_PROFILE),
             channel="chrome",
-            headless=False,
+            headless=True,
             accept_downloads=True,
             ignore_https_errors=True,
-            args=["--start-maximized"],
             viewport={"width": 1400, "height": 900},
             locale="en-AU",
         )
