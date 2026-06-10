@@ -297,7 +297,7 @@ US score: **4 ✅ / 11 ⚠️ / 1 ❌** (was 4/8/4 before v2 expansion). Only Te
 
 ### 7.7 Australia (AU)
 
-Updated 2026-06-10: **412 indicators / 344,582 obs DB-LIVE** (manual load). **15 of 16 cells ✅** (3.3 stock-side closed via IIP 2026-06-10; 3.1 ToT remains derivable). ABS 16 fetchers / 19 dataflows (174 indicators incl. IIP 33-series, category `instr_outstand`) + RBA 5 fetchers via CSV snapshot (78 indicators) + AOFM 5 fetchers (157 indicators) + FRED-mirror (3). Phase G blocker lifted. Second-most-populated country after Indonesia.
+Updated 2026-06-10: **434 indicators / 356,625 obs DB-LIVE** (manual load). **15 of 16 cells ✅**. ABS 16 fetchers / 19 dataflows (174 indicators incl. IIP) + RBA 7 fetchers via CSV snapshot (100 indicators incl. TIB + I2 ICP) + AOFM 5 fetchers (157 indicators) + FRED-mirror (3). Phase G blocker lifted. Second-most-populated country after Indonesia.
 
 | Engine | A | B | C | D |
 |---|:---:|:---:|:---:|:---:|
