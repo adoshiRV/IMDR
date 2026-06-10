@@ -151,24 +151,27 @@ Reference shape: `scripts/econ/kr/kr_{daily,weekly,monthly}.py`.
 
 ### J.2 Build AU resolvers module
 
-Korea has `scripts/econ/kr/govt/resolvers.py` with per-agency body+PDF recipes. AU needs the equivalent. **Three resolver patterns proven 2026-06-11:**
+Korea has `scripts/econ/kr/govt/resolvers.py` with per-agency body+PDF recipes. AU needs the equivalent.
 
-| Pattern | Use case | Result |
+**Resolver contract — every AU stream produces `pdf_bytes`** (decided 2026-06-11). Body-text-only ingest is explicitly off the table for AU — we want every stream to land in SharePoint, identical to Korea's PDF streams. Two transport flavours:
+
+| Flavour | Use case | How |
 |---|---|---|
-| `("body", html_text)` | HTML-only sources, no SharePoint copy desired | DB row + Qdrant chunks; `sharepoint_path=None` |
-| `("pdf", pdf_bytes)` (publisher PDF) | Source publishes a PDF (SMP / FSR / AOFM Annual Report / NAB / Westpac with cookies) | DB row + Qdrant chunks + SharePoint mirror |
-| `("pdf", pdf_bytes)` (HTML-rendered) | HTML-only source where SP mirror is still wanted (Governor's Statement, Board Minutes, Speeches, ABS releases, Treasury detail pages, NAB articles) | Same as publisher-PDF path. Resolver uses Playwright `page.emulate_media("print")` + `page.pdf(format="A4", print_background=True)` to render the same content into a clean PDF |
+| **Publisher PDF** | Source publishes a PDF (RBA SMP / FSR, AOFM Annual Report, NAB / Westpac CCI when cookies work, APRA glossary PDFs) | Resolver fetches the `.pdf` URL via Playwright `ctx.request.get` (re-using the warmed Akamai/CDN cookie from page navigation) |
+| **HTML-rendered PDF** | HTML-only source (RBA Governor's Statement / Board Minutes / Speeches, ABS release commentary, Treasury detail pages, NAB articles) | Resolver does `page.emulate_media("print")` then `page.pdf(format="A4", print_background=True, margin=12mm)` on the rendered article |
 
-**Decision per stream — recommended default = render-to-PDF for HTML-only sources** (gives same Qdrant indexing AND SharePoint copy, indistinguishable from publisher-PDF streams in `research.dim_report`):
+Both produce `pdf_bytes` → `FilingInput(pdf_bytes=...)` → `ingest_filing` → DB row + Qdrant chunks + SharePoint mirror, indistinguishable in `research.dim_report`.
+
+**Decision per stream:**
 
 - [ ] `scripts/econ/au/govt/resolvers.py` covering:
-  - **RBA Governor's Statement / Board Minutes / Speeches** (HTML-only): render via Playwright `page.pdf()` → `("pdf", bytes)` — proven 2026-06-11 with report_id 6151
-  - **RBA SMP / FSR** (HTML + publisher PDF): grab the publisher PDF via Playwright `ctx.request.get` — proven 2026-06-11 with report_id 6148 (4.9MB SMP, 78 pages)
-  - **Treasury publications**: plain httpx body-text from the publication detail page; default to render-to-PDF
-  - **APRA quarterly stats**: plain httpx — page → primary XLSX URL → ingest the XLSX as `pdf_bytes` (the ingest helper will note non-PDF magic in pdf_path metadata) OR render the landing page to PDF + keep the XLSX URL in `tags`
-  - **ABS commentary** (CPI / Labour Force / National Accounts): plain httpx body-text from the release page → render to PDF for SP mirror
-  - **Westpac CCI**: **investigate PDF 500** — likely needs cookie/session capture from the topic page navigation. Fallback: render the article landing page to PDF.
-  - **NAB BSI**: plain httpx → render article body to PDF for SP mirror
+  - **RBA Governor's Statement / Board Minutes / Speeches** (HTML-only): render via Playwright `page.pdf()` — proven 2026-06-11 with report_id 6151 (Board Minutes, 130 KB rendered PDF, 9 chunks, SP mirror ✅)
+  - **RBA SMP / FSR** (HTML + publisher PDF): fetch the publisher PDF via Playwright `ctx.request.get` — proven 2026-06-11 with report_id 6148 (SMP, 4.9 MB publisher PDF, 78 pages, 83 chunks, SP mirror ✅)
+  - **Treasury publications**: plain httpx render → fallback to render-to-PDF via headless Playwright (no Akamai gate, so headless is fine)
+  - **APRA quarterly stats**: each page has BOTH XLSX downloads AND a glossary PDF. Option A — render landing page to PDF; keep XLSX URL in `tags`. Option B — fetch the glossary PDF as primary, keep XLSX URL in `tags`. Pick A for now (page narrative is more useful than glossary)
+  - **ABS commentary** (CPI / Labour Force / National Accounts): plain httpx render → render-to-PDF
+  - **Westpac CCI**: **investigate PDF 500** — likely needs cookie/session from the topic page navigation. Fallback: render article landing page to PDF if PDF stays gated
+  - **NAB BSI**: plain httpx → render article body to PDF
 
 ### J.3 Promote playground fetchers + orchestrator to `scripts/econ/au/govt/`
 
