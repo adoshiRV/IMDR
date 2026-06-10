@@ -2,7 +2,7 @@
 
 Last updated: 2026-06-10
 
-AU macroeconomic data. **Status: DB-LIVE (manual load) — 434 indicators / 356,625 obs. ABS 16 fetchers across 19 dataflows (174 indicators, incl. IIP) + RBA 7 fetchers via CSV snapshot (100 indicators, incl. TIB + I2 ICP loaded 2026-06-10) + AOFM 5 fetchers (157 indicators) + FRED OECD mirror (3 indicators). 15 of 16 wiring-map cells ✅ (3.3 stock-side closed via IIP; 3.1 ToT derivable from ITPI ratio and now also via RBA ICP). Second-most-populated country after Indonesia.**
+AU macroeconomic data. **Status: DB-LIVE (manual load) — 436 indicators / 357,623 obs. ABS 17 fetchers across 20 dataflows (176 indicators, incl. IIP + Building Approvals) + RBA 7 fetchers via CSV snapshot (100 indicators, incl. TIB + I2 ICP) + AOFM 5 fetchers (157 indicators) + FRED OECD mirror (3 indicators). 15 of 16 wiring-map cells ✅. Second-most-populated country after Indonesia.**
 
 > **Phase G blocker lifted 2026-06-10.** AOFM data is now in DB (157 indicators / 268,195 obs). Production promotion can proceed with explicit user sign-off. AOFM refresh is manual-monthly via Edge (corp TLS-inspection blocks Chrome/Playwright on `*.gov.au/sites/default/files/*.xlsx`; Edge uses Schannel and is unaffected). See [`_playground/aofm.md`](_playground/aofm.md).
 
