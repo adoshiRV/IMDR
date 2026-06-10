@@ -43,6 +43,41 @@ Domain library code lives in `src/imdr/domains/econ/`:
 
 ## Cadence and orchestrator placement
 
+### Daily (`scripts/imdr_daily.py`)
+
+```
+python -m scripts.econ.kr.kr_daily
+```
+
+**New 2026-06-10.** Runs every day under the daily cron. The orchestrator
+delegates to one subsystem today; more KR daily entries can extend the
+`PIPELINES` list.
+
+| Sub-orchestrator | Purpose | Cadence per source |
+|---|---|---|
+| `scripts.econ.kr.govt.ingest_filings` | Discovers + ingests govt policy filings (BoK, MOEF, MOTIR, FSC, FSS, KCS, KDI, MoDS) into `research.dim_report` + `research.fact_chunk` + Qdrant + SharePoint via `imdr.research.filings.ingest_filing`. Dedups via rolling `data/seen.json`; failed items retry on next run. | per-source — BoK ~1/day, MOEF ~5/day, MOTIR ~2/day, FSS ~0.3/day, FSC ~0.4/day, KDI ~0.1/day, MoDS monthly (CPI) |
+
+Writes to:
+- `research.dim_report` (one row per filing, `vendor_category` ∈ `official_cb / official_ministry / official_regulator / official_thinktank / official_statistics`)
+- `research.fact_chunk` (one row per ~800-token slice)
+- Qdrant collection `research_gemini_embedding_2_3072d` (one point per chunk with payload `vendor_category`, `country_code`, `doc_type`, `stream`)
+- SharePoint at `{YYYY}/{MM}/{DD}/econ/kr/{vendor}/{slug}_{hash8}.pdf`
+  (date-first canonical layout — fits inside the existing sell-side
+  research convention; HTML-only sources like MOEF/MOTIR write chunks
+  with no SharePoint mirror)
+
+Email summary sent to `Settings.email_to` after each run:
+> Subject: `[IMDR Daily KR] ✓ all ok — N new filings, M chunks (T min)`
+> Body: pipeline-results table · filings ingested by vendor · top-5 recent titles.
+
+Inline rendering in `scripts/econ/kr/kr_daily.py:_render_email()` — not via
+`_country_runner` (which is indicator-focused and doesn't fit Track B).
+Replicate this shape when adding `au_daily.py` / `id_daily.py` etc.;
+once 3+ countries are live, promote into a shared formatter.
+
+See [`kr_govt_filings.md`](../../development/kr_govt_filings.md) for the
+full corpus extension tracker.
+
 ### Weekly (`scripts/imdr_weekly.py`, position #3 of 5)
 
 ```

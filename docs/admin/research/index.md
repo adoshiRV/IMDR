@@ -390,7 +390,7 @@ no classifiers, no relevance filter. They're discovered by per-country
 prod scripts (Korea first: [`playground/econ/kr/govt/`](../../../playground/econ/kr/govt/))
 and pass through the same parse → chunk → embed → write pipeline via
 a thin helper at [`src/imdr/research/filings.py`](../../../src/imdr/research/filings.py)
-(skeleton; impl follows migrations 086/087).
+(full impl; migrations 086/087 applied 2026-06-10).
 
 Discrimination is by `dbo.dim_vendor.vendor_category`:
 

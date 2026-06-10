@@ -9,7 +9,7 @@ This file is the **coverage target** for `econ.dim_indicator`. Every cluster bel
 - **Onboarding playbook**: [onboarding_new_country.md](onboarding_new_country.md) — 5-step workflow with vendor cascade, build order, identity checks, quality bar, ❌→⚠→✅ promotion rules.
 - **Indicator catalogue**: [country_econ_blueprint.md](country_econ_blueprint.md) — country-agnostic master list of series per cluster.
 - **Schema + build log**: [economics_data_ingest.md](economics_data_ingest.md) — pipeline + per-vendor build state.
-- **Date**: 2026-06-10 (ID SRBI added: **292 indicators / 110,961 obs** for ID alone — 289 econ indicators + 3 SRBI rates; **AU 463 indicators / 397,053 obs — 15 of 16 cells ✅** (+27 this session: Cotality 6 daily HVI + ABS BA 4 + RBA F15 REER 3 + RBA F17 zero-coupon curve 16); total across all countries updated)
+- **Date**: 2026-06-10 (ID SBN-position added: **308 indicators / 114,106 obs** for ID; **AU 463 indicators / 397,053 obs — 15 of 16 cells ✅**; total across all countries updated)
 
 ---
 
@@ -419,7 +419,7 @@ Source-catalogue scoped 2026-06-05: BoT REST JSON API (free key, rates/FX/moneta
 ### 7.17 Indonesia (ID)
 
 **Prod-promoted 2026-06-09 via `scripts/econ/id/id_monthly.py`; wired into `scripts/imdr_monthly.py:PIPELINES` 2026-06-09. `scripts.econ.bis.bis_indonesia` and `scripts.econ.bi.bi_srbi` registered in `scripts/imdr_daily.py:PIPELINES` for same-day capture of event-driven series (BI policy rate + SRBI auction yields).**
-Source-catalogue scoped 2026-06-05; Phases A+B+C+C2+D+D2+D3+D4+D5+D6+F+G+H complete 2026-06-10 — **289 indicators × 110,476 observations live in `econ.fact_indicator`** (BPS 82 + BI 165 + BIS 6 + DJPPR 36). 27 prod fetchers: 10 BPS + 15 BI (9 SEKI + 3 Survey publications + SKDU macro + bank rates + SRBI auction) + 1 BIS SDMX + 1 DJPPR. See [indonesia/index.md](../econ/indonesia/index.md), [prod-pipeline](../econ/indonesia/indonesia_prod_pipeline.md), [indicator-inventory](../econ/indonesia/indonesia_indicator_inventory.md), [coverage-plan](../econ/indonesia/id_coverage_plan.md), [bps_api_reference](../econ/indonesia/bps_api_reference.md), [_playground/bps.md](../econ/indonesia/_playground/bps.md), [_playground/bi.md](../econ/indonesia/_playground/bi.md), [_playground/bis.md](../econ/indonesia/_playground/bis.md).
+Source-catalogue scoped 2026-06-05; Phases A+B+C+C2+D+D2+D3+D4+D5+D6+F+G+H+I complete 2026-06-10 — **308 indicators × 114,106 observations live in `econ.fact_indicator`** (BPS 82 + BI 184 + BIS 6 + DJPPR 36). 28 prod fetchers: 10 BPS + 16 BI (9 SEKI + 3 Survey publications + SKDU macro + bank rates + SRBI auction + SBN position by holder) + 1 BIS SDMX + 1 DJPPR. Phase I (2026-06-10): BI SEKI IV.4 SBN position by holder — 19 indicators × 3,630 obs; 4 headline totals (SUN/ON/SPN/SBSN) + 8 ON bank-type holder decomp + 7 SPN holder decomp; monthly 2008-12→2026-05; reuses `bi_seki.py` (no new library). See [indonesia/index.md](../econ/indonesia/index.md), [prod-pipeline](../econ/indonesia/indonesia_prod_pipeline.md), [indicator-inventory](../econ/indonesia/indonesia_indicator_inventory.md), [coverage-plan](../econ/indonesia/id_coverage_plan.md), [bps_api_reference](../econ/indonesia/bps_api_reference.md), [_playground/bps.md](../econ/indonesia/_playground/bps.md), [_playground/bi.md](../econ/indonesia/_playground/bi.md), [_playground/bis.md](../econ/indonesia/_playground/bis.md).
 
 `*` denotes partial coverage at the cell. **All 16 cells covered; 13 of 16 are full ✅.** Three cells still ⚠ partial:
 - 2.1 Input Costs — BPS import prices only (2/7 sub-bullets)
@@ -431,7 +431,7 @@ Source-catalogue scoped 2026-06-05; Phases A+B+C+C2+D+D2+D3+D4+D5+D6+F+G+H compl
 | **Growth** (1.1 Private / 1.2 Fiscal / 1.3 External / 1.4 Macro) | ✅ | ✅ | ✅ | ✅ |
 | **Inflation** (2.1 Input / 2.2 Producer / 2.3 Domestic / 2.4 CPI) | ⚠* | ✅ | ✅ | ✅ |
 | **External** (3.1 ToT / 3.2 CA / 3.3 FA / 3.4 FX) | ⚠* | ✅ | ✅ | ⚠* |
-| **Policy** (4.1 Demand / 4.2 BS / 4.3 FinCond / 4.4 PolReaction) | ✅ | ✅ | ✅ *(added: BI SRBI 6M/9M/12M auction yields 2026-06-10)* | ✅ |
+| **Policy** (4.1 Demand / 4.2 BS / 4.3 FinCond / 4.4 PolReaction) | ✅ | ✅ *(added: BI SEKI IV.4 SBN position by holder 2026-06-10 — 19 indicators; bank-type decomp for ON bonds + SPN T-bills)* | ✅ *(added: BI SRBI 6M/9M/12M auction yields 2026-06-10)* | ✅ |
 
 ---
 

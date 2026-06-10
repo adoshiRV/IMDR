@@ -1,16 +1,16 @@
 # Indonesia (ID) — coverage plan (BPS / BI / MoF / DJPPR)
 
-Last updated: 2026-06-09
+Last updated: 2026-06-10
 
 Maps every Indonesia (ID) cell of the
 [macro_economy_wiring_map.md §7.17](../macro_economy_wiring_map.md#717-indonesia-id)
 to specific vendor identifiers per source agency.
 
 This is the **plan** for filling `econ.dim_indicator` Indonesia rows — as of
-2026-06-09 there are **250 indicators × 26,757 observations** in
-`econ.fact_indicator` (BPS 82 + BI 162 + BIS 6). Wired into
-`scripts/imdr_monthly.py:PIPELINES` 2026-06-09 (see
-[indonesia_prod_pipeline.md](indonesia_prod_pipeline.md)).
+2026-06-10 there are **308 indicators × 114,106 observations** in
+`econ.fact_indicator` (BPS 82 + BI 184 + BIS 6 + DJPPR 36). Wired into
+`scripts/imdr_monthly.py:PIPELINES` 2026-06-09 and `scripts/imdr_daily.py:PIPELINES`
+2026-06-09/10 (see [indonesia_prod_pipeline.md](indonesia_prod_pipeline.md)).
 
 **Critical gotcha — read before adding new BPS fetchers**: the national-rollup
 `vervar_id` is NOT stable across base-year revisions. CPI pre-2024 series use
@@ -248,6 +248,7 @@ When a series is published by both BI and BPS (notably CPI from BPS publication 
 | Credit-to-GDP ratio | BIS | `WS_CREDIT_GAP` key=Q.ID.P.A.A | Q | ✅ Phase D4 |
 | Credit-to-GDP gap (HP-filter) | BIS | `WS_CREDIT_GAP` key=Q.ID.P.A.C | Q | ✅ Phase D4 |
 | Commercial bank deposits + claims composition | BI | SEKI I.3 — 8 series | M | ✅ Phase D3 ([fetch_bank_bs.py](../../../playground/econ/bi/fetch_bank_bs.py)) |
+| **SBN outstanding by holder (bank-type decomp)** | **BI** | **SEKI IV.4 TABEL4_4 — 19 series (4 totals + 8 ON + 7 SPN)** | **M** | **✅ Phase I 2026-06-10 (`bi_sbn_position`); enriches existing BI SBN aggregate (IV.4 totals already in `bi_sbn`) with bank-type investor cut; complements DJPPR investor-category view** |
 | External debt (govt + private split) | BI | SEKI VI.1 — 8 series | Q | ✅ Phase D2 ([fetch_sulni.py](../../../playground/econ/bi/fetch_sulni.py)) |
 | Corporate financial ratios | — | sparse for ID; OJK has limited published | A | ❌ deferred |
 | Bank Tier-1 / CET1 ratio | OJK | SPI (Statistik Perbankan Indonesia) | M | ⚠ pending OJK PDF parsing |
@@ -260,13 +261,16 @@ When a series is published by both BI and BPS (notably CPI from BPS publication 
 | Concept | Vendor | Dataset / table | Cadence | Status |
 |---|:---:|---|:---:|:---:|
 | Policy rate (BI 7-Day Reverse Repo Rate) | BIS | `WS_CBPOL` key=D.ID | D / EVENT | ✅ Phase D4 ([fetch_indonesia.py](../../../playground/econ/bis/fetch_indonesia.py)) |
-| Money-market overnight (JIBOR ON) | BI | SEKI suku bunga PUAB | D | ⚠ |
-| JIBOR / IndONIA curve | BI | SEKI / IBPA | D | ⚠ |
+| BI Deposit Facility / Lending Facility rate | BI | SEKI I.25.A/I.25.B | M | ✅ Phase D6 (`bi_bank_rates`) |
+| PUAB overnight / INDONIA | BI | SEKI I.26 | M | ✅ Phase D6 (`bi_bank_rates`) |
+| INDONIA compounded 30d / 90d | BI | SEKI I.28 | M | ✅ Phase D6 (`bi_bank_rates`) |
+| Bank lending rates (Bank Umum 3 loan types) | BI | SEKI I.26 lending | M | ✅ Phase D6 (`bi_bank_rates`) |
+| Bank deposit rates (3 tenors) | BI | SEKI I.28 deposit | M | ✅ Phase D6 (`bi_bank_rates`) |
+| **SRBI auction yield 6M / 9M / 12M** | BI | Auction result pages (Hasil Lelang SRBI) | EVENT ~2×/wk | ✅ Phase H 2026-06-10 (`bi_srbi`, `imdr_daily.py`) |
+| JIBOR / IndONIA curve (full tenors) | BI | SEKI / IBPA | D | ⚠ — ON + 30d/90d live; full tenor curve deferred |
 | 1Y / 3Y / 5Y / 10Y govt bond yields (INDOGB) | IBPA / BI | IBPA daily curve | D | ⚠ |
 | Term spread (10Y – 2Y) | derived | from INDOGB | D | ⚠ |
 | Sovereign CDS 5Y (USD) | (rates / FX domain — market data) | — | D | ✅ via market data |
-| Bank lending rates (new HH + corp) | BI | SEKI suku bunga kredit | M | ⚠ |
-| Bank deposit rates | BI | SEKI suku bunga simpanan | M | ⚠ |
 | Equity index level (IHSG / JCI) | (equity domain — Citi `EQUITY.EQUITY_INDEX.JCI.LEVEL.REUTERS`) | — | D | ✅ via market data |
 
 ### 4.4 Policy Reaction

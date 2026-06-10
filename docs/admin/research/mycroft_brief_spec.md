@@ -83,8 +83,48 @@ data_as_of: <YYYY-MM-DD>     # the data cut-off used inside the brief
 authored: <YYYY-MM-DD>       # the calendar day Mycroft wrote it
 author: Mycroft
 status: <draft|final>
+
+# ---- Picasso payload (structured cells the topical template wires
+# into the KPI stripe, brief-meta strip, and desk-quote band) ----
+picasso_payload:
+  kpi_stripe:                # exactly 5 cells; rendered as <Stat> components
+    - label: <short label>           # e.g. "Foreign share of SBN"
+      value: <display string>        # e.g. "12.6%" or "18,134"
+      delta: <signed number|null>    # e.g. -25.6 (omit if not a delta)
+      delta_suffix: <pp|bp|%|null>   # only when delta is set
+      caption: <short context>       # e.g. "since 2015"
+      appendix_ref: <Q1|W3|...>      # §9.1 SQL or §9.4 web anchor
+    # 4 more cells (5 total)
+  brief_meta:
+    edition:                 # rendered as Badge row, label "Edition"
+      - { label: "Topical",  tone: "green",   variant: "solid" }
+      - { label: "Mycroft",  tone: "neutral" }
+    conviction:              # rendered as Badge + 5-step heat scale
+      label: <Low|Medium-low|Medium|Medium-high|High>
+      heat: <1..5>                   # current step (1 = low, 5 = high)
+      tone: <green|amber|red>        # badge tone matching label
+    horizon:                 # rendered as Badge row
+      - { label: <Tactical|Structural>, tone: "blue" }
+      - { label: <"3-month"|"1-year"|...>, tone: "neutral" }
+    data_as_of:              # rendered as Badge row
+      - { label: <"5 Jun 2026">, tone: "cream" }
+      - { label: <"Re-verified 9 Jun"|null>, tone: "neutral" }   # optional
+  desk_quote:                # optional pull-quote band; omit block entirely
+    eyebrow: <"Desk note"|"Mycroft's view"|"From the floor">     # if not used
+    text: <one sentence, <=26ch per line, max ~140 chars total>
+    by: <"— Mycroft, 10 Jun 2026">
 ---
 ```
+
+The `picasso_payload` block is **optional** in stage 1 (Mycroft can ship a
+text-only MD without it). When present, Picasso wires each cell into the
+canonical topical template — no Picasso-side authoring of these numbers.
+If Mycroft omits the block, Picasso renders the brief without the KPI
+stripe / brief-meta strip / desk-quote band rather than fabricating cells.
+
+**Sourcing rule:** every `kpi_stripe` cell **must** carry an `appendix_ref`
+pointing to a §9.1 SQL query or §9.4 web source. A cell without an anchor
+is a defect — delete the cell or add the source before shipping.
 
 ### Body sections
 
@@ -112,11 +152,46 @@ The standard structure — Mycroft adapts which sections fire based on depth (se
      (the actual chart PNGs are inserted at HTML stage but the MD names them).
      Every number cites its IMDR source (table + filter).
 
-6. The street's view
+6. The street's view  +  the official voice
    — What ingested research says. Verbatim quotes from `research.fact_chunk`
      with vendor + report ID + chunk index. NEVER paraphrase a quote.
-     Group by direction (consensus, dissent, tail). If no relevant research,
-     say so explicitly — do not invent.
+     Group by direction (consensus, dissent, tail).
+
+     **Blend sell-side and official sources by default.** Both live in the
+     same Qdrant collection. Filter via the `vendor_category` payload
+     field (added 2026-06-10):
+       - `sell_side` — JPM, MS, Goldman, BNP, Barclays, ANZ, Westpac,
+         Nomura, HSBC, DB, SocGen, Standard Chartered, BofA, UBS, Citi.
+       - `official_cb` — Bank of Korea, RBA, RBI, ECB, BoJ, Fed, MAS,
+         HKMA, RBNZ, BI, FRED.
+       - `official_ministry` — MOEF (Korea), MOTIR (Korea), AOFM, DJPPR,
+         USDmo, DMOuk, MBIE.
+       - `official_regulator` — FSC, FSS (both Korea).
+       - `official_statistics` — KOSTAT/MoDS, ABS, KCS, BPS, KOSIS, REB,
+         StatsNZ, EIA.
+       - `official_thinktank` — KDI (and Tier-2: KIEP, KIF, KCIF, KIET).
+       - `official_supranational` — BIS, IMF, OECD, World Bank.
+
+     Sub-sections inside §6 group by stance not by source type — sell-side
+     and official quotes can sit in the same "consensus" / "dissent" /
+     "tail" block. Cite `[vendor_code, vendor_category, report_id, chunk_idx]`
+     so the reader can see whether a quote is a CB note or a sell-side
+     view at a glance.
+
+     **Default Qdrant filter**: `vendor_category IN ('sell_side',
+     'official_cb', 'official_ministry', 'official_regulator',
+     'official_thinktank', 'official_statistics', 'official_supranational')`
+     — i.e. everything except `data_vendor` and `utility`. Override with
+     `vendor_category IN ('official_*')` to read only official voices,
+     or `vendor_category = 'sell_side'` to read only banks.
+
+     For govt filings, the payload also carries `country_code`,
+     `doc_type` (decision / minutes / outlook / report / speech / release /
+     review), and `stream` (e.g. `bok_press_releases`, `moef_treasury_debt`).
+     Use these to narrow within the official corpus when the question is
+     country- or stream-specific.
+
+     If no relevant research, say so explicitly — do not invent.
 
 7. Mycroft's view
    — The synthesis. A direct, finance-head answer. State the conviction level
@@ -158,6 +233,7 @@ Picasso needs:
 |---|---|---|
 | The hero text | Title (front matter) + TL;DR | front matter + §1 |
 | Section structure | Sequential h2 headings in canonical order | §1-§9 |
+| KPI stripe + brief-meta + desk-quote payload | `picasso_payload` block in front matter (see §3 front matter) | front matter |
 | Snapshot data (country overview only — deferred) | A `markets-snapshot` table block | §0 |
 | Chart instructions (if user opted in) | `chart-spec` YAML blocks (see §4.2) | §5 data view |
 | Chart PNGs (if user opted in) | Rendered PNGs sitting next to the MD | `charts/<slug>_<n>.png` |
@@ -347,6 +423,25 @@ Rules:
 - If a doc was *read but not quoted*, list it under "Reviewed (not cited)"
   at the bottom of this block so the reader knows the breadth of consideration.
 
+**Desk notes without a SharePoint URL** (established 2026-06-10 on the Indonesia
+fiscal-SBN brief): When a cited source is a desk note, internal call summary, or
+meeting transcript that has no SharePoint path (i.e. it was not ingested via the
+research pipeline), cite it in §5.2 with `SharePoint: none — desk note` and record
+the note's date and subject instead. Example:
+
+```
+- **DN-1.** BI post-RDG desk note (2026-06-09) — "BI hikes 25bp to 5.75%; IDR stability rationale"
+  - SharePoint: none — desk note (not ingested)
+  - Quoted in: §6 consensus block
+  - Note: subject-only citation; reader cannot click through to source.
+```
+
+Subject-only citations are acceptable where the desk note is the primary source
+for a claim (e.g. a BI hike announcement that arrived as an internal note before
+the official release was indexed). Flag them visually in §6 body text with
+`[desk note, DN-1]` so the reader knows the sourcing limits. Do not omit these
+citations — a sentence without any §5.x anchor remains a defect.
+
 ### 5.3 Repo code + docs
 
 For each repo file that informed the brief (schema understanding, pipeline
@@ -461,6 +556,7 @@ Run before handing the MD to the user for review. Fix what fails.
 - [ ] "What would change my mind" has 3-5 concrete observable items.
 - [ ] If charts enabled: every `chart-spec` block has a matching PNG in `charts/` AND a `appendix_ref` pointing to a §5.1 query.
 - [ ] If PDF embeds requested: every `pdf-embed` block names a real `report_id` (verify via `research.dim_report`) and a page number.
+- [ ] If `picasso_payload` block present: `kpi_stripe` has exactly 5 cells, every cell has an `appendix_ref`; `brief_meta.conviction.heat` matches the §7 conviction level; `desk_quote.text` (if used) is verbatim from §7 or a cited research quote (no invented voice).
 - [ ] Slug matches front matter; output path correct (`data/topical_briefs/...`, NOT under research_summary).
 
 Picasso runs his own design-stage checklist when he renders the HTML. That

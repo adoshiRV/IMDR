@@ -18,15 +18,26 @@ Payload schema (research)
 Every research point stores::
 
     {
-      "chunk_id":      int,    # research.fact_chunk.id (= Qdrant point id)
-      "report_id":     int,    # research.dim_report.id
-      "vendor_code":   str,    # dbo.dim_vendor.code, INDEXED for filter
-      "publish_date":  str,    # ISO yyyy-mm-dd, INDEXED for range filter
-      "page_start":    int|None,
-      "page_end":      int|None,
-      "title":         str,
-      "text_preview":  str,    # first ~240 chars of chunk_text
+      "chunk_id":         int,    # research.fact_chunk.id (= Qdrant point id)
+      "report_id":        int,    # research.dim_report.id
+      "vendor_code":      str,    # dbo.dim_vendor.code, INDEXED for filter
+      "vendor_category":  str,    # sell_side|official_cb|official_ministry|... INDEXED
+      "publish_date":     str,    # ISO yyyy-mm-dd, INDEXED for range filter
+      "country_code":     str|None,  # ISO 2-char, INDEXED — set by filings ingest
+      "doc_type":         str|None,  # release|minutes|report|outlook|speech|... INDEXED
+      "stream":           str|None,  # vendor-specific stream id, INDEXED
+      "page_start":       int|None,
+      "page_end":         int|None,
+      "title":            str,
+      "text_preview":     str,    # first ~240 chars of chunk_text
     }
+
+The 4 lower-case fields (vendor_category, country_code, doc_type, stream)
+are populated by the govt-filings ingest path
+(``src/imdr/research/filings.py``). For sell-side research points, only
+the first three fields (vendor_code, publish_date, report_id) are
+populated by the existing pipeline; the new indexes are still useful
+because empty payload fields are filterable via Qdrant's IsNull.
 
 Use
 ---
@@ -65,6 +76,14 @@ class CollectionSpec:
         ("vendor_code", qm.PayloadSchemaType.KEYWORD),
         ("publish_date", qm.PayloadSchemaType.KEYWORD),
         ("report_id", qm.PayloadSchemaType.INTEGER),
+        # Added 2026-06-10 for the govt-filings extension. Sell-side
+        # points leave these payload fields unset; filings points set
+        # all four. Mycroft/Lois filter on vendor_category to
+        # include/exclude the official corpus.
+        ("vendor_category", qm.PayloadSchemaType.KEYWORD),
+        ("country_code", qm.PayloadSchemaType.KEYWORD),
+        ("doc_type", qm.PayloadSchemaType.KEYWORD),
+        ("stream", qm.PayloadSchemaType.KEYWORD),
     )
 
     @property
@@ -102,12 +121,26 @@ def _create(client: QdrantClient, spec: CollectionSpec) -> None:
         )
 
 
+def _existing_payload_indexes(info: qm.CollectionInfo) -> set[str]:
+    """Field names that already have payload indexes on a live collection."""
+    schema = getattr(info, "payload_schema", None) or {}
+    # Qdrant returns a dict[field_name, PayloadIndexInfo]; an indexed field has
+    # ``data_type`` set. Field appearing as a key = already indexed.
+    return {field for field in schema.keys()}
+
+
 def apply(client: QdrantClient | None = None, *, verbose: bool = True) -> list[str]:
     """Idempotently create every collection in :data:`SCHEMA`.
 
     Returns the list of collection names that were newly created.
-    Existing collections are left alone; dim mismatch on an existing
-    collection raises (caller must drop + recreate explicitly).
+    Existing collections keep their data; any payload-index entries in
+    the schema that are NOT yet present on the live collection are
+    added in-place (Qdrant treats payload-index creation on existing
+    collections as additive — points already in the collection get
+    re-indexed lazily).
+
+    Dim mismatch on an existing collection raises (caller must drop +
+    recreate explicitly).
     """
     c = client or build_qdrant_client()
     existing = _existing(c)
@@ -122,8 +155,21 @@ def apply(client: QdrantClient | None = None, *, verbose: bool = True) -> list[s
                     f"schema declares dim={spec.dimensions}. "
                     f"Drop manually before re-applying."
                 )
+            # Add missing payload indexes in-place (additive, safe).
+            already_indexed = _existing_payload_indexes(info)
+            added_now: list[str] = []
+            for field, schema_type in spec.payload_indexes:
+                if field in already_indexed:
+                    continue
+                c.create_payload_index(
+                    collection_name=spec.name,
+                    field_name=field,
+                    field_schema=schema_type,
+                )
+                added_now.append(field)
             if verbose:
-                print(f"  ok   {spec.name}  (dim={spec.dimensions}, exists)")
+                suffix = f", added indexes: {added_now}" if added_now else ""
+                print(f"  ok   {spec.name}  (dim={spec.dimensions}, exists{suffix})")
             continue
         _create(c, spec)
         created.append(spec.name)

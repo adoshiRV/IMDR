@@ -1,6 +1,6 @@
 # BI SEKI — Pre-prod playground notes
 
-Last updated: 2026-06-09
+Last updated: 2026-06-10 (Phase I: bi_sbn_position)
 
 Companion to [`bps.md`](bps.md) for the second Indonesia vendor. Where BPS
 serves a clean REST JSON API, BI publishes Section-numbered XLSX tables at
@@ -14,11 +14,13 @@ layer is thin once `_bi_seki.py` does its job.
 playground/econ/bi/
 ├── _bi_seki.py         ← XLSX download + wide/annual sheet parsers
 ├── _bi_common.py       ← shared CLI / parquet / summarize scaffolding
+├── _srbi.py            ← SRBI auction HTML page parser (exploratory; graduated to src/imdr/domains/econ/bi_srbi.py)
 ├── fetch_money_supply.py   (SEKI I.1, monthly, M0/M1/M2 + components)
 ├── fetch_fiscal.py         (SEKI IV.1/2/3, annual realisasi)
 ├── fetch_sbn.py            (SEKI IV.4, monthly SBN outstanding)
 ├── fetch_bop.py            (SEKI V.1, quarterly BoP summary)
 ├── fetch_fx_reserves.py    (SEKI V.9, monthly FX reserves position)
+├── fetch_srbi.py           (SRBI auction yields, initial backfill, 2026-06-10; prod is scripts/econ/bi/bi_srbi.py)
 ├── fetch_sulni.py          (SEKI VI.1, quarterly external debt)
 ├── seki_raw/           ← cached XLSX downloads
 └── sample_output/      ← parquet outputs (dim + fact pairs)
@@ -36,6 +38,12 @@ https://www.bi.go.id/SEKI/tabel/TABEL{section}_{table}.xls
 https://www.bi.go.id/id/publikasi/laporan/Documents/{SLUG}.zip
 ```
 Slugs: `SK` (Consumer Survey), `spe` (Retail Sales — lowercase), `SKDU` (Business Survey). Inner XLSX has `Tabel 1`..`Tabel N` sheets in SEKI-style wide format but with **row-indexed targets** (no line-number column) — see `_bi_survey.py`.
+
+**SRBI auction results** (per-auction HTML page, ~2×/week):
+```
+https://www.bi.go.id/id/publikasi/lelang/operasi-moneter/Pages/Hasil-Lelang-SRBI-{D}-{Bulan-ID}-{YYYY}.aspx
+```
+`D` is the day number without zero-padding (e.g. `9`, not `09`). `Bulan-ID` is the Indonesian month name (Januari/Februari/…/Desember). Each page contains one 11-row HTML table; the canonical yield is row `Rata-Rata Tertimbang Pemenang (%)`. A 302 response means no auction was held on that date — skip. Parser: `src/imdr/domains/econ/bi_srbi.py`. Launched 2023-09-15; tenor mix shifted from 1/3/6/9/12M at launch to 6/9/12M only from mid-2024.
 
 Examples:
 - `TABEL1_1.xls` → I.1 Money Supply
@@ -134,7 +142,7 @@ SKDU header rows use Roman numerals `I` / `II` / `III` / `IV` for
 quarters (vs SEKI's `Q1` / `Q2` / `Q3` / `Q4`). Handled in
 `_QUARTER_LABEL_TO_MONTH` with both encodings.
 
-## Phase D + D2 + D3 + D5 + D6 results (DB-loaded)
+## Phase D + D2 + D3 + D5 + D6 + H results (DB-loaded)
 
 | Fetcher | Indicators | Obs | Cadence | Cell coverage |
 |---|:---:|:---:|:---:|---|
@@ -154,7 +162,11 @@ quarters (vs SEKI's `Q1` / `Q2` / `Q3` / `Q4`). Handled in
 | `fetch_retail_sales` (spe.zip) | 9 | 1,467 | Monthly 2012→2025 | 1.1 Private Demand — Real Sales Index + 8 categories |
 | `fetch_business_survey` (SKDU.zip T1) | 18 | 234 | Quarterly 2022→2025 | 1.4 Macro Core / 1.1 — Business Activity SBT TOTAL + 17 sectors |
 | `fetch_skdu_macro` (SKDU.zip T2 + T5 + T6) | 42 | 522 | Quarterly 2022→2025 | 2.3 Domestic Costs — Capacity Utilisation + Selling Prices + Inflation Expectations × sectors |
-| **TOTAL** | **162** | **12,704** | | All 16 wiring cells touched |
+| **SRBI auction pages** (prod: `scripts.econ.bi.bi_srbi`) | | | | |
+| `fetch_srbi` (SRBI 6M/9M/12M) | 3 | 485 | Event ~2×/week 2023-09-15→2026-06-10 | 4.3 Fin Conditions — SRBI weighted-avg winning yield by tenor; wired into `imdr_daily.py` 2026-06-10 |
+| **SEKI IV.4 SBN position by holder** (prod-only: `scripts.econ.bi.bi_sbn_position`) | | | | |
+| `bi_sbn_position` (TABEL4_4) | 19 | 3,630 | Monthly 2008-12→2026-05 | 4.2 Balance Sheets / 1.2 Fiscal — SBN outstanding by holder: 4 totals (SUN/ON/SPN/SBSN) + 8 ON bank-type holder decomp (govt/priv/mix/foreign/regional/BI/nasabah/other) + 7 SPN holder decomp. **No playground step** — built directly in prod using existing `bi_seki.py` library (TABEL4_4 follows standard wide-sheet offsets year_row=4, month_row=5, data_start=6). No new unit tests — parser covered by existing `_bi_seki` test suite. Wired into `id_monthly.py` 2026-06-10. |
+| **TOTAL** | **184** | **16,819** | | All 16 wiring cells touched |
 
 Spot-checked vs known reality:
 - M2 March 2026 = 10,355 trillion IDR ✓

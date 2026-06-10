@@ -276,13 +276,19 @@ After Steps 1-5 + Phase H discovery work below, the country has:
 
 **That is the deliverable.** Summarise findings to the user (counts, blockers, Tier-1 coverage) and **stop**. Do NOT proceed to prod promotion in the same session unless explicitly instructed.
 
-Prod promotion — copying helpers to `src/imdr/domains/econ/`, building `scripts/econ/{vendor}/`, the country orchestrator at `scripts/econ/{cc}/{cc}_monthly.py`, scheduler registration, code-review gate, prod-pipeline doc — is a **separate, gated workflow**. See **[`econ_to_prod.md`](econ_to_prod.md)** for the full playbook (Track A Phase G + Track B Phase J, including migration apply + scheduler wiring gates).
+Prod promotion — copying helpers to `src/imdr/domains/econ/`, building `scripts/econ/{vendor}/`, the country orchestrator at `scripts/econ/{cc}/{cc}_monthly.py` and (for Track B) `scripts/econ/{cc}/{cc}_daily.py`, scheduler registration, code-review gate, prod-pipeline doc — is a **separate, gated workflow**. See **[`econ_to_prod.md`](econ_to_prod.md)** for the full playbook (Track A Phase G + Track B Phase J, including migration apply + scheduler wiring gates).
+
+**Reference end-state** (Korea, 2026-06-10): both tracks live in prod. Discovery deliverables above + applied migrations + promoted `scripts/econ/kr/govt/` tree + `scripts/econ/kr/kr_{daily,weekly,monthly}.py` orchestrators + registered in all three `scripts/imdr_{daily,weekly,monthly}.py:PIPELINES`. Use Korea's file tree as the template when promoting any new country.
 
 ---
 
 ## Phase H — Government & CB document sources (Track B)
 
-> Worked references: Korea ([korea/govt_doc_sources.md](korea/govt_doc_sources.md), 7 agencies, ~317 items captured) and Australia ([australia/au_cb_documents.md](australia/au_cb_documents.md), 6 fetchers, ~33 items/day baseline). Both shipped 2026-06-10. Use whichever pattern is the closest fit — Korea is the deep-discovery example (5 crawler shapes, patient-retry TLS, body+PDF resolution recipes per agency); AU is the lighter example (RBA Akamai-bypass via Playwright, Treasury/APRA plain httpx).
+> ⭐ **Korea is the complete reference** — every Phase-H artefact below has a worked example in `docs/admin/econ/korea/` or `scripts/econ/kr/govt/`. Korea progressed end-to-end on 2026-06-10: inventory (~960-line `govt_doc_sources.md`) → 7-agency playground fetchers → multi-agent review (code/db/docs/security) → migrations 086+087 applied → `filings.py` impl → `scripts/econ/kr/govt/` promotion (with `daily_pull.py` → `ingest_filings.py` rename) → `scripts/econ/kr/kr_daily.py` orchestrator with inline filings-aware email → registered in `scripts/imdr_daily.py:PIPELINES`. **307+ official-source rows in `research.dim_report` as of 2026-06-10**; daily cron self-sustains.
+>
+> Australia ([australia/au_cb_documents.md](australia/au_cb_documents.md), 6 fetchers, ~33 items/day baseline) is the lighter discovery example — sample for "what does Phase H look like in playground" before promotion. AU has NOT entered Phase J (no migrations applied, no orchestrator built, no prod wire-up). Use it for the discovery shape; use Korea for the prod shape.
+>
+> Use whichever pattern is the closest fit per agency — Korea is the deep-discovery example (5 crawler shapes, patient-retry TLS, body+PDF resolution recipes per agency); AU adds the RBA Akamai-bypass via Playwright + Treasury/APRA plain httpx variant.
 
 ### H.1 What Track B is — and is NOT
 
@@ -341,7 +347,7 @@ Mirror the Korea pattern at `playground/econ/{cc}/govt/`:
 2. **Per-cluster probe** — for each crawler shape present in the inventory, write one probe script in `playground/econ/{cc}_govt_docs/probe_{cluster}.py` (Korea has `probe_moef_rss.py`, `probe_bok_ajax.py`, `probe_cdef.py`, `probe_corrections.py`). Save raw HTML/RSS responses under `raw/{cluster}/` for downstream debugging.
 3. **Resolve recipes** — for each agency, capture BOTH `body_text` AND `pdf_bytes` paths in `probe_resolve.py`. Most agencies have one but not the other; some have neither (KCS publishes JPG scans, MOTIR PDFs are TLS-blocked from our network). Document recipes in `{country}_govt_doc_sources.md` § "Per-agency body + PDF resolution recipes".
 4. **Per-agency fetchers** — once probes confirm a cluster works, lift the probe into `playground/econ/{cc}/govt/fetch_{agency}.py` returning a uniform `FetchResult` of `FilingItem` rows. Each fetcher is ~100-200 LoC.
-5. **Daily-pull orchestrator** — `playground/econ/{cc}/govt/daily_pull.py` runs all fetchers, dedupes via rolling `data/seen.json`, writes per-day snapshot to `data/snapshots/{YYYY-MM-DD}.json`, prints summary table. Cadence is **daily even though most agencies publish less frequently** — empty days are evidence of cadence drift, not bugs.
+5. **Daily-pull orchestrator** — `playground/econ/{cc}/govt/daily_pull.py` runs all fetchers, dedupes via rolling `data/seen.json`, writes per-day snapshot to `data/snapshots/{YYYY-MM-DD}.json`, prints summary table. Cadence is **daily even though most agencies publish less frequently** — empty days are evidence of cadence drift, not bugs. **On promotion this file moves to `scripts/econ/{cc}/govt/ingest_filings.py`** (Korea pattern) — keep the playground name during discovery for clarity that no DB writes are happening yet.
 
 ### H.6 Network reality checks (HARD GATE)
 
@@ -373,8 +379,8 @@ Summarise findings (item counts per agency, blockers, Tier-1 coverage) and stop.
 
 ### H.8 Worked examples
 
-- **Korea** — 7 agencies (bok / moef / motir / fsc / fss / kcs / kdi), 5 crawler shapes, ~317 items captured in baseline pull, body+PDF recipes for 6/7 agencies (KCS deferred — image-only). Inventory at `docs/admin/econ/korea/govt_doc_sources.md` (~960 lines). Migrations 086/087 awaiting apply.
-- **Australia** — 6 fetchers (RBA Governor's Statement + Board Minutes + SMP + FSR via Playwright + Treasury + APRA via plain httpx), ~33 items/day baseline. RBA Akamai-bypass via fresh-profile-per-run. Inventory at `docs/admin/econ/australia/au_cb_documents.md` (~150 lines).
+- **Korea — fully promoted to prod 2026-06-10.** 7 agencies (bok / moef / motir / fsc / fss / kcs / kdi) + 8th via existing `mods` vendor (id=24, KOSTAT). 5 crawler shapes proven (RSS-fan / egov-GET / egov-POST / dt-list / JS-handler). Body+PDF resolution recipes for 6/8 agencies (KCS deferred — image-only; MOTIR PDF TLS-blocked, body path live). Inventory at `docs/admin/econ/korea/govt_doc_sources.md` (~1014 lines). Migrations 086 + 087 **applied**. `scripts/econ/kr/govt/{_http,_models,resolvers,fetch_*,ingest_filings,backfill_mods}.py` + `scripts/econ/kr/kr_daily.py` live in `scripts/`. Wired into `scripts/imdr_daily.py:PIPELINES`. **307 official rows in `research.dim_report` + ~600 Qdrant chunks** as of 2026-06-10. See [`../development/kr_govt_filings.md`](../development/kr_govt_filings.md) for the full execution tracker.
+- **Australia — discovery only.** 6 fetchers (RBA Governor's Statement + Board Minutes + SMP + FSR via Playwright + Treasury + APRA via plain httpx), ~33 items/day baseline. RBA Akamai-bypass via fresh-profile-per-run. Inventory at `docs/admin/econ/australia/au_cb_documents.md` (~150 lines). Phase J not entered — replicate the Korea pattern when promoting.
 
 ---
 
@@ -384,6 +390,11 @@ Summarise findings (item counts per agency, blockers, Tier-1 coverage) and stop.
 - [country_econ_blueprint.md](country_econ_blueprint.md) — the indicator catalogue (§1-4, the *what*)
 - [macro_economy_wiring_map.md](macro_economy_wiring_map.md) — the 16-cell coverage tracker
 - [economics_data_ingest.md](economics_data_ingest.md) — schema + loader + per-vendor build log
-- [korea/](korea/) — worked reference: Track A (Korea prod pipeline: [korea/korea_prod_pipeline.md](korea/korea_prod_pipeline.md)) + Track B (govt docs: [korea/govt_doc_sources.md](korea/govt_doc_sources.md), execution tracker: [`../development/kr_govt_filings.md`](../development/kr_govt_filings.md))
-- [indonesia/](indonesia/) — second worked example for Track A (Indonesia prod pipeline: [indonesia/indonesia_prod_pipeline.md](indonesia/indonesia_prod_pipeline.md))
-- [australia/](australia/) — worked reference for Track B (CB+treasury docs: [australia/au_cb_documents.md](australia/au_cb_documents.md))
+
+### Worked references by track
+
+| Country | Track A (indicators) | Track B (filings) | Combined? |
+|---|---|---|---|
+| **Korea** ([korea/](korea/)) | ✅ LIVE — `kr_weekly` + `kr_monthly`, 172 indicators across 4 vendors. Prod pipeline doc: [korea/korea_prod_pipeline.md](korea/korea_prod_pipeline.md) | ✅ LIVE — `kr_daily` + `scripts/econ/kr/govt/ingest_filings.py`, 307+ filings. Inventory: [korea/govt_doc_sources.md](korea/govt_doc_sources.md). Tracker: [`../development/kr_govt_filings.md`](../development/kr_govt_filings.md) | ⭐ **YES — full end-to-end reference** for both tracks. Replicate this country's shape for any new onboarding. |
+| **Indonesia** ([indonesia/](indonesia/)) | ✅ LIVE — `id_monthly`, 250 indicators across BPS+BI+BIS. Prod pipeline doc: [indonesia/indonesia_prod_pipeline.md](indonesia/indonesia_prod_pipeline.md) | ❌ not started | Track A only |
+| **Australia** ([australia/](australia/)) | ⚠ manual-load (412 indicators across ABS+RBA+AOFM+FRED, prod promotion pending) | ⚠ discovery only — 6 fetchers in `playground/econ/au/govt/`. Inventory: [australia/au_cb_documents.md](australia/au_cb_documents.md) | Phase H done for B; Phase G + Phase J pending |

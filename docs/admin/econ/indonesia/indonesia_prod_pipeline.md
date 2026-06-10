@@ -1,6 +1,6 @@
 # Indonesia Econ — Production Pipeline
 
-Last updated: 2026-06-09
+Last updated: 2026-06-10 (bi_sbn_position added)
 
 Operations reference for the Indonesia economic data ingest that was
 prod-promoted on 2026-06-09. For the broader Indonesia data landscape
@@ -49,6 +49,8 @@ Domain library code lives in `src/imdr/domains/econ/`:
 | `bps_http.py` | `bps_fetch_data_chunked`, `parse_datacontent`, composite-key reverse-map, 3-year `th` chunking |
 | `bi_seki.py` | SEKI XLSX downloader + sheet parser; `_infer_years` Dec→Jan year rollover logic |
 | `bi_survey.py` | Survey ZIP downloader (SK / spe / SKDU); single-XLSX assertion + row-indexed parser |
+| `bi_srbi.py` | BI SRBI auction HTML page parser; extracts `Rata-Rata Tertimbang Pemenang (%)` from per-auction 11-row table; handles 302 on non-auction days; Indonesian month-name → date mapping |
+| *(no new library)* | `bi_sbn_position` fetcher reuses `bi_seki.py` directly — no dedicated library module; TABEL4_4 follows standard wide-sheet layout (year_row=4, month_row=5, data_start=6) |
 | `bis_sdmx.py` | `fetch_sdmx_series` — SDMX-JSON dataflow helper; no auth; Indonesia key=`ID` |
 | `djppr_kepemilikan.py` | DJPPR listing API + XLSX/PDF parsers for SBN ownership by investor; PyMuPDF carry-over label logic; `classify_label` ordering trap (FOREIGN_OFFICIAL must precede "bank" patterns) |
 
@@ -58,16 +60,25 @@ Domain library code lives in `src/imdr/domains/econ/`:
 
 ### Daily (`scripts/imdr_daily.py:PIPELINES`)
 
-`scripts.econ.bis.bis_indonesia` is registered in `scripts/imdr_daily.py:PIPELINES`
-(non-Citi block, `estimated_tags=0`) in addition to its place in the monthly bundle.
+Two fetchers are registered in `scripts/imdr_daily.py:PIPELINES` (non-Citi block,
+`estimated_tags=0`) for event-driven Indonesian series:
 
-**Rationale**: BIS's `WS_CBPOL` policy rate is event-driven — it changes only when
-BI's RDG (Rapat Dewan Gubernur) meeting moves the rate. Daily wiring catches the move
-within 24h of the meeting. The monthly run remains the backstop: the loader MERGEs on
-PK so daily re-runs are free, and any transient daily failure is cleaned up at month-end.
-This is the same pattern Korea uses to keep quarterly/annual KOSIS fetchers under
-`kr_monthly.py` — running idempotent fetchers more often than strictly necessary trades
-a few extra API calls for tighter latency.
+**`scripts.econ.bis.bis_indonesia`** — BIS `WS_CBPOL` policy rate is event-driven;
+changes only when BI's RDG meeting moves the rate. Daily wiring catches the move
+within 24h.
+
+**`scripts.econ.bi.bi_srbi`** (added 2026-06-10) — BI SRBI auctions run roughly
+twice-weekly (Wed + Fri). The fetcher walks auction pages from `(since, until)` and
+skips 302s (non-auction days), so a daily run is cheap. Indicators: `BI.RATES.SRBI_6M.LEVEL.ID`,
+`BI.RATES.SRBI_9M.LEVEL.ID`, `BI.RATES.SRBI_12M.LEVEL.ID`; frequency=EVENT;
+unit=pct; category=rates; vendor=BI (id=48). URL pattern:
+`bi.go.id/id/publikasi/lelang/operasi-moneter/Pages/Hasil-Lelang-SRBI-{D}-{Bulan-ID}-{YYYY}.aspx`
+(day not zero-padded, month is Indonesian name). Window: 2023-09-15 (SRBI launch) →
+present. 13 unit tests in `tests/unit/test_econ/test_bi_srbi.py`.
+
+The monthly run (`id_monthly.py`) does NOT include `bi_srbi` — the daily orchestrator
+is the sole production trigger. The loader MERGEs on PK so any transient daily failure
+is caught by the next daily run.
 
 ### Monthly (`scripts/econ/id/id_monthly.py`)
 
@@ -83,8 +94,9 @@ policy rate) series all live under the monthly trigger because fetchers are
 idempotent (MERGE on PK): running them monthly catches every release window
 without per-cadence scheduling.
 
-Fans out to **26 fetchers sequentially** (BPS/BI portal throttle discourages
-concurrency; BIS is fast enough that parallelism adds no benefit):
+Fans out to **27 fetchers sequentially** (BPS/BI portal throttle discourages
+concurrency; BIS is fast enough that parallelism adds no benefit). `scripts.econ.bi.bi_srbi`
+is **not** in this bundle — it runs daily via `imdr_daily.py` (see §Daily above):
 
 | Fetcher | Vendor | Primary cadence | Approx indicators |
 |---|---|:---:|---:|
@@ -111,6 +123,7 @@ concurrency; BIS is fast enough that parallelism adds no benefit):
 | `scripts.econ.bi.bi_money_supply` | BI SEKI XLSX | Monthly | 10 |
 | `scripts.econ.bi.bi_retail_sales` | BI Survey ZIP (spe) | Monthly | 9 |
 | `scripts.econ.bi.bi_sbn` | BI SEKI XLSX | Monthly | 5 |
+| `scripts.econ.bi.bi_sbn_position` | BI SEKI XLSX (TABEL4_4) | Monthly | 19 |
 | `scripts.econ.bi.bi_skdu_macro` | BI SEKI XLSX | Quarterly | 36 |
 | `scripts.econ.bi.bi_sulni` | BI SEKI XLSX | Quarterly | 8 |
 | `scripts.econ.djppr.djppr_sbn_ownership` | DJPPR listing API + XLSX/PDF | Daily | 36 |
@@ -144,6 +157,12 @@ python -m scripts.econ.bps.bps_sakernas
 python -m scripts.econ.bi.bi_money_supply
 python -m scripts.econ.bi.bi_bop
 python -m scripts.econ.bi.bi_bank_rates
+
+# BI SRBI (daily-only; not in id_monthly)
+python -m scripts.econ.bi.bi_srbi
+
+# BI SBN position by holder (monthly, in id_monthly)
+python -m scripts.econ.bi.bi_sbn_position
 ```
 
 ### Per-fetcher CLI flags (all fetchers via `_runner.run_main`)
@@ -283,6 +302,19 @@ The Indonesia country key is `ID` (2-letter ISO).
 
 **Fix**: verify the dataflow ID against the BIS portal. Do not guess or abbreviate.
 
+### BI SRBI — 302 on non-auction days (expected)
+
+**Symptom**: fetcher skips a date with no observation written.
+
+**Cause**: the SRBI auction HTML page responds HTTP 302 (redirect) on days when no
+auction was held. This is expected behaviour — SRBI auctions run roughly Wed + Fri.
+The fetcher handles 302s by skipping the date silently.
+
+**What to check if observations look sparse**: confirm the date range covers at least
+one auction Wednesday or Friday. The first auction was 2023-09-15; tenor mix shifted
+from 1/3/6/9/12M at launch to 6/9/12M only from mid-2024. Tenors not offered at a
+given auction have no row (not a null — the `imdr_code` simply has no obs for that date).
+
 ### Missing API key (`IMDR_BPS_API_KEY`)
 
 **Symptom**: `KeyError` or `ValueError: IMDR_BPS_API_KEY not set` on startup of
@@ -331,6 +363,9 @@ The parquet files are on disk — no need to re-fetch from the vendor.
 # Smallest fetcher — BIS, no auth, fast (~5 s)
 python -m scripts.econ.bis.bis_indonesia
 
+# BI SRBI — daily-only fetcher; no auth; 302s expected on non-auction days
+python -m scripts.econ.bi.bi_srbi --no-load
+
 # Spot-check a BPS fetcher without touching DB
 python -m scripts.econ.bps.bps_cpi --no-load
 
@@ -349,9 +384,15 @@ python -m scripts.econ.id.id_monthly
 ## Playground status
 
 The playground fetchers under `playground/econ/bps/` (10 scripts),
-`playground/econ/bi/` (14 scripts), and `playground/econ/bis/fetch_indonesia.py`
-are intentionally preserved as the legacy sandbox. They were the development
-path and remain useful for ad-hoc exploration, but they bypass the canonical
-loader invocation (they write parquet only; DB load requires running
-`load_econ_indicator_from_playground` separately). **For anything
-production-bound, use `scripts/econ/` — not `playground/econ/`.**
+`playground/econ/bi/` (14 scripts + `_srbi.py` + `fetch_srbi.py`), and
+`playground/econ/bis/fetch_indonesia.py` are intentionally preserved as the
+legacy sandbox. They were the development path and remain useful for ad-hoc
+exploration, but they bypass the canonical loader invocation (they write
+parquet only; DB load requires running `load_econ_indicator_from_playground`
+separately). **For anything production-bound, use `scripts/econ/` — not
+`playground/econ/`.**
+
+Note: `playground/econ/bi/_srbi.py` and `playground/econ/bi/fetch_srbi.py`
+were used for the initial SRBI backfill (2026-06-10) and remain for
+reference. The prod fetcher is `scripts/econ/bi/bi_srbi.py` backed by
+`src/imdr/domains/econ/bi_srbi.py`.

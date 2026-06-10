@@ -58,6 +58,7 @@ PIPELINES: list[list[str]] = [
     [sys.executable, "-m", "scripts.econ.bi.bi_money_supply"],
     [sys.executable, "-m", "scripts.econ.bi.bi_retail_sales"],
     [sys.executable, "-m", "scripts.econ.bi.bi_sbn"],
+    [sys.executable, "-m", "scripts.econ.bi.bi_sbn_position"],
     [sys.executable, "-m", "scripts.econ.bi.bi_skdu_macro"],
     [sys.executable, "-m", "scripts.econ.bi.bi_sulni"],
     # DJPPR (1 fetcher, listing-API + per-file XLSX/PDF — runs late because

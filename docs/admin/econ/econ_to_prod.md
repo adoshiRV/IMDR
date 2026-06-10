@@ -16,6 +16,30 @@ Sister doc to [`onboarding_new_country.md`](onboarding_new_country.md). That doc
 
 Reinforces [[feedback-no-prod-wiring-without-permission]] + [[feedback-playground-only-for-exploration]].
 
+> ## ⭐ Korea is the complete reference — use it as the template
+>
+> As of **2026-06-10**, Korea has both tracks fully live in prod. Every file path, migration, doc, and orchestrator pattern below has a worked example sitting in the repo. When promoting a new country, the fastest correct path is to **`diff` against Korea's tree**:
+>
+> | Layer | Korea reference path |
+> |---|---|
+> | Discovery inventory (B) | [`korea/govt_doc_sources.md`](korea/govt_doc_sources.md) |
+> | Domain library (A) | [`src/imdr/domains/econ/`](../../../src/imdr/domains/econ/) (kosis_http.py + schema.py) |
+> | Per-vendor fetchers (A) | [`scripts/econ/kosis/`](../../../scripts/econ/kosis/) (19 fetchers) · [`scripts/econ/reb/`](../../../scripts/econ/reb/) |
+> | Per-agency fetchers (B) | [`scripts/econ/kr/govt/fetch_*.py`](../../../scripts/econ/kr/govt/) (7 agencies) |
+> | Per-agency resolvers (B) | [`scripts/econ/kr/govt/resolvers.py`](../../../scripts/econ/kr/govt/resolvers.py) |
+> | Shared TLS/HTTP (B) | [`scripts/econ/kr/govt/_http.py`](../../../scripts/econ/kr/govt/_http.py) |
+> | Govt-filings daily entry (B) | [`scripts/econ/kr/govt/ingest_filings.py`](../../../scripts/econ/kr/govt/ingest_filings.py) |
+> | Country DAILY orchestrator (B) | [`scripts/econ/kr/kr_daily.py`](../../../scripts/econ/kr/kr_daily.py) (inline filings-aware email) |
+> | Country WEEKLY orchestrator (A) | [`scripts/econ/kr/kr_weekly.py`](../../../scripts/econ/kr/kr_weekly.py) (uses `_country_runner.run`) |
+> | Country MONTHLY orchestrator (A) | [`scripts/econ/kr/kr_monthly.py`](../../../scripts/econ/kr/kr_monthly.py) (uses `_country_runner.run`) |
+> | Scheduler wiring | [`scripts/imdr_daily.py`](../../../scripts/imdr_daily.py) + [`scripts/imdr_weekly.py`](../../../scripts/imdr_weekly.py) + [`scripts/imdr_monthly.py`](../../../scripts/imdr_monthly.py) |
+> | Track A prod-pipeline doc | [`korea/korea_prod_pipeline.md`](korea/korea_prod_pipeline.md) (covers all three cadences) |
+> | Track B execution tracker | [`../development/kr_govt_filings.md`](../development/kr_govt_filings.md) |
+> | Track A migrations | various per vendor (kosis, reb seeds) |
+> | Track B migrations | [`migrations/086_add_dim_vendor_category.sql`](../../../migrations/086_add_dim_vendor_category.sql) (cross-country) + [`migrations/087_seed_kr_official_vendors.sql`](../../../migrations/087_seed_kr_official_vendors.sql) (per-country) |
+>
+> Live state on Korea: **172 indicators × ~265k obs in `econ.fact_indicator`** (Track A) + **307+ filings, ~600 Qdrant chunks** in `research.dim_report` (Track B), self-sustaining daily.
+
 ---
 
 ## What's promoted, by track
@@ -23,7 +47,7 @@ Reinforces [[feedback-no-prod-wiring-without-permission]] + [[feedback-playgroun
 | Track | Discovery deliverable | Prod target |
 |---|---|---|
 | **A — Data series** | `playground/econ/{vendor}/{fetch_*.py, _{vendor}_*.py}` + `sample_output/*.parquet` | `src/imdr/domains/econ/{vendor}_*.py` (library) + `scripts/econ/{vendor}/{vendor}_{topic}.py` (fetchers) + `scripts/econ/{cc}/{cc}_monthly.py` (orchestrator) + `scripts/imdr_monthly.py:PIPELINES` (scheduler) → `econ.fact_indicator` |
-| **B — Govt/CB documents** | `playground/econ/{cc}/govt/{fetch_*.py, daily_pull.py}` + `data/snapshots/*.json` manifests | `migrations/086_add_dim_vendor_category.sql` + per-country vendor-seed migration applied + `src/imdr/research/filings.py:ingest_filing()` complete + `scripts/econ/{cc}/{cc}_govt_daily.py` + `scripts/imdr_daily.py:PIPELINES` → `research.dim_report` + Qdrant + SharePoint |
+| **B — Govt/CB documents** | `playground/econ/{cc}/govt/{fetch_*.py, daily_pull.py}` + `data/snapshots/*.json` manifests | `migrations/086_add_dim_vendor_category.sql` (cross-country, **applied 2026-06-10** for Korea) + per-country vendor-seed migration applied + `src/imdr/research/filings.py:ingest_filing()` complete + `scripts/econ/{cc}/govt/ingest_filings.py` (renamed from playground `daily_pull.py`) + `scripts/econ/{cc}/{cc}_daily.py` + `scripts/imdr_daily.py:PIPELINES` → `research.dim_report` + Qdrant + SharePoint |
 
 ---
 
@@ -195,7 +219,7 @@ Set in `.env` (loaded by `pydantic-settings` via `imdr.config.settings.get_setti
 
 ## Track B — Phase J (Govt/CB documents → prod)
 
-> Track B promotion is younger than Track A — Korea is mid-flight (migrations drafted, awaiting apply) and Australia is one-off (RBA/Treasury/APRA fetchers landed 2026-06-10, no prod wiring yet). The shape below mirrors Phase G but discriminates by the storage layer: Track B writes to `research.dim_report` + Qdrant + SharePoint, **not** `econ.fact_indicator`.
+> Track B promotion is one-country live as of 2026-06-10 — **Korea is the reference implementation**: migrations 086 + 087 applied; `src/imdr/research/filings.py` is impl complete; `scripts/econ/kr/govt/ingest_filings.py` + `scripts/econ/kr/kr_daily.py` are wired into `scripts/imdr_daily.py:PIPELINES`; 41 filings landed in `research.dim_report` (ids 5448-5478), 55+ chunks in Qdrant, 22 PDFs on SharePoint at `{YYYY}/{MM}/{DD}/econ/kr/{vendor}/`. Australia is one-off (RBA/Treasury/APRA fetchers landed 2026-06-10, no prod wiring yet). The shape below mirrors Phase G but discriminates by the storage layer: Track B writes to `research.dim_report` + Qdrant + SharePoint, **not** `econ.fact_indicator`.
 
 ### J.1 Hard rule — zero playground imports in prod
 
@@ -247,17 +271,21 @@ Delegate internals to existing primitives in `playground/research/ingest/` (pars
 
 ### J.4 Promote fetchers + orchestrator
 
-**Step 1 — Promote helpers to `src/`.**
-If `playground/econ/{cc}/govt/_models.py` / `_http.py` are vendor-agnostic enough to be cross-country reusable (the Korea + AU patterns are similar), promote to `src/imdr/research/filings_transport.py` (or per-purpose modules). Otherwise leave inline in `scripts/econ/{cc}/govt/`.
+**Step 1 — Promote helpers + fetchers into `scripts/econ/{cc}/govt/`.**
+Move `playground/econ/{cc}/govt/{_http.py, _models.py, resolvers.py, fetch_*.py}` to `scripts/econ/{cc}/govt/`. The fetchers use `sys.path.insert(0, Path(__file__).parent)` for the in-folder `_http`/`_models` imports — relative-to-file, survives the move. The `_http.py` could be promoted to `src/imdr/connectors/kr_govt_http.py` if cross-country re-use materialises, but for v1 leaving it inline at `scripts/econ/{cc}/govt/_http.py` is fine (each country's edges have different TLS quirks).
 
-**Step 2 — Promote fetchers.**
-For each `playground/econ/{cc}/govt/fetch_{agency}.py`, create `scripts/econ/{cc}/govt/fetch_{agency}.py` with the same structural cleanup as G.2 Step 2 (strip exploration commentary, swap imports, remove `sys.path` hacks).
+**Step 2 — Rename `daily_pull.py` → `ingest_filings.py`.**
+The playground name was descriptive of the discovery action; in prod the canonical role is "daily filings ingest". Place at `scripts/econ/{cc}/govt/ingest_filings.py`. Module path becomes `scripts.econ.{cc}.govt.ingest_filings` — invokable from the country orchestrator.
 
-**Step 3 — Build the daily orchestrator.**
-`scripts/econ/{cc}/{cc}_govt_daily.py` runs all per-agency fetchers, dedupes via the rolling `seen.json` (path moves from `playground/.../data/` to the prod archive location), pipes each new item through `filings.ingest_filing()`, prints a per-agency summary table.
+**Step 3 — Build the country daily orchestrator.**
+`scripts/econ/{cc}/{cc}_daily.py` is a thin orchestrator with `PIPELINES = [[sys.executable, "-m", "scripts.econ.{cc}.govt.ingest_filings", "--ingest"]]`. Sequence: run each pipeline subprocess → query `research.dim_report` for filings ingested at/after `run_started_at` → render + send a filings-aware email (see J.6). Future per-country daily entries (high-frequency rates, KRW spot, etc.) extend the same `PIPELINES` list.
+
+> **Naming**: country-level daily orchestrator is `{cc}_daily.py` — not `{cc}_govt_daily.py`. Matches the existing `{cc}_monthly.py` / `{cc}_weekly.py` family. The govt-specific entry lives one level down at `scripts/econ/{cc}/govt/ingest_filings.py`.
 
 **Step 4 — Register into the scheduler (GATED — explicit user sign-off required).**
-Add to `scripts/imdr_daily.py:PIPELINES`. Same gate as G.2 Step 4 — build first, user flips the switch. Once registered, the country starts writing govt filings to `research.dim_report` + Qdrant + SharePoint on the next daily cron.
+Add `{"cmd": ["python", "-m", "scripts.econ.{cc}.{cc}_daily"], "estimated_tags": 0}` to `scripts/imdr_daily.py:PIPELINES`. Same gate as G.2 Step 4 — build first, user flips the switch. Once registered, the country starts writing govt filings on the next daily cron.
+
+> **Reference impl (Korea, 2026-06-10):** `scripts/econ/kr/kr_daily.py` (~250 LoC, custom inline email runner — no separate `_country_govt_runner.py` needed; see J.6).
 
 ### J.5 Code-review gate (HARD GATE)
 
@@ -273,19 +301,21 @@ Run `imdr-code-reviewer` on the new prod tree. Track-B-specific checklist:
 
 ### J.6 Email + error logging (shared runtime — Track B)
 
-Same `Settings`-driven stack as G.8: structlog with `log_format=json` + `log_level` for everything, `send_outlook_email` for the consolidated daily report, `run_log_dir` for any per-feed jsonl archive. Three Track-B-specific deltas:
+Same `Settings`-driven stack as G.8: structlog with `log_format=json` + `log_level` for everything, `send_outlook_email` for the consolidated daily report, `run_log_dir` for any per-feed jsonl archive. Track-B-specific deltas:
 
 | Aspect | Track A (G.8) | Track B (J.6) |
 |---|---|---|
-| Orchestrator runtime | `scripts.econ._country_runner.run(...)` — DB snapshot of `econ.fact_indicator` rows + `CountryEconIngestFormatter` | **`scripts.econ._country_runner` doesn't fit** — Track B writes to `research.dim_report` + Qdrant + SharePoint, not `econ.fact_indicator`. Build `scripts.econ._country_govt_runner.run(...)` mirroring the same shape but with a filings-aware snapshot (`SELECT COUNT(*) FROM research.dim_report WHERE vendor_id IN (...) AND ingested_at >= run_started_at`). |
-| Formatter | `CountryEconIngestFormatter` (parametrised — one for all countries) | NEW `CountryGovtFilingsIngestFormatter` (template at `imdr/notifications/templates/country_govt_filings_ingest.html`). Same parametrisation — `country_label` / `country_name` / `orchestrator_path` — but body shape is per-agency `FilingItem` counts + Qdrant chunks ingested + SharePoint upload status, not per-indicator new rows. |
-| Subject line | `[{cc}] {run_name} econ ingest — {new_rows} new / {stale} stale` | `[{cc}] {run_name} govt filings — {filings_new} new / {qdrant_chunks} chunks / {sharepoint_uploaded} mirrored[ / FAILED]` |
-| Failure-isolation | Per-fetcher subprocess; one fetcher's rc≠0 doesn't abort others; partial DB snapshot still emails | Same per-fetcher pattern. **Additionally**: per-`FilingItem` failures inside `ingest_filing()` (PDF parse error, Qdrant write timeout, SharePoint auth refresh) MUST be caught at the item level so one bad filing doesn't poison the whole run. Failed items log `filing_ingest_failed` with `vendor_code` + `source_url` + traceback and are listed in the email body's "Failures" table. |
-| Importance | `1` normal, `2` on any pipeline rc≠0 | Same, plus `2` if any item raised inside `ingest_filing()` even when fetcher rc==0 |
-| Anomaly channel | Optional, via `email_anomaly_to` | Use `email_anomaly_to` for items where ingest succeeded but content looks degenerate (zero-page PDF, body_text < 200 chars, OCR-failure markers). Separate from the per-run summary so it doesn't drown in noise. |
-| Smoke checks (see G.8 list) | All apply | All apply, plus: confirm Qdrant rollback is clean when an item fails partway (point-write succeeded but SharePoint mirror raised) — Track B writes to three sinks per item, so partial-write recovery has to be tested. |
+| Orchestrator runtime | `scripts.econ._country_runner.run(...)` — DB snapshot of `econ.fact_indicator` rows + `CountryEconIngestFormatter` | **Inline in `{cc}_daily.py`** — `_country_runner` is indicator-focused (queries `econ.fact_indicator`) and doesn't fit. The Korea reference impl puts the orchestration directly in `kr_daily.py` (~250 LoC): run subprocesses → query `research.dim_report` for filings created at/after `run_started_at` → render HTML email. No separate `_country_govt_runner` module — the orchestrator is small enough to read inline; new country_daily.py files copy the same pattern. |
+| Formatter | `CountryEconIngestFormatter` (parametrised — one for all countries) | **Inline HTML in `{cc}_daily.py:_render_email()`** — small enough not to warrant a Jinja template. Body: pipeline-results table, per-vendor filings table (vendor_code · display_name · category · n_reports · n_chunks), top-5 recent titles. Mirror the structure when adding au_daily/id_daily/etc. — promote to a shared formatter once 3+ countries are live. |
+| Subject line | `[{cc}] {run_name} econ ingest — {new_rows} new / {stale} stale` | `[IMDR Daily {CC}] ✓ all ok — {N} new filings, {M} chunks ({duration} min)` (or `⚠ X failed` instead of `✓ all ok`). Korea pattern is `[IMDR Daily KR]`. |
+| Failure-isolation | Per-fetcher subprocess; one fetcher's rc≠0 doesn't abort others; partial DB snapshot still emails | Per-fetcher subprocess (same shape). **Additionally**: per-`FilingItem` failures inside `ingest_filing()` (PDF parse error, Qdrant timeout, SharePoint auth refresh) are caught at the item level inside `ingest_filings.py:_one()` — one bad filing logs `[ingest-fail]` and skips, doesn't poison the run. The orchestrator's pipeline_results entry stays `rc=0`. Failed items aren't added to seen.json so they retry next run. |
+| Importance | `1` normal, `2` on any pipeline rc≠0 | Same: `1` normal, `2` on any pipeline rc≠0. |
+| Anomaly channel | Optional, via `email_anomaly_to` | Not yet used in the Korea reference. Add if degenerate-content detection (zero-page PDF, body_text < 200 chars) becomes a recurring concern — keep separate from the per-run summary so it doesn't drown in noise. |
+| Smoke checks (see G.8 list) | All apply | All apply, plus: `python -m scripts.econ.kr.kr_daily --no-email` end-to-end ingest works without sending mail (useful for first prod-run sanity). Confirm Qdrant rollback is clean when an item fails partway. |
 
 `Settings` keys are the same as G.8 — no new env vars unless the filings runtime needs a separate recipient list (don't add one unless asked).
+
+**Korea reference (2026-06-10):** [`scripts/econ/kr/kr_daily.py`](../../../scripts/econ/kr/kr_daily.py) — `PIPELINES` list (1 entry: `scripts.econ.kr.govt.ingest_filings --ingest`), `_filings_snapshot()` query, `_render_email()` HTML builder, `send_outlook_email()` call. Replicate the shape; do not refactor into a shared runner until 3+ countries are live and the abstraction is forced.
 
 ### J.7 Docs to update on Track B prod-promotion
 
@@ -302,8 +332,15 @@ Canonical prod-live wording:
 
 ### J.8 Worked examples
 
-- **Korea** — `docs/admin/development/kr_govt_filings.md` (execution tracker) + `docs/admin/econ/korea/govt_doc_sources.md` (inventory). 7 fetchers built in `playground/econ/kr/govt/`; migrations 086/087 drafted but **not yet applied**. Phase J **not yet entered.**
-- **Australia** — 6 fetchers built in `playground/econ/au/govt/` (RBA × 4 via Playwright + Treasury + APRA via plain httpx). No execution tracker yet; no migrations drafted yet. Phase J **not yet entered.**
+- **Korea — LIVE 2026-06-10.** Phase J complete. Reference impl for all future Track B promotions.
+  - 7 fetchers + resolvers + `_http` + `_models` + `ingest_filings.py` at [`scripts/econ/kr/govt/`](../../../scripts/econ/kr/govt/)
+  - Country daily orchestrator: [`scripts/econ/kr/kr_daily.py`](../../../scripts/econ/kr/kr_daily.py) (inline filings-aware email)
+  - Migrations 086 (vendor_category column + 47-row backfill) + 087 (7 KR agency seeds) applied
+  - Registered in [`scripts/imdr_daily.py:PIPELINES`](../../../scripts/imdr_daily.py)
+  - 41 reports / 55+ Qdrant chunks / 22 PDFs at canonical SP layout
+  - Execution tracker: [`docs/admin/development/kr_govt_filings.md`](../development/kr_govt_filings.md)
+  - Inventory + URL recipes: [`korea/govt_doc_sources.md`](korea/govt_doc_sources.md)
+- **Australia** — 6 fetchers built in `playground/econ/au/govt/` (RBA × 4 via Playwright + Treasury + APRA via plain httpx). No execution tracker yet; no migrations drafted yet. Phase J **not yet entered.** Replicate the Korea pattern when promoting.
 
 ---
 

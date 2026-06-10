@@ -1,7 +1,7 @@
 # Korea government policy filings — corpus extension
 
-**Status**: pre-flight complete, awaiting migrations 086/087 apply.
-**Started**: 2026-06-09 (inventory) → 2026-06-10 (probes + daily pull + recipes).
+**Status**: **PROD-WIRED 2026-06-10.** Registered in `scripts/imdr_daily.py:PIPELINES`; runs daily under the existing IMDR cron.
+**Started**: 2026-06-09 (inventory) → 2026-06-10 (probes + filings.py impl + first ingests + reviews + promotion + prod wire-up).
 
 Extends the existing sell-side research corpus (`research.dim_report` +
 Qdrant + SharePoint) to hold government policy filings from Korea — BoK
@@ -64,35 +64,45 @@ About 10% of current sell-side chunk volume.
 | Artifact | Location | State |
 |---|---|---|
 | Inventory + URL recipes | [`docs/admin/econ/korea/govt_doc_sources.md`](../econ/korea/govt_doc_sources.md) (~870 lines) | done |
-| Migration 086 — `vendor_category` column + CHECK + 47-row backfill | [`migrations/086_add_dim_vendor_category.sql`](../../../migrations/086_add_dim_vendor_category.sql) | drafted, awaiting apply |
-| Migration 087 — 7 Korea vendor seeds | [`migrations/087_seed_kr_official_vendors.sql`](../../../migrations/087_seed_kr_official_vendors.sql) | drafted, awaiting apply |
-| Filings helper skeleton | [`src/imdr/research/filings.py`](../../../src/imdr/research/filings.py) | skeleton (NotImplementedError) |
-| Per-agency fetchers (7) | [`playground/econ/kr/govt/fetch_*.py`](../../../playground/econ/kr/govt/) | live, all 7 tested |
-| Daily-pull orchestrator | [`playground/econ/kr/govt/daily_pull.py`](../../../playground/econ/kr/govt/daily_pull.py) | live (manifest only) |
-| Cadence analysis tool | [`playground/econ/kr/govt/analyze_cadence.py`](../../../playground/econ/kr/govt/analyze_cadence.py) | live |
-| PDF/body resolution probes | [`playground/econ/kr/govt/probe_resolve.py`](../../../playground/econ/kr/govt/probe_resolve.py) + [`probe_resolve_v2.py`](../../../playground/econ/kr/govt/probe_resolve_v2.py) | done; recipes documented |
+| Migration 086 — `vendor_category` column + CHECK + 47-row backfill | [`migrations/086_add_dim_vendor_category.sql`](../../../migrations/086_add_dim_vendor_category.sql) | **APPLIED 2026-06-10** |
+| Migration 087 — 7 Korea vendor seeds | [`migrations/087_seed_kr_official_vendors.sql`](../../../migrations/087_seed_kr_official_vendors.sql) | **APPLIED 2026-06-10** |
+| Filings helper | [`src/imdr/research/filings.py`](../../../src/imdr/research/filings.py) | **LIVE — full impl** (synthesize_document_from_text, ingest_filing, vendor/idempotency/qdrant helpers; vendor_code alnum guard; body content_hash vendor namespace) |
+| Per-agency fetchers (7) | [`scripts/econ/kr/govt/fetch_*.py`](../../../scripts/econ/kr/govt/) | **PROMOTED to scripts/** — bok, moef, motir, fsc, fss, kcs, kdi |
+| Per-agency resolvers | [`scripts/econ/kr/govt/resolvers.py`](../../../scripts/econ/kr/govt/resolvers.py) | **PROMOTED** — 7 resolvers (PDF or body) |
+| Shared TLS-1.2 + URL allowlist | [`scripts/econ/kr/govt/_http.py`](../../../scripts/econ/kr/govt/_http.py) | **PROMOTED** — patient_get/post with `.go.kr`/`.or.kr`/`.re.kr` allowlist |
+| Govt-filings daily ingest | [`scripts/econ/kr/govt/ingest_filings.py`](../../../scripts/econ/kr/govt/ingest_filings.py) | **PROMOTED + RENAMED** (was `daily_pull.py`) — `--ingest` / `--no-embed` / `--limit` / `--reset` / `--dry-run` |
+| KR daily orchestrator | [`scripts/econ/kr/kr_daily.py`](../../../scripts/econ/kr/kr_daily.py) | **NEW (2026-06-10)** — inline filings-aware HTML email, parallel pattern to kr_weekly/kr_monthly |
+| Registered in scheduler | [`scripts/imdr_daily.py:PIPELINES`](../../../scripts/imdr_daily.py) | **WIRED 2026-06-10** — `python -m scripts.econ.kr.kr_daily` runs under the daily cron |
+| Mods backfill (one-off) | [`scripts/econ/kr/govt/backfill_mods.py`](../../../scripts/econ/kr/govt/backfill_mods.py) | done — 10 KOSTAT CPI releases re-ingested via filings.py |
+| Cadence analysis + late-day probes | [`playground/econ/kr/govt/_explore/`](../../../playground/econ/kr/govt/_explore/) | kept in playground (exploration tools) |
 
 Baseline daily-pull run captured **317 items across 7 agencies** in ~50s.
-Re-run on the same day reports 0 new items (dedup verified via seen.json).
+Smoke-ingest (with embeddings on) verified end-to-end: 21 + 10 = 41 reports
+in `research.dim_report` (ids 5448-5478), 55+ chunks in Qdrant, 22 PDFs on
+SharePoint at `{YYYY}/{MM}/{DD}/econ/kr/{vendor}/...`.
 
-## Pending — day-of-wiring work (~250 LoC)
+## Done (2026-06-10)
 
-1. Apply migrations 086 + 087 (privileged DB account).
-2. Implement [`filings.py`](../../../src/imdr/research/filings.py):
-   - `ingest_filing(FilingInput, embed=True, store_pdf_text=False) -> FilingResult`
-   - `synthesize_document_from_text(body_text) -> Document` (~10 LoC)
-   - `_resolve_vendor`, `_short_circuit_if_exists`, `_qdrant_payload_extra`
-3. Per-agency `resolve_pdf(item)` / `resolve_body(item)` helpers
-   (~20 LoC each × 6 agencies = ~120 LoC). Recipes already proven —
-   see [`govt_doc_sources.md` §Per-agency resolution recipes](../econ/korea/govt_doc_sources.md#per-agency-body--pdf-resolution-recipes-probed-2026-06-10).
-4. Add `--ingest` flag to `daily_pull.py` that pipes each new item
-   through `ingest_filing()`.
-5. Mycroft / Lois prompt updates — filter `vendor_category IN
+1. ~~Apply migrations 086 + 087~~ — **DONE**
+2. ~~Implement `filings.py`~~ — **DONE**
+3. ~~Per-agency `resolve_pdf` / `resolve_body` helpers~~ — **DONE**
+4. ~~Add `--ingest` flag to ingest_filings.py~~ — **DONE**
+5. ~~Multi-agent code/DB/docs/security review~~ — **DONE** (8 fixes applied: vendor_code alnum guard, URL allowlist, deferred-import hoisting, sys.path dedup, body content_hash namespace, obsolete probe deletion, doc accuracy)
+6. ~~Promote `playground/econ/kr/govt/` → `scripts/econ/kr/govt/`~~ — **DONE** (rename `daily_pull.py` → `ingest_filings.py`)
+7. ~~Build `scripts/econ/kr/kr_daily.py` with clean email~~ — **DONE** (inline HTML; subject `[IMDR Daily KR] ✓ all ok — N new filings, M chunks (T min)`)
+8. ~~Wire into `scripts/imdr_daily.py:PIPELINES`~~ — **DONE 2026-06-10**
+
+## Pending
+
+9. Mycroft / Lois prompt updates — filter `vendor_category IN
    ('sell_side', 'official_*')` by default; document override flag for
-   "sell-side only" mode.
-6. Promote `playground/econ/kr/govt/` → `scripts/econ/kr/kr_govt_daily.py`
-   for prod (only after a few days of clean daily-pull runs in playground).
-7. Wire into `scripts/imdr_daily.py:PIPELINES` (user OK only).
+   "sell-side only" mode. Specs (mycroft_brief_spec.md / weekly_brief_spec.md)
+   updated; agent prompts (`.claude/agents/lois.md`, `.claude/agents/mycroft.md`)
+   still need the explicit Qdrant-filter language.
+10. Optional: build proper `fetch_mods.py` for daily MoDS discovery (the 10
+    backfilled PDFs cover history; ongoing daily MoDS won't auto-ingest
+    until a fetcher is added that uses Playwright like the playground
+    `econ/mods/fetch.py`).
 
 ## Open items (do not block initial ingest)
 
@@ -128,4 +138,4 @@ shipped.
 
 - [`docs/admin/econ/korea/govt_doc_sources.md`](../econ/korea/govt_doc_sources.md) — Korea inventory + recipes (the working doc).
 - [`docs/admin/research/index.md` §Adjacent corpus](../research/index.md#adjacent-corpus-government-policy-filings) — research-pipeline-side overview.
-- Memory: [[project-bok-listcont-post-recipe]], [[project-motie-renamed-to-motir]], [[feedback-kr-govt-flaky-tls-patient-retry]].
+- Memory: [[project_bok_listcont_post_recipe]], [[project_motie_renamed_to_motir]], [[feedback_kr_govt_flaky_tls_patient_retry]].

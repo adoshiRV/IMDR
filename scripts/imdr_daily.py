@@ -47,6 +47,12 @@ PIPELINES: list[dict] = [
     {"cmd": ["python", "-m", "scripts.rates.citi.rates_basis_swaps_citi_live"], "estimated_tags": 100},
     # Non-Citi vendor feeds (no tag quota).
     {"cmd": ["python", "-m", "scripts.econ.bis.bis_indonesia"], "estimated_tags": 0},
+    {"cmd": ["python", "-m", "scripts.econ.bi.bi_srbi"], "estimated_tags": 0},
+    # Per-country daily orchestrators — own their email summary. Add
+    # countries here as their {country}_daily.py is built. Use
+    # ``sys.executable`` to bind the subprocess to the same Python env
+    # as the orchestrator (consistent with kr_weekly/kr_monthly).
+    {"cmd": [sys.executable, "-m", "scripts.econ.kr.kr_daily"], "estimated_tags": 0},
     {"cmd": ["python", "-m", "scripts.prediction.polymarket.streaming", "cleanup"], "estimated_tags": 0},
     # {"cmd": ["python", "-m", "scripts.prediction.polymarket.teams_post", "--slot", "AM"], "estimated_tags": 0},
     {"cmd": ["python", "-m", "scripts.run_vendor_feed", "barclays_skew"], "estimated_tags": 0},

@@ -232,18 +232,34 @@ For FX intraday: anchor at `GETUTCDATE()` and 6-day-prior window.
 to the number you're about to put in the doc. **Numbers in the brief never come
 from another brief — always live IMDR.**
 
-### Bank quotes (vendor cards) — `research.fact_chunk`
+### Bank quotes + official-source quotes (vendor cards) — `research.fact_chunk`
 
-For each in-scope event, identify the priority report IDs in `research.dim_report`:
+For each in-scope event, identify the priority report IDs in `research.dim_report`,
+**blending sell-side and official sources by default**:
 
 ```sql
-SELECT r.id, v.vendor_code, r.title, r.publish_date
+SELECT r.id, v.vendor_code, v.vendor_category, r.title, r.publish_date
 FROM research.dim_report r
 JOIN dbo.dim_vendor v ON v.id = r.vendor_id
 WHERE r.publish_date >= DATEADD(day, -7, GETUTCDATE())
+  AND v.vendor_category IN (
+        'sell_side',
+        'official_cb', 'official_ministry', 'official_regulator',
+        'official_thinktank', 'official_statistics', 'official_supranational'
+      )
   AND (r.title LIKE '%<event-name>%' OR r.asset_class = '<asset>')
 ORDER BY r.publish_date DESC;
 ```
+
+Default filter includes both sell-side banks AND govt agencies (BoK,
+MOEF, FSS, FSC, KDI, KCS, MOTIR for Korea — 2026-06-10; the same
+pattern will cover other countries as their per-country prod scripts go
+live). Vendor categorisation added in [migration 086](../../../migrations/086_add_dim_vendor_category.sql).
+
+If the brief wants *only* sell-side voices, scope to
+`vendor_category = 'sell_side'`. If it wants *only* official voices
+(rare in weekly briefs — more common in Mycroft topical), scope to
+`vendor_category LIKE 'official_%'`.
 
 Then pull chunks (typically chunk_index 0-3 has the meat):
 
@@ -258,11 +274,30 @@ Extract direct sentences. **Quotes are verbatim** — never paraphrase.
 If you can't find a quote, don't manufacture one — leave the field blank
 or pick a different report.
 
+**When citing**: distinguish sell-side from official-source quotes
+visually. Sell-side cards stay as today's vendor cards. Official-source
+quotes go in their own card with the agency name as the byline
+("Bank of Korea Monetary Policy Board", "Korea Ministry of Economy &
+Finance, Treasury Bureau") — never an analyst name. Pre-discuss with
+Picasso if a new card identity is needed.
+
 ### Bank PDF page renders
 
 PDFs sync locally via OneDrive at
 `C:\Users\adoshi\OneDrive - RV Capital Management Private Ltd\Trade Knowledge Core - IMDR\`.
 The relative path is `research.dim_report.pdf_path`.
+
+Two layouts coexist under that root:
+
+| Source | Path shape | Example |
+|---|---|---|
+| Sell-side research | `{YYYY}/{MM}/{DD}/{vendor}/{slug}_{uuid}.pdf` | `2026/06/10/jpm/Global_Markets_Daily_..._abc12345.pdf` |
+| Govt filings | `{YYYY}/{MM}/{DD}/econ/{country}/{vendor}/{slug}_{hash}.pdf` | `2026/06/10/econ/kr/bok/financial-statement-analysis-for-2025_3e438373.pdf` |
+
+Both share the date-first hierarchy so "what landed on 2026-06-10?" is a
+single folder walk. Govt filings under HTML-body-only path (e.g. MOEF
+press releases, MOTIR articles) have no PDF file — `pdf_path` is empty,
+chunks are synthesized from `body_text`.
 
 To render a page to PNG:
 ```python

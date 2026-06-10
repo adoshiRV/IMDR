@@ -1,6 +1,6 @@
 # IMDR Econ Documentation
 
-Last updated: 2026-06-10 (AU: 3 cells closed; ID: SRBI auction yields added)
+Last updated: 2026-06-10 (AU: 3 cells closed; ID: SRBI + SBN-position-by-holder added)
 
 Macro / country-economy data: the indicators sitting in `econ.dim_indicator` / `econ.fact_indicator`, the vendors that feed them, and the country-by-country wiring plan.
 
@@ -35,7 +35,7 @@ Each country has a folder with prod reference docs at the top + a `_playground/`
 | **Eurozone (EU)** | Source catalogue only (ECB SDW, Eurostat, ECB docs) | [eurozone/](eurozone/) | [§7.2](macro_economy_wiring_map.md#72-eurozone-eu) | — |
 | **Philippines (PH)** | Source catalogue only (BSP, PSA, DBM, BTr) | [philippines/](philippines/) | [§7.15](macro_economy_wiring_map.md#715-philippines-ph) | — |
 | **Thailand (TH)** | Source catalogue only (BoT, NSO) | [thailand/](thailand/) | [§7.16](macro_economy_wiring_map.md#716-thailand-th) | — |
-| **Indonesia (ID)** | DB-LIVE — **289 indicators × 110,476 obs** (2026-06-10), all 16 wiring-map cells covered, 13 of 16 are full ✅. BPS (82, REST JSON) + BI (165 across SEKI tables + Survey publications + bank rates + SRBI auction yields) + BIS (6, SDMX) + DJPPR (36, daily SBN ownership). 27 prod fetchers; 2 registered in `imdr_daily.py` (BIS policy rate + SRBI). Tenor-by-investor SBN breakdown is outstanding gap (requires Kemenkeu Buku Saku APBN). | [indonesia/](indonesia/) | [§7.17](macro_economy_wiring_map.md#717-indonesia-id) | [indonesia_indicator_inventory.md](indonesia/indonesia_indicator_inventory.md) |
+| **Indonesia (ID)** | DB-LIVE — **308 indicators × 114,106 obs** (2026-06-10), all 16 wiring-map cells covered, 13 of 16 are full ✅. BPS (82, REST JSON) + BI (184 across SEKI tables + Survey publications + bank rates + SRBI auction yields + SBN position by holder) + BIS (6, SDMX) + DJPPR (36, daily SBN ownership). 28 prod fetchers; 2 registered in `imdr_daily.py` (BIS policy rate + SRBI). True tenor-by-investor SBN cross-tab is outstanding gap (requires Kemenkeu Buku Saku APBN); bank-type decomp now live via BI SEKI IV.4. | [indonesia/](indonesia/) | [§7.17](macro_economy_wiring_map.md#717-indonesia-id) | [indonesia_indicator_inventory.md](indonesia/indonesia_indicator_inventory.md) |
 
 Other countries appear in the wiring map (UK, CA, CH, DE, CN, SG, TW) via FRED OECD mirrors — they don't have their own folder yet. When one graduates from FRED-mirror to native-vendor, create a folder following the Korea reference shape.
 

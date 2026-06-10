@@ -1,6 +1,15 @@
 # Indonesia (ID) — economic indicator target list
 
-Last updated: 2026-06-08
+Last updated: 2026-06-08 (targets doc — pre-build planning, superseded by actual inventory)
+
+> **Note (2026-06-10):** This doc was written as a pre-build shopping list before
+> any indicators were loaded. As of 2026-06-10, **289 indicators are live in
+> `econ.fact_indicator`** (BPS 82 + BI 165 + BIS 6 + DJPPR 36). The authoritative
+> live inventory is [`indonesia_indicator_inventory.md`](indonesia_indicator_inventory.md).
+> This file is retained as the original design intent (it shows which concepts
+> were targeted and the initial vendor-table mapping). It has **not** been
+> retroactively updated to reflect what was actually built — the inventory doc
+> is the source of truth.
 
 The **concrete shopping list** of Indonesia economic time series we want
 loaded into `econ.dim_indicator`. Companion to
@@ -8,7 +17,7 @@ loaded into `econ.dim_indicator`. Companion to
 to vendor tables at the **concept** level). This doc translates those
 concepts into specific `dim_indicator` rows, one line per series.
 
-**Status (2026-06-08): 0 indicators loaded.** Targets below are planning
+**Status (2026-06-08 original): 0 indicators loaded.** Targets below are planning
 placeholders; actual `imdr_code` strings will be finalised post-Phase B
 when BPS `domain`/`var`/`turvar` identifiers are confirmed against the
 live API. Codes follow the Korea convention: `{VENDOR}.{CATEGORY}.{SUB}.{FREQ_OR_TRANSFORM}.{COUNTRY}`.

@@ -1,7 +1,7 @@
 # Korea — Government & Quasi-Government Document Sources
 
-Last updated: 2026-06-09
-Status: scoping inventory — no code, no build plan beyond priority tiers.
+Last updated: 2026-06-10
+Status: LIVE — daily-pull discovery running; Tier-1 agencies ingesting via filings.py (migrations 086/087 applied 2026-06-10).
 
 This file is the master inventory of **Korean policy / macro-relevant text** sources
 (Bank of Korea, ministries, regulators, statistical agencies, quasi-government
@@ -786,38 +786,84 @@ BoK (Shape 3) delivers ~70% of Tier-1 coverage on day 1.
 
 ---
 
-## Build state (2026-06-10)
+## Build state (2026-06-10 — LIVE)
 
-### Schema (pending apply)
+### Schema ✅ APPLIED
 - [`migrations/086_add_dim_vendor_category.sql`](../../../../migrations/086_add_dim_vendor_category.sql)
-  — ADD COLUMN `dbo.dim_vendor.vendor_category` + CHECK constraint (10-value
-  enum) + comprehensive backfill of all 47 existing rows + assertion guard.
-  **Awaiting apply by privileged DB account.**
+  — `ADD COLUMN dbo.dim_vendor.vendor_category` + 10-value CHECK enum +
+  full 47-row backfill + post-condition assertion. Applied 2026-06-10.
 - [`migrations/087_seed_kr_official_vendors.sql`](../../../../migrations/087_seed_kr_official_vendors.sql)
-  — Seed 7 Korea Tier-1 agencies (`bok`, `moef`, `motir`, `fsc`, `fss`,
-  `kcs`, `kdi`). `mods` (id=24) already covers KOSTAT — no duplicate seeded.
-  **Awaiting apply.**
+  — Seeded 7 Korea Tier-1 agencies (`bok`, `moef`, `motir`, `fsc`, `fss`,
+  `kcs`, `kdi`; ids 52-58). `mods` (id=24) already covers KOSTAT — no
+  duplicate seeded. Applied 2026-06-10.
 
-### Filings helper (skeleton)
+### Filings helper ✅ LIVE
 - [`src/imdr/research/filings.py`](../../../../src/imdr/research/filings.py)
-  declares the `ingest_filing(FilingInput) -> FilingResult` contract and
-  internal helper protocols. Implementation deferred until migrations land —
-  internals will delegate to existing primitives in
-  `playground/research/ingest/` (parse, chunk, embed, upload, write).
+  implements `ingest_filing(FilingInput) -> FilingResult` end-to-end.
+  Bypasses the sell-side classifier + relevance filter; delegates to
+  existing primitives (parse / chunk / embed / upload / write) in
+  `playground/research/ingest/`. Accepts EITHER `pdf_bytes` (parse via
+  PyMuPDF → 800-token chunks) OR `body_text` (synthesize a single-page
+  Document for HTML-only sources). Same Qdrant collection as sell-side,
+  with payload `vendor_category` + `country_code` + `doc_type` + `stream`
+  added to the keyword indexes via
+  [`src/imdr/connectors/qdrant_schema.py`](../../../../src/imdr/connectors/qdrant_schema.py).
 
-### Daily pull scripts (this section — under construction)
+### Daily pull ✅ LIVE
 - Location: [`playground/econ/kr/govt/`](../../../../playground/econ/kr/govt/)
-  while in playground; eventual prod home is `scripts/econ/kr/kr_govt_daily.py`.
-- One fetcher module per agency, all returning the same `FilingItem` shape.
-- Orchestrator `daily_pull.py` runs all 7 fetchers, dedups via rolling
-  `seen.json`, writes per-day snapshot, prints summary table.
-- **No DB writes yet** — manifest-only until migrations 086/087 apply. When
-  they do, `daily_pull.py --ingest` will pipe each new item through
-  `filings.py:ingest_filing()`.
+  while in playground; eventual prod home is
+  `scripts/econ/kr/kr_govt_daily.py` (not wired yet — no-prod-wiring rule).
+- 7 fetcher modules (`fetch_{bok,moef,motir,fsc,fss,kcs,kdi}.py`) each
+  return `FilingItem` records via the proven URL recipes (see
+  [§Per-agency resolution recipes](#per-agency-body--pdf-resolution-recipes-probed-2026-06-10) below).
+- 7 resolver helpers in [`resolvers.py`](../../../../playground/econ/kr/govt/resolvers.py)
+  turn each `FilingItem` into PDF bytes or body text.
+- Orchestrator [`daily_pull.py`](../../../../playground/econ/kr/govt/daily_pull.py):
+  - default: discover + dedup via `seen.json` + daily snapshot
+  - `--ingest` : also resolve + call `ingest_filing()` (writes to
+    research.dim_report + fact_chunk + Qdrant + SharePoint)
+  - `--no-embed`: skip Qdrant; chunks land but no vectors (cheap iteration)
+  - `--limit N`: round-robin across vendors, smoke 1-of-each
+- Failed resolves/ingests don't enter `seen.json` — retryable next run.
 - Daily cadence is intentional even though most agencies publish weekly /
   per-meeting / quarterly — sub-second per fetcher, and we want visibility
   into cadence drift (e.g. BoK skipping an Issue Note month, FSS pausing
   press for a regulatory window).
+
+### SharePoint layout (govt filings)
+
+```
+Trade Knowledge Core - IMDR/{YYYY}/{MM}/{DD}/econ/{country}/{vendor}/{slug}_{hash8}.pdf
+```
+
+Date-first hierarchy — fits inside the existing
+`{YYYY}/{MM}/{DD}/{vendor}/...` convention used by sell-side research
+(see [`playground/research/ingest/paths.py`](../../../../playground/research/ingest/paths.py)).
+Govt filings insert `econ/{country}/` between the date and vendor so a
+single day folder shows both sell-side vendors (top-level) and govt
+filings (under `econ/`) grouped by country.
+
+Example day:
+
+```
+Trade Knowledge Core - IMDR/2026/06/10/
+├── anz/                         (sell-side)
+├── jpm/
+├── nomura/
+├── …
+└── econ/
+    └── kr/
+        ├── bok/
+        │   ├── financial-statement-analysis-for-2025_3e438373.pdf
+        │   └── …
+        ├── fsc/
+        ├── fss/
+        └── …
+```
+
+HTML-only sources (MOEF, MOTIR press) produce no PDF file — `pdf_path`
+is empty, chunks are synthesized from `body_text` via
+`synthesize_document_from_text` in [`filings.py`](../../../../src/imdr/research/filings.py).
 
 ### Daily output shape (illustrative)
 

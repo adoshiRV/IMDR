@@ -1,15 +1,16 @@
 # Indonesia (ID) — Econ Indicator Inventory
 
-Last updated: 2026-06-09 (post-DJPPR load)
+Last updated: 2026-06-10 (post-SBN-position load)
 
 Tracker forked from [`../country_econ_blueprint.md`](../country_econ_blueprint.md) §1-4 per the [onboarding playbook](../onboarding_new_country.md#step-1--fork-the-blueprint-into-a-country-tracker).
 
-**Today (2026-06-09 post-DJPPR):** **286 indicators × 109,991 observations live in `econ.fact_indicator`** across 4 vendors (BPS 82 + BI 162 + BIS 6 + DJPPR 36); migrations 081-085 applied. **All 16 wiring-map cells covered; 13 of 16 are full ✅.** Orchestrator wired into `scripts/imdr_monthly.py:PIPELINES` 2026-06-09 — Phase G complete. DJPPR Kepemilikan SBN added 2026-06-09 covers daily ownership of tradable IDR-denominated government securities (SBN) by investor category (banks / BI / mutual funds / insurance+pension / foreign / individuals / other), window 2015-12-31 → 2026-06-05, daily. Wired into `id_monthly.py` 2026-06-09 (parser library at `src/imdr/domains/econ/djppr_kepemilikan.py`).
+**Today (2026-06-10 post-SBN-position):** **308 indicators × 114,106 observations live in `econ.fact_indicator`** across 4 vendors (BPS 82 + BI 184 + BIS 6 + DJPPR 36); migrations 081-085 applied. **All 16 wiring-map cells covered; 13 of 16 are full ✅.** Orchestrator wired into `scripts/imdr_monthly.py:PIPELINES` 2026-06-09 — Phase G complete. DJPPR Kepemilikan SBN added 2026-06-09 covers daily ownership of tradable IDR-denominated government securities (SBN) by investor category (banks / BI / mutual funds / insurance+pension / foreign / individuals / other), window 2015-12-31 → 2026-06-05, daily. Wired into `id_monthly.py` 2026-06-09 (parser library at `src/imdr/domains/econ/djppr_kepemilikan.py`). BI SRBI auction yields added 2026-06-10: 3 indicators (6M/9M/12M weighted-average winning yield) × 162/161 obs, window 2023-09-15 → 2026-06-10; wired into `scripts/imdr_daily.py:PIPELINES` (parser library at `src/imdr/domains/econ/bi_srbi.py`). BI SEKI IV.4 SBN position by holder added 2026-06-10: 19 indicators (4 headline totals + 8 ON/bond holder decomp + 7 SPN/T-bill holder decomp), window 2008-12-01 → 2026-05-01, monthly; reuses `bi_seki.py` library (no new library code); wired into `id_monthly.py`.
 
-## Production fetchers (2026-06-09)
+## Production fetchers (2026-06-10)
 
-25 fetchers under `scripts/econ/` cover all 250 indicators. Orchestrator:
+28 fetchers under `scripts/econ/` cover all 308 indicators. Orchestrator:
 `scripts/econ/id/id_monthly.py` — wired into `scripts/imdr_monthly.py:PIPELINES` 2026-06-09.
+`scripts.econ.bi.bi_srbi` — wired into `scripts/imdr_daily.py:PIPELINES` 2026-06-10.
 See [indonesia_prod_pipeline.md](indonesia_prod_pipeline.md).
 
 | Fetcher | Indicators (approx) |
@@ -37,12 +38,16 @@ See [indonesia_prod_pipeline.md](indonesia_prod_pipeline.md).
 | `scripts.econ.bi.bi_money_supply` | 10 |
 | `scripts.econ.bi.bi_retail_sales` | 9 |
 | `scripts.econ.bi.bi_sbn` | 5 |
+| `scripts.econ.bi.bi_sbn_position` | 19 |
 | `scripts.econ.bi.bi_skdu_macro` | 36 |
+| `scripts.econ.bi.bi_srbi` | 3 |
 | `scripts.econ.bi.bi_sulni` | 8 |
 | `scripts.econ.djppr.djppr_sbn_ownership` | 36 |
-| **Total** | **286** |
+| **Total** | **308** |
 
 DJPPR Kepemilikan SBN wired into `id_monthly.py` 2026-06-09 (parser library at `src/imdr/domains/econ/djppr_kepemilikan.py`). Pre-2016 legacy XLSX deferred → [IMD-42](https://linear.app/imdr/issue/IMD-42).
+
+`bi_sbn_position` wired into `id_monthly.py` 2026-06-10. Reuses existing `src/imdr/domains/econ/bi_seki.py` library — no new library code shipped; parser already covered by existing `_bi_seki` test suite. Source: SEKI TABEL4_4.xls (offsets year_row=4, month_row=5, data_start=6).
 
 ---
 
@@ -72,11 +77,11 @@ DJPPR Kepemilikan SBN wired into `id_monthly.py` 2026-06-09 (parser library at `
 | 3.3 Capital Account   | ✅ | BI.BOP.FA.TOTAL + SULNI external debt | 13/17 | BI BoP FA (5) + SULNI external debt (8 quarterly) |
 | 3.4 FX / REER         | ✅ | BIS.NEER.BROAD + REER + BI.RESERVES.* | 8/11 | BIS broad NEER+REER (1994→) + BI FX reserves stock by component |
 | 4.1 Demand Trans      | ✅ | BI.BANK_CREDIT.*.TOTAL/BUSINESS/CONSUMER | 15/14 | BI Bank Credit I.4 — 5 bank groups × total/business/consumer monthly 2016→ |
-| 4.2 Balance Sheets    | ✅ | BI.BANK_BS.* + BIS.DSR + BIS.CREDIT_TO_GDP | 11/17 | BI commercial bank BS (8) + BIS DSR PNFS + Credit-to-GDP ratio + gap |
-| 4.3 Fin Conditions    | ✅ | BI.RATES.INDONIA + lending + deposit + BIS policy | 13/16 | BIS policy rate + BI Deposit/Lending Facility + PUAB overnight + INDONIA + 30d/90d compounded + Bank Umum lending (3 loan types) + deposit (3 tenors); IDR bond yields are rates-domain |
+| 4.2 Balance Sheets    | ✅ | BI.BANK_BS.* + BIS.DSR + BIS.CREDIT_TO_GDP + BI.SBN.POSITION.* | 30/17 | BI commercial bank BS (8) + BIS DSR PNFS + Credit-to-GDP ratio + gap + **BI SEKI IV.4 SBN position by holder (19 indicators, 2026-06-10): 4 headline totals (SUN/ON/SPN/SBSN) + 8 ON holder decomp by bank type (govt/priv/mix/foreign/regional/BI/nasabah/other) + 7 SPN holder decomp (same minus inst_other)**; finer bank-type breakdown complements DJPPR investor-category totals |
+| 4.3 Fin Conditions    | ✅ | BI.RATES.INDONIA + lending + deposit + BIS policy + BI SRBI yields | 16/16 | BIS policy rate + BI Deposit/Lending Facility + PUAB overnight + INDONIA + 30d/90d compounded + Bank Umum lending (3 loan types) + deposit (3 tenors) + **BI SRBI 6M/9M/12M auction yields** (weighted-avg winning yield, event-cadence ~2×/week, 2023-09-15→, wired into `imdr_daily.py` 2026-06-10); IDR bond yields are rates-domain |
 | 4.4 Policy Reaction   | ✅ | BI.M2 + BI.M0 + BI.RESERVES + SBN | 13/18 | BI M1/M2/M0 (10) + reserves + SBN; BIS policy rate cross-ref |
 
-**Score (2026-06-09 post-Phase D6)**: **All 16 cells covered; 13 of 16 are full ✅.** **250 indicators × 26,757 observations** in `econ.fact_indicator`. Three cells remain ⚠ partial: 2.1 Input Costs (BPS import prices headline only — 2/7 sub-bullets), 3.1 Terms of Trade (BPS export+import price indices in DB; NBToT + Income ToT derivable in analytics — 2/5), 3.4 FX/REER (NEER+REER+reserves total; reserves composition + intervention proxy still derivable — 8/11). Production wiring (Phase G) and OJK NPL deep-dive are the only remaining deliverables.
+**Score (2026-06-10 post-SBN-position)**: **All 16 cells covered; 13 of 16 are full ✅.** **308 indicators × 114,106 observations** in `econ.fact_indicator`. Three cells remain ⚠ partial: 2.1 Input Costs (BPS import prices headline only — 2/7 sub-bullets), 3.1 Terms of Trade (BPS export+import price indices in DB; NBToT + Income ToT derivable in analytics — 2/5), 3.4 FX/REER (NEER+REER+reserves total; reserves composition + intervention proxy still derivable — 8/11). OJK NPL deep-dive is the main remaining deliverable; tenor-by-investor SBN cross-tab is a verified data gap — no public source found on 2026-06-10 (APBN KiTa confirmed narrative-only; BI SEKI IV.4 has 1D cuts only; "Buku Saku APBN" cited anecdotally but unverified). See §Expected ❌ cells.
 
 ## Headline-first build order (per playbook §3)
 
@@ -109,6 +114,7 @@ Acknowledged gaps per playbook §3:
 | 4.1 Demand Trans — lending standards survey | BI Banking Survey **does** publish a SLOOS-equivalent (quarterly) | Usable; Tier 1 |
 | 4.2 Balance Sheets — corporate ratios | Sparse for EM | BIS credit-to-GDP gap (BIS table F1.1) as headline |
 | 4.3 Fin Conditions — corporate spreads | No published IDR IG/HY OAS | Sovereign CDS 5Y as country-credit proxy |
+| 1.2 Fiscal Demand — SBN by tenor by investor | Partially resolved 2026-06-10: BI SEKI IV.4 now provides SBN outstanding by **bank type** (govt/priv/mix/foreign/regional/BI/nasabah/other) for ON bonds and SPN T-bills, complementing DJPPR's investor-category totals. **True tenor-by-investor cross-tab** remains unavailable in any public Indonesian source surveyed. Discovery 2026-06-10: APBN KiTa Dec-2024 verified narrative-only (no matrix); BI SEKI IV.4 has ON × type AND ON × holder as independent 1D cuts, not a 2D cross. A separate Kemenkeu publication called *Buku Saku APBN* is cited anecdotally as carrying a "Profil Jatuh Tempo SBN per Pemegang" table but was **not locatable** on the DJPPR portal API (~25 candidate slugs probed). The cross-tab is most likely dealer-only / internal at BI. | DJPPR aggregate investor totals + BI bank-type decomp as best available; full tenor cut requires either (a) verifying + parsing Buku Saku APBN if its URL surfaces in desk research, or (b) Bloomberg DES per-ISIN holder aggregation. See [`reference-id-tenor-by-investor-search.md`](../../../../../C:/Users/adoshi/.claude/projects/z--Business-Personnel-Arjun-GitHub-IMDR/memory/reference_id_tenor_by_investor_search.md) memory for the full discovery path. |
 
 ## Cross-refs
 

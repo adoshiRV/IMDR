@@ -1,22 +1,35 @@
 # Korea — Econ Documentation
 
-Last updated: 2026-06-05
+Last updated: 2026-06-10
 
 Korean macroeconomic data source. BOK's Economic Statistics System (ECOS)
 is the authoritative publisher of Korea's Balance of Payments, IIP, FX
 reserves, customs trade, national accounts, and policy rates. Statistics
 Korea (KOSIS) mirrors most BOK series under `orgId=301`.
 
-## Production pipeline (canonical as of 2026-06-05)
+## Production pipeline (canonical as of 2026-06-10)
 
-Korea econ ingest is fully automated in production. The playground fetchers
-under `playground/econ/kosis/` and `playground/econ/reb/` are preserved as
-the legacy sandbox but are **not** the canonical path — use the prod scripts
-below.
+Korea econ ingest is fully automated in production across **three
+cadences** (daily, weekly, monthly). The playground fetchers under
+`playground/econ/kosis/` and `playground/econ/reb/` are preserved as
+the legacy sandbox but are **not** the canonical path — use the prod
+scripts below.
 
 See **[korea_prod_pipeline.md](korea_prod_pipeline.md)** for the full
-operations runbook: architecture, on-demand invocation, CLI flags, data
-archive layout, idempotency, and failure-mode guide.
+operations runbook: architecture, on-demand invocation, CLI flags,
+data archive layout, idempotency, and failure-mode guide.
+
+**Daily schedule** (`scripts/imdr_daily.py`):
+
+```
+python -m scripts.econ.kr.kr_daily
+```
+
+Runs govt policy filings ingest (BoK, MOEF, MOTIR, FSC, FSS, KCS, KDI,
+MoDS) → `research.dim_report` + Qdrant + SharePoint. Self-contained
+filings-aware email on completion (`[IMDR Daily KR] ...`). Wired
+2026-06-10. See [`govt_doc_sources.md`](govt_doc_sources.md) for the
+inventory + URL recipes.
 
 **Weekly schedule** (`scripts/imdr_weekly.py`, pipeline #3):
 
