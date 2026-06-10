@@ -99,7 +99,7 @@ def _track_a_snapshot(run_started_at: datetime.datetime) -> dict:
             by_vendor = conn.execute(
                 text(
                     """
-                    SELECT v.vendor_name,
+                    SELECT v.display_name                  AS vendor_name,
                            COUNT(DISTINCT i.id)            AS n_indicators,
                            COUNT(f.indicator_id)           AS n_obs,
                            MAX(f.obs_date)                 AS latest_obs
@@ -111,7 +111,7 @@ def _track_a_snapshot(run_started_at: datetime.datetime) -> dict:
                     WHERE  c.country_code = 'AU'
                       AND  fq.frequency_code = 'DAILY'
                       AND  f.ingested_at >= :t0
-                    GROUP BY v.vendor_name
+                    GROUP BY v.display_name
                     ORDER BY n_obs DESC
                     """
                 ),

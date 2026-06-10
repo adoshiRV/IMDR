@@ -110,7 +110,7 @@ def _track_a_snapshot(run_started_at: datetime.datetime) -> dict:
             by_vendor = conn.execute(
                 text(
                     """
-                    SELECT v.vendor_name,
+                    SELECT v.display_name                  AS vendor_name,
                            fq.frequency_code,
                            COUNT(DISTINCT i.id)            AS n_indicators,
                            COUNT(f.indicator_id)           AS n_obs,
@@ -123,8 +123,8 @@ def _track_a_snapshot(run_started_at: datetime.datetime) -> dict:
                     WHERE  c.country_code = 'AU'
                       AND  fq.frequency_code IN ('MONTHLY','QUARTERLY','ANNUAL')
                       AND  f.ingested_at >= :t0
-                    GROUP BY v.vendor_name, fq.frequency_code
-                    ORDER BY v.vendor_name, fq.frequency_code
+                    GROUP BY v.display_name, fq.frequency_code
+                    ORDER BY v.display_name, fq.frequency_code
                     """
                 ),
                 {"t0": run_started_at},
