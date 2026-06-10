@@ -9,7 +9,7 @@ This file is the **coverage target** for `econ.dim_indicator`. Every cluster bel
 - **Onboarding playbook**: [onboarding_new_country.md](onboarding_new_country.md) — 5-step workflow with vendor cascade, build order, identity checks, quality bar, ❌→⚠→✅ promotion rules.
 - **Indicator catalogue**: [country_econ_blueprint.md](country_econ_blueprint.md) — country-agnostic master list of series per cluster.
 - **Schema + build log**: [economics_data_ingest.md](economics_data_ingest.md) — pipeline + per-vendor build state.
-- **Date**: 2026-06-10 (ID SRBI added: **292 indicators / 110,961 obs** for ID alone — 289 econ indicators + 3 SRBI rates; **AU 447 indicators / 359,245 obs — 15 of 16 cells ✅** (+11 this pass: Cotality 6 daily HVI + ABS BA value 2 + RBA F15 REER 3); total across all countries updated)
+- **Date**: 2026-06-10 (ID SRBI added: **292 indicators / 110,961 obs** for ID alone — 289 econ indicators + 3 SRBI rates; **AU 463 indicators / 397,053 obs — 15 of 16 cells ✅** (+27 this session: Cotality 6 daily HVI + ABS BA 4 + RBA F15 REER 3 + RBA F17 zero-coupon curve 16); total across all countries updated)
 
 ---
 
@@ -297,7 +297,7 @@ US score: **4 ✅ / 11 ⚠️ / 1 ❌** (was 4/8/4 before v2 expansion). Only Te
 
 ### 7.7 Australia (AU)
 
-Updated 2026-06-10: **447 indicators / 359,245 obs DB-LIVE** (manual load). **15 of 16 cells ✅**. ABS 17 fetchers / 20 dataflows (178 indicators incl. IIP + BA value+count) + RBA 8 fetchers via CSV snapshot (103 indicators incl. TIB + I2 ICP + F15 REER) + AOFM 5 fetchers (157 indicators) + Cotality (new vendor, 6 daily HVI) + FRED-mirror (3). Phase G blocker lifted. Second-most-populated country after Indonesia.
+Updated 2026-06-10: **463 indicators / 397,053 obs DB-LIVE** (manual load). **15 of 16 cells ✅**. ABS 17 fetchers / 20 dataflows (178 indicators) + RBA 9 fetchers via CSV snapshot (119 indicators incl. TIB + I2 ICP + F15 REER + F17 zero-coupon curve) + AOFM 5 fetchers (157 indicators) + Cotality (6 daily HVI) + FRED-mirror (3). Phase G blocker lifted. Second-most-populated country after Indonesia.
 
 | Engine | A | B | C | D |
 |---|:---:|:---:|:---:|:---:|

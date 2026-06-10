@@ -4,7 +4,7 @@ Last updated: 2026-06-10
 
 Tracker forked from [`../country_econ_blueprint.md`](../country_econ_blueprint.md) §1-4 per the [onboarding playbook](../onboarding_new_country.md#step-1--fork-the-blueprint-into-a-country-tracker).
 
-**Status (2026-06-10):** DB-LIVE — **447 indicators / 359,245 obs** (verified against `econ.fact_indicator`). ABS **17 fetchers across 20 dataflows (178 indicators incl. BA value + count)** + RBA 8 fetchers via CSV snapshot (103 indicators incl. TIB + ICP + REER) + AOFM 5 fetchers (157 indicators) + **Cotality (new vendor, 6 daily HVI series)** + FRED-mirror (3 indicators). **15 of 16 wiring-map cells ✅** — 3.3 stock-side closed via IIP; 3.4 REER closed via RBA F15; 3.1 ToT remains derivable from ITPI ratio (now also addressable via RBA ICP). Second-most-populated country after Indonesia. Phase G blocker lifted. Production promotion can proceed with user sign-off.
+**Status (2026-06-10):** DB-LIVE — **463 indicators / 397,053 obs** (verified against `econ.fact_indicator`). ABS **17 fetchers across 20 dataflows (178 indicators incl. BA value + count)** + RBA 9 fetchers via CSV snapshot (119 indicators incl. TIB + ICP + REER + F17 zero-coupon curve) + AOFM 5 fetchers (157 indicators) + **Cotality (new vendor, 6 daily HVI series)** + FRED-mirror (3 indicators). **15 of 16 wiring-map cells ✅** — 3.3 stock-side closed via IIP; 3.4 REER closed via RBA F15; 3.1 ToT remains derivable. Second-most-populated country after Indonesia. Phase G blocker lifted. Production promotion can proceed with user sign-off.
 
 ## Status markers
 
@@ -40,7 +40,7 @@ Tracker forked from [`../country_econ_blueprint.md`](../country_econ_blueprint.m
 
 ## Playground fetcher inventory
 
-All 30 playground fetchers as of 2026-06-10. All loaded into DB.
+All 31 playground fetchers as of 2026-06-10. All loaded into DB.
 
 | Fetcher | Vendor | Dataflow / Table | Cell | Indicators |
 |---|---|---|:---:|:---:|
@@ -63,6 +63,7 @@ All 30 playground fetchers as of 2026-06-10. All loaded into DB.
 | `fetch_building_approvals.py` | ABS | `BA_GCCSA` — national NSA dwellings count (Total Res + Houses) + value of jobs (Total Res + Commercial) | 1.1 / 4.2 | 4 |
 | `fetch_reer.py` | RBA | F15 — Real Exchange Rate Measures (TWI + import-weighted + export-weighted) | 3.4 | 3 |
 | `fetch_hvi.py` (cotality/) | Cotality | Daily Home Value Index for 5 capitals + 5-capital aggregate (Playwright render) | 4.2 / 1.1 | 6 |
+| `fetch_zerocoupon.py` | RBA | F17 — Zero-coupon AGB curve: yields + forward rates @ 8 tenors (0.25Y / 0.5Y / 1Y / 2Y / 3Y / 5Y / 7Y / 10Y) | 4.3 | 16 |
 | `fetch_rates.py` | RBA | F1 + F2 (cash rate, BBSW, OIS, AGB 2/3/5/10Y, **TIB 10Y real yield**) | 4.3 / 2.4 | 12 |
 | `fetch_icp.py` | RBA | I2 — Index of Commodity Prices (7 sub-indices × A$/SDR/US$) | 3.1 / 3.4 commodity driver | 21 |
 | `fetch_fx.py` | RBA | F11.1 | 3.4 | 19 |
@@ -75,7 +76,7 @@ All 30 playground fetchers as of 2026-06-10. All loaded into DB.
 | `fetch_turnover.py` | AOFM | Turnover XLSX | 4.3 | 67 |
 | `fetch_issuance_buybacks.py` | AOFM | Issuance/buybacks XLSX | 1.2 | 10 |
 
-**Total: 447 indicators (ABS 178 + RBA 103 + AOFM 157 + Cotality 6 + FRED-mirror 3) / 359,245 obs.** ABS sub-totals reconcile: CPI 16 + GDP 7 + Labour 6 + LF_UNDER 3 + WPI 6 + PPI_FD 3 + Retail 10 + CAPEX 4 + Lending 11 + RPPI 17 + BOP 14 + BOP_GOODS 7 + Trade Prices 24 + GDP_EXP 10 + JV 3 + IIP 33 + BA 4 = 178. RBA: F1+F2 12 + F11.1 19 + D3 14 + D2+E1+E2+A2 34 + I2 ICP 21 + F15 REER 3 = 103.
+**Total: 463 indicators (ABS 178 + RBA 119 + AOFM 157 + Cotality 6 + FRED-mirror 3) / 397,053 obs.** ABS sub-totals reconcile: CPI 16 + GDP 7 + Labour 6 + LF_UNDER 3 + WPI 6 + PPI_FD 3 + Retail 10 + CAPEX 4 + Lending 11 + RPPI 17 + BOP 14 + BOP_GOODS 7 + Trade Prices 24 + GDP_EXP 10 + JV 3 + IIP 33 + BA 4 = 178. RBA: F1+F2 12 + F11.1 19 + D3 14 + D2+E1+E2+A2 34 + I2 ICP 21 + F15 REER 3 + F17 ZCY 16 = 119.
 
 ## Phase G — BLOCKER LIFTED
 
@@ -144,6 +145,7 @@ Completed in this order:
 26. ABS Building Approvals (BA_GCCSA dataflow, cell 1.1 leading indicator) — `fetch_building_approvals.py`, 4 NSA national-headline series: 2 count (Total Residential + Houses dwellings, monthly since 1983/1986) + 2 value-of-jobs (Total Residential + Commercial, monthly since 1973/2000, unit `aud_th` after migration 091). [✓ loaded 2026-06-10]
 27. Cotality (formerly CoreLogic) Daily HVI — new vendor (migration 090, `dim_vendor.cotality` id=69). `playground/econ/cotality/fetch_hvi.py` Playwright-renders the JS-only indices page and emits 6 daily-frequency series (5 capitals + 5-capital aggregate). Each run captures today's snapshot; daily reruns accumulate the time-series. [✓ loaded 2026-06-10]
 28. RBA F15 REER — `fetch_reer.py`, 3 quarterly series (Real TWI + Real import-weighted + Real export-weighted), since 1970. Closes cell 3.4 REER sub-bullet previously addressable only via BIS WS_EER. [✓ loaded 2026-06-10]
+29. RBA F17 Zero-coupon AGB curve — `fetch_zerocoupon.py`, 16 daily series (8 desk-relevant tenors × yields + forward rates: 0.25Y / 0.5Y / 1Y / 2Y / 3Y / 5Y / 7Y / 10Y). Daily since 2017-01-03. Cleaner analytical curve than F2 interpolated bonds; useful for any rates relative-value or forwards trade. Discount factors NOT loaded (computable from yields). [✓ loaded 2026-06-10]
 
 ## Expected ❌ cells
 
