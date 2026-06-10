@@ -53,6 +53,7 @@ PIPELINES: list[dict] = [
     # ``sys.executable`` to bind the subprocess to the same Python env
     # as the orchestrator (consistent with kr_weekly/kr_monthly).
     {"cmd": [sys.executable, "-m", "scripts.econ.kr.kr_daily"], "estimated_tags": 0},
+    {"cmd": [sys.executable, "-m", "scripts.econ.au.au_daily"], "estimated_tags": 0},
     {"cmd": ["python", "-m", "scripts.prediction.polymarket.streaming", "cleanup"], "estimated_tags": 0},
     # {"cmd": ["python", "-m", "scripts.prediction.polymarket.teams_post", "--slot", "AM"], "estimated_tags": 0},
     {"cmd": ["python", "-m", "scripts.run_vendor_feed", "barclays_skew"], "estimated_tags": 0},

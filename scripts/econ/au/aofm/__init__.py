@@ -1,0 +1,1 @@
+"""Australia AOFM prod fetchers."""

@@ -26,6 +26,7 @@ import time
 PIPELINES: list[list[str]] = [
     ["python", "-m", "scripts.econ.kr.kr_monthly"],
     ["python", "-m", "scripts.econ.id.id_monthly"],
+    ["python", "-m", "scripts.econ.au.au_monthly"],
 ]
 
 # ============================================================================
