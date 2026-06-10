@@ -39,6 +39,67 @@ Dual-track plan: ship DBIE-based fetchers first (faster), probe + port each
 endpoint to CIMS in parallel, switch the read side over per-portal as CIMS
 stabilises. See [_playground/rbi.md](_playground/rbi.md) for current state.
 
+## Coverage status at a glance (updated 2026-06-10)
+
+### Prod-loaded in `econ.fact_indicator`
+
+| Source | Indicators | Obs | Window |
+|---|---:|---:|---|
+| BIS India (A21) | 6 | 24,957 | 1946→2026 (policy rate D) · 1994→ (NEER/REER) · 1999→ (DSR) · 1951→ (credit-to-GDP) |
+| FRED India (A22) | 7 | 11,589 | 1990→ (CPI, FX, call rate) · 1994→2023 (IIP) · 1990→2023 (GDP) |
+| RBI DBIE FX reserves (A1) | 5 | 3,015 | 2015→2026 weekly |
+| RBI DBIE Key Rates (A5 partial) | 8 | 8 | event-stamped snapshots |
+| **Prod total** | **26** | **39,569** | |
+
+### Decoded in playground (parquet only, not yet in DB)
+
+| Source | Indicators | Obs | Window | Gating |
+|---|---:|---:|---|---|
+| MOSPI CPI (A8) | 78 | 150 | Jan-Apr 2026 (2024-base only) | `mospi` vendor migration + legacy parser |
+| MOSPI IIP (A9) | 20 | 3,350 | Apr 2012→Mar 2026 (168 months) | `mospi` vendor migration |
+| MOSPI NAS GDP (A10) | 35 | 336 | 2022-23 base, 4 FYs + 16 Q | `mospi` vendor + Statement 6/7/8 extension |
+| MOSPI PDF download (B5/B6 deferred) | (B-class) | — | — | PDF parsing pipeline |
+| DPIIT WPI (A12) | 8 | 1,352 | Apr 2012→Apr 2026 (169 months) | `dpiit` vendor migration |
+| DPIIT 8-Core (A45) | 18 | 3,150 | Apr 2011→Apr 2026 (180 months) | shares `dpiit` vendor with A12 |
+| CGA monthly fiscal (A14) | 30 | 4,182 | Apr 2014→Feb 2026 (143 months) | `cga` vendor migration |
+| DGCIS MEIDB (A13) | 99 HS chapters × 1 month (proven) | scaffold | — | multi-month loop + `dgcis` vendor |
+| IMD rainfall (A24) | 761 districts (1 snapshot) | 1 | 2026-06-09 | `imd` vendor + daily scheduler |
+| FAO Food Price Index (A41) | 6 | 2,622 | Jan 1990→May 2026 (437 months) | `fao` vendor migration |
+| **Playground total** | **~1,055** | **~15,143** | | |
+
+### Deferred — known but blocked / hard
+
+| Class | Items | Blocker |
+|---|---|---|
+| **PDF-only** (downloads tested ✅) | A11 PLFS · A19 PPAC · B1-B8 RBI events · B9-B11 Budget/Survey/DEA · B12-B14 fiscal events · B17 DPIIT notifications · B20-B21 PLI/MSP · B22 IMD forecast · B23 CBIC notifications | Needs PDF→Markdown→Qdrant pipeline (post-migrations 086/087) |
+| **Network-blocked from corp net** | A16 NSDL FPI · A18 Labour Bureau · A20 EPFO · A25 CWC · A27 POSOCO · A29 MGNREGA · A33 Agmarknet · A44 e-Way Bill | CDP-attach to user's daily Chrome (AOFM-style — see [[feedback-aofm-fresh-profile-per-run]]) |
+| **SPA-rendered, needs deep Playwright** | A15 DPIIT FDI · A28 NHB Residex · A34 PLI scheme · A35 DIPAM · A36 Tourism · A38 IBBI · A40 FAI · A43 SIAM | Click-through Playwright session per vendor |
+| **RBI DBIE expansion** | A2 Indicators-tree payload capture · A3 Generic Impala wrapper · A4 Bulletin tables · A5 full · A6 BoP/NRI/FCNR · A7 Corp+Banking | Playwright session against DBIE SPA to decode per-leaf endpoints (~50-100 series each) |
+| **Cross-checks deferred** | A23 GSTN (subsumed by A14) · A42 Baltic Dry (FRED timeouts) · B15 SEBI · B16 IRDAI · B18 ECI · B19 GST Council | Each requires its own approach |
+| **Credentials gating** | A17 CCIL feed (MIBOR/MIFOR/G-Sec/OIS) | Desk has terminal login; needs machine-readable creds |
+
+### Headline counts
+
+- **Group A data series**: 15 done (4 prod + 11 playground) / 30 deferred or blocked / 45 total
+- **Group B events**: 0 done / 24 pending (PDF download contract verified for MOSPI + RBI + PPAC)
+- **Wiring map §7.12**: 7 of 16 cells now covered (2 ✅ + 5 ⚠ + 9 ❌)
+
+### Critical capability gaps
+
+The remaining items break into **3 distinct infrastructure capabilities**, each substantial:
+
+1. **PDF parsing pipeline** — pymupdf-based extract → Markdown → Qdrant chunking. Already validated: download contract works for all PDF sources via [`scripts/admin/test_pdf_downloads_india.py`](../../../scripts/admin/test_pdf_downloads_india.py). Migrations 086/087 needed to land schema side. Unblocks: ~14 items (PLFS / PPAC / all B-class events).
+2. **CDP-attach Playwright** to user's daily Chrome (same pattern as AOFM). Unblocks: ~8 items behind corp-net TLS inspection or login walls (NSDL / Labour Bureau / EPFO / CWC / POSOCO / Agmarknet / MGNREGA / e-Way Bill).
+3. **Deep Playwright with click-through + form submit** for SPAs. Unblocks: ~8 items (DPIIT FDI / NHB Residex / PLI / DIPAM / Tourism / IBBI / FAI / SIAM).
+
+Plus 2 vertical work-items:
+4. **RBI DBIE Playwright discovery session** — capture per-leaf endpoint patterns from the Indicators / Statistics trees. One focused session unlocks A2-A7 (~50-100 more series across BoP / NRI / FCNR / Corporate / Banking / Bulletin tables).
+5. **CCIL credentials** with the desk — A17 MIBOR / MIFOR / forward premia / G-Sec yields / OIS — needs user action.
+
+After those 5 capabilities, India coverage is materially complete.
+
+---
+
 ## Status legend
 
 | Marker | Meaning |
@@ -651,7 +712,7 @@ New rows added after cross-checking the 12-cluster India Macro Read map (see [Ap
 - [ ] **A38** **IBBI quarterly newsletter — insolvency cases** — quarterly. `ibbi.gov.in`. Corporate stress / refinancing wall proxy.
 - [ ] **A39** **NSDL FPI — index-inclusion slice** — daily. Slice the existing NSDL FPI debt flow (A16) into JPM GBI-EM-eligible vs ineligible bonds, and Bloomberg EM-eligible slice. Tracks index-inclusion flow specifically.
 - [ ] **A40** **DoF / FAI fertilizer prices** — monthly. `faidelhi.org` + Dept of Fertilizers subsidy dashboard.
-- [ ] **A41** **FAO Food Price Index** — monthly (cross-country benchmark). `fao.org/worldfoodsituation/foodpricesindex`. Imported-food inflation reference.
+- [x] **A41 (playground)** **FAO Food Price Index** — **6 indicators × 437 months = 2,622 obs** decoded 2026-06-10 from `fao.org/.../food_price_indices_data.csv` (47KB CSV, monthly Jan 1990 → May 2026, base 2014-2016=100). Series: HEADLINE + MEAT + DAIRY + CEREALS + OILS + SUGAR. Cross-country global benchmark; country_iso=`WLD`. See [`playground/econ/fao/fetch_fpi.py`](../../../playground/econ/fao/fetch_fpi.py).
 - [ ] **A42** **Baltic Dry Index** — daily (commercial proxy via FRED `BDIY` or paid). Shipping-cost proxy.
 - [ ] **A43** **SIAM auto sales** — monthly. `siam.in` press release. PVs + 2-wheelers + tractors (TAMA via separate channel for tractors — rural demand proxy).
 - [ ] **A44** **GST e-Way Bill volumes** — monthly + daily. `ewaybillgst.gov.in`. Real-time trade activity proxy.
