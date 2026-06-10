@@ -4,7 +4,7 @@ Last updated: 2026-06-10
 
 Tracker forked from [`../country_econ_blueprint.md`](../country_econ_blueprint.md) §1-4 per the [onboarding playbook](../onboarding_new_country.md#step-1--fork-the-blueprint-into-a-country-tracker).
 
-**Status (2026-06-10):** DB-LIVE — **463 indicators / 397,053 obs** (verified against `econ.fact_indicator`). ABS **17 fetchers across 20 dataflows (178 indicators incl. BA value + count)** + RBA 9 fetchers via CSV snapshot (119 indicators incl. TIB + ICP + REER + F17 zero-coupon curve) + AOFM 5 fetchers (157 indicators) + **Cotality (new vendor, 6 daily HVI series)** + FRED-mirror (3 indicators). **15 of 16 wiring-map cells ✅** — 3.3 stock-side closed via IIP; 3.4 REER closed via RBA F15; 3.1 ToT remains derivable. Second-most-populated country after Indonesia. Phase G blocker lifted. Production promotion can proceed with user sign-off.
+**Status (2026-06-11):** DB-LIVE — **464 indicators / 397,118 obs** (verified against `econ.fact_indicator`). ABS **18 fetchers across 21 dataflows (179 indicators incl. BA value + count + derived ToT)** + RBA 9 fetchers via CSV snapshot (119 indicators incl. TIB + ICP + REER + F17 zero-coupon curve) + AOFM 5 fetchers (157 indicators) + **Cotality (6 daily HVI series)** + FRED-mirror (3 indicators). **16 of 16 wiring-map cells ✅** — 3.1 ToT closed 2026-06-11 via derived `ABS.TOT.NET_BARTER.AU` from ITPI ratio. Second-most-populated country after Indonesia. Phase G blocker lifted. Production promotion can proceed with user sign-off.
 
 ## Status markers
 
@@ -27,7 +27,7 @@ Tracker forked from [`../country_econ_blueprint.md`](../country_econ_blueprint.m
 | 2.2 Producer Prices   | ✅ | ABS PPI_FD — final demand (TSEST=TOTXE, not TOTIE)       | 3/7   | 3 indicators loaded. PPI by industry (PPI_IND) deferred. |
 | 2.3 Domestic Costs    | ✅ | ABS WPI — OHRPEB/TOT (NSA only; SA not published)        | 6/10  | 6 indicators. SA unavailable from ABS. |
 | 2.4 CPI Pressure      | ✅ | ABS CPI — headline (INDEX=10001, Q NSA) + Trimmed Mean + Weighted Median M | 16/13 | 16 indicators including subcategory breakdown. |
-| 3.1 Terms of Trade    | ❌ | AU.TOT.NET_BARTER (ABS ANA derived)                      | 0/4   | Derivable from ITPI export/import price ratio; not yet computed. |
+| 3.1 Terms of Trade    | ✅ | ABS.TOT.NET_BARTER.AU (derived from ITPI export/import ratio × 100) | 1/4 | 65 quarterly obs back to 2010-Q1, latest Q1-2026 = 117.05. Loaded 2026-06-11 via `fetch_tot.py` derived from `ABS.ITPI.EXPORT_HEADLINE_INDEX.AU` / `ABS.ITPI.IMPORT_HEADLINE_INDEX.AU × 100`. |
 | 3.2 Current Account   | ✅ | ABS BOP — CA + primary income + secondary income + capital | 14/10 | Full BOP flow loaded via `fetch_bop.py`. |
 | 3.3 Capital Account   | ✅ | ABS BOP financial account + AOFM non-resident AGS holdings + **ABS IIP stocks** | 80/16 | BOP financial account 13 series + ITPI 6 + AOFM foreign holdings 34 series (quarterly since 2003; Mar-2026: non-resident AGS holdings AUD 469bn = 50.9% of outstanding) + **ABS IIP 33 series** (Q stock 1988-Q3 → 2026-Q1; Net IIP Mar-2026 = AUD +707bn net liability, Total FL = AUD 5.27tn, Gross External Debt = AUD 2.76tn). |
 | 3.4 FX / REER         | ✅ | RBA F11.1 — AUD/USD + TWI + 17 AUD crosses               | 19/9  | 19 indicators. REER (BIS WS_EER) deferred. |
@@ -36,7 +36,7 @@ Tracker forked from [`../country_econ_blueprint.md`](../country_econ_blueprint.m
 | 4.3 Fin Conditions    | ✅ | RBA F1+F2 rates + AOFM term premium + AOFM turnover      | 108/15 | 11 RBA rates + 30 AOFM term premium (FY/TP/RNY × 1Y..10Y, daily since 1992; 10Y Mar-2026: 95bp) + 67 AOFM turnover by region/tenor. |
 | 4.4 Policy Reaction   | ✅ | RBA D3 — M1/M3/Broad money/Money base NSA+SA + RBA A2 — cash-rate event log (4 series) | 18/16 | D3: 14 indicators. A2: Cash Rate Target + administered rates event log, 4 series. Cash Rate Target May-2026: 4.35%. |
 
-**Score (2026-06-10):** **15 of 16 cells ✅, 1 ❌-carried (3.1 ToT — derivable from ITPI export/import ratio, analytics-only, no fetcher needed).** 412 indicators / 344,582 obs in DB. ABS IIP (33 series) closes cell 3.3 stock-side. AOFM fills 1.2 (Fiscal Demand), 3.3 (Capital Account — bond-holders-by-investor), and supplements 4.3 (term premium + turnover). RBA D2+E1+E2+A2 close 4.1, 4.2, and supplements 4.4.
+**Score (2026-06-11):** **16 of 16 cells ✅.** 464 indicators / 397,118 obs in DB. Cell 3.1 ToT closed via derived `ABS.TOT.NET_BARTER.AU` (ITPI export/import ratio × 100, quarterly back to 2010). ABS IIP (33 series) closes cell 3.3 stock-side. AOFM fills 1.2 (Fiscal Demand), 3.3 (Capital Account — bond-holders-by-investor), and supplements 4.3 (term premium + turnover). RBA D2+E1+E2+A2 close 4.1, 4.2, and supplements 4.4. **Identity checks 4 of 5 pass exact**: ToT derivation, Net IIP = FA+FL, 10Y breakeven (2.36% plausible), Household NW = TA-TL; BoP CA decomposition reconciles after manual goods+services balance derivation (Q1-2026: −25,743 = −26,693 primary + −1,696 secondary + 2,646 implied goods+services).
 
 ## Playground fetcher inventory
 

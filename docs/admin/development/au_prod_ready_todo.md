@@ -28,7 +28,7 @@ End-to-end checklist to take AU from discovery-complete to prod-live, mirroring 
 ## Known gaps before prod promotion
 
 1. **`apra`, `treasury_au`, `nab` vendor seeds missing** — their filings can't be ingested without rows in `dbo.dim_vendor`
-2. **Westpac CCI PDF returns HTTP 500** at the URL pattern derived from the topic page — Westpac IQ appears to gate PDF downloads outside the topic-page session (cookies/login required). Real prod-blocker for the `westpac_cci` stream — body-text fallback or session-cookie capture required
+2. ~~**Westpac CCI PDF returns HTTP 500**~~ — **RESOLVED 2026-06-11**. Root cause: wrong host. Real URL pattern is `library.westpaciq.com.au/content/dam/public/westpaciq/secure/economics/documents/aus/{YYYY}/{MM}/er{YYYYMMDD}BullConsumerSentiment.pdf` (NOT `www.westpaciq.com.au/{YYYY}/{MM}/...`). All 6 probed 2026 PDFs return 200 OK direct over plain httpx, no auth needed despite the "secure" path segment. Discovered via the sell-side `crawler_westpac.py` reference at `playground/research/ingest/`. `fetch_westpac_cci.py` patched.
 3. **No AU resolver module** — Korea has `scripts/econ/kr/govt/resolvers.py` per-agency body+PDF resolution recipes; AU needs the equivalent
 4. **Cell 3.1 ToT not loaded** — derivable from ITPI ratio. Either ship a one-series derived loader OR leave as documented ❌ per playbook
 5. **Identity checks never formally run** (playbook §Step 4) — recommended quality gate before declaring complete
