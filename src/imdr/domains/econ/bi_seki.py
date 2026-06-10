@@ -28,7 +28,7 @@ import pandas as pd
 
 _BASE = "https://www.bi.go.id/SEKI/tabel/"
 _REPO_ROOT = Path(__file__).resolve().parents[4]
-_RAW_DIR = _REPO_ROOT / "data" / "econ" / "bi" / "seki_raw"
+_RAW_DIR = _REPO_ROOT / "data" / "econ" / "id" / "bi" / "seki_raw"
 _UA = "Mozilla/5.0 IMDR-bi"
 _THROTTLE_S = 2.0
 
@@ -49,7 +49,7 @@ _QUARTER_LABEL_TO_MONTH = {
 def download_seki(table_id: str, force: bool = False) -> Path:
     """Download a SEKI XLSX table by ID (e.g. 'TABEL1_1', 'TABEL5_1').
 
-    Caches under ``data/econ/bi/seki_raw/``. Pass force=True to refetch.
+    Caches under ``data/econ/id/bi/seki_raw/``. Pass force=True to refetch.
     """
     _RAW_DIR.mkdir(parents=True, exist_ok=True)
     path = _RAW_DIR / f"{table_id}.xls"

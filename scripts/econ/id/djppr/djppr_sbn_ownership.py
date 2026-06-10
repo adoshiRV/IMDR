@@ -44,8 +44,8 @@ UTC = datetime.timezone.utc
 _MIN_YEAR_SUPPORTED = 2016
 
 _CACHE_DIR = (
-    Path(__file__).resolve().parents[3]
-    / "data" / "econ" / "djppr" / "kepemilikan_raw"
+    Path(__file__).resolve().parents[4]
+    / "data" / "econ" / "id" / "djppr" / "kepemilikan_raw"
 )
 
 

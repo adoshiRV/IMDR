@@ -33,7 +33,7 @@ from imdr.domains.econ.bi_seki import _infer_years, _parse_month
 
 _BASE = "https://www.bi.go.id/id/publikasi/laporan/Documents/"
 _REPO_ROOT = Path(__file__).resolve().parents[4]
-_RAW_DIR = _REPO_ROOT / "data" / "econ" / "bi" / "seki_raw"
+_RAW_DIR = _REPO_ROOT / "data" / "econ" / "id" / "bi" / "seki_raw"
 _UA = "Mozilla/5.0 IMDR-bi"
 _THROTTLE_S = 2.0
 
@@ -42,7 +42,7 @@ def download_survey_zip(slug: str, force: bool = False) -> Path:
     """Download a BI survey ZIP archive and extract the single XLSX.
 
     Slug examples: 'SK', 'spe', 'SKDU' (case must match BI's actual URL).
-    Cached as ``{slug.upper()}.xlsx`` under ``data/econ/bi/seki_raw/``.
+    Cached as ``{slug.upper()}.xlsx`` under ``data/econ/id/bi/seki_raw/``.
     """
     _RAW_DIR.mkdir(parents=True, exist_ok=True)
     out = _RAW_DIR / f"{slug.upper()}.xlsx"

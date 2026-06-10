@@ -46,8 +46,8 @@ PIPELINES: list[dict] = [
     {"cmd": ["python", "-m", "scripts.rates.citi.rates_bench_citi_live"], "estimated_tags": 10},
     {"cmd": ["python", "-m", "scripts.rates.citi.rates_basis_swaps_citi_live"], "estimated_tags": 100},
     # Non-Citi vendor feeds (no tag quota).
-    {"cmd": ["python", "-m", "scripts.econ.bis.bis_indonesia"], "estimated_tags": 0},
-    {"cmd": ["python", "-m", "scripts.econ.bi.bi_srbi"], "estimated_tags": 0},
+    {"cmd": ["python", "-m", "scripts.econ.id.bis.bis_indonesia"], "estimated_tags": 0},
+    {"cmd": ["python", "-m", "scripts.econ.id.bi.bi_srbi"], "estimated_tags": 0},
     # Per-country daily orchestrators — own their email summary. Add
     # countries here as their {country}_daily.py is built. Use
     # ``sys.executable`` to bind the subprocess to the same Python env
