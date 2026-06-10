@@ -357,20 +357,22 @@ HK score: **0 ✅ / 7 ⚠️ / 9 ❌** (was 0/1/15 before v2). All right-side cl
 
 ### 7.12 India (IN)
 
-Scoping plan landed 2026-06-10: [`india/in_coverage_plan.md`](india/in_coverage_plan.md) — dual-track DBIE + CIMS (per user direction) plus MOSPI / DGCIS / MoF / DPIIT / CCIL / NSDL / BIS cascade.
+Scoping plan landed 2026-06-10: [`india/in_coverage_plan.md`](india/in_coverage_plan.md) — dual-track DBIE + CIMS plus MOSPI / DGCIS / MoF / DPIIT / CCIL / NSDL / BIS / UPAg / RBI Bulletin cascade.
 
 **Prod-live 2026-06-11:** BIS + FRED + RBI DBIE India — **26 indicators × 39,569 obs** in `econ.fact_indicator` via [`scripts/econ/in/{bis,rbi}/`](../../scripts/econ/in/). DBIE bootstrap-auth client at [`src/imdr/domains/econ/rbi_dbie.py`](../../src/imdr/domains/econ/rbi_dbie.py).
 
-**Pre-prod playground (2026-06-11; smoke-tested, awaiting cadence sign-off):** 8 more fetchers built at [`playground/econ/in/{vendor}/`](../../playground/econ/in/) — MOSPI CPI/IIP/NAS · DPIIT WPI/8-Core · CGA · IMD · FAO. 198 indicators × 15,081 obs landed via the build-session smoke runs (idempotent MERGE, stay in place). Orchestrator scaffold at [`playground/econ/in/in_monthly.py`](../../playground/econ/in/in_monthly.py).
+**Pre-prod playground (2026-06-11; smoke-tested, awaiting cadence sign-off):** 12 fetchers at [`playground/econ/in/{vendor}/`](../../playground/econ/in/) — MOSPI CPI/IIP/NAS · DPIIT WPI/8-Core · CGA · IMD · FAO · DGCIS · **UPAg MSP + AIAPY** · **RBI Bulletin (6 tables)**. **~815 indicators × ~61,750 obs**. Orchestrator scaffold at [`playground/econ/in/in_monthly.py`](../../playground/econ/in/in_monthly.py).
 
 | Engine | A | B | C | D |
 |---|:---:|:---:|:---:|:---:|
-| **Growth** | ❌ Private Demand | ⚠️ Fiscal Demand *(CGA 30 line items playground)* | ⚠️ External Demand *(DGCIS scaffold; one HS-month proven, no loop)* | ✅ Macro Core *(MOSPI IIP 20 × 168mo playground + DPIIT 8-Core 18 × 180mo playground + MOSPI NAS GDP 35 series playground + FRED IIP/PWT)* |
-| **Inflation** | ⚠️ Input Costs *(DPIIT 8-Core fuel/energy sub-aggregates)* | ✅ Producer Prices *(DPIIT WPI 8 × 169mo playground)* | ❌ Domestic Costs | ✅ CPI Pressure *(MOSPI CPI 78 × 4mo playground 2024-base + FRED OECD MEI 1990→ + FAO FPI global benchmark)* |
-| **External** | ❌ Terms of Trade | ❌ Current Acc | ✅ Capital Acc *(RBI DBIE FX reserves weekly 2015→)* | ⚠️ FX/REER *(BIS NEER+REER broad M 1994→ + FRED DEXINUS daily 1990→)* |
-| **Policy** | ❌ Demand Trans | ⚠️ Balance Sheets *(BIS DSR + Credit-to-GDP Q 1951→)* | ⚠️ Fin Conditions *(RBI DBIE WACR daily + FRED OECD Call Money 1990→)* | ✅ Policy Reaction *(RBI DBIE Repo + SDF + Reverse Repo + CRR + SLR event-stamped + BIS CBPOL daily 1946→)* |
+| **Growth** | ⚠️ Private Demand *(MOSPI NAS PFCE Q playground; A26 sowing via UPAg gives demand-side proxy)* | ⚠️ Fiscal Demand *(CGA 30 line items playground; MOSPI NAS GFCE Q)* | ⚠️ External Demand *(DGCIS multi-month: 198 × ~30.9k obs HS-2 chapters Export+Import Apr 2013→Mar 2026)* | ✅ Macro Core *(MOSPI IIP 20 × 168mo + DPIIT 8-Core 18 × 180mo + MOSPI NAS GDP 35 series + RBI Bulletin IIP T23 + FRED IIP/PWT)* |
+| **Inflation** | ⚠️ Input Costs *(DPIIT 8-Core fuel/energy sub-aggregates; UPAg MSP for ag input costs)* | ✅ Producer Prices *(DPIIT WPI 8 × 169mo playground)* | ❌ Domestic Costs | ✅ CPI Pressure *(MOSPI CPI 78 × 4mo + RBI Bulletin T19C CPI Combined 28 × 5mo + FRED OECD MEI 1990→ + FAO FPI global benchmark)* |
+| **External** | ❌ Terms of Trade *(derivable from DGCIS once price + quantity Q both pulled)* | ❌ Current Acc *(needs A6 RBI DBIE BoP — SAP-BO iframe pending)* | ✅ Capital Acc *(RBI DBIE FX reserves weekly 2015→)* | ⚠️ FX/REER *(BIS NEER+REER broad M 1994→ + RBI Bulletin T37 NEER/REER + FRED DEXINUS daily 1990→)* |
+| **Policy** | ❌ Demand Trans *(needs A7 Sectoral Deployment — DBIE pending)* | ⚠️ Balance Sheets *(BIS DSR + Credit-to-GDP Q 1951→; A7 BSR + NBFC pending)* | ⚠️ Fin Conditions *(RBI DBIE WACR daily + RBI Bulletin T27 Call Money daily + FRED OECD Call Money 1990→)* | ✅ Policy Reaction *(RBI DBIE Repo + SDF + Reverse Repo + CRR + SLR event-stamped + BIS CBPOL daily 1946→ + RBI Bulletin T6 Money Stock + T11 Reserve Money)* |
 
-IN went from **1 ✅ / 4 ⚠️ / 11 ❌** (pre-session) to **4 ✅ / 6 ⚠️ / 6 ❌** if the playground pre-prod is promoted. Remaining ❌ cells: 1.1 Private Demand · 2.3 Domestic Costs · 3.1 Terms of Trade · 3.2 Current Account · 4.1 Demand Transmission · plus partials on DGCIS (3.1 External Demand needs the multi-month loop). All RBI DBIE expansion (BoP / NRI-FCNR / Bulletin tables / Banking BSR / Money Market) sits behind the A2-A7 Playwright discovery session.
+**Cluster 4 (agriculture)** — new this batch via **UPAg vendor**: A26 ✅ via AIAPY (324 indicators × 15,030 obs, **1966-67 → 2025-26 = 60 FYs**, 37 crops × 4 seasons × 3 metrics); A31 ✅ via MSP (28 indicators × 353 obs, 28 crops × 14 FYs). Closes the Cluster 4 input-price + output-volume axes that were previously corp-firewall blocked at agricoop.gov.in / cacp.dacnet.nic.in.
+
+IN cell coverage: **5 ✅ + 7 ⚠ + 4 ❌** if pre-prod playground promotes (was 1 ✅ / 4 ⚠ / 11 ❌ pre-session). Remaining ❌ cells: 2.3 Domestic Costs (wages — Labour Bureau corp-firewall blocked); 3.1 Terms of Trade (derivable); 3.2 Current Account (needs A6 DBIE); 4.1 Demand Transmission (needs A7 DBIE Sectoral Deployment). All RBI DBIE expansion (BoP / NRI-FCNR / Bulletin tables / Banking BSR / Money Market) sits behind the **A5-A7 SAP-BO iframe extractor** — encryption was solved this session (AES-256-CBC + PBKDF2-SHA1 decoded from `main.fae0f40836c7fe13.js` class `Ll`); only iframe + Excel-export automation remains.
 
 ### 7.13 South Korea (KR)
 

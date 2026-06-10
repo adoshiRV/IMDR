@@ -93,7 +93,7 @@ These need the PDF→Markdown→Qdrant pipeline (migrations 086/087 done; pipeli
 |---|---|---|---|
 | ~~A26~~ DAC crop sowing | Cluster 4 | `agricoop.gov.in` **corp-firewall blocked** 2026-06-11. Path forward: **UPAg via Plotly Dash** — see § "UPAg unlock" below |
 | ~~A30~~ PM-KISAN | 1.2 fiscal | likely needs PIB press archive (reachable) — defer to govt-filings Korea-pattern |
-| ~~A31~~ MSP levels | Cluster 4 | `cacp.dacnet.nic.in` + `farmer.gov.in` **corp-firewall blocked**. Path forward: **UPAg `dash.upag.gov.in/dash-reports/mipmspstatement` (reportID=52)** — Plotly Dash app, see below |
+| ✅ **A31 MSP levels** | Cluster 4 | **DONE 2026-06-11** via UPAg Plotly Dash (`mip-msp-data2` callback prefix). 28 crops × 14 FYs (2013-14 → 2026-27) × 353 obs at [`playground/econ/in/upag/upag_msp.py`](../../../playground/econ/in/upag/upag_msp.py). Wheat 2026-27 ₹2,585 ✓ |
 | ~~A42~~ Baltic Dry | Cluster 12 | **Not on FRED** — all candidates (BDIY/DEXBDIY/MAXNGUSDM/IXSPSMOCN) return 404. Baltic Exchange is a commercial index; only via Bloomberg terminal feed |
 | B15 | SEBI board outcomes (bond-market structure events) | 3.3 | document corpus |
 | B16 | IRDAI board outcomes (insurance G-Sec demand) | 4.2 | document corpus |
@@ -120,6 +120,36 @@ Plotly Dash callback contract: POST `/_dash-update-component` with `{"output":..
 - **Cluster 4 (agriculture)** — full coverage path, was previously thought blocked
 
 Estimated end-to-end build: ~2-3hr for the Plotly Dash callback decoder (Playwright captures data-callback payload → reproduce via httpx → parse Plotly figure JSON → emit IndicatorRow/ObservationRow). Single decoder unlocks all 30+ UPAg Dash reports.
+
+#### UPAg end-to-end build log (2026-06-11)
+
+**Dash callback decoder pattern proven**:
+1. `GET dash.upag.gov.in/_dash-dependencies` → full 805-callback graph (no auth)
+2. Find the data-store callback for the target report (prefix-based)
+3. `POST dash.upag.gov.in/_dash-update-component` with the data-store callback signature (`outputs`, `inputs`, `changedPropIds`, `state`) and filter values in `inputs[0].value`
+4. Response has the actual data list under `response.{prefix}-{store-name}.data`
+
+**Vendor + first fetcher shipped to playground**:
+- Library helpers: callback POST shape ported in-line per fetcher (no shared helper module yet — pattern is small enough to inline for 1-2 fetchers; consolidate to `src/imdr/domains/econ/upag.py` when 3rd lands).
+- A31 MSP fetcher at [`playground/econ/in/upag/upag_msp.py`](../../../playground/econ/in/upag/upag_msp.py) — prefix `mip-msp-data2`, callback `mip-msp-data2-store2.data`, filter values `{from_year, to_year}` in FY string format. Smoke-verified end-to-end 2026-06-11: **28 indicators × 353 obs · 2013-14 → 2026-27**, all in INR/Qtl, annual cadence. Wheat Rabi 2026-27 = ₹2,585 ✓ (matches public news). 
+
+**A26 AIAPY end-to-end (2026-06-11)** — built at [`playground/econ/in/upag/upag_aiapy.py`](../../../playground/econ/in/upag/upag_aiapy.py). Same Dash decoder pattern as MSP. 60 years of Area/Production/Yield by crop × season — the foundational India ag dataset. Sanity check: Wheat Rabi 2025-26 Production = 958.5 Lakh Tonnes (~95.85 Mt) ✓ matches public reports. The fetcher reads the live callback signature from `_dash-dependencies` (resilient to UPAg adding/removing output slots).
+
+**Reports probed but deferred for next session**:
+
+| Prefix | Report | Status | Why deferred |
+|---|---|---|---|
+| `pcas` | Progressive Crop Area Sown (A26 weekly) | callback decoded; returns latest 2 years of cumulative-since-monsoon snapshot only | Useful as a nowcast indicator but not a deep time series — promote when monsoon nowcasting becomes desk-priority |
+| `swapy` / `swapyse` | Statewise APY · APY by Season | not probed | AIAPY already covers All-India; add per-state when state-level desk question lands |
+| `imc-{oilseeds,pulses,cereals,topcrops,othercrops}` | Market Intelligence Centre mandi prices (A33 path via Agmarknet) | **filter shape decoded 2026-06-11** — single nested filters-store dict carries all 5 sections; each request returns one section's commodity (e.g. `pulses.commodity="Tur"`). Outputs are 14 per section incl. `imc-{sec}-line-graph1.figure` (time series), `imc-{sec}-bar-graph.figure`, `imc-{sec}-map.figure`, `imc-{sec}-store1.data`. | Each section needs ~5-10 commodity requests (one per Tur/Wheat/Paddy/etc.); 4 sections × ~7 commodities = ~28 requests. ~30-60min per section to build. **Next-session work.** |
+| `cwwg-dash` | CWWG Crop Weather Watch Group (map + trend) | not probed | Defer; AIAPY annual + IMC monthly covers most use cases |
+| `cwmps`, `cterwne`, `wpi-report`, `dgcis-prov`, `gvagdp`, `customduties`, `ncdx-report`, `enamvsagmarknet`, … | ~46 additional myGrid-backed UPAg reports | catalog | Build-on-demand per desk question |
+
+**Coverage UPAg unlocks** (one fetcher per report on the pattern above):
+- A26 DAC sowing — **✅ AIAPY done** (60-year area/production/yield); `pcas` weekly snapshot deferred
+- A31 MSP — ✅ done
+- A33 Agmarknet — `imc-*` reports filter shape decoded, fetcher build deferred
+- Cluster 4 (agriculture) — **broadly covered** via MSP (input prices) + AIAPY (output area/production/yield)
 
 ### Tier 6 — promotion-side gating (no new data — sign-offs only)
 
@@ -186,7 +216,7 @@ Verified end-to-end at [`playground/econ/rbi/probe_crypto.py`](../../../playgrou
 
 | Item | Cell(s) | Best path | Status |
 |---|---|---|---|
-| A4 RBI Bulletin tables (T19C CPI, T27 call money, IESH, OBICUS, SPF, Consumer Confidence) | 2.4 · 4.3 · 1.1 | **RBI-Bulletin-XLSX** | scaffolded; 3 XLSXes already parsed |
+| ~~A4~~ RBI Bulletin tables | 2.4 · 4.3 · 1.1 · 1.4 · 3.4 · 4.4 | **RBI-Bulletin-XLSX** | **DONE 2026-06-11 (6 tables)** — [`playground/econ/in/rbi/rbi_bulletin.py`](../../../playground/econ/in/rbi/rbi_bulletin.py); **67 indicators × 311 obs** (T19C CPI · T27 Call Money · T23 IIP · T6 Money Stock M0/M1/M3 · T11 Reserve Money · T37 NEER/REER). Generic `parse_wide_table` helper added. Remaining priority tables in the scaffold awaiting parsers: WPI T22 · BoP T40 · Foreign Trade T32 · RBI BS T2 · FX Reserves T33 · SEI T1. Headed Chrome only (TSPD). |
 | A5 Exchange Rate · Money Market · G-Sec Turnover · Reserve Money · RBI Balance Sheet · Payment System · Central Govt Market Borrowings · Business of Scheduled Banks · Daily LAF · Sectoral Deployment | 1.2 · 3.4 · 4.3 · 4.4 | Mostly DBIE-SAP-BO (Bulletin covers some — e.g. T6 Money Stock, T16 Reserve Money) | partial via Bulletin |
 | A6 BoP · ITS Services · External Debt · NIIP · NRI/**FCNR(B)** · ECB · FDI · RBI sale/purchase USD · forward book | 3.1 · 3.2 · 3.3 · 3.4 | **DBIE-SAP-BO** — Bulletin doesn't carry BoP-level detail | needs SAP BO iframe automation |
 | A7 Corporate sector · Banking BSR-1/2 · NBFC · GNPA/NNPA/CRAR | 4.2 | **DBIE-SAP-BO** | needs SAP BO iframe automation |
@@ -267,7 +297,10 @@ Code at `playground/econ/in/{vendor}/`; shared MOSPI helper at [`src/imdr/domain
 | IMD rainfall (A24) | DAILY (Jun-Sep) | refreshed daily | 3 | 3 | snapshot — All-India aggregate |
 | FAO FPI (A41) | MONTHLY | ~first Friday | 6 | 2,622 | Jan 1990→May 2026 |
 | DGCIS trade (A13) | MONTHLY | 2-3 mo lag at FY edge (latest released: Mar 2026) | 198 | ~30,888 | Apr 2013→Mar 2026 (HS-2 chapters × Export+Import; unreleased-month filter drops Apr+May 2026) |
-| **Pre-prod subtotal** | | | **396** | **~46,000** | |
+| UPAg MSP (A31) | ANNUAL | Kharif (Jun) + Rabi (Oct) announcement events | 28 | 353 | 2013-14→2026-27 (14 FYs × 28 crops × MSP level INR/Qtl; Δ + Δ% derivable) |
+| UPAg AIAPY (A26) | ANNUAL | Estimation cycles M-1 yr (Third Adv) through M-3 yr (Final) | 324 | 15,030 | **1966-67→2025-26 (60 FYs)** × 37 crops × {Kharif, Rabi, Summer, Total} × {Area Lakh-Ha, Production Lakh-Tonnes, Yield Kg/Ha}; cycle-dedup prefers Final over Third Advance |
+| RBI Bulletin (A4) | MONTHLY/DAILY/WEEKLY | Bulletin publishes mid-month for prior month | 67 | 311 | **6 tables**: CPI T19C (28×84), Call Money T27 (3×84), IIP T23 (9×36), Money Stock T6 (15×45), Reserve Money T11 (10×30), NEER/REER T37 (2×32 — section-detection needs refinement). Generic `parse_wide_table` helper drives 4 of the 6. Single-month snapshot per release — monthly orchestrator accumulates back-history MoM. **Headed Chrome required (TSPD).** |
+| **Pre-prod subtotal** | | | **815** | **~61,750** | |
 
 Two prod-wire-up options for the user to pick:
 
