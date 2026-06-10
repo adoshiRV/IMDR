@@ -38,7 +38,9 @@ India is the weakest API landscape in Asia. Real-economy series (CPI, IIP, GDP) 
 
 ## Policy & fiscal document sources
 
-Document-style RBI sources — easier to access than the DBIE data SPA (most are plain HTML archive pages on `rbi.org.in`).
+**Full inventory**: see [`india_govt_doc_sources.md`](india_govt_doc_sources.md) — 10 sections across central bank · ministries · regulators · statistical agencies · fiscal documents · debt-management · pensions · elections · think-tanks. **237 PDFs / 250 MB harvested 2026-06-10** across 11 streams from 5 agency clusters (RBI / MoSPI / PPAC / MoF / DEA); discovery deliverable per Phase-H complete.
+
+The summary table below shows the original Tier-1 RBI seeds; the full doc covers all probed agencies + tier/crawl-shape classification:
 
 | Source | URL | Cadence | Notes |
 |---|---|:---:|---|
