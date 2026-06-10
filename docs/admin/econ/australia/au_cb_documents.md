@@ -4,6 +4,10 @@ Last updated: 2026-06-10
 
 The data-time-series side of AU econ is in [`australia_indicator_inventory.md`](australia_indicator_inventory.md). This doc inventories the **document-style sources** — Board minutes, SMP, FSR, Budget Papers, etc. These feed the research-document pipeline (PDF → research store), **not** `econ.fact_indicator`.
 
+**Phase J LIVE 2026-06-11** — promoted from `playground/econ/au/govt/` to [`scripts/econ/au/govt/`](../../../../scripts/econ/au/govt/) with full ingest into `research.dim_report` + Qdrant + SharePoint. Migration 092 applied (apra, treasury_au, nab seeded). 8 official-source streams running end-to-end via `scripts.econ.au.govt.ingest_filings --ingest`; westpac + nab excluded (sell_side category — covered by sell-side ingest path). Scheduler registration in `scripts/imdr_daily.py:PIPELINES` is the only remaining gate. Country orchestrator at `scripts/econ/au/au_daily.py`. 9 reports / 201 chunks in `research.dim_report` for AU as of 2026-06-11.
+
+---
+
 Status: discovery scaffold + **10 fetchers** landed 2026-06-10 at [`playground/econ/au/govt/`](../../../../playground/econ/au/govt/) (mirror of the proven Korea pattern). Live fetchers cover the full **RBA stack** (Governor's Statement, Board Minutes, SMP, FSR, Speeches — Playwright-based, Akamai-bypass) plus **Treasury** publications, **APRA** quarterly stats, **ABS** release commentary, **Westpac–MI Consumer Sentiment**, and **NAB Monthly Business Survey** (plain httpx, no gating). Daily snapshots at `playground/econ/au/govt/data/snapshots/{YYYY-MM-DD}.json` with rolling dedup via `data/seen.json`. **NO DB writes yet** — manifest-only until the research-doc pipeline (`research.dim_report` / `research.fact_chunk`) absorbs filings.
 
 **Daily run shape (2026-06-10 baseline):** 67 items captured across the 10 streams. Plain-httpx fetchers (Treasury + APRA + ABS + Westpac + NAB) complete in ~2.8 sec combined; the 5 Playwright RBA fetchers add ~58 sec. Full daily run ≈ 60 seconds.

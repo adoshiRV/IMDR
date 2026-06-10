@@ -4,6 +4,23 @@ Last updated: 2026-06-11
 
 End-to-end checklist to take AU from discovery-complete to prod-live, mirroring Korea's 2026-06-10 reference end-state.
 
+## Phase J LIVE in prod 2026-06-11
+
+**9 official AU filings + 201 chunks** in `research.dim_report` / `research.fact_chunk` / Qdrant / SharePoint via the end-to-end pipeline:
+
+| vendor | category | reports | chunks |
+|---|---|---:|---:|
+| rba | official_cb | 6 | 176 |
+| treasury_au | official_ministry | 1 | 1 |
+| abs | official_statistics | 1 | 22 |
+| apra | official_regulator | 1 | 2 |
+
+Smoke test `--ingest --limit 8` 2026-06-11: 0 failed, 1 new (FSR Oct 2025), 7 dedup. All 8 official streams flow through `scripts.econ.au.govt.ingest_filings` → `resolvers.resolve` → `imdr.research.filings.ingest_filing` → DB + Qdrant + SharePoint.
+
+**Final gate remaining:** scheduler registration in `scripts/imdr_daily.py:PIPELINES`. Build is complete; user flips the switch.
+
+Westpac + NAB excluded from `ingest_filings.py` FETCHERS — both are `vendor_category='sell_side'` which `imdr.research.filings.ingest_filing` rejects (the policy-text RAG corpus is gate-kept to `official_*` only). Westpac IQ is already covered by the sell-side research ingest (`playground/research/ingest/crawler_westpac.py`). NAB has no sell-side fetcher yet — keep playground discovery as the reference until that gap is filled.
+
 ## Current state (audit, 2026-06-11)
 
 **Track A — Data series (econ.fact_indicator):**
