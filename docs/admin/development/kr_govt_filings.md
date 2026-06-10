@@ -75,6 +75,7 @@ About 10% of current sell-side chunk volume.
 | Registered in scheduler | [`scripts/imdr_daily.py:PIPELINES`](../../../scripts/imdr_daily.py) | **WIRED 2026-06-10** — `python -m scripts.econ.kr.kr_daily` runs under the daily cron |
 | Mods backfill (one-off) | [`scripts/econ/kr/govt/backfill_mods.py`](../../../scripts/econ/kr/govt/backfill_mods.py) | done — 10 KOSTAT CPI releases re-ingested via filings.py |
 | Cadence analysis + late-day probes | [`playground/econ/kr/govt/_explore/`](../../../playground/econ/kr/govt/_explore/) | kept in playground (exploration tools) |
+| Runtime state (per-vendor) | `data/econ/kr/govt/{vendor}/{seen.json, snapshots/YYYY-MM-DD.json}` | per-vendor partition mirrors the SharePoint `econ/kr/{vendor}/` layout. Orchestrator log at parent `data/econ/kr/govt/_last_run.log`. Per-machine, gitignored under top-level `data/*` rule. |
 
 Baseline daily-pull run captured **317 items across 7 agencies** in ~50s.
 Smoke-ingest (with embeddings on) verified end-to-end: 21 + 10 = 41 reports
@@ -92,6 +93,29 @@ SharePoint at `{YYYY}/{MM}/{DD}/econ/kr/{vendor}/...`.
 7. ~~Build `scripts/econ/kr/kr_daily.py` with clean email~~ — **DONE** (inline HTML; subject `[IMDR Daily KR] ✓ all ok — N new filings, M chunks (T min)`)
 8. ~~Wire into `scripts/imdr_daily.py:PIPELINES`~~ — **DONE 2026-06-10**
 
+## Done (2026-06-11)
+
+11. **BoK fetcher `menuNo=400007` bug fixed** — commit `9c9d1ae`. Server-side
+    filter on `400007` capped the BoK firehose at ~250 items / 7 months.
+    Switched to `menuNo=400423` (Press Releases) which returns the full
+    5,000+ item firehose back to 2011-09-08. See [BoK gotcha](../econ/korea/govt_doc_sources.md#cluster-b)
+    in `govt_doc_sources.md` for the probe data per menuNo. Smoke OK
+    (30 items / 3 pages, content includes National Accounts, MSB notices,
+    BoK working papers).
+12. **One-off historical backfill helper** — [`scripts/econ/kr/govt/backfill_kr_govt.py`](../../../scripts/econ/kr/govt/backfill_kr_govt.py).
+    CLI: `--vendor X --pages N --dry-run --no-embed --limit M`. Modelled
+    on `backfill_mods.py`. Uses the same `discover()` + `_r.resolve()` +
+    `ingest_filing()` pipeline as the daily so backfilled filings are
+    indistinguishable from daily-ingested ones (same content_hash dedup,
+    same seen.json update, same SharePoint path).
+13. **Backfill — tight scope (in progress 2026-06-11)** — embed=yes:
+    - MOTIR `pages=20` → **152 items** (2026-01-26 → 2026-06-05) ✅ done, 0 failures
+    - FSS `pages=25` → **230 items** (2024-04-29 → 2026-03-31) ✅ done, 0 failures
+    - FSC `pages=50` → **980 items** (2020-04-13 → 2026-04-06) 🔄 running
+    - BoK `pages=50` → **500 items** (2025-04-11 → 2026-06-10) ⏳ queued
+    Total at completion: **+1,862 filings** → corpus 307 → **2,169**.
+    Logs under [`playground/econ/kr_govt_docs/backfill_logs/`](../../../playground/econ/kr_govt_docs/backfill_logs/).
+
 ## Pending
 
 9. Mycroft / Lois prompt updates — filter `vendor_category IN
@@ -103,6 +127,12 @@ SharePoint at `{YYYY}/{MM}/{DD}/econ/kr/{vendor}/...`.
     backfilled PDFs cover history; ongoing daily MoDS won't auto-ingest
     until a fetcher is added that uses Playwright like the playground
     `econ/mods/fetch.py`).
+14. **BoK deep backfill (2011-2025)** — optional. After the tight scope
+    above completes, BoK `--pages 500` would pull the remaining ~4,500
+    items back to 2011-09-08 (15 years of MPR, FSR, minutes, working
+    papers, economic outlooks). Highest macro-narrative coverage unlock
+    available for KR. Cost: ~4 hr ingest + Voyage/Gemini embed for ~15k
+    extra chunks. Deferred pending decision.
 
 ## Open items (do not block initial ingest)
 

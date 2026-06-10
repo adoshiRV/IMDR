@@ -582,7 +582,7 @@ items from the 2026-06-10 probe (matches the user's browser screenshot):
 
 | menuNo | Stream |
 |:---:|---|
-| 400007 | All News & Publications (parent — use for headline feed) |
+| 400007 | All News & Publications (parent — homepage "featured" subset, server-side capped) |
 | 400021/400022 | News subcategories |
 | 400067/400068 | BOK Working/Discussion Papers, Conference papers |
 | 400215 | Monetary Policy Report |
@@ -592,6 +592,38 @@ items from the 2026-06-10 probe (matches the user's browser screenshot):
 | 400409/400411/400413 | CBDC research |
 | 400073/400074/400077 | Speeches |
 | 400427/400429/400496 | Issue Notes / additional boards |
+| 400423 | Press Releases (use this — full firehose, see below) |
+
+> ### ⚠ `menuNo=400007` gotcha — capped at 250 items / 7 months
+>
+> **Discovered 2026-06-11** ([`playground/econ/kr_govt_docs/probe_backfill_depth.py`](../../../../playground/econ/kr_govt_docs/probe_backfill_depth.py)).
+> The `listCont.do` endpoint has a server-side filter on `menuNo=400007`
+> that caps the result set at **~250 items / ~7 months back**. Other
+> sub-menus do NOT have this filter — the API returns the same 5,000+
+> item firehose going back to **2011-09-08** regardless of which
+> sub-menu you pass:
+>
+> | menuNo probed         | Items   | Earliest date |
+> |---|---|---|
+> | 400007 (top news)     | 250     | 2025-11-07 ← capped |
+> | 400215 (MPR)          | 5000+   | 2011-09-08 |
+> | 400219 (FSR)          | 5000+   | 2011-09-08 |
+> | 400221 (Annual)       | 5000+   | 2011-09-08 |
+> | 400067 (Working Pap.) | 5000+   | 2011-09-08 |
+> | 400409 (Issue Notes)  | 5000+   | 2011-09-08 |
+> | 400403 (Open Market)  | 5000+   | 2011-09-08 |
+> | 400423 (Press Rel.)   | 5000+   | 2011-09-08 |
+> | 400411 (CBDC)         | 0       | dead endpoint |
+> | 400069 (News)         | 0       | dead endpoint |
+>
+> The 7 working sub-menus return **identical content** — the BoK API
+> doesn't actually filter server-side on those values. Only 400007 has
+> the "featured-subset" filter.
+>
+> **Prod fix (commit `9c9d1ae`, 2026-06-11)**: [`scripts/econ/kr/govt/fetch_bok.py`](../../../../scripts/econ/kr/govt/fetch_bok.py)
+> switched from `menuNo=400007` to `400423` (Press Releases). The daily
+> ingest now sees the full firehose; backfill of historical 2011-2025
+> tracked in [[#bok-backfill-status]] below.
 
 **Verdict**: BoK is now **fully accessible from Python**, no Playwright
 needed. One config-driven crawler taking `(menuNo, pageUnit)` reuses this
@@ -889,9 +921,9 @@ between cadence windows are evidence, not a bug.
 Each fetcher emits a `FilingItem` with `source_url`. The ingest step needs
 to convert that into **either** PDF bytes (preferred — full document for
 chunking) **or** body text (HTML-only or PDF-blocked sources). Recipes
-below are confirmed by [`probe_resolve.py`](../../../../playground/econ/kr/govt/probe_resolve.py)
-+ [`probe_resolve_v2.py`](../../../../playground/econ/kr/govt/probe_resolve_v2.py); samples saved under
-[`playground/econ/kr/govt/data/resolve_samples/{vendor}/`](../../../../playground/econ/kr/govt/data/resolve_samples/).
+below are confirmed by [`probe_resolve_v2.py`](../../../../playground/econ/kr/govt/_explore/probe_resolve_v2.py)
+(plus the earlier deleted `probe_resolve.py`); raw samples archived under
+[`playground/econ/kr_govt_docs/resolve_samples/{vendor}/`](../../../../playground/econ/kr_govt_docs/resolve_samples/).
 
 ### Summary
 
