@@ -108,13 +108,58 @@ SharePoint at `{YYYY}/{MM}/{DD}/econ/kr/{vendor}/...`.
     `ingest_filing()` pipeline as the daily so backfilled filings are
     indistinguishable from daily-ingested ones (same content_hash dedup,
     same seen.json update, same SharePoint path).
-13. **Backfill — tight scope (in progress 2026-06-11)** — embed=yes:
-    - MOTIR `pages=20` → **152 items** (2026-01-26 → 2026-06-05) ✅ done, 0 failures
-    - FSS `pages=25` → **230 items** (2024-04-29 → 2026-03-31) ✅ done, 0 failures
-    - FSC `pages=50` → **980 items** (2020-04-13 → 2026-04-06) 🔄 running
-    - BoK `pages=50` → **500 items** (2025-04-11 → 2026-06-10) ⏳ queued
-    Total at completion: **+1,862 filings** → corpus 307 → **2,169**.
-    Logs under [`playground/econ/kr_govt_docs/backfill_logs/`](../../../playground/econ/kr_govt_docs/backfill_logs/).
+13. **Backfill — tight scope (complete 2026-06-11)** — embed=yes, 2h 17m total:
+    - MOTIR `pages=20` → **152 ingested** (2026-01-26 → 2026-06-05), 0 dedup, 0 fail
+    - FSS   `pages=25` → **230 ingested** (2024-04-29 → 2026-03-31), 0 dedup, 0 fail
+    - FSC   `pages=50` → **978 ingested** (2020-04-13 → 2026-04-06), 2 dedup, 0 fail
+    - BoK   `pages=50` → **468 ingested** (2025-04-11 → 2026-06-10), 32 dedup, **1 fail** (transient WinError 10053 on "Financial Statement Analysis for 2024" — auto-retried on next daily run)
+
+    Total: **+1,828 filings → corpus 307 → 2,135**. Logs under [`playground/econ/kr_govt_docs/backfill_logs/`](../../../playground/econ/kr_govt_docs/backfill_logs/) (gitignored).
+
+15. **BoK MSB-noise denylist** — commit `8b068a7`. Audit of the BoK 487-item slice found 131 (27%) were one-line MSB operational notices with zero macro commentary. Added `_DROP_TITLE_RE` in [`fetch_bok.py`](../../../scripts/econ/kr/govt/fetch_bok.py) to drop at discovery — items matching never enter the FilingItem stream, so no future re-ingest. Forward-only; the 131 noise rows already in DB are left in place (down-ranked by Mycroft relevance scoring).
+
+## Current corpus state (2026-06-11)
+
+**2,135 KR govt filings** across 8 agencies, all 4-layer indexed (SQL `dim_report` + `fact_chunk` + Qdrant + SharePoint PDF at `{YYYY}/{MM}/{DD}/econ/kr/{vendor}/...`):
+
+| Agency | n | Coverage | Density |
+|---|---|---|---|
+| FSC  | 998 | 2020-04-13 → 2026-06-10 (6 yr) | Densest source — regulatory policy |
+| BoK  | 487 | 2025-04-11 → 2026-06-10 (14 mo) | Shallow vs reachable; see backlog below |
+| FSS  | 250 | 2024-04-29 → 2026-06-10 (2 yr) | Bank/insurer supervision |
+| MOEF | 216 | 2009-03-31 → 2026-06-10 (17 yr) | RSS feeds — already deep |
+| MOTIR | 160 | 2026-01-26 → 2026-06-10 (4.5 mo) | Capped on portal pagination |
+| KCS | 10 | 2021-01-21 → 2024-11-21 | Stale board, deferred to Phase 2 |
+| MODS | 10 | 2025-10-02 → 2026-06-02 (8 mo) | One-off backfill |
+| KDI | 4 | 2026-04-13 → 2026-05-13 (2 mo) | Capped on landing pages |
+
+## Backfill backlog
+
+What's left to pull from upstream that we haven't yet:
+
+### High-value, deferred pending decision
+
+| Item | Estimate | Why valuable |
+|---|---|---|
+| **BoK 2011-2025 deep backfill** (`backfill_kr_govt.py --vendor bok --pages 500`) | ~4,500 items (minus ~30% MSB noise dropped at discovery = **~3,150 keepers**); ~4 hr ingest; ~15k Qdrant chunks; Voyage + Gemini embed cost | 15 years of BoK MPR (quarterly), FSR (semiannual), MPB minutes (~8/yr), working papers, economic outlooks. Highest macro-narrative coverage unlock available for KR — the policy-text corpus would jump from 14 mo to 15 yr of BoK history. |
+
+### Bounded upstream (cannot extend further without other vendors)
+
+| Item | Why bounded |
+|---|---|
+| FSS `pages=25` already exhausts the listing (no further pagination) | Going further would need stream-specific board IDs or POST search; not currently mapped. |
+| MOTIR `pages=20` already exhausts | English portal caps at ~200 items / 6 months; Korean-side portal might have deeper but isn't mapped. |
+| FSC `pages=50` likely has more (probe didn't go further) | Could try `pages=100` to test; deferred until BoK deep is decided. |
+| KDI | Landing pages only — 4 items is the full visible catalogue. |
+| KCS | Stale board (2024-11 latest). Live trade data lives on Korean-side URL not yet mapped (Phase 2). |
+| MOEF | RSS already returns full history (216 items back to 2009). |
+
+### Cleanup / housekeeping (not data-bearing)
+
+| Item | Notes |
+|---|---|
+| Sweep-delete the 131 BoK MSB noise rows from `dim_report` + Qdrant + SharePoint | Only worth it if down-ranking proves insufficient. Pattern: `MSB Issuance Notice(...)` / `Notice for Competitive Bidding...` / `Regular MSB Fixed Rate Tender...`. |
+| Retry the 1 transient BoK ingest fail | "Financial Statement Analysis for 2024" — picked up by next daily run automatically (not in seen.json). |
 
 ## Pending
 
