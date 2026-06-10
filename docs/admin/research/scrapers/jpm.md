@@ -857,3 +857,33 @@ CJK regex) remains a possible upgrade — would require a probe to
 discover the exact `researchQueryNodeChildren` item name JPM accepts
 for language. Low priority: 10 rows in 30 days suggests <0.5%
 catalog leak.
+
+## Noise filter update (2026-06-10)
+
+Shared cross-vendor noise classifier wired into
+[`ingest/filters/_noise.py::classify_noise`](../../../../playground/research/ingest/filters/_noise.py)
+and called as the final fallback inside [`filters/jpm.py::should_exclude`](../../../../playground/research/ingest/filters/jpm.py).
+Three universal title-pattern families plus a cross-vendor EQUITY
+conference / sales-event drop in [`relevance._is_equity_conf_event`](../../../../playground/research/ingest/relevance.py).
+
+Smoke against the full 4,498-title `research.dim_report` corpus dropped
+**289 jpm docs**:
+
+| family | n | sample |
+|---|---|---|
+| chart-pack | 275 | ~40 distinct daily SKUs incl. CDX.NA.HY Daily Analytics; MSRB Trade Report Package; Global Index Mail; Front-end Spread Analytics Report; US Cash Interest Rate Analytics Package; Vol Packages; Treasury Futures Basis Reference Sheet; Index Movers Daily; Liquidity Monitor; Pricing and Analytics Package |
+| morning-note | 14 | JPM | FTM | Today's Research | <region> (Europe / CEEMEA / LatAm / GEMS — 14 dupes across regions) |
+| event-admin | 0 | (none — JPM had empty EXCLUDED_TITLE_PREFIXES; shared list now provides coverage) |
+| conf-event (EQUITY only) | 0 | (none — JPM single-name + industry filters already strong; conf-takeaway content already drops via existing _JPM_INDUSTRY_DROP) |
+
+The conf-event rule fires only when `result.asset_class == EQUITY` so
+MACRO-tagged "Takeaways" / "Trip Notes" titles (real policy / sovereign
+macro content) pass through unaffected.
+
+Test pins: [`test_noise_filter.py`](../../../../playground/research/test_noise_filter.py)
+(116 chart-pack / morning-note / event-admin assertions),
+[`test_relevance_conf_event.py`](../../../../playground/research/test_relevance_conf_event.py)
+(35 conf-event assertions). Re-runnable smoke harnesses:
+[`_smoke_noise_filter.py`](../../../../playground/research/_smoke_noise_filter.py),
+[`_smoke_conf_event.py`](../../../../playground/research/_smoke_conf_event.py).
+

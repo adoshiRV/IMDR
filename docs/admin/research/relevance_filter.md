@@ -128,6 +128,75 @@ drop a healthy minority via ticker extraction.
 | ms       | title regex `\(([A-Z0-9.]{1,12})\s+([A-Z]{2,3})\)` — works in theory, but MS titles rarely include tickers. Default-drop handles the rest. |
 | nomura   | title regex (same Bloomberg-pair format as MS). Nomura titles routinely include tickers — e.g. "Gift Holdings (9279 JP) (Buy)". |
 
+## Cross-vendor EQUITY conf / sales-event drop (2026-06-10)
+
+Per-vendor allowlists (`_GS_EQUITY_KEEP`, `_CITI_EQUITY_KEEP`, etc.)
+default-drop EQUITY but escape via macro-flavoured title keywords —
+`themes` / `positioning` / `cross-asset` / `strategy`. A 2026-06-10
+content audit ([`_takeaway_samples.txt`](../../../playground/research/_takeaway_samples.txt))
+showed that 45 conference / sales-event takeaways were slipping through
+these allowlists because their titles read like macro content but their
+bodies were stock-pick takeaways from sell-side conferences (Goldman
+Communacopia, Barclays REITWeek / KOL lunches, DB dbAccess, Citi UB
+client briefings, etc.).
+
+Added [`_is_equity_conf_event(title)`](../../../playground/research/ingest/relevance.py)
+which fires immediately after the `asset_class != EQUITY` early-return,
+**before** the per-vendor allowlist. The regex matches:
+
+* `takeaways?` stem (Trip Takeaways, Key Takeaways from X, Meeting
+  takeaways, Takeaways from Bain's report, etc.)
+* `trip notes` / `field trip` / `investor field trip` / `NDR` / `CMD` /
+  `investor day` / `investor event`
+* `KOL` / sales-event meal formats (`lunch with`, `lunchtime snack`,
+  `breakfast with`, `analyst dinner`, `fireside chat`)
+* Branded conferences — `dbAccess`, `Communacopia`, `REITWeek`,
+  `Money20/20`, `AGA Financial Forum`, `ASCO Gynecology/Breast/Lung`,
+  `GS Travel Conference`
+* Sector-anchored conferences — `<sector> conference` where sector ∈
+  {utilities, financials, tech, banks, healthcare, biotech, pharma,
+  materials, energy, autos, retail, insurance, REITs, TMT,
+  semiconductors}
+
+The regex is intentionally coarse — MACRO-tagged titles like
+*"Romania: takeaways from May liquidity"* or *"Trip Notes from Berlin"*
+or *"IMF Second Review: Our 10 Takeaways"* also match the regex but
+bypass the drop via the asset_class gate. That's the contract: the
+asset_class is the discriminator, not the title pattern.
+
+Net effect (smoke against 4,498 dim_report titles):
+
+| vendor | EQUITY conf-event drops |
+|---|---|
+| goldman | 27 |
+| barclays | 10 |
+| db | 3 |
+| nomura | 2 |
+| MACRO-bypass (regex hit, kept) | 10 (ms 4, jpm 3, citi 2, goldman 1) |
+
+Test pin: [`test_relevance_conf_event.py`](../../../playground/research/test_relevance_conf_event.py).
+Smoke harness: [`_smoke_conf_event.py`](../../../playground/research/_smoke_conf_event.py).
+
+### Goldman classifier Tier-4 backfill
+
+The cross-vendor regex relies on `asset_class == EQUITY`. The 2026-06-02
+DB audit had flagged 144 Goldman rows with **blank `asset_class`** —
+Tiers 0-3 (focus, girAssetTypes, disciplines, title-regex) all returned
+empty. These rows silently bypass the entire relevance filter because
+`if result.asset_class != ASSET_CLASS_EQUITY: return False, ""` exits
+early on blank.
+
+Added a Tier-4 fallback to
+[`classifiers/goldman.py::classify`](../../../playground/research/ingest/classifiers/goldman.py)
+in the same 2026-06-10 milestone:
+
+* `Macro` in `subjects[]` → asset_class = MACRO
+* Non-empty `industries[]` OR `focus` not "Issuer" → asset_class = EQUITY
+
+Routes the 144 historical Goldman blank-asset_class docs into the right
+bucket; the EQUITY ones then fall through `_is_equity_conf_event` and
+the existing `_GS_EQUITY_KEEP` allowlist.
+
 ## Trade-offs to know about
 
 - **MS sector previews are caught by default-drop.** Things like "IT

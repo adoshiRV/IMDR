@@ -329,3 +329,33 @@ drop-list landed in playground (gitignored). 7-day smoke shows
 ~7/day kept post-discovery (100% kept at relevance), pure
 MACRO 67% / RATES 16% / COMMODITIES 8% / FX 8% composition, 100%
 country/region coverage on survivors with Sub-Topic geo.
+
+## Noise filter update (2026-06-10)
+
+Shared cross-vendor noise classifier wired into
+[`ingest/filters/_noise.py::classify_noise`](../../../../playground/research/ingest/filters/_noise.py)
+and called as the final fallback inside [`filters/anz.py::should_exclude`](../../../../playground/research/ingest/filters/anz.py).
+Three universal title-pattern families plus a cross-vendor EQUITY
+conference / sales-event drop in [`relevance._is_equity_conf_event`](../../../../playground/research/ingest/relevance.py).
+
+Smoke against the full 4,498-title `research.dim_report` corpus dropped
+**56 anz docs**:
+
+| family | n | sample |
+|---|---|---|
+| chart-pack | 3 | NZGB tender preview chart pack and supply guidance |
+| morning-note | 53 | Australian Morning Focus / NZ Morning Focus / Daily Rates RV Pack / Charts that Matter |
+| event-admin | 0 | (none — covered by existing EXCLUDED_TITLE_PREFIXES tuple) |
+| conf-event (EQUITY only) | 0 | (none in current corpus) |
+
+The conf-event rule fires only when `result.asset_class == EQUITY` so
+MACRO-tagged "Takeaways" / "Trip Notes" titles (real policy / sovereign
+macro content) pass through unaffected.
+
+Test pins: [`test_noise_filter.py`](../../../../playground/research/test_noise_filter.py)
+(116 chart-pack / morning-note / event-admin assertions),
+[`test_relevance_conf_event.py`](../../../../playground/research/test_relevance_conf_event.py)
+(35 conf-event assertions). Re-runnable smoke harnesses:
+[`_smoke_noise_filter.py`](../../../../playground/research/_smoke_noise_filter.py),
+[`_smoke_conf_event.py`](../../../../playground/research/_smoke_conf_event.py).
+

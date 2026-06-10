@@ -475,3 +475,33 @@ editorial-pillar themes are now visible to downstream queries.
 ## Last verified
 
 2026-06-03 — Phase 0 setup only; no portal interaction yet.
+
+## Noise filter update (2026-06-10)
+
+Shared cross-vendor noise classifier wired into
+[`ingest/filters/_noise.py::classify_noise`](../../../../playground/research/ingest/filters/_noise.py)
+and called as the final fallback inside [`filters/stanc.py::should_exclude`](../../../../playground/research/ingest/filters/stanc.py).
+Three universal title-pattern families plus a cross-vendor EQUITY
+conference / sales-event drop in [`relevance._is_equity_conf_event`](../../../../playground/research/ingest/relevance.py).
+
+Smoke against the full 4,498-title `research.dim_report` corpus dropped
+**0 stanc docs**:
+
+| family | n | sample |
+|---|---|---|
+| chart-pack | 0 | (no drops — vendor-native structured filter already covers) |
+| morning-note | 0 | (no drops) |
+| event-admin | 0 | (no drops — STANC INVITE publication type already drops at crawler) |
+| conf-event (EQUITY only) | 0 | (no drops) |
+
+The conf-event rule fires only when `result.asset_class == EQUITY` so
+MACRO-tagged "Takeaways" / "Trip Notes" titles (real policy / sovereign
+macro content) pass through unaffected.
+
+Test pins: [`test_noise_filter.py`](../../../../playground/research/test_noise_filter.py)
+(116 chart-pack / morning-note / event-admin assertions),
+[`test_relevance_conf_event.py`](../../../../playground/research/test_relevance_conf_event.py)
+(35 conf-event assertions). Re-runnable smoke harnesses:
+[`_smoke_noise_filter.py`](../../../../playground/research/_smoke_noise_filter.py),
+[`_smoke_conf_event.py`](../../../../playground/research/_smoke_conf_event.py).
+

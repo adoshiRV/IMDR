@@ -349,3 +349,33 @@ playground (gitignored). 7-day smoke shows **~17/day kept** (was
 clean FX 28% / MACRO 25% / RATES 24% / EQUITY 22% (all sector).
 269 discovery drops (~70% drop rate, mostly single-name stock
 notes).
+
+## Noise filter update (2026-06-10)
+
+Shared cross-vendor noise classifier wired into
+[`ingest/filters/_noise.py::classify_noise`](../../../../playground/research/ingest/filters/_noise.py)
+and called as the final fallback inside [`filters/nomura.py::should_exclude`](../../../../playground/research/ingest/filters/nomura.py).
+Three universal title-pattern families plus a cross-vendor EQUITY
+conference / sales-event drop in [`relevance._is_equity_conf_event`](../../../../playground/research/ingest/relevance.py).
+
+Smoke against the full 4,498-title `research.dim_report` corpus dropped
+**18 nomura docs**:
+
+| family | n | sample |
+|---|---|---|
+| chart-pack | 2 | Agency MBS Chart Book - Conventional 30-Year MBS; Japan Equity Flow Monitor (Chart Book) June 26 |
+| morning-note | 14 | Matsuzawa Morning Report - <subject> (14 daily Japan equity sales-trader recaps) |
+| event-admin | 0 | (none — covered by existing EXCLUDED_TITLE_PREFIXES tuple) |
+| conf-event (EQUITY only) | 2 | Quick Note - Chipbond Technology Corporation (6147 TT); Quick Note - Global AI Trend Tracker (corporate-event content) |
+
+The conf-event rule fires only when `result.asset_class == EQUITY` so
+MACRO-tagged "Takeaways" / "Trip Notes" titles (real policy / sovereign
+macro content) pass through unaffected.
+
+Test pins: [`test_noise_filter.py`](../../../../playground/research/test_noise_filter.py)
+(116 chart-pack / morning-note / event-admin assertions),
+[`test_relevance_conf_event.py`](../../../../playground/research/test_relevance_conf_event.py)
+(35 conf-event assertions). Re-runnable smoke harnesses:
+[`_smoke_noise_filter.py`](../../../../playground/research/_smoke_noise_filter.py),
+[`_smoke_conf_event.py`](../../../../playground/research/_smoke_conf_event.py).
+

@@ -645,3 +645,33 @@ Prereqs:
   Sessions appear stable for at least a few days; if the listing API
   starts returning empty / login redirects, re-run `explore_bnp.py`
   to refresh.
+
+## Noise filter update (2026-06-10)
+
+Shared cross-vendor noise classifier wired into
+[`ingest/filters/_noise.py::classify_noise`](../../../../playground/research/ingest/filters/_noise.py)
+and called as the final fallback inside [`filters/bnp.py::should_exclude`](../../../../playground/research/ingest/filters/bnp.py).
+Three universal title-pattern families plus a cross-vendor EQUITY
+conference / sales-event drop in [`relevance._is_equity_conf_event`](../../../../playground/research/ingest/relevance.py).
+
+Smoke against the full 4,498-title `research.dim_report` corpus dropped
+**10 bnp docs**:
+
+| family | n | sample |
+|---|---|---|
+| chart-pack | 10 | MarFA Macro Chart Pack; FX vol weekly chart pack; Global Tactical Asset Allocation Chartbook |
+| morning-note | 0 | (none) |
+| event-admin | 0 | (none — covered by existing EXCLUDED_TITLE_PREFIXES tuple) |
+| conf-event (EQUITY only) | 0 | (none — chart-pack drop catches these earlier via summary-prefix + quantModels) |
+
+The conf-event rule fires only when `result.asset_class == EQUITY` so
+MACRO-tagged "Takeaways" / "Trip Notes" titles (real policy / sovereign
+macro content) pass through unaffected.
+
+Test pins: [`test_noise_filter.py`](../../../../playground/research/test_noise_filter.py)
+(116 chart-pack / morning-note / event-admin assertions),
+[`test_relevance_conf_event.py`](../../../../playground/research/test_relevance_conf_event.py)
+(35 conf-event assertions). Re-runnable smoke harnesses:
+[`_smoke_noise_filter.py`](../../../../playground/research/_smoke_noise_filter.py),
+[`_smoke_conf_event.py`](../../../../playground/research/_smoke_conf_event.py).
+

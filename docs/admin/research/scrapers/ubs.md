@@ -521,3 +521,33 @@ super-grid endpoint works on `ctx.request.get` first try.
 - [`crawler_bofa.py:630-637`](../../../../playground/research/ingest/crawler_bofa.py) — precedent for `headless=False` + programmatic-login + session-only cookies.
 - [`crawler_barclays.py:106-127`](../../../../playground/research/ingest/crawler_barclays.py) — `_PAGE_FETCH_JS` + `_PAGE_FETCH_PDF_JS` precedent for in-page CSRF-bearing fetch.
 - [`crawler_goldman.py`](../../../../playground/research/ingest/crawler_goldman.py) — closest crawler template (deterministic PDF + rich listing metadata).
+
+## Noise filter update (2026-06-10)
+
+Shared cross-vendor noise classifier wired into
+[`ingest/filters/_noise.py::classify_noise`](../../../../playground/research/ingest/filters/_noise.py)
+and called as the final fallback inside [`filters/ubs.py::should_exclude`](../../../../playground/research/ingest/filters/ubs.py).
+Three universal title-pattern families plus a cross-vendor EQUITY
+conference / sales-event drop in [`relevance._is_equity_conf_event`](../../../../playground/research/ingest/relevance.py).
+
+Smoke against the full 4,498-title `research.dim_report` corpus dropped
+**6 ubs docs**:
+
+| family | n | sample |
+|---|---|---|
+| chart-pack | 6 | Healthcare Facilities & Managed Care "Weekly Chartbook: Hospital Vols, T..."; EM Multi Asset Chartpack; Global Macro Chart of the Day (#96–#98); Semis Monthly Chart Pack |
+| morning-note | 0 | (none — Morning Expresso already handled via `_UBS_EQUITY_CADENCE_WITH_ANCHOR_RE`) |
+| event-admin | 0 | (none) |
+| conf-event (EQUITY only) | 0 | (none — UBS B.STOCK + n_rics single-name filter already catches stock-pick takeaways at discovery) |
+
+The conf-event rule fires only when `result.asset_class == EQUITY` so
+MACRO-tagged "Takeaways" / "Trip Notes" titles (real policy / sovereign
+macro content) pass through unaffected.
+
+Test pins: [`test_noise_filter.py`](../../../../playground/research/test_noise_filter.py)
+(116 chart-pack / morning-note / event-admin assertions),
+[`test_relevance_conf_event.py`](../../../../playground/research/test_relevance_conf_event.py)
+(35 conf-event assertions). Re-runnable smoke harnesses:
+[`_smoke_noise_filter.py`](../../../../playground/research/_smoke_noise_filter.py),
+[`_smoke_conf_event.py`](../../../../playground/research/_smoke_conf_event.py).
+

@@ -338,3 +338,33 @@ Aluminum, Restaurants, Auto, Health Care) — correctly dropped per
 company / industry tags — backfill not needed at this volume). 7-day
 smoke shows ~18/day net with 1% single-name leakage. Daily orchestrator
 wiring pending user OK per [`memory/feedback_no_prod_wiring_without_permission`](../../../../memory/feedback_no_prod_wiring_without_permission.md).
+
+## Noise filter update (2026-06-10)
+
+Shared cross-vendor noise classifier wired into
+[`ingest/filters/_noise.py::classify_noise`](../../../../playground/research/ingest/filters/_noise.py)
+and called as the final fallback inside [`filters/citi.py::should_exclude`](../../../../playground/research/ingest/filters/citi.py).
+Three universal title-pattern families plus a cross-vendor EQUITY
+conference / sales-event drop in [`relevance._is_equity_conf_event`](../../../../playground/research/ingest/relevance.py).
+
+Smoke against the full 4,498-title `research.dim_report` corpus dropped
+**31 citi docs**:
+
+| family | n | sample |
+|---|---|---|
+| chart-pack | 5 | Korea Chart Pack; Citi Quant: Daily Tactical Style Rotation Forecasts; Chart Pack: The Week Through May 29 |
+| morning-note | 26 | Tuesday, 09 June 2026 / Monday, 08 June 2026 / Wednesday, 10 June 2026 (weekday-date index pages, caught by the `_WEEKDAY_DATE_RE` regex) |
+| event-admin | 0 | (none) |
+| conf-event (EQUITY only) | 0 | (none — Citi conf takeaways are tagged STRATEGY or MACRO, not EQUITY) |
+
+The conf-event rule fires only when `result.asset_class == EQUITY` so
+MACRO-tagged "Takeaways" / "Trip Notes" titles (real policy / sovereign
+macro content) pass through unaffected.
+
+Test pins: [`test_noise_filter.py`](../../../../playground/research/test_noise_filter.py)
+(116 chart-pack / morning-note / event-admin assertions),
+[`test_relevance_conf_event.py`](../../../../playground/research/test_relevance_conf_event.py)
+(35 conf-event assertions). Re-runnable smoke harnesses:
+[`_smoke_noise_filter.py`](../../../../playground/research/_smoke_noise_filter.py),
+[`_smoke_conf_event.py`](../../../../playground/research/_smoke_conf_event.py).
+

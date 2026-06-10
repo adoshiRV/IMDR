@@ -391,3 +391,94 @@ with `Macro` subject-tag bypass + cross-asset title allowlist
 composition MACRO 42% / RATES 26% / STRATEGY 8% / EQUITY 7% /
 FX 5% / COMMODITIES 4% / CREDIT 3%. RATES, FX, and country/region
 populated for the first time.
+
+## Noise filter update (2026-06-10)
+
+### Shared discovery-noise classifier
+
+A cross-vendor noise classifier was wired into
+[`ingest/filters/_noise.py::classify_noise`](../../../../playground/research/ingest/filters/_noise.py)
+and now runs as the final fallback inside [`filters/goldman.py::should_exclude`](../../../../playground/research/ingest/filters/goldman.py).
+Three universal title-pattern families:
+
+* **chart-pack** — pure-data / chart-only SKUs (`*Analytics*`,
+  `*Rich/Cheap*`, `*Chart Pack/Book/Deck*`, `*Vol Package*`,
+  `*Reference Sheet*`, `*Multi-factor Analysis*`, etc.).
+* **morning-note** — daily sales-recap titles (anchored prefix match);
+  for Goldman the firing patterns are `"US Morning Update"` and
+  `"Asian equity market daily update"`.
+* **event-admin** — invites / reminders / "Starts in 1 hour" pings not
+  already caught by the per-vendor `EXCLUDED_TITLE_PREFIXES` tuple.
+
+Smoke against the full 4,498-title `research.dim_report` corpus dropped:
+
+| family | drops at Goldman | sample |
+|---|---|---|
+| chart-pack | 13 | `Ratings and Target Price Changes - June 08, 2026 as of 5:30 AM ET`; `Monthly Activity Chartbook: Moderation in April investment activity` |
+| morning-note | 17 | `US Morning Update`; `Asian equity market daily update` |
+| event-admin | 0 | (already covered by `EXCLUDED_TITLE_PREFIXES`) |
+
+### Cross-vendor EQUITY conference / sales-event drop
+
+The 2026-06-03 v2 tightening kept 19 EQUITY survivors via the
+`_GS_EQUITY_KEEP` keyword allowlist. The 2026-06-10 content audit
+(content samples at [`_takeaway_samples.txt`](../../../../playground/research/_takeaway_samples.txt))
+found that many of those 19 survivors were actually conference / sales-
+event noise whose titles contained macro-flavoured keywords like
+`themes` / `positioning` / `cross-sector` — they passed `_GS_EQUITY_KEEP`
+but their content was stock-pick takeaways.
+
+Added [`relevance._is_equity_conf_event`](../../../../playground/research/ingest/relevance.py)
+which fires BEFORE the per-vendor allowlist for any EQUITY-tagged doc
+whose title hits the cross-vendor conf-event regex (takeaways stem,
+KOL, trip notes, NDR, dbAccess / Communacopia, sector-X conferences).
+MACRO-tagged Goldman titles like *"Earnings Season Takeaways: Resilient,
+but for How Long?"* bypass via the asset_class gate.
+
+Goldman smoke: **27 additional drops** — the residual leak set incl.
+`Trip Takeaways: Banks Shift to Defensive Balance Sheet Management`,
+`NDR takeaways: Membership, IP, store upgrade`, `Asia Communacopia +
+Technology — Key Takeaways: 3,000 robotaxis`, `Takeaways from Trump-Xi
+Meeting [Replay]`, `Investor day sets 2030 growth targets`, `Game
+Conference Takeaways`, `Lunch with Construtora Lindenberg`.
+
+### Tier-4 classifier asset_class backfill
+
+The 2026-06-02 DB audit flagged **144 Goldman rows with blank
+`asset_class`** — `disciplines[]` was empty AND `girAssetTypes[]` was
+empty, so Tiers 0-3 returned blank. Those docs silently bypassed the
+single-name + sector-equity drops in `relevance.py` because
+`if result.asset_class != ASSET_CLASS_EQUITY: return False, ""` exits
+early on blank.
+
+Added a Tier-4 fallback to [`classifiers/goldman.py::classify`](../../../../playground/research/ingest/classifiers/goldman.py):
+
+```
+if not asset_class:
+    if any(s.lower() == "macro" for s in subjects):
+        asset_class = MACRO
+    elif industries or (focus and focus != "Issuer"):
+        asset_class = EQUITY
+```
+
+Rationale:
+- Goldman tags `industries` only on company/sector content; any doc
+  with `industries[]` populated is single-name or sector-equity and
+  belongs in the default-drop pipeline.
+- `Macro` in `subjects[]` is GS's cleanest macro signal (the Subjects
+  facet has Macro = 51K catalog-wide vs Micro = 217K).
+- Other `focus` values (`Multi-Issuer`, `Companies`, etc.) without an
+  asset_class also route to EQUITY.
+
+Recovered ~22 conference-takeaway docs that previously bypassed
+relevance.py (Asia Communacopia Tech Key Takeaways, India Supply Chain
+Resilience Virtual Conference, AGA Financial Forum, European Utilities
+Conference, etc.). Combined with the cross-vendor `_is_equity_conf_event`
+regex, all 22 now drop on the next discovery cycle.
+
+### Tests + smoke harnesses
+
+* [`test_noise_filter.py`](../../../../playground/research/test_noise_filter.py) — 116 tests pin the chart-pack / morning-note / event-admin patterns
+* [`test_relevance_conf_event.py`](../../../../playground/research/test_relevance_conf_event.py) — 35 tests pin the conf-event regex + gating contract
+* [`_smoke_noise_filter.py`](../../../../playground/research/_smoke_noise_filter.py) — per-vendor drop tabulation against `dim_report`
+* [`_smoke_conf_event.py`](../../../../playground/research/_smoke_conf_event.py) — would-drop / would-keep / macro-bypass tabulation

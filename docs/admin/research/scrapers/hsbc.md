@@ -378,3 +378,33 @@ the crawler/filter/classifier.
   JSON XHRs intercepted on hub pages)
 * `playground/research/hsbc_explore/reach_rpp{15,100,500}.html` —
   failed XHR-style direct-fetch attempts (auth wall; for reference)
+
+## Noise filter update (2026-06-10)
+
+Shared cross-vendor noise classifier wired into
+[`ingest/filters/_noise.py::classify_noise`](../../../../playground/research/ingest/filters/_noise.py)
+and called as the final fallback inside [`filters/hsbc.py::should_exclude`](../../../../playground/research/ingest/filters/hsbc.py).
+Three universal title-pattern families plus a cross-vendor EQUITY
+conference / sales-event drop in [`relevance._is_equity_conf_event`](../../../../playground/research/ingest/relevance.py).
+
+Smoke against the full 4,498-title `research.dim_report` corpus dropped
+**8 hsbc docs**:
+
+| family | n | sample |
+|---|---|---|
+| chart-pack | 3 | European and US Credit: Weekly Chartpack: An overview of credit markets |
+| morning-note | 5 | Americas FX Morning Bullets 21 May / 3 June / 4 June 2026 (dated daily bullets) |
+| event-admin | 0 | (none) |
+| conf-event (EQUITY only) | 0 | (none — HSBC conf takeaways have n_tickers >= 2 and slip the existing filter; future tightening candidate) |
+
+The conf-event rule fires only when `result.asset_class == EQUITY` so
+MACRO-tagged "Takeaways" / "Trip Notes" titles (real policy / sovereign
+macro content) pass through unaffected.
+
+Test pins: [`test_noise_filter.py`](../../../../playground/research/test_noise_filter.py)
+(116 chart-pack / morning-note / event-admin assertions),
+[`test_relevance_conf_event.py`](../../../../playground/research/test_relevance_conf_event.py)
+(35 conf-event assertions). Re-runnable smoke harnesses:
+[`_smoke_noise_filter.py`](../../../../playground/research/_smoke_noise_filter.py),
+[`_smoke_conf_event.py`](../../../../playground/research/_smoke_conf_event.py).
+

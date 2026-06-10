@@ -594,3 +594,33 @@ Decided before crawler build, to be revisited after first 7-day smoke:
 scheduler hook for the promotion-to-`src/imdr/` cleanup. SG runs via
 `python -m playground.research.ingest_today --vendors socgen` on
 demand for now.
+
+## Noise filter update (2026-06-10)
+
+Shared cross-vendor noise classifier wired into
+[`ingest/filters/_noise.py::classify_noise`](../../../../playground/research/ingest/filters/_noise.py)
+and called as the final fallback inside [`filters/socgen.py::should_exclude`](../../../../playground/research/ingest/filters/socgen.py).
+Three universal title-pattern families plus a cross-vendor EQUITY
+conference / sales-event drop in [`relevance._is_equity_conf_event`](../../../../playground/research/ingest/relevance.py).
+
+Smoke against the full 4,498-title `research.dim_report` corpus dropped
+**3 socgen docs**:
+
+| family | n | sample |
+|---|---|---|
+| chart-pack | 2 | Korean Treasury Bonds – NSS Rich/cheap; ROMGB Chart Pack - June 2026 |
+| morning-note | 0 | (none) |
+| event-admin | 1 | Client Web Conference Invitation – Fed Digest & Market Implications -18-Jun-2026 |
+| conf-event (EQUITY only) | 0 | (none — SocGen Bernstein/SCB/ATM brand filter already catches single-name equity) |
+
+The conf-event rule fires only when `result.asset_class == EQUITY` so
+MACRO-tagged "Takeaways" / "Trip Notes" titles (real policy / sovereign
+macro content) pass through unaffected.
+
+Test pins: [`test_noise_filter.py`](../../../../playground/research/test_noise_filter.py)
+(116 chart-pack / morning-note / event-admin assertions),
+[`test_relevance_conf_event.py`](../../../../playground/research/test_relevance_conf_event.py)
+(35 conf-event assertions). Re-runnable smoke harnesses:
+[`_smoke_noise_filter.py`](../../../../playground/research/_smoke_noise_filter.py),
+[`_smoke_conf_event.py`](../../../../playground/research/_smoke_conf_event.py).
+

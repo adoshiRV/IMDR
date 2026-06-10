@@ -533,3 +533,33 @@ same listing response:
    no-op on the ULID form.
 
 Either form is a valid `rid` in the URL.
+
+## Noise filter update (2026-06-10)
+
+Shared cross-vendor noise classifier wired into
+[`ingest/filters/_noise.py::classify_noise`](../../../../playground/research/ingest/filters/_noise.py)
+and called as the final fallback inside [`filters/db.py::should_exclude`](../../../../playground/research/ingest/filters/db.py).
+Three universal title-pattern families plus a cross-vendor EQUITY
+conference / sales-event drop in [`relevance._is_equity_conf_event`](../../../../playground/research/ingest/relevance.py).
+
+Smoke against the full 4,498-title `research.dim_report` corpus dropped
+**60 db docs**:
+
+| family | n | sample |
+|---|---|---|
+| chart-pack | 15 | Fixed Income Chart Of The Day: Liquidity transmission by FHLBs; HY Packaging Weekly Rel Val |
+| morning-note | 42 | DBDaily: Jolts jump; Euro core CPI beats; Early Morning Reid: Macro Strategy; Early Morning Reid: May 2026 Performance Review |
+| event-admin | 0 | (none — covered by existing EXCLUDED_TITLE_PREFIXES tuple) |
+| conf-event (EQUITY only) | 3 | dbAccess Global Consumer Conference: Key Equity Strategy Takeaways (×3 dupes) |
+
+The conf-event rule fires only when `result.asset_class == EQUITY` so
+MACRO-tagged "Takeaways" / "Trip Notes" titles (real policy / sovereign
+macro content) pass through unaffected.
+
+Test pins: [`test_noise_filter.py`](../../../../playground/research/test_noise_filter.py)
+(116 chart-pack / morning-note / event-admin assertions),
+[`test_relevance_conf_event.py`](../../../../playground/research/test_relevance_conf_event.py)
+(35 conf-event assertions). Re-runnable smoke harnesses:
+[`_smoke_noise_filter.py`](../../../../playground/research/_smoke_noise_filter.py),
+[`_smoke_conf_event.py`](../../../../playground/research/_smoke_conf_event.py).
+

@@ -414,3 +414,33 @@ When supplied, it skips `fetch_pdf` and uses those bytes directly.
 Used only by Barclays today; other 5 vendors still go through fetch.
 Barclays needs this because its API only honours `page.evaluate('fetch(...)')`
 (needs the SPA's Origin/headers), not the pipeline's `ctx.request.get`.
+
+## Noise filter update (2026-06-10)
+
+Shared cross-vendor noise classifier wired into
+[`ingest/filters/_noise.py::classify_noise`](../../../../playground/research/ingest/filters/_noise.py)
+and called as the final fallback inside [`filters/barclays.py::should_exclude`](../../../../playground/research/ingest/filters/barclays.py).
+Three universal title-pattern families plus a cross-vendor EQUITY
+conference / sales-event drop in [`relevance._is_equity_conf_event`](../../../../playground/research/ingest/relevance.py).
+
+Smoke against the full 4,498-title `research.dim_report` corpus dropped
+**69 barclays docs**:
+
+| family | n | sample |
+|---|---|---|
+| chart-pack | 46 | CBOT Ultrabond Futures Multi-factor Analysis; Municipal Strategy: Daily Chart Decks; European Media Valuation Sheet |
+| morning-note | 6 | Before the Bell: Your Daily Best of Barclays Research |
+| event-admin | 7 | Reminder Tomorrow: Analyst Access: Build America 250; Final Reminder: Corporate Access: Credit Investor Trip; Webinar TOMORROW: Rundown on the Rundown |
+| conf-event (EQUITY only) | 10 | Private Equity Funds: Takeaways from Bain's mid-year report; ASCO Breast Cancer KOL Lunch; European Software & Payments: Takeaways from Money20/20 |
+
+The conf-event rule fires only when `result.asset_class == EQUITY` so
+MACRO-tagged "Takeaways" / "Trip Notes" titles (real policy / sovereign
+macro content) pass through unaffected.
+
+Test pins: [`test_noise_filter.py`](../../../../playground/research/test_noise_filter.py)
+(116 chart-pack / morning-note / event-admin assertions),
+[`test_relevance_conf_event.py`](../../../../playground/research/test_relevance_conf_event.py)
+(35 conf-event assertions). Re-runnable smoke harnesses:
+[`_smoke_noise_filter.py`](../../../../playground/research/_smoke_noise_filter.py),
+[`_smoke_conf_event.py`](../../../../playground/research/_smoke_conf_event.py).
+
