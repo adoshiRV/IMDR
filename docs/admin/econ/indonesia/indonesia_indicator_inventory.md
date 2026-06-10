@@ -10,39 +10,39 @@ Tracker forked from [`../country_econ_blueprint.md`](../country_econ_blueprint.m
 
 28 fetchers under `scripts/econ/` cover all 308 indicators. Orchestrator:
 `scripts/econ/id/id_monthly.py` — wired into `scripts/imdr_monthly.py:PIPELINES` 2026-06-09.
-`scripts.econ.bi.bi_srbi` — wired into `scripts/imdr_daily.py:PIPELINES` 2026-06-10.
+`scripts.econ.id.bi.bi_srbi` — wired into `scripts/imdr_daily.py:PIPELINES` 2026-06-10.
 See [indonesia_prod_pipeline.md](indonesia_prod_pipeline.md).
 
 | Fetcher | Indicators (approx) |
 |---|---:|
-| `scripts.econ.bis.bis_indonesia` | 6 |
-| `scripts.econ.bps.bps_cpi` | 4 |
-| `scripts.econ.bps.bps_cpi_groups` | 11 |
-| `scripts.econ.bps.bps_gdp` | 7 |
-| `scripts.econ.bps.bps_gdp_components` | 24 |
-| `scripts.econ.bps.bps_ip` | 4 |
-| `scripts.econ.bps.bps_labour` | 3 |
-| `scripts.econ.bps.bps_ppi` | 8 |
-| `scripts.econ.bps.bps_prices_current` | 8 |
-| `scripts.econ.bps.bps_sakernas` | 12 |
-| `scripts.econ.bps.bps_trade` | 6 |
-| `scripts.econ.bi.bi_bank_bs` | 8 |
-| `scripts.econ.bi.bi_bank_credit` | 15 |
-| `scripts.econ.bi.bi_bank_rates` | 13 |
-| `scripts.econ.bi.bi_bop` | 5 |
-| `scripts.econ.bi.bi_business_survey` | 18 |
-| `scripts.econ.bi.bi_consumer_survey` | 9 |
-| `scripts.econ.bi.bi_fiscal` | 6 |
-| `scripts.econ.bi.bi_fx_reserves` | 5 |
-| `scripts.econ.bi.bi_monetary_base` | 5 |
-| `scripts.econ.bi.bi_money_supply` | 10 |
-| `scripts.econ.bi.bi_retail_sales` | 9 |
-| `scripts.econ.bi.bi_sbn` | 5 |
-| `scripts.econ.bi.bi_sbn_position` | 19 |
-| `scripts.econ.bi.bi_skdu_macro` | 36 |
-| `scripts.econ.bi.bi_srbi` | 3 |
-| `scripts.econ.bi.bi_sulni` | 8 |
-| `scripts.econ.djppr.djppr_sbn_ownership` | 36 |
+| `scripts.econ.id.bis.bis_indonesia` | 6 |
+| `scripts.econ.id.bps.bps_cpi` | 4 |
+| `scripts.econ.id.bps.bps_cpi_groups` | 11 |
+| `scripts.econ.id.bps.bps_gdp` | 7 |
+| `scripts.econ.id.bps.bps_gdp_components` | 24 |
+| `scripts.econ.id.bps.bps_ip` | 4 |
+| `scripts.econ.id.bps.bps_labour` | 3 |
+| `scripts.econ.id.bps.bps_ppi` | 8 |
+| `scripts.econ.id.bps.bps_prices_current` | 8 |
+| `scripts.econ.id.bps.bps_sakernas` | 12 |
+| `scripts.econ.id.bps.bps_trade` | 6 |
+| `scripts.econ.id.bi.bi_bank_bs` | 8 |
+| `scripts.econ.id.bi.bi_bank_credit` | 15 |
+| `scripts.econ.id.bi.bi_bank_rates` | 13 |
+| `scripts.econ.id.bi.bi_bop` | 5 |
+| `scripts.econ.id.bi.bi_business_survey` | 18 |
+| `scripts.econ.id.bi.bi_consumer_survey` | 9 |
+| `scripts.econ.id.bi.bi_fiscal` | 6 |
+| `scripts.econ.id.bi.bi_fx_reserves` | 5 |
+| `scripts.econ.id.bi.bi_monetary_base` | 5 |
+| `scripts.econ.id.bi.bi_money_supply` | 10 |
+| `scripts.econ.id.bi.bi_retail_sales` | 9 |
+| `scripts.econ.id.bi.bi_sbn` | 5 |
+| `scripts.econ.id.bi.bi_sbn_position` | 19 |
+| `scripts.econ.id.bi.bi_skdu_macro` | 36 |
+| `scripts.econ.id.bi.bi_srbi` | 3 |
+| `scripts.econ.id.bi.bi_sulni` | 8 |
+| `scripts.econ.id.djppr.djppr_sbn_ownership` | 36 |
 | **Total** | **308** |
 
 DJPPR Kepemilikan SBN wired into `id_monthly.py` 2026-06-09 (parser library at `src/imdr/domains/econ/djppr_kepemilikan.py`). Pre-2016 legacy XLSX deferred → [IMD-42](https://linear.app/imdr/issue/IMD-42).

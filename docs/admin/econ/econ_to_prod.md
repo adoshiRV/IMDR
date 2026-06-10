@@ -16,6 +16,25 @@ Sister doc to [`onboarding_new_country.md`](onboarding_new_country.md). That doc
 
 Reinforces [[feedback-no-prod-wiring-without-permission]] + [[feedback-playground-only-for-exploration]].
 
+> ## ⛔ HARD RULE — directory layout for prod (data strict country-first, scripts country-first, playground free-form)
+>
+> Codified 2026-06-10 after the country-first refactor (Phases 1-3) reshuffled every existing vendor. This is the contract every prod promotion must satisfy. Same wording lives at the top of [`onboarding_new_country.md`](onboarding_new_country.md) — repeated here because promotion is where it's tested.
+>
+> | Tree | Layout | Enforcement |
+> |---|---|---|
+> | `data/econ/` | **STRICTLY country-first.** `data/econ/{cc}/{vendor}/{topic}/{Y}/{M}/{D}/...` for series, `data/econ/{cc}/govt/{vendor}/...` for filings. **No vendor-at-root, ever.** Multi-country vendors slice per-country (`data/econ/id/bis/`, `data/econ/in/bis/`). | Enforced at runtime by `scripts/econ/_runner.py:_normalise_country_code` — mandatory keyword-only `country_code` on `run_main(...)`; raises `TypeError`/`ValueError`. |
+> | `scripts/econ/` | **Country-first.** `scripts/econ/{cc}/{vendor}/{vendor}_{topic}.py` for series; `scripts/econ/{cc}/govt/...` for filings; orchestrators at `scripts/econ/{cc}/{cc}_{cadence}.py`. | Enforced by code review on every PR. No exceptions. |
+> | `playground/econ/` | **Free-form** — vendor-first / multi-country / profile-dir shapes all OK during discovery. Soft preference: when discovery is single-country, prefer `playground/econ/{cc}/{vendor}/` to make promotion mechanical. | Not enforced — discovery is exploratory. The strict layout kicks in **at promotion**. |
+> | `src/imdr/domains/econ/` | Vendor-keyed library code is country-agnostic. Library-side caches (e.g. `bi_seki.py:_RAW_DIR`) that bypass `_runner.py` must still encode the country in the path manually: `_REPO_ROOT / "data" / "econ" / "{cc}" / "{vendor}" / ...`. | Audited at code review — anywhere a raw `_RAW_DIR` or `_CACHE_DIR` constant is built, country must be in the path string. |
+>
+> **At promotion, the path swap is mechanical:**
+> 1. Move `playground/econ/{vendor}/...` to `scripts/econ/{cc}/{vendor}/` (preserve git history with `git mv`).
+> 2. Wire `country_code="{CC}"` into every `run_main(...)` call.
+> 3. Adjust any `_REPO_ROOT = Path(__file__).resolve().parents[N]` — file moves one level deeper, `N` increases by 1.
+> 4. `data/econ/{vendor}/...` from playground sample-output stays in playground; the prod tree always starts fresh under `data/econ/{cc}/{vendor}/` once the runner fires.
+>
+> Reinforces [[feedback-data-strict-country-first]]. See [project-econ-country-first-refactor-complete] for the 2026-06-10 retrofit (3 PRs across KR / ID / IN).
+
 > ## ⭐ Korea is the complete reference — use it as the template
 >
 > As of **2026-06-10**, Korea has both tracks fully live in prod. Every file path, migration, doc, and orchestrator pattern below has a worked example sitting in the repo. When promoting a new country, the fastest correct path is to **`diff` against Korea's tree**:
@@ -24,7 +43,7 @@ Reinforces [[feedback-no-prod-wiring-without-permission]] + [[feedback-playgroun
 > |---|---|
 > | Discovery inventory (B) | [`korea/govt_doc_sources.md`](korea/govt_doc_sources.md) |
 > | Domain library (A) | [`src/imdr/domains/econ/`](../../../src/imdr/domains/econ/) (kosis_http.py + schema.py) |
-> | Per-vendor fetchers (A) | [`scripts/econ/kosis/`](../../../scripts/econ/kosis/) (19 fetchers) · [`scripts/econ/reb/`](../../../scripts/econ/reb/) |
+> | Per-vendor fetchers (A) | [`scripts/econ/kr/kosis/`](../../../scripts/econ/kr/kosis/) (19 fetchers) · [`scripts/econ/kr/reb/`](../../../scripts/econ/kr/reb/) |
 > | Per-agency fetchers (B) | [`scripts/econ/kr/govt/fetch_*.py`](../../../scripts/econ/kr/govt/) (7 agencies) |
 > | Per-agency resolvers (B) | [`scripts/econ/kr/govt/resolvers.py`](../../../scripts/econ/kr/govt/resolvers.py) |
 > | Shared TLS/HTTP (B) | [`scripts/econ/kr/govt/_http.py`](../../../scripts/econ/kr/govt/_http.py) |
@@ -37,6 +56,7 @@ Reinforces [[feedback-no-prod-wiring-without-permission]] + [[feedback-playgroun
 > | Track B execution tracker | [`../development/kr_govt_filings.md`](../development/kr_govt_filings.md) |
 > | Track A migrations | various per vendor (kosis, reb seeds) |
 > | Track B migrations | [`migrations/086_add_dim_vendor_category.sql`](../../../migrations/086_add_dim_vendor_category.sql) (cross-country) + [`migrations/087_seed_kr_official_vendors.sql`](../../../migrations/087_seed_kr_official_vendors.sql) (per-country) |
+> | Track B runtime state | `data/econ/kr/govt/{vendor}/` — `seen.json` (per-vendor rolling dedup) + `snapshots/{YYYY-MM-DD}.json` (per-vendor daily new-items manifest). `_last_run.log` at the parent (cross-vendor orchestrator output). Per-machine, gitignored via top-level `data/*` rule. Mirrors the country-first convention (`data/econ/{cc}/{vendor}/`) used everywhere post-2026-06-10 refactor AND the SharePoint vendor layout (`econ/kr/{vendor}/`). |
 >
 > Live state on Korea: **172 indicators × ~265k obs in `econ.fact_indicator`** (Track A) + **307+ filings, ~600 Qdrant chunks** in `research.dim_report` (Track B), self-sustaining daily.
 
@@ -46,7 +66,7 @@ Reinforces [[feedback-no-prod-wiring-without-permission]] + [[feedback-playgroun
 
 | Track | Discovery deliverable | Prod target |
 |---|---|---|
-| **A — Data series** | `playground/econ/{vendor}/{fetch_*.py, _{vendor}_*.py}` + `sample_output/*.parquet` | `src/imdr/domains/econ/{vendor}_*.py` (library) + `scripts/econ/{vendor}/{vendor}_{topic}.py` (fetchers) + `scripts/econ/{cc}/{cc}_monthly.py` (orchestrator) + `scripts/imdr_monthly.py:PIPELINES` (scheduler) → `econ.fact_indicator` |
+| **A — Data series** | `playground/econ/{vendor}/{fetch_*.py, _{vendor}_*.py}` + `sample_output/*.parquet` | `src/imdr/domains/econ/{vendor}_*.py` (library) + `scripts/econ/{cc}/{vendor}/{vendor}_{topic}.py` (fetchers — country-first per the HARD RULE) + `scripts/econ/{cc}/{cc}_monthly.py` (orchestrator) + `scripts/imdr_monthly.py:PIPELINES` (scheduler) → `econ.fact_indicator` |
 | **B — Govt/CB documents** | `playground/econ/{cc}/govt/{fetch_*.py, daily_pull.py}` + `data/snapshots/*.json` manifests | `migrations/086_add_dim_vendor_category.sql` (cross-country, **applied 2026-06-10** for Korea) + per-country vendor-seed migration applied + `src/imdr/research/filings.py:ingest_filing()` complete + `scripts/econ/{cc}/govt/ingest_filings.py` (renamed from playground `daily_pull.py`) + `scripts/econ/{cc}/{cc}_daily.py` + `scripts/imdr_daily.py:PIPELINES` → `research.dim_report` + Qdrant + SharePoint |
 
 ---
@@ -57,10 +77,10 @@ Reinforces [[feedback-no-prod-wiring-without-permission]] + [[feedback-playgroun
 
 ### G.1 Hard rule — zero playground imports in prod
 
-`scripts/econ/{vendor}/` and `src/imdr/domains/econ/` must have **zero `playground.*` imports**. Playground stays as the development surface; production is its own tree. Verify with a grep before any docs step:
+`scripts/econ/{cc}/{vendor}/` and `src/imdr/domains/econ/` must have **zero `playground.*` imports**. Playground stays as the development surface; production is its own tree. Verify with a grep before any docs step:
 
 ```
-grep -r "playground" scripts/econ/{vendor}/ src/imdr/domains/econ/
+grep -r "playground" scripts/econ/{cc}/{vendor}/ src/imdr/domains/econ/
 ```
 
 No matches = safe to proceed.
@@ -68,16 +88,16 @@ No matches = safe to proceed.
 ### G.2 Promotion sequence
 
 **Step 1 — Promote helpers to `src/`.**
-Copy `playground/econ/{vendor}/_{vendor}_*.py` to `src/imdr/domains/econ/{vendor}_*.py` (drop the leading underscore — they become first-class library modules). Update `_REPO_ROOT = Path(__file__).resolve().parents[N]` to match the new depth (typically `parents[4]` for `src/imdr/domains/econ/`).
+Copy `playground/econ/{vendor}/_{vendor}_*.py` to `src/imdr/domains/econ/{vendor}_*.py` (drop the leading underscore — they become first-class library modules). Update `_REPO_ROOT = Path(__file__).resolve().parents[N]` to match the new depth (typically `parents[4]` for `src/imdr/domains/econ/`). If the library module needs a raw-data cache (e.g. `bi_seki.py:_RAW_DIR`), bake the country into the path: `_REPO_ROOT / "data" / "econ" / "{cc}" / "{vendor}" / ...` — library-side paths bypass `_runner.py`, so the country-first contract has to be enforced manually.
 
 **Step 2 — Re-implement fetchers as prod scripts.**
-For each `playground/econ/{vendor}/fetch_*.py`, create `scripts/econ/{vendor}/{vendor}_{topic}.py`. Reference pattern: `scripts/econ/kosis/kosis_cpi.py`.
+For each `playground/econ/{vendor}/fetch_*.py`, create `scripts/econ/{cc}/{vendor}/{vendor}_{topic}.py`. Reference pattern: `scripts/econ/kr/kosis/kosis_cpi.py`.
 
 Required structure:
 - Short docstring (1-2 paragraphs; trim playground exploration commentary)
 - Imports from `imdr.domains.econ.{helper}` + `imdr.domains.econ.schema` + `scripts.econ._runner`
 - `run_fetch(since, until) -> (indicators, observations)` — body lifted from playground, import paths swapped
-- `main()` delegates to `scripts.econ._runner.run_main(vendor, topic, fetch_fn, description)`
+- `main()` delegates to `scripts.econ._runner.run_main(vendor, topic, fetch_fn, description, country_code="{CC}")` — **`country_code` is mandatory keyword-only** (2-letter ISO, uppercase by convention; lowercased on disk). Omitting it raises `TypeError`; bad shape raises `ValueError`. Pinned in [feedback-data-strict-country-first].
 - Strip: `sys.stdout = io.TextIOWrapper(...)`, `sys.path.insert(0, str(_REPO_ROOT))`, leftover `cli_main(...)` stubs
 
 **Step 3 — Build the country orchestrator.**
@@ -121,7 +141,7 @@ Run `imdr-code-reviewer` on the new prod tree before touching docs. Hard checkli
 1. Zero `playground.*` imports in `scripts/econ/{vendor}/` and `src/imdr/domains/econ/`
 2. No back-compat shims for files deleted during generalisation
 3. Existing countries (Korea) still pass their smoke tests
-4. Fetcher structure matches `scripts/econ/kosis/kosis_cpi.py`
+4. Fetcher structure matches `scripts/econ/kr/kosis/kosis_cpi.py`
 5. `imdr_code` built via dimension columns in `_TABLES`, not `if/elif` on a prefix string
 6. Placeholder constants carry their rationale comment
 7. `_REPO_ROOT` depth correct for new file location
@@ -212,7 +232,7 @@ Set in `.env` (loaded by `pydantic-settings` via `imdr.config.settings.get_setti
 
 ### G.9 Worked examples
 
-- **Korea** — `docs/admin/econ/korea/korea_prod_pipeline.md`, `scripts/econ/kr/kr_monthly.py`, `scripts/econ/kosis/`
+- **Korea** — `docs/admin/econ/korea/korea_prod_pipeline.md`, `scripts/econ/kr/kr_monthly.py`, `scripts/econ/kr/kosis/`
 - **Indonesia** — `docs/admin/econ/indonesia/indonesia_prod_pipeline.md`, `scripts/econ/id/id_monthly.py`, `scripts/econ/{bps,bi,bis}/`
 
 ---
@@ -295,7 +315,7 @@ Run `imdr-code-reviewer` on the new prod tree. Track-B-specific checklist:
 2. `filings.ingest_filing()` honours BOTH `pdf_bytes` and `body_text` paths
 3. No relevance-filter / classifier code copied over from sell-side ingest
 4. Per-agency fetchers all return uniform `FetchResult` of `FilingItem`
-5. `seen.json` path is configurable (playground vs prod archive locations)
+5. Runtime state lives at `data/econ/{cc}/govt/{vendor}/` (NOT `scripts/econ/{cc}/govt/data/`, NOT a single shared `data/econ/{cc}/govt/seen.json`). Each agency gets its own `seen.json` + `snapshots/` subtree; the orchestrator log stays at the parent `data/econ/{cc}/govt/_last_run.log`. Centralise the path in `_models.py:DATA_DIR` + `vendor_dir(code)` + `vendor_seen_file(code)` + `vendor_snapshots_dir(code)` so `ingest_filings.py` + `resolvers.py` + `{cc}_daily.py` all import from one constant. `load_seen()` / `save_seen()` keep a flat-set API; partitioning happens at IO time via the `"{vendor}|{url}"` dedup-key convention.
 6. Migrations 086/{NNN} drafted with backfill assertions
 7. No `dim_vendor` insert that omits `vendor_category`
 

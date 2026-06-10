@@ -63,11 +63,11 @@ Domain library code lives in `src/imdr/domains/econ/`:
 Two fetchers are registered in `scripts/imdr_daily.py:PIPELINES` (non-Citi block,
 `estimated_tags=0`) for event-driven Indonesian series:
 
-**`scripts.econ.bis.bis_indonesia`** — BIS `WS_CBPOL` policy rate is event-driven;
+**`scripts.econ.id.bis.bis_indonesia`** — BIS `WS_CBPOL` policy rate is event-driven;
 changes only when BI's RDG meeting moves the rate. Daily wiring catches the move
 within 24h.
 
-**`scripts.econ.bi.bi_srbi`** (added 2026-06-10) — BI SRBI auctions run roughly
+**`scripts.econ.id.bi.bi_srbi`** (added 2026-06-10) — BI SRBI auctions run roughly
 twice-weekly (Wed + Fri). The fetcher walks auction pages from `(since, until)` and
 skips 302s (non-auction days), so a daily run is cheap. Indicators: `BI.RATES.SRBI_6M.LEVEL.ID`,
 `BI.RATES.SRBI_9M.LEVEL.ID`, `BI.RATES.SRBI_12M.LEVEL.ID`; frequency=EVENT;
@@ -95,38 +95,38 @@ idempotent (MERGE on PK): running them monthly catches every release window
 without per-cadence scheduling.
 
 Fans out to **27 fetchers sequentially** (BPS/BI portal throttle discourages
-concurrency; BIS is fast enough that parallelism adds no benefit). `scripts.econ.bi.bi_srbi`
+concurrency; BIS is fast enough that parallelism adds no benefit). `scripts.econ.id.bi.bi_srbi`
 is **not** in this bundle — it runs daily via `imdr_daily.py` (see §Daily above):
 
 | Fetcher | Vendor | Primary cadence | Approx indicators |
 |---|---|:---:|---:|
-| `scripts.econ.bis.bis_indonesia` | BIS SDMX-JSON | Daily / Monthly / Quarterly | 6 |
-| `scripts.econ.bps.bps_cpi` | BPS REST JSON | Monthly | 4 |
-| `scripts.econ.bps.bps_cpi_groups` | BPS REST JSON | Monthly | 11 |
-| `scripts.econ.bps.bps_gdp` | BPS REST JSON | Quarterly | 7 |
-| `scripts.econ.bps.bps_gdp_components` | BPS REST JSON | Quarterly | 24 |
-| `scripts.econ.bps.bps_ip` | BPS REST JSON | Quarterly | 4 |
-| `scripts.econ.bps.bps_labour` | BPS REST JSON | Monthly / Annual | 3 |
-| `scripts.econ.bps.bps_ppi` | BPS REST JSON | Quarterly / Monthly | 8 |
-| `scripts.econ.bps.bps_prices_current` | BPS REST JSON | Quarterly / Monthly | 8 |
-| `scripts.econ.bps.bps_sakernas` | BPS REST JSON | Semi-annual | 12 |
-| `scripts.econ.bps.bps_trade` | BPS REST JSON | Monthly | 6 |
-| `scripts.econ.bi.bi_bank_bs` | BI SEKI XLSX | Monthly | 8 |
-| `scripts.econ.bi.bi_bank_credit` | BI SEKI XLSX | Monthly | 15 |
-| `scripts.econ.bi.bi_bank_rates` | BI SEKI XLSX | Monthly | 13 |
-| `scripts.econ.bi.bi_bop` | BI SEKI XLSX | Quarterly | 5 |
-| `scripts.econ.bi.bi_business_survey` | BI Survey ZIP (SKDU) | Quarterly | 18 |
-| `scripts.econ.bi.bi_consumer_survey` | BI Survey ZIP (SK) | Monthly | 9 |
-| `scripts.econ.bi.bi_fiscal` | BI SEKI XLSX | Annual | 6 |
-| `scripts.econ.bi.bi_fx_reserves` | BI SEKI XLSX | Monthly | 5 |
-| `scripts.econ.bi.bi_monetary_base` | BI SEKI XLSX | Monthly | 5 |
-| `scripts.econ.bi.bi_money_supply` | BI SEKI XLSX | Monthly | 10 |
-| `scripts.econ.bi.bi_retail_sales` | BI Survey ZIP (spe) | Monthly | 9 |
-| `scripts.econ.bi.bi_sbn` | BI SEKI XLSX | Monthly | 5 |
-| `scripts.econ.bi.bi_sbn_position` | BI SEKI XLSX (TABEL4_4) | Monthly | 19 |
-| `scripts.econ.bi.bi_skdu_macro` | BI SEKI XLSX | Quarterly | 36 |
-| `scripts.econ.bi.bi_sulni` | BI SEKI XLSX | Quarterly | 8 |
-| `scripts.econ.djppr.djppr_sbn_ownership` | DJPPR listing API + XLSX/PDF | Daily | 36 |
+| `scripts.econ.id.bis.bis_indonesia` | BIS SDMX-JSON | Daily / Monthly / Quarterly | 6 |
+| `scripts.econ.id.bps.bps_cpi` | BPS REST JSON | Monthly | 4 |
+| `scripts.econ.id.bps.bps_cpi_groups` | BPS REST JSON | Monthly | 11 |
+| `scripts.econ.id.bps.bps_gdp` | BPS REST JSON | Quarterly | 7 |
+| `scripts.econ.id.bps.bps_gdp_components` | BPS REST JSON | Quarterly | 24 |
+| `scripts.econ.id.bps.bps_ip` | BPS REST JSON | Quarterly | 4 |
+| `scripts.econ.id.bps.bps_labour` | BPS REST JSON | Monthly / Annual | 3 |
+| `scripts.econ.id.bps.bps_ppi` | BPS REST JSON | Quarterly / Monthly | 8 |
+| `scripts.econ.id.bps.bps_prices_current` | BPS REST JSON | Quarterly / Monthly | 8 |
+| `scripts.econ.id.bps.bps_sakernas` | BPS REST JSON | Semi-annual | 12 |
+| `scripts.econ.id.bps.bps_trade` | BPS REST JSON | Monthly | 6 |
+| `scripts.econ.id.bi.bi_bank_bs` | BI SEKI XLSX | Monthly | 8 |
+| `scripts.econ.id.bi.bi_bank_credit` | BI SEKI XLSX | Monthly | 15 |
+| `scripts.econ.id.bi.bi_bank_rates` | BI SEKI XLSX | Monthly | 13 |
+| `scripts.econ.id.bi.bi_bop` | BI SEKI XLSX | Quarterly | 5 |
+| `scripts.econ.id.bi.bi_business_survey` | BI Survey ZIP (SKDU) | Quarterly | 18 |
+| `scripts.econ.id.bi.bi_consumer_survey` | BI Survey ZIP (SK) | Monthly | 9 |
+| `scripts.econ.id.bi.bi_fiscal` | BI SEKI XLSX | Annual | 6 |
+| `scripts.econ.id.bi.bi_fx_reserves` | BI SEKI XLSX | Monthly | 5 |
+| `scripts.econ.id.bi.bi_monetary_base` | BI SEKI XLSX | Monthly | 5 |
+| `scripts.econ.id.bi.bi_money_supply` | BI SEKI XLSX | Monthly | 10 |
+| `scripts.econ.id.bi.bi_retail_sales` | BI Survey ZIP (spe) | Monthly | 9 |
+| `scripts.econ.id.bi.bi_sbn` | BI SEKI XLSX | Monthly | 5 |
+| `scripts.econ.id.bi.bi_sbn_position` | BI SEKI XLSX (TABEL4_4) | Monthly | 19 |
+| `scripts.econ.id.bi.bi_skdu_macro` | BI SEKI XLSX | Quarterly | 36 |
+| `scripts.econ.id.bi.bi_sulni` | BI SEKI XLSX | Quarterly | 8 |
+| `scripts.econ.id.djppr.djppr_sbn_ownership` | DJPPR listing API + XLSX/PDF | Daily | 36 |
 
 Annual and semi-annual fetchers (Sakernas, fiscal) are included here: MERGE on
 PK makes them idempotent — running monthly catches every release window without
@@ -146,23 +146,23 @@ python -m scripts.econ.id.id_monthly
 
 ```
 # BIS (smallest, no auth, fast smoke-test)
-python -m scripts.econ.bis.bis_indonesia
+python -m scripts.econ.id.bis.bis_indonesia
 
 # BPS examples
-python -m scripts.econ.bps.bps_cpi
-python -m scripts.econ.bps.bps_gdp
-python -m scripts.econ.bps.bps_sakernas
+python -m scripts.econ.id.bps.bps_cpi
+python -m scripts.econ.id.bps.bps_gdp
+python -m scripts.econ.id.bps.bps_sakernas
 
 # BI examples
-python -m scripts.econ.bi.bi_money_supply
-python -m scripts.econ.bi.bi_bop
-python -m scripts.econ.bi.bi_bank_rates
+python -m scripts.econ.id.bi.bi_money_supply
+python -m scripts.econ.id.bi.bi_bop
+python -m scripts.econ.id.bi.bi_bank_rates
 
 # BI SRBI (daily-only; not in id_monthly)
-python -m scripts.econ.bi.bi_srbi
+python -m scripts.econ.id.bi.bi_srbi
 
 # BI SBN position by holder (monthly, in id_monthly)
-python -m scripts.econ.bi.bi_sbn_position
+python -m scripts.econ.id.bi.bi_sbn_position
 ```
 
 ### Per-fetcher CLI flags (all fetchers via `_runner.run_main`)
@@ -178,13 +178,13 @@ Examples:
 
 ```
 # Check what BPS CPI would produce without writing anything
-python -m scripts.econ.bps.bps_cpi --no-parquet
+python -m scripts.econ.id.bps.bps_cpi --no-parquet
 
 # Fetch only 2026 data, write parquet, skip DB load
-python -m scripts.econ.bi.bi_bop --since 2026-01-01 --no-load
+python -m scripts.econ.id.bi.bi_bop --since 2026-01-01 --no-load
 
 # Full fetch + load for a single topic
-python -m scripts.econ.bis.bis_indonesia
+python -m scripts.econ.id.bis.bis_indonesia
 ```
 
 ---
@@ -349,8 +349,8 @@ Do not work around by disabling FK checks.
 ```
 python -m scripts.migrations.load_econ_indicator_from_playground \
     --vendor bps \
-    --dim-parquet data/econ/bps/cpi/2026/06/09/bps_cpi_20260609_1015_dim.parquet \
-    --fact-parquet data/econ/bps/cpi/2026/06/09/bps_cpi_20260609_1015_fact.parquet
+    --dim-parquet data/econ/id/bps/cpi/2026/06/09/bps_cpi_20260609_1015_dim.parquet \
+    --fact-parquet data/econ/id/bps/cpi/2026/06/09/bps_cpi_20260609_1015_fact.parquet
 ```
 
 The parquet files are on disk — no need to re-fetch from the vendor.
@@ -361,19 +361,19 @@ The parquet files are on disk — no need to re-fetch from the vendor.
 
 ```
 # Smallest fetcher — BIS, no auth, fast (~5 s)
-python -m scripts.econ.bis.bis_indonesia
+python -m scripts.econ.id.bis.bis_indonesia
 
 # BI SRBI — daily-only fetcher; no auth; 302s expected on non-auction days
-python -m scripts.econ.bi.bi_srbi --no-load
+python -m scripts.econ.id.bi.bi_srbi --no-load
 
 # Spot-check a BPS fetcher without touching DB
-python -m scripts.econ.bps.bps_cpi --no-load
+python -m scripts.econ.id.bps.bps_cpi --no-load
 
 # Spot-check a BI SEKI fetcher without touching DB
-python -m scripts.econ.bi.bi_money_supply --no-load
+python -m scripts.econ.id.bi.bi_money_supply --no-load
 
 # Confirm idempotency: re-run and expect 0 new DB rows
-python -m scripts.econ.bis.bis_indonesia
+python -m scripts.econ.id.bis.bis_indonesia
 
 # Full monthly bundle (expect several minutes)
 python -m scripts.econ.id.id_monthly
@@ -394,5 +394,5 @@ separately). **For anything production-bound, use `scripts/econ/` — not
 
 Note: `playground/econ/bi/_srbi.py` and `playground/econ/bi/fetch_srbi.py`
 were used for the initial SRBI backfill (2026-06-10) and remain for
-reference. The prod fetcher is `scripts/econ/bi/bi_srbi.py` backed by
+reference. The prod fetcher is `scripts/econ/id/bi/bi_srbi.py` backed by
 `src/imdr/domains/econ/bi_srbi.py`.

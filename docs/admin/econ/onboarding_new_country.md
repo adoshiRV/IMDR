@@ -2,12 +2,27 @@
 
 Last updated: 2026-06-10
 
+> ## ⛔ HARD RULE — directory layout (data strict, scripts strict, playground free-form)
+>
+> Codified 2026-06-10 after the country-first refactor (Phases 1-3) reshuffled every existing vendor into per-country buckets. This rule is **non-negotiable** for new country onboardings — don't recreate the vendor-first mess we just unwound.
+>
+> | Tree | Layout | Why |
+> |---|---|---|
+> | `data/econ/` | **STRICTLY country-first.** `data/econ/{cc}/{vendor}/{topic}/{Y}/{M}/{D}/...` for series, `data/econ/{cc}/govt/{vendor}/...` for filings. No vendor-at-root, ever — even for multi-country vendors (BIS gets sliced: `data/econ/id/bis/`, `data/econ/in/bis/`). | The on-disk artefact tree is the inventory of who-publishes-what for each country. Vendor-at-root collapses Indonesia and India's BIS slices into one folder, losing the country anchor. |
+> | `scripts/econ/` | **Country-first.** `scripts/econ/{cc}/{vendor}/{vendor}_{topic}.py` for series, `scripts/econ/{cc}/govt/...` for filings. Country orchestrators at `scripts/econ/{cc}/{cc}_{cadence}.py`. | Production code should be predictable and country-scoped. New fetchers always land under the country, never under a vendor folder at the root. |
+> | `playground/econ/` | **Free-form.** Vendor-first is allowed, multi-country probes are allowed, profile dirs are allowed. Soft preference (not enforced) — when discovery work clearly belongs to a single country, prefer `playground/econ/{cc}/{vendor}/` to make the eventual promotion mechanical. | Discovery is exploratory; messy ad-hoc shapes during a probe are fine. The strict layout kicks in **at promotion**, not during discovery. |
+> | `src/imdr/domains/econ/` | Unchanged — library modules are country-agnostic, keyed by vendor name. | Library code is reused across countries; it doesn't have a "country" axis. |
+>
+> Mandatory `country_code` plumbing: `scripts/econ/_runner.py:run_main(...)` takes a **mandatory keyword-only** `country_code` arg. Every prod fetcher must pass an explicit 2-letter ISO code. `_normalise_country_code` raises `TypeError` (non-string) or `ValueError` (wrong shape) — no silent rogue paths.
+>
+> Multi-country vendors (BIS, FAO, FRED-mirrors of foreign series) emit per-country slices that each live under the country's tree. The same Python module may produce data for multiple countries — that's fine; it just gets invoked once per country with the appropriate `country_code` and `topic`.
+
 > ## ⛔ HARD RULE — playground-only until user sign-off
 >
-> **Everything in this playbook stays inside `playground/econ/{vendor}/` (Track A) or `playground/econ/{cc}/govt/` (Track B) until the work is finished AND the user has explicitly approved promotion.**
+> **Everything in this playbook stays inside `playground/econ/` (any shape — see the layout rule above) until the work is finished AND the user has explicitly approved promotion.**
 >
 > Do NOT, under any circumstance, without explicit user OK:
-> - Create files under `scripts/econ/{vendor}/`, `scripts/econ/{cc}/`, or `src/imdr/domains/econ/`
+> - Create files under `scripts/econ/{cc}/{vendor}/` or `src/imdr/domains/econ/`
 > - Register pipelines in `scripts/imdr_{daily,hourly,weekly,monthly,quarterly,retry}.py:PIPELINES`
 > - Apply migrations that touch `dbo.dim_vendor`, `econ.*`, or any prod schema
 > - Write to `econ.fact_indicator`, `research.dim_report`, Qdrant, or SharePoint from a production code path
@@ -276,7 +291,7 @@ After Steps 1-5 + Phase H discovery work below, the country has:
 
 **That is the deliverable.** Summarise findings to the user (counts, blockers, Tier-1 coverage) and **stop**. Do NOT proceed to prod promotion in the same session unless explicitly instructed.
 
-Prod promotion — copying helpers to `src/imdr/domains/econ/`, building `scripts/econ/{vendor}/`, the country orchestrator at `scripts/econ/{cc}/{cc}_monthly.py` and (for Track B) `scripts/econ/{cc}/{cc}_daily.py`, scheduler registration, code-review gate, prod-pipeline doc — is a **separate, gated workflow**. See **[`econ_to_prod.md`](econ_to_prod.md)** for the full playbook (Track A Phase G + Track B Phase J, including migration apply + scheduler wiring gates).
+Prod promotion — copying helpers to `src/imdr/domains/econ/`, building `scripts/econ/{cc}/{vendor}/` (country-first per the layout rule above), the country orchestrator at `scripts/econ/{cc}/{cc}_monthly.py` and (for Track B) `scripts/econ/{cc}/{cc}_daily.py`, scheduler registration, code-review gate, prod-pipeline doc — is a **separate, gated workflow**. See **[`econ_to_prod.md`](econ_to_prod.md)** for the full playbook (Track A Phase G + Track B Phase J, including migration apply + scheduler wiring gates).
 
 **Reference end-state** (Korea, 2026-06-10): both tracks live in prod. Discovery deliverables above + applied migrations + promoted `scripts/econ/kr/govt/` tree + `scripts/econ/kr/kr_{daily,weekly,monthly}.py` orchestrators + registered in all three `scripts/imdr_{daily,weekly,monthly}.py:PIPELINES`. Use Korea's file tree as the template when promoting any new country.
 

@@ -20,7 +20,7 @@ playground/econ/bi/
 ├── fetch_sbn.py            (SEKI IV.4, monthly SBN outstanding)
 ├── fetch_bop.py            (SEKI V.1, quarterly BoP summary)
 ├── fetch_fx_reserves.py    (SEKI V.9, monthly FX reserves position)
-├── fetch_srbi.py           (SRBI auction yields, initial backfill, 2026-06-10; prod is scripts/econ/bi/bi_srbi.py)
+├── fetch_srbi.py           (SRBI auction yields, initial backfill, 2026-06-10; prod is scripts/econ/id/bi/bi_srbi.py)
 ├── fetch_sulni.py          (SEKI VI.1, quarterly external debt)
 ├── seki_raw/           ← cached XLSX downloads
 └── sample_output/      ← parquet outputs (dim + fact pairs)
@@ -162,9 +162,9 @@ quarters (vs SEKI's `Q1` / `Q2` / `Q3` / `Q4`). Handled in
 | `fetch_retail_sales` (spe.zip) | 9 | 1,467 | Monthly 2012→2025 | 1.1 Private Demand — Real Sales Index + 8 categories |
 | `fetch_business_survey` (SKDU.zip T1) | 18 | 234 | Quarterly 2022→2025 | 1.4 Macro Core / 1.1 — Business Activity SBT TOTAL + 17 sectors |
 | `fetch_skdu_macro` (SKDU.zip T2 + T5 + T6) | 42 | 522 | Quarterly 2022→2025 | 2.3 Domestic Costs — Capacity Utilisation + Selling Prices + Inflation Expectations × sectors |
-| **SRBI auction pages** (prod: `scripts.econ.bi.bi_srbi`) | | | | |
+| **SRBI auction pages** (prod: `scripts.econ.id.bi.bi_srbi`) | | | | |
 | `fetch_srbi` (SRBI 6M/9M/12M) | 3 | 485 | Event ~2×/week 2023-09-15→2026-06-10 | 4.3 Fin Conditions — SRBI weighted-avg winning yield by tenor; wired into `imdr_daily.py` 2026-06-10 |
-| **SEKI IV.4 SBN position by holder** (prod-only: `scripts.econ.bi.bi_sbn_position`) | | | | |
+| **SEKI IV.4 SBN position by holder** (prod-only: `scripts.econ.id.bi.bi_sbn_position`) | | | | |
 | `bi_sbn_position` (TABEL4_4) | 19 | 3,630 | Monthly 2008-12→2026-05 | 4.2 Balance Sheets / 1.2 Fiscal — SBN outstanding by holder: 4 totals (SUN/ON/SPN/SBSN) + 8 ON bank-type holder decomp (govt/priv/mix/foreign/regional/BI/nasabah/other) + 7 SPN holder decomp. **No playground step** — built directly in prod using existing `bi_seki.py` library (TABEL4_4 follows standard wide-sheet offsets year_row=4, month_row=5, data_start=6). No new unit tests — parser covered by existing `_bi_seki` test suite. Wired into `id_monthly.py` 2026-06-10. |
 | **TOTAL** | **184** | **16,819** | | All 16 wiring cells touched |
 

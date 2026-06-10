@@ -37,8 +37,8 @@ inventory + URL recipes.
 python -m scripts.econ.kr.kr_weekly
 ```
 
-Fans out to 2 fetchers: `scripts.econ.reb.reb_housing` (REB R-ONE direct,
-4 housing series) + `scripts.econ.kosis.kosis_reb_housing` (KOSIS mirror,
+Fans out to 2 fetchers: `scripts.econ.kr.reb.reb_housing` (REB R-ONE direct,
+4 housing series) + `scripts.econ.kr.kosis.kosis_reb_housing` (KOSIS mirror,
 4 housing series). Total ~22 s.
 
 **Monthly schedule** (`scripts/imdr_monthly.py`, pipeline #1):
@@ -94,7 +94,7 @@ connections).
 [`playground/econ/fred/seed.yml`](../../../../playground/econ/fred/seed.yml).
 KOSIS Playwright downloader (legacy) lives at
 [`playground/econ/kosis/fetch_bop.py`](../../../../playground/econ/kosis/fetch_bop.py) —
-superseded by `scripts/econ/kosis/kosis_bop.py` in production.
+superseded by `scripts/econ/kr/kosis/kosis_bop.py` in production.
 
 ## Quick links
 

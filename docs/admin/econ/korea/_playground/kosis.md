@@ -53,5 +53,5 @@ Each `fetch_*.py` is a thin script that calls `_kosis_http.fetch_table()` with `
 
 ## Next moves
 
-- Wire daily-scrape production scripts under `scripts/econ/kosis/` once user signs off ([[feedback-no-prod-wiring-without-permission]]).
+- Wire daily-scrape production scripts under `scripts/econ/kr/kosis/` once user signs off ([[feedback-no-prod-wiring-without-permission]]).
 - KR wiring map cells remaining: see [`../kosis_kr_coverage_plan.md`](../kosis_kr_coverage_plan.md).

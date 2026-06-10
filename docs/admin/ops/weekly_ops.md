@@ -16,7 +16,7 @@ registry, in order:
 |---|----------|---------|
 | 1 | `scripts.commodities.citi.cmdty_eia_citi_live` | Weekly EIA petroleum series (16 series × PADD regions) via Citi Velocity. |
 | 2 | `scripts.calendar.import_latest_holiday_calendar_snapshot` | **Canonical** weekly merge of the BBG holiday-calendar snapshot into `calendar.market_holidays`. See [calendar/calendar_module.md](../calendar/calendar_module.md#canonical-weekly-refresh-holiday-calendar). |
-| 3 | `scripts.econ.kr.kr_weekly` | Korea econ weekly cadence — fans out to `scripts.econ.reb.reb_housing` (REB R-ONE direct, 4 series) + `scripts.econ.kosis.kosis_reb_housing` (KOSIS mirror, 4 series). |
+| 3 | `scripts.econ.kr.kr_weekly` | Korea econ weekly cadence — fans out to `scripts.econ.kr.reb.reb_housing` (REB R-ONE direct, 4 series) + `scripts.econ.kr.kosis.kosis_reb_housing` (KOSIS mirror, 4 series). |
 | 4 | `scripts.imdr_health_dashboard` | Consolidated FX OHLC / FX Vol / Rates health, coverage, quality, cleaning dry-run email. |
 | 5 | `scripts.cleanup_old_data --execute` | Prunes `data/parquet/` + `data/logs/` files older than the retention window (default 3 months). |
 
