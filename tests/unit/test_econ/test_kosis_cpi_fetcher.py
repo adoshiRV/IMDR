@@ -22,7 +22,7 @@ import datetime
 
 import pytest
 
-import scripts.econ.kosis.kosis_cpi as cpi_mod
+import scripts.econ.kr.kosis.kosis_cpi as cpi_mod
 
 
 def _fake_kosis_row(c1: str, itm_id: str, prd_de: str, value: str) -> dict:

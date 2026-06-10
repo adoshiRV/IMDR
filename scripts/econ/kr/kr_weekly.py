@@ -1,8 +1,8 @@
 """Korea econ — WEEKLY-cadence orchestrator.
 
 Runs every prod fetcher that publishes WEEKLY-frequency series:
-  - scripts.econ.reb.reb_housing               REB R-ONE direct (4 series)
-  - scripts.econ.kosis.kosis_reb_housing       KOSIS mirror of REB (4 series)
+  - scripts.econ.kr.reb.reb_housing               REB R-ONE direct (4 series)
+  - scripts.econ.kr.kosis.kosis_reb_housing       KOSIS mirror of REB (4 series)
 
 Each fetcher is a subprocess so one failure doesn't block the others. After
 all fetchers finish, the shared country runner queries econ.fact_indicator for
@@ -24,8 +24,8 @@ from scripts.econ._country_runner import run
 
 
 PIPELINES: list[list[str]] = [
-    [sys.executable, "-m", "scripts.econ.reb.reb_housing"],
-    [sys.executable, "-m", "scripts.econ.kosis.kosis_reb_housing"],
+    [sys.executable, "-m", "scripts.econ.kr.reb.reb_housing"],
+    [sys.executable, "-m", "scripts.econ.kr.kosis.kosis_reb_housing"],
 ]
 
 

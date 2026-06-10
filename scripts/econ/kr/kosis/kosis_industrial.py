@@ -19,8 +19,8 @@ Indicators (6):
   KOSTAT.CAP_UTIL.MFG.KR           Manufacturing average capacity utilisation rate
 
 Usage:
-    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/kosis/kosis_industrial.py
-    python -m scripts.econ.kosis.kosis_industrial
+    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/kr/kosis/kosis_industrial.py
+    python -m scripts.econ.kr.kosis.kosis_industrial
 """
 
 from __future__ import annotations
@@ -122,6 +122,7 @@ def main() -> int:
         topic="industrial",
         fetch_fn=run_fetch,
         description=__doc__.splitlines()[0] if __doc__ else "",
+        country_code="KR",
     )
 
 

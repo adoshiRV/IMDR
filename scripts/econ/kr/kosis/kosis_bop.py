@@ -23,9 +23,9 @@ pinning via ``_kosis_http.py`` makes the REST endpoint reachable from
 the same corp network.
 
 Usage:
-    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/kosis/kosis_bop.py
-    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/kosis/kosis_bop.py --since 2000-01-01 --no-parquet
-    python -m scripts.econ.kosis.kosis_bop
+    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/kr/kosis/kosis_bop.py
+    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/kr/kosis/kosis_bop.py --since 2000-01-01 --no-parquet
+    python -m scripts.econ.kr.kosis.kosis_bop
 """
 
 from __future__ import annotations
@@ -185,6 +185,7 @@ def main() -> int:
         topic="bop",
         fetch_fn=run_fetch,
         description=__doc__.splitlines()[0] if __doc__ else "",
+        country_code="KR",
     )
 
 

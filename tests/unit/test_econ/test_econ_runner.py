@@ -7,7 +7,7 @@ Network- and DB-free. We monkeypatch:
 
 Covered:
 - write_parquet writes a (dim, fact) pair under
-  data/econ/{vendor}/{topic}/{Y}/{M}/{D}/ with the correct stem.
+  data/econ/{cc}/{vendor}/{topic}/{Y}/{M}/{D}/ with the correct stem.
 - write_parquet adds a ``ts`` column to both DataFrames.
 - write_parquet preserves history (repeated calls produce distinct files
   with second-precision timestamps in the stem).
@@ -17,6 +17,7 @@ Covered:
 - run_main with --no-parquet skips writes and returns 0.
 - run_main with --no-load writes parquet but does NOT invoke the loader.
 - run_main returns 1 when the fetch produces zero observations.
+- country_code is mandatory and rejects bad input.
 """
 
 from __future__ import annotations
@@ -63,16 +64,16 @@ class TestWriteParquet:
         monkeypatch.setattr(_runner, "_DATA_ECON_ROOT", tmp_path)
         fixed = datetime.datetime(2026, 6, 5, 14, 30, tzinfo=UTC)
         dim_path, fact_path = _runner.write_parquet(
-            "kosis", "cpi", [_ind()], [_obs()], now_utc=fixed,
+            "KR", "kosis", "cpi", [_ind()], [_obs()], now_utc=fixed,
         )
-        assert dim_path == tmp_path / "kosis" / "cpi" / "2026" / "06" / "05" / "kosis_cpi_20260605_1430_dim.parquet"
-        assert fact_path == tmp_path / "kosis" / "cpi" / "2026" / "06" / "05" / "kosis_cpi_20260605_1430_fact.parquet"
+        assert dim_path == tmp_path / "kr" / "kosis" / "cpi" / "2026" / "06" / "05" / "kosis_cpi_20260605_1430_dim.parquet"
+        assert fact_path == tmp_path / "kr" / "kosis" / "cpi" / "2026" / "06" / "05" / "kosis_cpi_20260605_1430_fact.parquet"
         assert dim_path.exists()
         assert fact_path.exists()
 
     def test_dim_parquet_has_ts_column(self, tmp_path, monkeypatch) -> None:
         monkeypatch.setattr(_runner, "_DATA_ECON_ROOT", tmp_path)
-        dim_path, _ = _runner.write_parquet("kosis", "cpi", [_ind()], [_obs()])
+        dim_path, _ = _runner.write_parquet("KR", "kosis", "cpi", [_ind()], [_obs()])
         df = pd.read_parquet(dim_path)
         assert "ts" in df.columns
         assert "imdr_code" in df.columns
@@ -80,7 +81,7 @@ class TestWriteParquet:
 
     def test_fact_parquet_has_ts_column(self, tmp_path, monkeypatch) -> None:
         monkeypatch.setattr(_runner, "_DATA_ECON_ROOT", tmp_path)
-        _, fact_path = _runner.write_parquet("kosis", "cpi", [_ind()], [_obs()])
+        _, fact_path = _runner.write_parquet("KR", "kosis", "cpi", [_ind()], [_obs()])
         df = pd.read_parquet(fact_path)
         assert "ts" in df.columns
         assert "value" in df.columns
@@ -92,8 +93,8 @@ class TestWriteParquet:
         monkeypatch.setattr(_runner, "_DATA_ECON_ROOT", tmp_path)
         t1 = datetime.datetime(2026, 6, 5, 14, 30, tzinfo=UTC)
         t2 = datetime.datetime(2026, 6, 5, 14, 31, tzinfo=UTC)
-        d1, f1 = _runner.write_parquet("kosis", "cpi", [_ind()], [_obs()], now_utc=t1)
-        d2, f2 = _runner.write_parquet("kosis", "cpi", [_ind()], [_obs()], now_utc=t2)
+        d1, f1 = _runner.write_parquet("KR", "kosis", "cpi", [_ind()], [_obs()], now_utc=t1)
+        d2, f2 = _runner.write_parquet("KR", "kosis", "cpi", [_ind()], [_obs()], now_utc=t2)
         assert d1 != d2
         assert f1 != f2
         assert d1.exists() and d2.exists()
@@ -101,10 +102,32 @@ class TestWriteParquet:
 
     def test_creates_nested_dirs(self, tmp_path, monkeypatch) -> None:
         monkeypatch.setattr(_runner, "_DATA_ECON_ROOT", tmp_path)
-        # tmp_path has no kosis/cpi/Y/M/D structure -- write_parquet must
+        # tmp_path has no kr/kosis/cpi/Y/M/D structure -- write_parquet must
         # create the full chain.
-        _runner.write_parquet("kosis", "cpi", [_ind()], [_obs()])
-        assert (tmp_path / "kosis" / "cpi").is_dir()
+        _runner.write_parquet("KR", "kosis", "cpi", [_ind()], [_obs()])
+        assert (tmp_path / "kr" / "kosis" / "cpi").is_dir()
+
+    def test_country_code_is_lowercased_on_disk(self, tmp_path, monkeypatch) -> None:
+        # Filesystem layout pins lowercase 2-letter ISO. We assert via the
+        # *returned path string* because Windows filesystems are
+        # case-insensitive; on Windows ``(tmp / "KR").exists()`` would still
+        # return True even though the on-disk segment is lowercase.
+        monkeypatch.setattr(_runner, "_DATA_ECON_ROOT", tmp_path)
+        dim_path, _ = _runner.write_parquet("KR", "kosis", "cpi", [_ind()], [_obs()])
+        assert "kr" in dim_path.parts
+        assert "KR" not in dim_path.parts
+
+    @pytest.mark.parametrize("bad_cc", ["", "  ", "K", "KRX", "12", "k_"])
+    def test_country_code_value_error_on_bad_shape(self, bad_cc) -> None:
+        # Shape errors (length, non-alpha, whitespace-only) -> ValueError.
+        with pytest.raises(ValueError):
+            _runner.write_parquet(bad_cc, "kosis", "cpi", [_ind()], [_obs()])
+
+    @pytest.mark.parametrize("bad_cc", [None, 0, b"KR", ("K", "R")])
+    def test_country_code_type_error_on_non_string(self, bad_cc) -> None:
+        # Type errors (None, int, bytes, tuple, ...) -> TypeError.
+        with pytest.raises(TypeError):
+            _runner.write_parquet(bad_cc, "kosis", "cpi", [_ind()], [_obs()])
 
 
 class TestInvokeLoader:
@@ -118,8 +141,8 @@ class TestInvokeLoader:
         monkeypatch.setattr(subprocess, "call", stub)
         rc = _runner.invoke_loader(
             "kosis",
-            Path("data/econ/kosis/cpi/2026/06/05/kosis_cpi_20260605_1430_dim.parquet"),
-            Path("data/econ/kosis/cpi/2026/06/05/kosis_cpi_20260605_1430_fact.parquet"),
+            Path("data/econ/kr/kosis/cpi/2026/06/05/kosis_cpi_20260605_1430_dim.parquet"),
+            Path("data/econ/kr/kosis/cpi/2026/06/05/kosis_cpi_20260605_1430_fact.parquet"),
         )
         assert rc == 0
         assert captured["cmd"][0] == sys.executable
@@ -165,7 +188,7 @@ class TestRunMain:
         def fetch(since, until):
             return [_ind()], [_obs()]
 
-        rc = _runner.run_main("kosis", "cpi", fetch)
+        rc = _runner.run_main("kosis", "cpi", fetch, country_code="KR")
         assert rc == 0
         assert called["write"] == 0
         assert called["load"] == 0
@@ -184,12 +207,14 @@ class TestRunMain:
         def fetch(since, until):
             return [_ind()], [_obs()]
 
-        rc = _runner.run_main("kosis", "cpi", fetch)
+        rc = _runner.run_main("kosis", "cpi", fetch, country_code="KR")
         assert rc == 0
         assert called["load"] == 0
         # Parquet pair should now exist somewhere under tmp_path.
         written = list(tmp_path.rglob("*_fact.parquet"))
         assert len(written) == 1
+        # ...and specifically under the lowercase country-code anchor.
+        assert any("kr" in p.parts for p in written)
 
     def test_returns_1_when_no_observations(self, monkeypatch) -> None:
         monkeypatch.setattr(sys, "argv", ["kosis_cpi"])
@@ -197,8 +222,18 @@ class TestRunMain:
         def fetch(since, until):
             return [_ind()], []
 
-        rc = _runner.run_main("kosis", "cpi", fetch)
+        rc = _runner.run_main("kosis", "cpi", fetch, country_code="KR")
         assert rc == 1
+
+    def test_run_main_rejects_missing_country_code(self, monkeypatch) -> None:
+        monkeypatch.setattr(sys, "argv", ["kosis_cpi"])
+
+        def fetch(since, until):
+            return [_ind()], [_obs()]
+
+        with pytest.raises(TypeError):
+            # country_code is keyword-only AND mandatory.
+            _runner.run_main("kosis", "cpi", fetch)  # type: ignore[call-arg]
 
     def test_invokes_loader_on_full_run(self, tmp_path, monkeypatch) -> None:
         monkeypatch.setattr(_runner, "_DATA_ECON_ROOT", tmp_path)
@@ -216,7 +251,7 @@ class TestRunMain:
         def fetch(since, until):
             return [_ind()], [_obs()]
 
-        rc = _runner.run_main("kosis", "cpi", fetch)
+        rc = _runner.run_main("kosis", "cpi", fetch, country_code="KR")
         assert rc == 0
         assert captured["vendor"] == "kosis"
         assert captured["dim_path"].name.endswith("_dim.parquet")
@@ -232,4 +267,4 @@ class TestRunMain:
         def fetch(since, until):
             return [_ind()], [_obs()]
 
-        assert _runner.run_main("kosis", "cpi", fetch) == 3
+        assert _runner.run_main("kosis", "cpi", fetch, country_code="KR") == 3

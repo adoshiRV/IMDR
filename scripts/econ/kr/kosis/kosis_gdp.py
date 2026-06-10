@@ -26,8 +26,8 @@ Cell mapping: 1.4 Macro Core + parts of 1.1 / 1.2 / 1.3 (consumption,
 fiscal, external demand).
 
 Usage:
-    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/kosis/kosis_gdp.py
-    python -m scripts.econ.kosis.kosis_gdp
+    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/kr/kosis/kosis_gdp.py
+    python -m scripts.econ.kr.kosis.kosis_gdp
 """
 
 from __future__ import annotations
@@ -155,6 +155,7 @@ def main() -> int:
         topic="gdp",
         fetch_fn=run_fetch,
         description=__doc__.splitlines()[0] if __doc__ else "",
+        country_code="KR",
     )
 
 

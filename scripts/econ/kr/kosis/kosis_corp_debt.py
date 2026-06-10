@@ -15,8 +15,8 @@ Cell mapping: 4.2 Balance Sheets (corporate-debt sub-bullet).
 History: annual, typically 2009 → most-recent-completed year.
 
 Usage:
-    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/kosis/kosis_corp_debt.py
-    python -m scripts.econ.kosis.kosis_corp_debt
+    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/kr/kosis/kosis_corp_debt.py
+    python -m scripts.econ.kr.kosis.kosis_corp_debt
 """
 
 from __future__ import annotations
@@ -136,6 +136,7 @@ def main() -> int:
         topic="corp_debt",
         fetch_fn=run_fetch,
         description=__doc__.splitlines()[0] if __doc__ else "",
+        country_code="KR",
     )
 
 

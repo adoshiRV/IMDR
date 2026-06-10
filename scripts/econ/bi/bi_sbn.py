@@ -75,7 +75,8 @@ def run_fetch(since, until):
 def main() -> int:
     return run_main(vendor="bi", topic="sbn",
                     fetch_fn=run_fetch,
-                    description=__doc__.splitlines()[0] if __doc__ else "")
+                    description=__doc__.splitlines()[0] if __doc__ else "",
+                    country_code="ID")
 
 if __name__ == "__main__":
     import sys; sys.exit(main())

@@ -19,8 +19,8 @@ indicators × monthly = ~30 years of monthly history when fully run.
 Cell mapping: 1.4 Macro Core (labour leg) → ⚠ → ✅.
 
 Usage:
-    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/kosis/kosis_labour.py
-    python -m scripts.econ.kosis.kosis_labour
+    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/kr/kosis/kosis_labour.py
+    python -m scripts.econ.kr.kosis.kosis_labour
 """
 
 from __future__ import annotations
@@ -121,6 +121,7 @@ def main() -> int:
         topic="labour",
         fetch_fn=run_fetch,
         description=__doc__.splitlines()[0] if __doc__ else "",
+        country_code="KR",
     )
 
 

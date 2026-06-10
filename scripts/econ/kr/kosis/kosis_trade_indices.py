@@ -17,8 +17,8 @@ The Volume Index is the cleanest gauge of real export demand (strips
 out the price moves already captured in BOK.EXPORT_PRICE.*).
 
 Usage:
-    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/kosis/kosis_trade_indices.py
-    python -m scripts.econ.kosis.kosis_trade_indices
+    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/kr/kosis/kosis_trade_indices.py
+    python -m scripts.econ.kr.kosis.kosis_trade_indices
 """
 
 from __future__ import annotations
@@ -134,6 +134,7 @@ def main() -> int:
         topic="trade_indices",
         fetch_fn=run_fetch,
         description=__doc__.splitlines()[0] if __doc__ else "",
+        country_code="KR",
     )
 
 

@@ -18,8 +18,8 @@ Cuts pulled:
 Cell mapping: 2.2 Producer Prices.
 
 Usage:
-    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/kosis/kosis_ppi.py
-    python -m scripts.econ.kosis.kosis_ppi
+    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/kr/kosis/kosis_ppi.py
+    python -m scripts.econ.kr.kosis.kosis_ppi
 """
 
 from __future__ import annotations
@@ -149,6 +149,7 @@ def main() -> int:
         topic="ppi",
         fetch_fn=run_fetch,
         description=__doc__.splitlines()[0] if __doc__ else "",
+        country_code="KR",
     )
 
 

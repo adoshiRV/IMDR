@@ -25,8 +25,8 @@ Indices kept (2020=100 base):
 Cell mapping: 1.1 Private Demand (consumption-side) → ⚠ → ✅.
 
 Usage:
-    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/kosis/kosis_retail.py
-    python -m scripts.econ.kosis.kosis_retail
+    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/kr/kosis/kosis_retail.py
+    python -m scripts.econ.kr.kosis.kosis_retail
 """
 
 from __future__ import annotations
@@ -131,6 +131,7 @@ def main() -> int:
         topic="retail",
         fetch_fn=run_fetch,
         description=__doc__.splitlines()[0] if __doc__ else "",
+        country_code="KR",
     )
 
 

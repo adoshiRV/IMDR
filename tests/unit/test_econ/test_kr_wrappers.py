@@ -48,31 +48,31 @@ class TestPipelineMembership:
         # series) + KOSIS REB mirror (4 series). Exactly two fetchers.
         modules = _modules_in(kr_weekly.PIPELINES)
         assert set(modules) == {
-            "scripts.econ.reb.reb_housing",
-            "scripts.econ.kosis.kosis_reb_housing",
+            "scripts.econ.kr.reb.reb_housing",
+            "scripts.econ.kr.kosis.kosis_reb_housing",
         }
 
     def test_kr_monthly_contains_all_19_non_weekly_kosis_fetchers(self) -> None:
         expected = {
-            "scripts.econ.kosis.kosis_balance_sheets",
-            "scripts.econ.kosis.kosis_bank_rates",
-            "scripts.econ.kosis.kosis_bop",
-            "scripts.econ.kosis.kosis_bsi",
-            "scripts.econ.kosis.kosis_consumer_survey",
-            "scripts.econ.kosis.kosis_corp_debt",
-            "scripts.econ.kosis.kosis_cpi",
-            "scripts.econ.kosis.kosis_fiscal",
-            "scripts.econ.kosis.kosis_gdp",
-            "scripts.econ.kosis.kosis_industrial",
-            "scripts.econ.kosis.kosis_labour",
-            "scripts.econ.kosis.kosis_lending",
-            "scripts.econ.kosis.kosis_money_aggregates",
-            "scripts.econ.kosis.kosis_ppi",
-            "scripts.econ.kosis.kosis_retail",
-            "scripts.econ.kosis.kosis_tot",
-            "scripts.econ.kosis.kosis_trade_indices",
-            "scripts.econ.kosis.kosis_trade_prices",
-            "scripts.econ.kosis.kosis_wages",
+            "scripts.econ.kr.kosis.kosis_balance_sheets",
+            "scripts.econ.kr.kosis.kosis_bank_rates",
+            "scripts.econ.kr.kosis.kosis_bop",
+            "scripts.econ.kr.kosis.kosis_bsi",
+            "scripts.econ.kr.kosis.kosis_consumer_survey",
+            "scripts.econ.kr.kosis.kosis_corp_debt",
+            "scripts.econ.kr.kosis.kosis_cpi",
+            "scripts.econ.kr.kosis.kosis_fiscal",
+            "scripts.econ.kr.kosis.kosis_gdp",
+            "scripts.econ.kr.kosis.kosis_industrial",
+            "scripts.econ.kr.kosis.kosis_labour",
+            "scripts.econ.kr.kosis.kosis_lending",
+            "scripts.econ.kr.kosis.kosis_money_aggregates",
+            "scripts.econ.kr.kosis.kosis_ppi",
+            "scripts.econ.kr.kosis.kosis_retail",
+            "scripts.econ.kr.kosis.kosis_tot",
+            "scripts.econ.kr.kosis.kosis_trade_indices",
+            "scripts.econ.kr.kosis.kosis_trade_prices",
+            "scripts.econ.kr.kosis.kosis_wages",
         }
         assert set(_modules_in(kr_monthly.PIPELINES)) == expected
 

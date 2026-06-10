@@ -1,17 +1,28 @@
-"""KOSIS BOK Terms of Trade fetcher (DT_403Y005).
+"""KOSIS BOK Deposit Money Bank Deposit Rates fetcher (DT_121Y002).
 
-Source: Bank of Korea (orgId=301), 교역조건지수 — Terms of Trade Indices,
-base 2020=100.
+Source: Bank of Korea (orgId=301), 예금은행 수신금리(신규취급액 기준) —
+Deposit money bank deposit rates (based on newly extended), % p.a.
 
-The table publishes 2 ToT measures, both monthly:
-  TERMS_TRADE_TYPE.A   순상품교역조건지수   Net barter terms of trade index
-  TERMS_TRADE_TYPE.B   소득교역조건지수    Income terms of trade index
+The table publishes 27 sub-cuts of bank deposit-side funding rates. We pull
+6 representative cuts:
+  BEABAA1     Time ＆ Savings Deposits Except Debentures (headline)
+  BEABAA211   Time Deposits
+  BEABAA2211  CDs (91 Days) — the same rate that drives the chart's red line
+  BEABAA222   Repurchase Agreements
+  BEABAA22    Marketable Financial Instruments (composite)
+  BEABAA224   Financial Debentures
 
-Cell mapping: 3.1 Terms of Trade.
+NOTE: this table is DEPOSIT rates, NOT the BOK Base Rate (policy rate). The
+BOK Base Rate is not on KOSIS — for it, use Citi `RATES.BENCH_RATES` once a
+KR entry is added, or the BOK direct site. CD 91d here mirrors what's
+already in `rates.fact_observation` curve_id=35 tenor=3M (Citi via market
+data); the KOSIS feed offers a regulator-validated alternative.
+
+Cell mapping: 4.3 Financial Conditions (loan-rate / funding-cost channel).
 
 Usage:
-    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/kosis/kosis_tot.py
-    python -m scripts.econ.kosis.kosis_tot
+    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/kr/kosis/kosis_bank_rates.py
+    python -m scripts.econ.kr.kosis.kosis_bank_rates
 """
 
 from __future__ import annotations
@@ -26,8 +37,12 @@ UTC = datetime.timezone.utc
 
 # C1 suffix → (imdr suffix, display)
 _CUTS: dict[str, tuple[str, str]] = {
-    "A": ("NET_BARTER", "Net barter terms of trade (commodity TOT)"),
-    "B": ("INCOME",     "Income terms of trade"),
+    "BEABAA1":    ("DEPOSITS_EX_DEBENT", "Bank deposits (ex financial debentures)"),
+    "BEABAA211":  ("TIME_DEPOSITS",      "Bank time deposits"),
+    "BEABAA2211": ("CD_91D",             "Bank CD rate, 91 days"),
+    "BEABAA222":  ("REPO",               "Bank repurchase agreements"),
+    "BEABAA22":   ("MARKET_FI",          "Bank marketable financial instruments (composite)"),
+    "BEABAA224":  ("FIN_DEBENT",         "Bank financial debentures"),
 }
 
 
@@ -40,15 +55,15 @@ def run_fetch(
     until_dt = datetime.date.fromisoformat(until) if until else None
     now = datetime.datetime.now(UTC)
 
-    print("  Fetching ToT: DT_403Y005 (BOK, orgId=301) ...", end=" ", flush=True)
+    print("  Fetching bank rates: DT_121Y002 (BOK, orgId=301) ...", end=" ", flush=True)
     rows = fetch_kosis_table(
         session,
         org_id="301",
-        tbl_id="DT_403Y005",
+        tbl_id="DT_121Y002",
         obj_l1="ALL",
         itm_id="ALL",
         prd_se="M",
-        start_prd_de="198801",
+        start_prd_de="199001",
         end_prd_de=datetime.date.today().strftime("%Y%m"),
     )
     print(f"{len(rows)} rows")
@@ -67,16 +82,16 @@ def run_fetch(
         if not sub:
             print(f"  WARN: no rows for {c1_suffix}")
             continue
-        imdr_code = f"BOK.TOT.{suffix}.LEVEL.KR"
+        imdr_code = f"BOK.BANK_RATE.{suffix}.KR"
         indicators.append(IndicatorRow(
             imdr_code=imdr_code,
             vendor_name="KOSIS",
-            source_code=f"301/DT_403Y005/...{c1_suffix}",
-            display_name=f"Korea {display}, 2020=100 (BOK)",
-            unit="index",
+            source_code=f"301/DT_121Y002/...{c1_suffix}",
+            display_name=f"Korea {display}, % p.a. (BOK)",
+            unit="pct",
             frequency="MONTHLY",
             country_iso="KR",
-            category="bop",
+            category="rates",
             is_seasonally_adjusted=False,
             bbg_ticker=None,
         ))
@@ -108,9 +123,10 @@ def run_fetch(
 def main() -> int:
     return run_main(
         vendor="kosis",
-        topic="tot",
+        topic="bank_rates",
         fetch_fn=run_fetch,
         description=__doc__.splitlines()[0] if __doc__ else "",
+        country_code="KR",
     )
 
 

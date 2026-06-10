@@ -22,10 +22,10 @@ just the nationwide / Seoul series (~732 rows each), so one paged call per
 a 14-year × weekly series in a single page.
 
 Usage:
-    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/reb/reb_housing.py
-    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/reb/reb_housing.py --no-parquet
-    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/reb/reb_housing.py --since 2020-01-01
-    python -m scripts.econ.reb.reb_housing
+    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/kr/reb/reb_housing.py
+    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/kr/reb/reb_housing.py --no-parquet
+    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/kr/reb/reb_housing.py --since 2020-01-01
+    python -m scripts.econ.kr.reb.reb_housing
 """
 
 from __future__ import annotations
@@ -42,8 +42,8 @@ from scripts.econ._runner import run_main
 UTC = datetime.timezone.utc
 _REB_DATA_URL = "https://www.reb.or.kr/r-one/openapi/SttsApiTblData.do"
 
-# Repo root: scripts/econ/reb/reb_housing.py -> parents[3]
-_REPO_ROOT = Path(__file__).resolve().parents[3]
+# Repo root: scripts/econ/kr/reb/reb_housing.py -> parents[4]
+_REPO_ROOT = Path(__file__).resolve().parents[4]
 
 # (STATBL_ID, series_kind, item_id_filter_or_None)
 _TABLES: dict[str, tuple[str, int]] = {
@@ -234,6 +234,7 @@ def main() -> int:
         topic="housing",
         fetch_fn=run_fetch,
         description=__doc__.splitlines()[0] if __doc__ else "",
+        country_code="KR",
     )
 
 

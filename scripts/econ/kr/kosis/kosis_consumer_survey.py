@@ -17,8 +17,8 @@ Indicators (6, monthly 2008-09 → present):
   BOK.CCI.EXP_INTEREST_RATES.KR Expected Interest Rates
 
 Usage:
-    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/kosis/kosis_consumer_survey.py
-    python -m scripts.econ.kosis.kosis_consumer_survey
+    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/kr/kosis/kosis_consumer_survey.py
+    python -m scripts.econ.kr.kosis.kosis_consumer_survey
 """
 
 from __future__ import annotations
@@ -120,6 +120,7 @@ def main() -> int:
         topic="consumer_survey",
         fetch_fn=run_fetch,
         description=__doc__.splitlines()[0] if __doc__ else "",
+        country_code="KR",
     )
 
 

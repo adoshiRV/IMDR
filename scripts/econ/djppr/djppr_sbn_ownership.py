@@ -110,6 +110,7 @@ def main() -> int:
         vendor="djppr", topic="sbn_ownership",
         fetch_fn=run_fetch,
         description=__doc__.splitlines()[0] if __doc__ else "",
+        country_code="ID",
     )
 
 

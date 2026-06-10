@@ -22,8 +22,8 @@ Cell mapping: 2.1 Input Costs → ⚠ → ✅. Also feeds 2.2 Producer Prices
 (pipeline pressure).
 
 Usage:
-    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/kosis/kosis_trade_prices.py
-    python -m scripts.econ.kosis.kosis_trade_prices
+    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/kr/kosis/kosis_trade_prices.py
+    python -m scripts.econ.kr.kosis.kosis_trade_prices
 """
 
 from __future__ import annotations
@@ -158,6 +158,7 @@ def main() -> int:
         topic="trade_prices",
         fetch_fn=run_fetch,
         description=__doc__.splitlines()[0] if __doc__ else "",
+        country_code="KR",
     )
 
 

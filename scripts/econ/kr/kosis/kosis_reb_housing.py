@@ -23,9 +23,9 @@ TLS 1.2 pinning + connection-reset retry are inherited from
 roll its own HTTP layer.
 
 Usage:
-    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/kosis/kosis_reb_housing.py
-    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/kosis/kosis_reb_housing.py --no-parquet
-    python -m scripts.econ.kosis.kosis_reb_housing
+    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/kr/kosis/kosis_reb_housing.py
+    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/kr/kosis/kosis_reb_housing.py --no-parquet
+    python -m scripts.econ.kr.kosis.kosis_reb_housing
 """
 
 from __future__ import annotations
@@ -152,6 +152,7 @@ def main() -> int:
         topic="reb_housing",
         fetch_fn=run_fetch,
         description=__doc__.splitlines()[0] if __doc__ else "",
+        country_code="KR",
     )
 
 

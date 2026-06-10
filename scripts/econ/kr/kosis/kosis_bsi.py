@@ -22,8 +22,8 @@ Indicators (4, monthly 2009-08 → present):
   BOK.BSI.OUTLOOK.MFG.KR       BSI Business Condition, Manufacturing, Outlook
 
 Usage:
-    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/kosis/kosis_bsi.py
-    python -m scripts.econ.kosis.kosis_bsi
+    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/kr/kosis/kosis_bsi.py
+    python -m scripts.econ.kr.kosis.kosis_bsi
 """
 
 from __future__ import annotations
@@ -128,6 +128,7 @@ def main() -> int:
         topic="bsi",
         fetch_fn=run_fetch,
         description=__doc__.splitlines()[0] if __doc__ else "",
+        country_code="KR",
     )
 
 

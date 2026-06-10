@@ -27,8 +27,8 @@ Notes:
   (different vendor, not yet wired).
 
 Usage:
-    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/kosis/kosis_fiscal.py
-    python -m scripts.econ.kosis.kosis_fiscal
+    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/kr/kosis/kosis_fiscal.py
+    python -m scripts.econ.kr.kosis.kosis_fiscal
 """
 
 from __future__ import annotations
@@ -136,6 +136,7 @@ def main() -> int:
         topic="fiscal",
         fetch_fn=run_fetch,
         description=__doc__.splitlines()[0] if __doc__ else "",
+        country_code="KR",
     )
 
 

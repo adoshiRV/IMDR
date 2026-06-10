@@ -16,9 +16,9 @@ Cell mapping: 2.4 CPI Pressure + start of 2.1 Input Costs (fresh food + energy
 sub-cuts feed input-cost analysis indirectly).
 
 Usage:
-    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/kosis/kosis_cpi.py
-    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/kosis/kosis_cpi.py --since 2020-01-01 --no-parquet
-    python -m scripts.econ.kosis.kosis_cpi
+    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/kr/kosis/kosis_cpi.py
+    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/kr/kosis/kosis_cpi.py --since 2020-01-01 --no-parquet
+    python -m scripts.econ.kr.kosis.kosis_cpi
 """
 
 from __future__ import annotations
@@ -128,6 +128,7 @@ def main() -> int:
         topic="cpi",
         fetch_fn=run_fetch,
         description=__doc__.splitlines()[0] if __doc__ else "",
+        country_code="KR",
     )
 
 

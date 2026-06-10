@@ -12,8 +12,8 @@ no monthly wage series available on KOSIS at the headline level; the
 sub-cuts by region are available but not pulled at this stage).
 
 Usage:
-    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/kosis/kosis_wages.py
-    python -m scripts.econ.kosis.kosis_wages
+    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/kr/kosis/kosis_wages.py
+    python -m scripts.econ.kr.kosis.kosis_wages
 """
 
 from __future__ import annotations
@@ -107,6 +107,7 @@ def main() -> int:
         topic="wages",
         fetch_fn=run_fetch,
         description=__doc__.splitlines()[0] if __doc__ else "",
+        country_code="KR",
     )
 
 

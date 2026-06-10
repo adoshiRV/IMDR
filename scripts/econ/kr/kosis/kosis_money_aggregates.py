@@ -20,8 +20,8 @@ Indicators:
   BOK.MONEY.LF.LEVEL.KR    Lf (Liquidity Aggregates of Financial Inst.), EOP SA, KRW bn
 
 Usage:
-    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/kosis/kosis_money_aggregates.py
-    python -m scripts.econ.kosis.kosis_money_aggregates
+    C:/Users/adoshi/.conda/envs/imdr/python.exe scripts/econ/kr/kosis/kosis_money_aggregates.py
+    python -m scripts.econ.kr.kosis.kosis_money_aggregates
 """
 
 from __future__ import annotations
@@ -103,6 +103,7 @@ def main() -> int:
         topic="money_aggregates",
         fetch_fn=run_fetch,
         description=__doc__.splitlines()[0] if __doc__ else "",
+        country_code="KR",
     )
 
 
