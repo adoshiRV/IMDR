@@ -28,8 +28,19 @@ from _http import make_session, patient_post  # noqa: E402
 from _models import FetchResult, FilingItem  # noqa: E402
 
 BOK_LIST_URL = "https://www.bok.or.kr/eng/singl/newsDataEng/listCont.do"
-BOK_REFERER = "https://www.bok.or.kr/eng/singl/newsDataEng/list.do?menuNo=400007"
 BOK_BASE = "https://www.bok.or.kr"
+
+# menuNo selects which BoK landing the listCont.do endpoint emits items
+# for. Probed 2026-06-11 (playground/econ/kr_govt_docs/probe_backfill_depth.py):
+#   400007 (top news) caps server-side at ~250 items / ~7 months
+#   400215 (MPR), 400219 (FSR), 400221 (Annual), 400067 (Working Papers),
+#   400409 (Issue Notes), 400403 (Open Market Operations), 400423 (Press
+#   Releases) each return the SAME 5000-item firehose going back to
+#   2011-09-08 — menuNo on these isn't actually filtering server-side.
+# We use 400423 (Press Releases) for the full firehose; falling back to
+# any other working menuNo would return identical content.
+BOK_MENU_NO = "400423"
+BOK_REFERER = f"https://www.bok.or.kr/eng/singl/newsDataEng/list.do?menuNo={BOK_MENU_NO}"
 
 # Map BoK's <span class="t1"> category label → our doc_type taxonomy.
 # Unknown categories fall back to 'release'.
@@ -156,7 +167,7 @@ def discover(*, pages: int = 2) -> FetchResult:
         form = {
             "pageIndex": str(page),
             "targetDepth": "",
-            "menuNo": "400007",
+            "menuNo": BOK_MENU_NO,
             "syncMenuChekKey": "1",
             "searchCnd": "1",
             "searchKwd": "",
