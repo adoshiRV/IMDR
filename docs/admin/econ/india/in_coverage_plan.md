@@ -226,7 +226,43 @@ Verified end-to-end at [`playground/econ/rbi/probe_crypto.py`](../../../playgrou
 - **Path Y — Build the generic DBIE-SAP-BO iframe extractor**: ~2-3 hr. Playwright that: encrypts the reportId → POST `dbie_getReportLink` → decrypts the sapLink → opens it in a new tab → triggers the "Export to Excel" button in SAP BO → captures the download → parses. Once built, every reportId in the 1,225-catalogue becomes reachable. Closes A5-A7 in one stroke (~80-120 indicators).
 - **Path Z — Just document + stop**: declare the encryption breakthrough + architecture is the deliverable; punt the actual fetcher build to next session.
 
-**Path X update (2026-06-11) — partial smoke**:
+### A5-A7 SAP-BO pipeline end-to-end VERIFIED through sapLink decryption (2026-06-11)
+
+After the encryption breakthrough, the full pipeline up to the SAP-BO entry URL is now reachable from `rvsg-fs01`:
+
+1. `DBIEClient.bootstrap()` → session token (already prod-built)
+2. `encrypt("DBIE")` → portal param ciphertext (verified)
+3. `encrypt(<reportId>)` → reportId ciphertext (verified)
+4. POST `dbie_getReportLink` with encrypted params → returns encrypted `sapLink`
+5. `decrypt(sapLink)` → `/BOE/OpenDocument/opendoc/openDocument.jsp?sIDType=CUID&iDocID=<id>&token=`
+6. GET that URL → 200 OK, SAP BO BI Launchpad bootstrap HTML
+
+Verified 2026-06-11 with **reportId=417 (NRI Deposits monthly 1997→2026)**:
+- Decrypted sapLink: `/BOE/OpenDocument/opendoc/openDocument.jsp?sIDType=CUID&iDocID=Ab8bdZWzZ9RNixmFYdscUO8&token=`
+- HTTP 200 from `data.rbi.org.in/BOE/...` with body matching SAP OpenDocument bootstrap.
+
+**27 desk-priority reportIds catalogued and ready** (sample from [`playground/econ/rbi/discovery/all_reports.json`](../../../playground/econ/rbi/discovery/all_reports.json)):
+
+| reportId | Freq | Window | Name |
+|---:|---|---|---|
+| 417 | Monthly | 1997 → 2026 | **NRI Deposits** (the desk-critical FCNR/NRE/NRO breakdown) |
+| 421 | Annual | 1991 → 2026 | NRI Deposits Outstanding (INR) |
+| 628 | Annual | 1991 → 2026 | NRI Deposits Outstanding (USD) |
+| 55  | Monthly | 2004 → 2026 | External Commercial Borrowings (ECBs) |
+| 698 | Daily | 2003 → 2026 | Daily Forward Premia (Inter-Bank) |
+| 558 | Monthly | 1993 → 2026 | Forward Premia Monthly Average |
+| 1534 | Annual | 2019 → 2025 | Consolidated Balance Sheet of NBFCs |
+| 1543/1544 | Annual | 2022 → 2025 | Financial Performance NBFC-UL/ML |
+| 1198 | Annual | 2016 → 2018 | Credit to Various Sectors by NBFCs |
+
+**Last-mile remaining** (deferred to next focused session): the SAP-BO viewer page is a JS bootstrap that loads the actual report content via iframe + further redirects. To extract data programmatically, two paths:
+
+- **Playwright iframe automation** (~2-3hr): drive the SAP-BO viewer in headed Chrome → wait for iframe load → click "Export as Excel" → capture download → parse XLSX
+- **JS-reverse-engineer the data-fetch endpoint** (~2-3hr, brittle): trace SAP BO's `/BOE/sap/...` REST calls in the network log, replicate via httpx
+
+For the Current Account / BoP cell, the **RBI Bulletin T40 path (already built this session)** delivers the same data without needing SAP-BO. So the SAP-BO automation effort is most valuable for the FCNR / NRI / ECB / NBFC streams that have no Bulletin equivalent.
+
+### A4 path original update (2026-06-11) — partial smoke
 Two TSPD-cleared XLSX downloads decoded cleanly:
 - `cpi_combined.xlsx` (T19C) → 23 rows, 13 division labels × 4-6 monthly periods per release
 - `call_money_rates.xlsx` (T27) → 34 rows, ~28 daily observations per release
