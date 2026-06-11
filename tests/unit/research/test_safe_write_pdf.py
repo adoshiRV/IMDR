@@ -4,11 +4,12 @@ See docs/admin/development/parallel_vendor_ingest.md Phase 2.
 
 Covers:
 * Bytes-match idempotent replay -> no error, no rewrite.
-* Bytes-mismatch -> PdfPathCollisionError, target unchanged.
+* Bytes-mismatch -> existing is archived to a dated sibling, new bytes
+  written in place.
 * PermissionError on os.replace (OneDrive holds the file) -> retries
   succeed within budget; exceed budget -> UploadError, tmp cleaned up.
 * Concurrent same-bytes writers (threaded) -> both succeed.
-* Concurrent diff-bytes writers -> exactly one raises collision.
+* Concurrent diff-bytes writers -> last writer wins after archival.
 """
 from __future__ import annotations
 
@@ -47,14 +48,49 @@ def test_idempotent_replay_on_matching_bytes(tmp_path):
     assert mtime_before == mtime_after, "idempotent replay must not touch file"
 
 
-def test_raises_collision_on_mismatched_bytes(tmp_path):
+def test_archives_existing_on_mismatched_bytes(tmp_path):
+    """Vendor re-issue: existing is renamed to a dated sibling, new bytes
+    are written to the original path."""
     target = tmp_path / "report.pdf"
     target.write_bytes(b"original content")
-    with pytest.raises(PdfPathCollisionError) as exc_info:
-        safe_write_pdf(target, b"DIFFERENT content")
-    # Existing bytes preserved — collision must not overwrite.
-    assert target.read_bytes() == b"original content"
-    assert "different report" in str(exc_info.value)
+    safe_write_pdf(target, b"DIFFERENT content")
+    # Target now holds the new bytes.
+    assert target.read_bytes() == b"DIFFERENT content"
+    # An archive sibling exists with the original bytes.
+    archives = [
+        p for p in tmp_path.glob("report.*.pdf") if p != target
+    ]
+    assert len(archives) == 1, f"expected one archive, got {archives}"
+    assert archives[0].read_bytes() == b"original content"
+
+
+def test_archive_collision_appends_hash_disambiguator(tmp_path):
+    """Two re-issues in the same second produce two distinct archives."""
+    target = tmp_path / "report.pdf"
+    target.write_bytes(b"v1")
+    # First re-issue archives v1 under mtime stem.
+    safe_write_pdf(target, b"v2")
+    # Force the second archive name to collide by pre-creating one at the
+    # mtime-stem path. We don't know the exact mtime stem, but we know the
+    # pattern: report.YYYYMMDD_HHMMSS.pdf — match any.
+    archives_after_first = sorted(tmp_path.glob("report.*.pdf"))
+    assert len(archives_after_first) == 1
+    first_archive = archives_after_first[0]
+    # Second re-issue: target holds v2, force-collide its archive by
+    # touching the mtime of target back to first_archive's mtime so the
+    # archive name regenerates identically.
+    import os as _os
+    mt = first_archive.stat().st_mtime
+    _os.utime(target, (mt, mt))
+    safe_write_pdf(target, b"v3")
+    archives_after_second = sorted(
+        p for p in tmp_path.glob("report.*.pdf") if p != target
+    )
+    assert len(archives_after_second) == 2, (
+        f"expected two archives after second re-issue, got "
+        f"{archives_after_second}"
+    )
+    assert target.read_bytes() == b"v3"
 
 
 def test_zero_byte_existing_target_treated_as_missing(tmp_path):
@@ -133,11 +169,13 @@ def test_concurrent_same_bytes_both_succeed(tmp_path):
     assert target.read_bytes() == payload
 
 
-def test_concurrent_different_bytes_one_raises_collision(tmp_path):
-    """Two threads writing different bytes -> at least one raises collision.
+def test_concurrent_different_bytes_last_writer_wins(tmp_path):
+    """Two threads writing different bytes: target holds one payload, the
+    other is archived (or, in a tight race, silently replaced).
 
-    First-write-wins; the loser sees the winner's bytes already in place
-    and raises PdfPathCollisionError because the new payload differs.
+    With archive-on-collision, the first writer creates the file, the
+    second writer detects the mismatch and archives the first writer's
+    bytes before writing its own. Both calls return without raising.
     """
     target = tmp_path / "report.pdf"
     payload_a = b"AAA" * 100
@@ -165,15 +203,15 @@ def test_concurrent_different_bytes_one_raises_collision(tmp_path):
     final = target.read_bytes()
     assert final in (payload_a, payload_b)
 
-    collision_count = sum(
-        1 for _, exc in results if isinstance(exc, PdfPathCollisionError)
+    collisions = [
+        exc for _, exc in results if isinstance(exc, PdfPathCollisionError)
+    ]
+    # PdfPathCollisionError is now only raised on archive-rename failure
+    # (a permission error during os.replace target->archive), which the
+    # threaded race shouldn't hit. Any other Exception is a regression.
+    assert collisions == [], (
+        f"PdfPathCollisionError is reserved for archive failures only, "
+        f"got: {collisions}"
     )
-    # The race window is tiny: it's possible both writers passed the
-    # `target.exists()` check before either replaced, in which case
-    # neither raises and the second os.replace silently wins. That
-    # collapses to "last writer wins" — undesirable but not a regression.
-    # We require AT LEAST that no SILENT loss of the collision signal
-    # happens when one writer is materially behind the other (the
-    # OneDrive case). Assertion: either we see a collision raise, or
-    # both writers had matching state (rare in this construction).
-    assert collision_count <= 1, "no more than one collision per pair"
+    other = [exc for _, exc in results if exc is not None]
+    assert other == [], f"unexpected errors: {other}"
