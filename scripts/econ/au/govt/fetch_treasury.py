@@ -11,9 +11,11 @@ Reachability (probed 2026-06-10): 200 OK over plain HTTPS. No Akamai, no
 corp-firewall block. Uses `_http.py` not `_playwright.py`.
 
 Discovery is broad — captures every publication type (Budget Papers,
-MYEFO, PEFO, IGR, Treasury Round-Up, Senate responses, etc.). Downstream
-filtering can prioritise by title keyword when the research-doc pipeline
-absorbs filings; for now the manifest carries everything.
+MYEFO, PEFO, IGR, Treasury Round-Up, Senate responses, etc.). A
+title-keyword denylist (``_TITLE_DENY_RE``) drops admin / social-policy /
+narrow-regulatory items at discovery time so the orchestrator never
+ingests them (Certification Statements for ad campaigns, Pay Gap
+reports, Construction Code revisions, EV-discount reviews).
 """
 from __future__ import annotations
 
@@ -33,6 +35,24 @@ TREASURY_LIST_PAGE_URL = "https://treasury.gov.au/publication?page={page}"
 # Match numeric publication slugs: /publication/p2026-775765
 _PUB_HREF_RE = re.compile(r"^/publication/p\d{4}-\d+$")
 
+# Title-keyword denylist — case-insensitive substring match. These are
+# Treasury publications that are not macro-relevant (admin compliance,
+# social-policy reports, narrow regulatory reviews). Audited 2026-06-11
+# against ~16 freshly-ingested items. Keep this list small + specific;
+# false-negatives (a kept noise item) are tolerable, false-positives
+# (a dropped macro item) are not.
+_TITLE_DENY_PATTERNS = (
+    r"\bCertification Statement\b",        # Housing campaign Phase 2/2a etc.
+    r"\bPay Gap\b",                         # Gender Pay Gap Employer Statement
+    r"\bConstruction Code\b",               # NCC Modernisation interim reports
+    r"\bElectric Car Discount\b",           # EV-discount statutory review
+    r"\bBuilding Code\b",                   # building-code revisions
+)
+_TITLE_DENY_RE = re.compile(
+    "|".join(_TITLE_DENY_PATTERNS),
+    flags=re.IGNORECASE,
+)
+
 
 def _parse_listing_html(html: str) -> list[FilingItem]:
     from bs4 import BeautifulSoup  # type: ignore
@@ -40,6 +60,7 @@ def _parse_listing_html(html: str) -> list[FilingItem]:
     soup = BeautifulSoup(html, "html.parser")
     items: list[FilingItem] = []
     seen_urls: set[str] = set()
+    dropped: list[str] = []
 
     for row in soup.find_all("div", class_=re.compile(r"\bviews-row\b")):
         title_block = row.find("div", class_=re.compile(r"field--name-node-title"))
@@ -57,6 +78,10 @@ def _parse_listing_html(html: str) -> list[FilingItem]:
         if not title:
             continue
 
+        if _TITLE_DENY_RE.search(title):
+            dropped.append(title)
+            continue
+
         time_el = row.find("time")
         publish_date = _parse_time_attr(time_el)
         if publish_date is None:
@@ -72,6 +97,10 @@ def _parse_listing_html(html: str) -> list[FilingItem]:
             stream="treasury_publications",
             extras={"pub_slug": href.rsplit("/", 1)[-1]},
         ))
+    if dropped:
+        print(f"  [treasury_au] denylist dropped {len(dropped)} title(s):")
+        for t in dropped:
+            print(f"    - {t[:120]}")
     return items
 
 

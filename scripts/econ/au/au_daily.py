@@ -248,98 +248,224 @@ def _render_email(
     fail_n = len(failed)
     cotality_gap = not cotality.get("ok", True)
 
+    # Status badge (matches Korea palette: green/orange/red).
+    if fail_n > 1:
+        status, banner_color = "FAIL", "#e74c3c"
+    elif fail_n == 1 or cotality_gap:
+        status, banner_color = "PARTIAL", "#f39c12"
+    else:
+        status, banner_color = "OK", "#27ae60"
+
     prefix_bits: list[str] = []
     if cotality_gap:
         prefix_bits.append("[Cotality gap]")
     if fail_n:
-        prefix_bits.append(f"⚠ {fail_n} failed")
-    elif not prefix_bits:
-        prefix_bits.append("✓ all ok")
-    status = " ".join(prefix_bits)
-
+        prefix_bits.append(f"{fail_n} fail")
+    subject_status = " ".join(prefix_bits) or "OK"
     subject = (
-        f"[IMDR Daily AU] {status} — {n_obs} obs / {n_new} filings ({n_chunks} chunks) "
-        f"({duration_s/60:.1f} min)"
+        f"[IMDR Daily AU] {subject_status} - {n_obs} obs / "
+        f"{n_new} filings ({n_chunks} chunks) ({duration_s/60:.1f} min)"
     )
 
     def _e(s: object) -> str:
         return _html.escape(str(s or ""))
 
-    rows_pipelines = "\n".join(
-        f"<tr><td>{_e(p['name'])}</td><td>{p['rc']}</td>"
-        f"<td style='text-align:right'>{p['elapsed_s']:.1f}s</td></tr>"
-        for p in pipelines
-    )
-    rows_vendors = "\n".join(
-        f"<tr><td>{_e(v['vendor_code'])}</td><td>{_e(v['display_name'])}</td>"
-        f"<td>{_e(v['vendor_category'])}</td>"
-        f"<td style='text-align:right'>{v['n_reports']}</td>"
-        f"<td style='text-align:right'>{v['n_chunks']}</td></tr>"
-        for v in snap["by_vendor"]
-    ) or "<tr><td colspan='5' style='color:#888'>no new filings</td></tr>"
-    rows_recent = "\n".join(
-        f"<tr><td>{_e(r['vendor_code'])}</td><td>{_e(r['publish_date'])}</td>"
-        f"<td>{_e(r['title'][:120])}</td></tr>"
-        for r in snap["recent"]
-    ) or "<tr><td colspan='3' style='color:#888'>—</td></tr>"
+    _OK = "<span style='color:#27ae60;font-weight:bold;'>OK</span>"
+    _FAIL = "<span style='color:#e74c3c;font-weight:bold;'>FAIL</span>"
 
-    rows_track_a = "\n".join(
-        f"<tr><td>{_e(v['vendor_name'])}</td>"
-        f"<td style='text-align:right'>{v['n_indicators']}</td>"
-        f"<td style='text-align:right'>{v['n_obs']}</td>"
-        f"<td>{_e(v['latest_obs'])}</td></tr>"
-        for v in track_a["by_vendor"]
-    ) or "<tr><td colspan='4' style='color:#888'>no daily obs ingested this run</td></tr>"
+    def _row_bg(rc: int, i: int) -> str:
+        if rc != 0:
+            return "#fdecea"
+        return "#f0f7ff" if (i % 2) else "#ffffff"
+
+    def _stripe(i: int) -> str:
+        return "#f0f7ff" if (i % 2) else "#ffffff"
+
+    rows_pipelines = "".join(
+        f"<tr style='background:{_row_bg(p['rc'], i)};'>"
+        f"<td style='border:1px solid #ddd;padding:5px;font-family:Consolas,monospace;'>{_e(p['name'])}</td>"
+        f"<td style='border:1px solid #ddd;padding:5px;'>{_OK if p['rc'] == 0 else _FAIL}</td>"
+        f"<td style='border:1px solid #ddd;padding:5px;text-align:right;font-family:Consolas,monospace;'>{p['elapsed_s']:.1f} s</td>"
+        f"<td style='border:1px solid #ddd;padding:5px;text-align:right;font-family:Consolas,monospace;'>{p['rc']}</td>"
+        f"</tr>"
+        for i, p in enumerate(pipelines)
+    )
+
+    if track_a["by_vendor"]:
+        rows_track_a = "".join(
+            f"<tr style='background:{_stripe(i)};'>"
+            f"<td style='border:1px solid #ddd;padding:5px;'>{_e(v['vendor_name'])}</td>"
+            f"<td style='border:1px solid #ddd;padding:5px;text-align:right;font-family:Consolas,monospace;'>{v['n_indicators']}</td>"
+            f"<td style='border:1px solid #ddd;padding:5px;text-align:right;font-family:Consolas,monospace;'><b>{v['n_obs']}</b></td>"
+            f"<td style='border:1px solid #ddd;padding:5px;font-family:Consolas,monospace;'>{_e(v['latest_obs'])}</td>"
+            f"</tr>"
+            for i, v in enumerate(track_a["by_vendor"])
+        )
+    else:
+        rows_track_a = "<tr><td colspan='4' style='border:1px solid #ddd;padding:8px;color:#888;'>No daily obs ingested this run (everything already at latest vintage).</td></tr>"
+
+    if snap["by_vendor"]:
+        rows_vendors = "".join(
+            f"<tr style='background:{_stripe(i)};'>"
+            f"<td style='border:1px solid #ddd;padding:5px;font-family:Consolas,monospace;'>{_e(v['vendor_code'])}</td>"
+            f"<td style='border:1px solid #ddd;padding:5px;'>{_e(v['display_name'])}</td>"
+            f"<td style='border:1px solid #ddd;padding:5px;color:#555;'>{_e(v['vendor_category'])}</td>"
+            f"<td style='border:1px solid #ddd;padding:5px;text-align:right;font-family:Consolas,monospace;'><b>{v['n_reports']}</b></td>"
+            f"<td style='border:1px solid #ddd;padding:5px;text-align:right;font-family:Consolas,monospace;'>{v['n_chunks']}</td>"
+            f"</tr>"
+            for i, v in enumerate(snap["by_vendor"])
+        )
+    else:
+        rows_vendors = "<tr><td colspan='5' style='border:1px solid #ddd;padding:8px;color:#888;'>No new filings this run.</td></tr>"
+
+    if snap["recent"]:
+        rows_recent = "".join(
+            f"<tr style='background:{_stripe(i)};'>"
+            f"<td style='border:1px solid #ddd;padding:5px;font-family:Consolas,monospace;'>{_e(r['vendor_code'])}</td>"
+            f"<td style='border:1px solid #ddd;padding:5px;font-family:Consolas,monospace;'>{_e(r['publish_date'])}</td>"
+            f"<td style='border:1px solid #ddd;padding:5px;'>{_e(r['title'][:140])}</td>"
+            f"</tr>"
+            for i, r in enumerate(snap["recent"])
+        )
+    else:
+        rows_recent = "<tr><td colspan='3' style='border:1px solid #ddd;padding:8px;color:#888;'>&mdash;</td></tr>"
+
+    # Pre-compute conditional spans so we don't nest quotes inside f-strings
+    pipelines_summary = (
+        f"<span style='color:#27ae60;font-weight:bold;'>{len(pipelines)} OK</span>"
+        if fail_n == 0
+        else f"<span style='color:#e74c3c;font-weight:bold;'>{fail_n} FAILED</span> / {len(pipelines)} total"
+    )
+    track_a_summary = (
+        f"<span style='color:#27ae60;font-weight:bold;'>{n_obs} new obs</span>"
+        if n_obs > 0
+        else "<span style='color:#888;'>no new obs</span>"
+    )
+    track_b_summary = (
+        f"<span style='color:#27ae60;font-weight:bold;'>{n_new} new filings / {n_chunks} chunks</span>"
+        if n_new > 0
+        else "<span style='color:#888;'>no new filings</span>"
+    )
 
     cotality_banner = ""
     if cotality_gap:
         cotality_banner = (
-            f"<div style='background:#fff3cd;border:1px solid #ffe082;padding:8px 12px;"
-            f"margin:8px 0;border-radius:4px;'><b>[Cotality gap]</b> "
-            f"Only {cotality['n_series_with_today']}/{cotality['expected']} HVI series "
-            f"have an observation for {_e(cotality['date'])}. "
-            f"Re-run <code>scripts.econ.au.cotality.cotality_hvi</code> to catch up "
-            f"(the source page still serves today's value; idempotent MERGE recovers).</div>"
+            "<table width='96%' cellpadding='0' cellspacing='0' style='margin:14px auto 0 auto;'>"
+            "<tr><td style='background:#fff3cd;border-left:4px solid #f39c12;padding:10px 14px;'>"
+            "<b style='color:#7c5b00;'>[Cotality gap]</b> "
+            f"Only <b>{cotality['n_series_with_today']}/{cotality['expected']}</b> HVI series "
+            f"have an obs for <code>{_e(cotality['date'])}</code>. "
+            "Re-run <code>scripts.econ.au.cotality.cotality_hvi</code> to catch up "
+            "(source page serves today's value; idempotent MERGE recovers)."
+            "</td></tr></table>"
         )
 
-    css = (
-        "body{font-family:Segoe UI,Arial,sans-serif;font-size:13px;}"
-        "table{border-collapse:collapse;margin:8px 0;}"
-        "th,td{border:1px solid #ddd;padding:4px 8px;}"
-        "th{background:#f4f4f4;text-align:left;}"
-        ".meta{color:#666;margin-top:12px;font-size:11px;}"
-    )
+    body = f"""<!DOCTYPE html><html><head><meta charset='utf-8'></head>
+<body style='margin:0;padding:0;font-family:Calibri,Arial,sans-serif;font-size:14px;color:#222;'>
 
-    body = f"""<!doctype html><html><head><style>{css}</style></head><body>
-<h3>IMDR AU Daily — Track A (data series) + Track B (filings)</h3>
-<p>Started {run_started_at:%Y-%m-%d %H:%M UTC} · finished {run_completed_at:%H:%M UTC} ·
-duration {duration_s/60:.1f} min · {n_obs} daily obs · {n_new} new filings / {n_chunks} chunks ·
-{fail_n} pipeline(s) failed</p>
+<!-- HEADER -->
+<table width='100%' cellpadding='0' cellspacing='0' style='background-color:#0d2137;'>
+  <tr>
+    <td style='padding:18px 24px;'>
+      <span style='color:#ffffff;font-size:20px;font-weight:bold;'>IMDR &mdash; Australia Econ Ingest (Daily)</span>
+      <span style='background:{banner_color};color:#fff;padding:4px 12px;border-radius:4px;font-size:13px;font-weight:bold;margin-left:16px;'>{status}</span>
+    </td>
+  </tr>
+  <tr>
+    <td style='padding:0 24px 14px 24px;'>
+      <span style='color:#7ba4c7;font-size:14px;'>{run_started_at:%Y-%m-%d %H:%M UTC} | scope: Track A (DAILY) + Track B (filings)</span>
+    </td>
+  </tr>
+</table>
 
 {cotality_banner}
 
-<h4>Pipelines</h4>
-<table><thead><tr><th>name</th><th>rc</th><th>elapsed</th></tr></thead>
-<tbody>{rows_pipelines}</tbody></table>
+<!-- EXECUTION -->
+<table width='100%' cellpadding='0' cellspacing='0' style='margin-top:16px;'>
+  <tr><td style='padding:0 24px;'><span style='font-size:16px;font-weight:bold;color:#0d2137;'>EXECUTION</span></td></tr>
+</table>
+<table width='96%' cellpadding='6' cellspacing='0' style='margin:8px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;'>
+  <tr style='background:#f5f5f5;'><td style='border:1px solid #ddd;font-weight:bold;width:200px;'>Orchestrator</td><td style='border:1px solid #ddd;font-family:Consolas,monospace;'>scripts.econ.au.au_daily</td></tr>
+  <tr><td style='border:1px solid #ddd;font-weight:bold;'>Started</td><td style='border:1px solid #ddd;'>{run_started_at:%Y-%m-%d %H:%M:%S} UTC</td></tr>
+  <tr style='background:#f5f5f5;'><td style='border:1px solid #ddd;font-weight:bold;'>Completed</td><td style='border:1px solid #ddd;'>{run_completed_at:%Y-%m-%d %H:%M:%S} UTC</td></tr>
+  <tr><td style='border:1px solid #ddd;font-weight:bold;'>Duration</td><td style='border:1px solid #ddd;'>{duration_s/60:.1f} min</td></tr>
+  <tr style='background:#f5f5f5;'><td style='border:1px solid #ddd;font-weight:bold;'>Pipelines</td>
+    <td style='border:1px solid #ddd;'>{pipelines_summary}</td>
+  </tr>
+  <tr><td style='border:1px solid #ddd;font-weight:bold;'>Track A (data series)</td>
+    <td style='border:1px solid #ddd;'>{track_a_summary}</td>
+  </tr>
+  <tr style='background:#f5f5f5;'><td style='border:1px solid #ddd;font-weight:bold;'>Track B (filings)</td>
+    <td style='border:1px solid #ddd;'>{track_b_summary}</td>
+  </tr>
+</table>
 
-<h4>Track A — daily indicators ingested this run</h4>
-<table><thead><tr><th>vendor</th>
-<th style='text-align:right'>indicators</th>
-<th style='text-align:right'>obs</th>
-<th>latest obs_date</th></tr></thead>
-<tbody>{rows_track_a}</tbody></table>
+<!-- PIPELINES -->
+<table width='100%' cellpadding='0' cellspacing='0' style='margin-top:20px;'>
+  <tr><td style='padding:0 24px;'><span style='font-size:16px;font-weight:bold;color:#0d2137;'>FETCHER PIPELINES ({len(pipelines)})</span></td></tr>
+</table>
+<table width='96%' cellpadding='5' cellspacing='0' style='margin:8px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;font-size:13px;'>
+  <tr style='background:#0d2137;color:#fff;'>
+    <th style='border:1px solid #555;padding:6px;text-align:left;'>Pipeline</th>
+    <th style='border:1px solid #555;padding:6px;text-align:left;'>Status</th>
+    <th style='border:1px solid #555;padding:6px;text-align:right;'>Elapsed</th>
+    <th style='border:1px solid #555;padding:6px;text-align:right;'>RC</th>
+  </tr>
+  {rows_pipelines}
+</table>
 
-<h4>Track B — filings ingested by vendor</h4>
-<table><thead><tr><th>code</th><th>vendor</th><th>category</th>
-<th style='text-align:right'>reports</th><th style='text-align:right'>chunks</th></tr></thead>
-<tbody>{rows_vendors}</tbody></table>
+<!-- TRACK A -->
+<table width='100%' cellpadding='0' cellspacing='0' style='margin-top:20px;'>
+  <tr><td style='padding:0 24px;'><span style='font-size:16px;font-weight:bold;color:#0d2137;'>TRACK A &mdash; DAILY INDICATORS</span>
+  <span style='font-size:12px;color:#666;margin-left:8px;'>obs ingested this run, grouped by vendor</span></td></tr>
+</table>
+<table width='96%' cellpadding='5' cellspacing='0' style='margin:8px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;font-size:13px;'>
+  <tr style='background:#0d2137;color:#fff;'>
+    <th style='border:1px solid #555;padding:6px;text-align:left;'>Vendor</th>
+    <th style='border:1px solid #555;padding:6px;text-align:right;'>Indicators</th>
+    <th style='border:1px solid #555;padding:6px;text-align:right;'>New obs</th>
+    <th style='border:1px solid #555;padding:6px;text-align:left;'>Latest obs_date</th>
+  </tr>
+  {rows_track_a}
+</table>
 
-<h4>Most recent filings (top 5)</h4>
-<table><thead><tr><th>code</th><th>date</th><th>title</th></tr></thead>
-<tbody>{rows_recent}</tbody></table>
+<!-- TRACK B -->
+<table width='100%' cellpadding='0' cellspacing='0' style='margin-top:20px;'>
+  <tr><td style='padding:0 24px;'><span style='font-size:16px;font-weight:bold;color:#0d2137;'>TRACK B &mdash; FILINGS BY VENDOR</span>
+  <span style='font-size:12px;color:#666;margin-left:8px;'>research.dim_report + research.fact_chunk + Qdrant + SharePoint</span></td></tr>
+</table>
+<table width='96%' cellpadding='5' cellspacing='0' style='margin:8px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;font-size:13px;'>
+  <tr style='background:#0d2137;color:#fff;'>
+    <th style='border:1px solid #555;padding:6px;text-align:left;'>Code</th>
+    <th style='border:1px solid #555;padding:6px;text-align:left;'>Vendor</th>
+    <th style='border:1px solid #555;padding:6px;text-align:left;'>Category</th>
+    <th style='border:1px solid #555;padding:6px;text-align:right;'>Reports</th>
+    <th style='border:1px solid #555;padding:6px;text-align:right;'>Chunks</th>
+  </tr>
+  {rows_vendors}
+</table>
 
-<p class="meta">Orchestrator: <code>scripts.econ.au.au_daily</code>.
-Pipeline detail: <code>data/econ/au/govt/_last_run.log</code> on the host.</p>
+<!-- RECENT FILINGS -->
+<table width='100%' cellpadding='0' cellspacing='0' style='margin-top:20px;'>
+  <tr><td style='padding:0 24px;'><span style='font-size:16px;font-weight:bold;color:#0d2137;'>MOST RECENT FILINGS (top 5)</span></td></tr>
+</table>
+<table width='96%' cellpadding='5' cellspacing='0' style='margin:8px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;font-size:13px;'>
+  <tr style='background:#0d2137;color:#fff;'>
+    <th style='border:1px solid #555;padding:6px;text-align:left;'>Code</th>
+    <th style='border:1px solid #555;padding:6px;text-align:left;'>Publish date</th>
+    <th style='border:1px solid #555;padding:6px;text-align:left;'>Title</th>
+  </tr>
+  {rows_recent}
+</table>
+
+<!-- FOOTER -->
+<table width='100%' cellpadding='0' cellspacing='0' style='margin-top:24px;background-color:#f0f0f0;border-top:2px solid #ddd;'>
+  <tr><td style='padding:12px 24px;color:#888;font-size:12px;'>
+    Generated by IMDR | scripts.econ.au.au_daily | {run_completed_at:%Y-%m-%d %H:%M:%S} UTC |
+    data: econ.fact_indicator + research.dim_report + research.fact_chunk
+  </td></tr>
+</table>
+
 </body></html>"""
     return subject, body
 

@@ -177,86 +177,186 @@ def _render_email(
     fail_n = len(failed)
     aofm_stale = aofm.get("stale") or aofm.get("missing")
 
+    if fail_n > 1:
+        status, banner_color = "FAIL", "#e74c3c"
+    elif fail_n == 1 or aofm_stale:
+        status, banner_color = "PARTIAL", "#f39c12"
+    else:
+        status, banner_color = "OK", "#27ae60"
+
     prefix_bits: list[str] = []
     if aofm_stale:
         prefix_bits.append("[AOFM STALE]")
     if fail_n:
-        prefix_bits.append(f"⚠ {fail_n} failed")
-    elif not prefix_bits:
-        prefix_bits.append("✓ all ok")
-    status = " ".join(prefix_bits)
-
+        prefix_bits.append(f"{fail_n} fail")
+    subject_status = " ".join(prefix_bits) or "OK"
     subject = (
-        f"[IMDR Monthly AU] {status} — {n_obs} obs / "
-        f"{len(track_a['rows'])} vendor×freq cells ({duration_s/60:.1f} min)"
+        f"[IMDR Monthly AU] {subject_status} - {n_obs} obs / "
+        f"{len(track_a['rows'])} vendor-freq cells ({duration_s/60:.1f} min)"
     )
 
     def _e(s: object) -> str:
         return _html.escape(str(s or ""))
 
-    rows_pipelines = "\n".join(
-        f"<tr><td>{_e(p['name'])}</td><td>{p['rc']}</td>"
-        f"<td style='text-align:right'>{p['elapsed_s']:.1f}s</td></tr>"
-        for p in pipelines
+    _OK = "<span style='color:#27ae60;font-weight:bold;'>OK</span>"
+    _FAIL = "<span style='color:#e74c3c;font-weight:bold;'>FAIL</span>"
+
+    def _row_bg(rc: int, i: int) -> str:
+        if rc != 0:
+            return "#fdecea"
+        return "#f0f7ff" if (i % 2) else "#ffffff"
+
+    def _stripe(i: int) -> str:
+        return "#f0f7ff" if (i % 2) else "#ffffff"
+
+    rows_pipelines = "".join(
+        f"<tr style='background:{_row_bg(p['rc'], i)};'>"
+        f"<td style='border:1px solid #ddd;padding:5px;font-family:Consolas,monospace;'>{_e(p['name'])}</td>"
+        f"<td style='border:1px solid #ddd;padding:5px;'>{_OK if p['rc'] == 0 else _FAIL}</td>"
+        f"<td style='border:1px solid #ddd;padding:5px;text-align:right;font-family:Consolas,monospace;'>{p['elapsed_s']:.1f} s</td>"
+        f"<td style='border:1px solid #ddd;padding:5px;text-align:right;font-family:Consolas,monospace;'>{p['rc']}</td>"
+        f"</tr>"
+        for i, p in enumerate(pipelines)
     )
-    rows_track_a = "\n".join(
-        f"<tr><td>{_e(v['vendor_name'])}</td><td>{_e(v['frequency_code'])}</td>"
-        f"<td style='text-align:right'>{v['n_indicators']}</td>"
-        f"<td style='text-align:right'>{v['n_obs']}</td>"
-        f"<td>{_e(v['latest_obs'])}</td></tr>"
-        for v in track_a["rows"]
-    ) or "<tr><td colspan='5' style='color:#888'>no obs ingested this run</td></tr>"
+
+    if track_a["rows"]:
+        rows_track_a = "".join(
+            f"<tr style='background:{_stripe(i)};'>"
+            f"<td style='border:1px solid #ddd;padding:5px;'>{_e(v['vendor_name'])}</td>"
+            f"<td style='border:1px solid #ddd;padding:5px;font-family:Consolas,monospace;'>{_e(v['frequency_code'])}</td>"
+            f"<td style='border:1px solid #ddd;padding:5px;text-align:right;font-family:Consolas,monospace;'>{v['n_indicators']}</td>"
+            f"<td style='border:1px solid #ddd;padding:5px;text-align:right;font-family:Consolas,monospace;'><b>{v['n_obs']}</b></td>"
+            f"<td style='border:1px solid #ddd;padding:5px;font-family:Consolas,monospace;'>{_e(v['latest_obs'])}</td>"
+            f"</tr>"
+            for i, v in enumerate(track_a["rows"])
+        )
+    else:
+        rows_track_a = "<tr><td colspan='5' style='border:1px solid #ddd;padding:8px;color:#888;'>No obs ingested this run (everything already at latest vintage).</td></tr>"
 
     aofm_banner = ""
     if aofm["missing"]:
         aofm_banner = (
-            "<div style='background:#f8d7da;border:1px solid #f1aeb5;padding:8px 12px;"
-            "margin:8px 0;border-radius:4px;'><b>[AOFM STALE]</b> "
+            "<table width='96%' cellpadding='0' cellspacing='0' style='margin:14px auto 0 auto;'>"
+            "<tr><td style='background:#f8d7da;border-left:4px solid #e74c3c;padding:10px 14px;'>"
+            "<b style='color:#7a1f1f;'>[AOFM STALE]</b> "
             "No XLSXs found under <code>data/econ/au/aofm/xlsx/</code>. "
             "Refresh via Microsoft Edge from "
-            "<a href='https://www.aofm.gov.au/data-hub'>aofm.gov.au/data-hub</a>.</div>"
+            "<a href='https://www.aofm.gov.au/data-hub'>aofm.gov.au/data-hub</a>."
+            "</td></tr></table>"
         )
     elif aofm["stale"]:
         aofm_banner = (
-            f"<div style='background:#fff3cd;border:1px solid #ffe082;padding:8px 12px;"
-            f"margin:8px 0;border-radius:4px;'><b>[AOFM STALE]</b> "
-            f"Newest XLSX is {aofm['age_days']:.1f} days old "
+            "<table width='96%' cellpadding='0' cellspacing='0' style='margin:14px auto 0 auto;'>"
+            "<tr><td style='background:#fff3cd;border-left:4px solid #f39c12;padding:10px 14px;'>"
+            "<b style='color:#7c5b00;'>[AOFM STALE]</b> "
+            f"Newest XLSX is <b>{aofm['age_days']:.1f}</b> days old "
             f"(threshold: {aofm['threshold_days']} days). "
-            f"Refresh via Microsoft Edge from "
-            f"<a href='https://www.aofm.gov.au/data-hub'>aofm.gov.au/data-hub</a>. "
-            f"Corp firewall blocks Chrome/Playwright on these XLSXs.</div>"
+            "Refresh via Microsoft Edge from "
+            "<a href='https://www.aofm.gov.au/data-hub'>aofm.gov.au/data-hub</a>. "
+            "Corp firewall blocks Chrome/Playwright on these XLSXs."
+            "</td></tr></table>"
         )
 
-    css = (
-        "body{font-family:Segoe UI,Arial,sans-serif;font-size:13px;}"
-        "table{border-collapse:collapse;margin:8px 0;}"
-        "th,td{border:1px solid #ddd;padding:4px 8px;}"
-        "th{background:#f4f4f4;text-align:left;}"
-        ".meta{color:#666;margin-top:12px;font-size:11px;}"
+    aofm_age_str = (
+        f"{aofm['age_days']:.1f} days"
+        if aofm.get("age_days") is not None
+        else "no XLSXs on disk"
     )
 
-    body = f"""<!doctype html><html><head><style>{css}</style></head><body>
-<h3>IMDR AU Monthly — Track A data series</h3>
-<p>Started {run_started_at:%Y-%m-%d %H:%M UTC} · finished {run_completed_at:%H:%M UTC} ·
-duration {duration_s/60:.1f} min · {n_obs} obs ingested ·
-{fail_n} pipeline(s) failed</p>
+    pipelines_summary = (
+        f"<span style='color:#27ae60;font-weight:bold;'>{len(pipelines)} OK</span>"
+        if fail_n == 0
+        else f"<span style='color:#e74c3c;font-weight:bold;'>{fail_n} FAILED</span> / {len(pipelines)} total"
+    )
+    obs_summary = (
+        f"<span style='color:#27ae60;font-weight:bold;'>{n_obs} new obs across {len(track_a['rows'])} vendor-freq cells</span>"
+        if n_obs > 0
+        else "<span style='color:#888;'>no new obs (all already at latest vintage)</span>"
+    )
+    aofm_summary = (
+        f"<span style='color:#e74c3c;font-weight:bold;'>{aofm_age_str} (STALE)</span>"
+        if aofm_stale
+        else f"<span style='color:#27ae60;'>{aofm_age_str} (fresh, &le; {aofm['threshold_days']}d)</span>"
+    )
+
+    body = f"""<!DOCTYPE html><html><head><meta charset='utf-8'></head>
+<body style='margin:0;padding:0;font-family:Calibri,Arial,sans-serif;font-size:14px;color:#222;'>
+
+<!-- HEADER -->
+<table width='100%' cellpadding='0' cellspacing='0' style='background-color:#0d2137;'>
+  <tr>
+    <td style='padding:18px 24px;'>
+      <span style='color:#ffffff;font-size:20px;font-weight:bold;'>IMDR &mdash; Australia Econ Ingest (Monthly)</span>
+      <span style='background:{banner_color};color:#fff;padding:4px 12px;border-radius:4px;font-size:13px;font-weight:bold;margin-left:16px;'>{status}</span>
+    </td>
+  </tr>
+  <tr>
+    <td style='padding:0 24px 14px 24px;'>
+      <span style='color:#7ba4c7;font-size:14px;'>{run_started_at:%Y-%m-%d %H:%M UTC} | scope: MONTHLY + QUARTERLY + ANNUAL</span>
+    </td>
+  </tr>
+</table>
 
 {aofm_banner}
 
-<h4>Pipelines</h4>
-<table><thead><tr><th>name</th><th>rc</th><th>elapsed</th></tr></thead>
-<tbody>{rows_pipelines}</tbody></table>
+<!-- EXECUTION -->
+<table width='100%' cellpadding='0' cellspacing='0' style='margin-top:16px;'>
+  <tr><td style='padding:0 24px;'><span style='font-size:16px;font-weight:bold;color:#0d2137;'>EXECUTION</span></td></tr>
+</table>
+<table width='96%' cellpadding='6' cellspacing='0' style='margin:8px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;'>
+  <tr style='background:#f5f5f5;'><td style='border:1px solid #ddd;font-weight:bold;width:200px;'>Orchestrator</td><td style='border:1px solid #ddd;font-family:Consolas,monospace;'>scripts.econ.au.au_monthly</td></tr>
+  <tr><td style='border:1px solid #ddd;font-weight:bold;'>Started</td><td style='border:1px solid #ddd;'>{run_started_at:%Y-%m-%d %H:%M:%S} UTC</td></tr>
+  <tr style='background:#f5f5f5;'><td style='border:1px solid #ddd;font-weight:bold;'>Completed</td><td style='border:1px solid #ddd;'>{run_completed_at:%Y-%m-%d %H:%M:%S} UTC</td></tr>
+  <tr><td style='border:1px solid #ddd;font-weight:bold;'>Duration</td><td style='border:1px solid #ddd;'>{duration_s/60:.1f} min</td></tr>
+  <tr style='background:#f5f5f5;'><td style='border:1px solid #ddd;font-weight:bold;'>Pipelines</td>
+    <td style='border:1px solid #ddd;'>{pipelines_summary}</td>
+  </tr>
+  <tr><td style='border:1px solid #ddd;font-weight:bold;'>New observations</td>
+    <td style='border:1px solid #ddd;'>{obs_summary}</td>
+  </tr>
+  <tr style='background:#f5f5f5;'><td style='border:1px solid #ddd;font-weight:bold;'>AOFM XLSX age</td>
+    <td style='border:1px solid #ddd;'>{aofm_summary}</td>
+  </tr>
+</table>
 
-<h4>Indicators ingested by vendor × frequency</h4>
-<table><thead><tr><th>vendor</th><th>freq</th>
-<th style='text-align:right'>indicators</th>
-<th style='text-align:right'>obs</th>
-<th>latest obs_date</th></tr></thead>
-<tbody>{rows_track_a}</tbody></table>
+<!-- PIPELINES -->
+<table width='100%' cellpadding='0' cellspacing='0' style='margin-top:20px;'>
+  <tr><td style='padding:0 24px;'><span style='font-size:16px;font-weight:bold;color:#0d2137;'>FETCHER PIPELINES ({len(pipelines)})</span></td></tr>
+</table>
+<table width='96%' cellpadding='5' cellspacing='0' style='margin:8px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;font-size:13px;'>
+  <tr style='background:#0d2137;color:#fff;'>
+    <th style='border:1px solid #555;padding:6px;text-align:left;'>Pipeline</th>
+    <th style='border:1px solid #555;padding:6px;text-align:left;'>Status</th>
+    <th style='border:1px solid #555;padding:6px;text-align:right;'>Elapsed</th>
+    <th style='border:1px solid #555;padding:6px;text-align:right;'>RC</th>
+  </tr>
+  {rows_pipelines}
+</table>
 
-<p class="meta">Orchestrator: <code>scripts.econ.au.au_monthly</code>.
-AOFM XLSXs source: manual Edge download to <code>data/econ/au/aofm/xlsx/</code>;
-staleness threshold {_AOFM_STALENESS_DAYS}d.</p>
+<!-- TRACK A by vendor × frequency -->
+<table width='100%' cellpadding='0' cellspacing='0' style='margin-top:20px;'>
+  <tr><td style='padding:0 24px;'><span style='font-size:16px;font-weight:bold;color:#0d2137;'>INDICATORS BY VENDOR &times; FREQUENCY</span>
+  <span style='font-size:12px;color:#666;margin-left:8px;'>obs ingested this run, scope = MONTHLY / QUARTERLY / ANNUAL</span></td></tr>
+</table>
+<table width='96%' cellpadding='5' cellspacing='0' style='margin:8px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;font-size:13px;'>
+  <tr style='background:#0d2137;color:#fff;'>
+    <th style='border:1px solid #555;padding:6px;text-align:left;'>Vendor</th>
+    <th style='border:1px solid #555;padding:6px;text-align:left;'>Frequency</th>
+    <th style='border:1px solid #555;padding:6px;text-align:right;'>Indicators</th>
+    <th style='border:1px solid #555;padding:6px;text-align:right;'>New obs</th>
+    <th style='border:1px solid #555;padding:6px;text-align:left;'>Latest obs_date</th>
+  </tr>
+  {rows_track_a}
+</table>
+
+<!-- FOOTER -->
+<table width='100%' cellpadding='0' cellspacing='0' style='margin-top:24px;background-color:#f0f0f0;border-top:2px solid #ddd;'>
+  <tr><td style='padding:12px 24px;color:#888;font-size:12px;'>
+    Generated by IMDR | scripts.econ.au.au_monthly | {run_completed_at:%Y-%m-%d %H:%M:%S} UTC |
+    AOFM source: manual Edge download to <code>data/econ/au/aofm/xlsx/</code> (threshold {_AOFM_STALENESS_DAYS}d)
+  </td></tr>
+</table>
+
 </body></html>"""
     return subject, body
 
