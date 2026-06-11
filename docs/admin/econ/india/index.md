@@ -27,7 +27,7 @@ India is the weakest API landscape in Asia. Real-economy series (CPI, IIP, GDP) 
 
 **Prod-live in `econ.fact_indicator`:** BIS · FRED · RBI DBIE (26 indicators × 39,569 obs from prior sessions).
 
-**Pre-prod playground** (built + smoke-tested 2026-06-11 from `playground/econ/in/{vendor}/`, awaiting cadence sign-off + prod promotion): **13 fetchers / ~908 indicators / ~62,100 obs** across MOSPI CPI/IIP/NAS · DPIIT WPI/8-Core · CGA monthly · IMD rainfall · FAO FPI · DGCIS trade (A13) · UPAg MSP (A31) · UPAg AIAPY (A26) · **UPAg IMC mandi prices (A33)** · RBI Bulletin (A4, 8 tables). Library helpers at [`src/imdr/domains/econ/mospi.py`](../../../src/imdr/domains/econ/mospi.py) (MOSPI listing API) and [`src/imdr/domains/econ/upag.py`](../../../src/imdr/domains/econ/upag.py) (Plotly Dash callback decoder). Orchestrator scaffold at [`playground/econ/in/in_monthly.py`](../../../playground/econ/in/in_monthly.py).
+**Pre-prod playground** (built + smoke-tested 2026-06-11 from `playground/econ/in/{vendor}/`, awaiting cadence sign-off + prod promotion): **13 fetchers / ~1,081 indicators / ~62,414 obs** across MOSPI CPI/IIP/NAS · DPIIT WPI/8-Core · CGA monthly · IMD rainfall · FAO FPI · DGCIS trade (A13) · UPAg MSP (A31) · UPAg AIAPY (A26) · UPAg IMC mandi prices (A33) · **RBI Bulletin (A4, 11 tables incl. BoP T40 with 151 Credit/Debit/Net indicators)**. Library helpers at [`src/imdr/domains/econ/mospi.py`](../../../src/imdr/domains/econ/mospi.py) (MOSPI listing API) and [`src/imdr/domains/econ/upag.py`](../../../src/imdr/domains/econ/upag.py) (Plotly Dash callback decoder). Orchestrator scaffold at [`playground/econ/in/in_monthly.py`](../../../playground/econ/in/in_monthly.py).
 
 A subset (197 indicators × 15,081 obs) was loaded into the DB during an earlier 2026-06-11 build session as part of `run_main` default behaviour; that code was pulled back to `playground/` pending cadence + sign-off review. Rows stay in place (idempotent MERGE on PK) so re-runs cost nothing. The newer fetchers built later in the session (DGCIS, UPAg MSP/AIAPY, RBI Bulletin) ran `--no-load` only — no DB rows from those.
 
@@ -69,8 +69,8 @@ Two cadence-honest options for prod wiring:
 | **UPAg** | ANNUAL (MSP A31) | 28 | 353 | 2013-14 → 2026-27 (28 crops × INR/Qtl) |
 | **UPAg** | ANNUAL (AIAPY A26) | 324 | 15,030 | **1966-67 → 2025-26** (37 crops × 4 seasons × Area/Production/Yield) |
 | **UPAg** | WEEKLY (IMC mandi A33) | 16 | 128 | 4 sections × 3-5 commodities × 8 anchor dates per run (Agmarknet wholesale, INR/Qtl) |
-| **RBI Bulletin** | MONTHLY/DAILY/WEEKLY (8 tables) | 144 | 533 | May 2026 snapshot (T19C CPI / T27 Call Money / T23 IIP / T6 Money Stock / T11 Reserve Money / T37 NEER-REER / T22 WPI / T2 RBI Balance Sheet) |
-| **Pre-prod subtotal** | | **~908** | **~62,100** | |
+| **RBI Bulletin** | MONTHLY/DAILY/WEEKLY/QUARTERLY (11 tables) | 317 | 847 | May 2026 snapshot — T19C CPI / T27 Call Money / T23 IIP / T6 Money Stock / T11 Reserve Money / T37 NEER-REER / T22 WPI / T2 RBI BS / **T33 FX Reserves** / **T32 Foreign Trade** / **T40 BoP (151 ind: Credit/Debit/Net × 2 quarters)** |
+| **Pre-prod subtotal** | | **~1,081** | **~62,414** | |
 | BIS | DAILY + MONTHLY + QUARTERLY | 6 | 24,957 | 1946 → 2026 |
 | FRED | DAILY + MONTHLY + ANNUAL | 7 | 11,589 | 1990 → 2026 |
 | RBI DBIE | WEEKLY + EVENT | 13 | 3,023 | 2015 → 2026 |
