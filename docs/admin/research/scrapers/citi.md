@@ -76,8 +76,14 @@ POST https://www.citivelocity.com/cvr/publicationqueryws/eppublic/V1/publication
   what we want.
 - `pageSize` is capped server-side at ~500 (verified: requesting 500
   returns 499 results).
-- `outputFormats: ["PDF"]` server-side filters out videos, audio,
-  Excel/Data, HTML-only docs — saves us a per-doc format check.
+- `outputFormats: ["PDF"]` server-side filters out videos, audio, and
+  HTML-only docs. **It does NOT filter out Excel-rendered quant/data
+  products** (Futures Positioning, Weather Metrics, Earnings Revision,
+  etc.) — discovered 2026-06-11 after 18/day failed with
+  `FetchError("Couldn't extract a PDF URL from viewer page")`. The
+  listing API exposes no field that reliably discriminates these from
+  PDF docs, so the recurring titles are filtered by prefix/substring in
+  `filters/citi.py`. See "Title denylist" below.
 
 **Response shape**:
 
@@ -160,6 +166,37 @@ In `crawler_citi._drop_reason`:
 
 `isClientPerspective` and `isComposerCP` are NOT filter signals — both
 are true on 100% of the sample.
+
+## Title denylist (Excel-rendition products)
+
+`filters/citi.py` drops Excel-rendered quant/data products at discovery
+because the `/rendition/eppublic/uiservices/print` endpoint returns a
+viewer-page HTML shell (no embeddable PDF) for them, and the
+`outputFormats=["PDF"]` request parameter doesn't filter them out
+server-side. Without this denylist, each daily ingest produced 18
+`FetchError("Couldn't extract a PDF URL from viewer page")` failures.
+
+**Title prefixes** (case-insensitive after `normalize_title`):
+
+- `futures positioning update` — daily CFTC positions tracker
+- `citi weather metrics|solar|retail|us real feel`
+- `global earnings revision` — EPS revision Excel
+- `global market intelligence` — Excel data dump
+- `amazon best seller data`
+- `india air traffic`
+- `asia pacific radar screen`
+- `warn act notices` — US layoff filings tracker
+- `interactive daily style performance`
+
+**Title substrings**:
+
+- `(excel)` — catches any future Excel product whose title carries the
+  explicit marker
+
+Wired into `crawler_citi.discover_reports` immediately after
+`_drop_reason`, surfaced in logs as `[SKIP] <pub_id> title-prefix:'...'`.
+Pinned by `playground/research/test_citi_filter.py`. Seeded 2026-06-11
+from the 18 stable `[FAIL]` rows; extend with `[DROP]` evidence only.
 
 ## Classifier (Tier-0)
 

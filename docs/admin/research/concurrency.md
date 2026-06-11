@@ -189,11 +189,22 @@ PDFs are written by `safe_write_pdf` in `playground/research/ingest/upload.py`:
 3. Three retries on `PermissionError [WinError 32]` (OneDrive has the file
    open), with 1–2 s backoff + jitter.
 
-If `target` already exists and its bytes differ from the incoming payload,
-`safe_write_pdf` raises `PdfPathCollisionError`. This means two distinct PDFs
-were assigned the same path — investigate the slug/uuid collision in
-`paths.py`, do NOT simply delete the existing file. The existing file may be
-the correct version.
+If `target` already exists and its bytes differ from the incoming payload
+(genuine vendor re-issue — same slug+uuid, new content), `safe_write_pdf`
+**archives** the existing file to a dated sibling
+`{stem}.{YYYYMMDD_HHMMSS}{suffix}` (using the existing file's mtime so the
+archive name reflects when the prior bytes were captured), then writes the
+new payload at the original path. A `[archive]` line is printed to the
+per-vendor log noting the rename and the sha-prefix transition.
+
+If two re-issues hit the same second (or two prior versions share an
+mtime), the second archive name gets the first 8 chars of the existing
+hash appended to disambiguate, so no archive ever silently clobbers another.
+
+`PdfPathCollisionError` is now reserved for the (rare) case where the
+archive rename itself fails — typically a permission error during
+`os.replace(target -> archive)`. That state is genuinely ambiguous and
+requires operator intervention.
 
 Bytes-identical writes (idempotent retry) succeed silently.
 
