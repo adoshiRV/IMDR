@@ -226,6 +226,25 @@ Verified end-to-end at [`playground/econ/rbi/probe_crypto.py`](../../../playgrou
 - **Path Y — Build the generic DBIE-SAP-BO iframe extractor**: ~2-3 hr. Playwright that: encrypts the reportId → POST `dbie_getReportLink` → decrypts the sapLink → opens it in a new tab → triggers the "Export to Excel" button in SAP BO → captures the download → parses. Once built, every reportId in the 1,225-catalogue becomes reachable. Closes A5-A7 in one stroke (~80-120 indicators).
 - **Path Z — Just document + stop**: declare the encryption breakthrough + architecture is the deliverable; punt the actual fetcher build to next session.
 
+### A5-A7 SAP-BO **DATA EXTRACTION WORKING** (2026-06-11)
+
+**Final breakthrough:** the SAP-BO iframe renders REAL DATA when the new tab is opened via the SPA menu click (not direct URL navigation). The session token is established by the click flow itself — `logonSuccessful=true&shareId=0` appears in the URL after the SPA authenticates. Direct URL nav alone redirects to `UI5logon.jsp`.
+
+**Working scraper**: [`playground/econ/in/rbi/rbi_dbie_report.py`](../../../playground/econ/in/rbi/rbi_dbie_report.py) — Playwright headed Chrome that:
+
+1. Opens DBIE SPA at `/indicators` or `/statistics`
+2. Expands menu section (e.g. `External Sector Indicators`)
+3. Clicks the leaf (e.g. `Exchange Rate`)
+4. New tab opens with SAP-BO viewer (`openDocChildFrame` carrying the data)
+5. Scrapes `<table>` rows from the iframe DOM
+6. Parses by per-report layout (currently `wide_dated`: col-0 date, cols 1+ currencies / values)
+
+**Verified end-to-end 2026-06-11** for reportId=575 Exchange Rate: **4 indicators × 400 obs** (USD/GBP/EUR/JPY × 100 daily values from 2026-01-07 → 2026-06-11). Latest USD/INR ≈ 89.94 (column-mapping needs per-report calibration — preview row showed different values, suggesting multiple sub-tables on the page).
+
+**Pattern is generic across all 1,225 DBIE reports** — register `menu_path` + `leaf_text` + `table_layout` in `REPORTS` list. Headed Chrome required (SAP-BO refuses headless context).
+
+**Next-session work** — add per-report entries for the 27 priority reportIds (NRI Deposits 417, ECB 55, NBFC 1534-1544, Forward Premia 698/558, etc.). Each takes 5-10min to wire if the layout is `wide_dated` or similar; complex ones (multi-table dashboards) may need a new parser layout.
+
 ### A5-A7 SAP-BO pipeline end-to-end VERIFIED through sapLink decryption (2026-06-11)
 
 After the encryption breakthrough, the full pipeline up to the SAP-BO entry URL is now reachable from `rvsg-fs01`:
@@ -337,7 +356,8 @@ Code at `playground/econ/in/{vendor}/`; shared MOSPI helper at [`src/imdr/domain
 | UPAg AIAPY (A26) | ANNUAL | Estimation cycles M-1 yr (Third Adv) through M-3 yr (Final) | 324 | 15,030 | **1966-67→2025-26 (60 FYs)** × 37 crops × {Kharif, Rabi, Summer, Total} × {Area Lakh-Ha, Production Lakh-Tonnes, Yield Kg/Ha}; cycle-dedup prefers Final over Third Advance |
 | UPAg IMC (A33) | WEEKLY | Daily mandi prices, anchor-date snapshot timeline | 16 | 128 | 4 sections × 3-5 commodities × 8 anchor dates per run (3yr / 2yr / 1yr / 1mo / 3wk / 2wk / 1wk / today). Wholesale Agmarknet INR/Qtl. Cereals (Paddy/Rice/Wheat) · Pulses (Tur/Gram/Lentil/Moong/Urad) · Oilseeds (Rapeseed-Mustard/Soybean/Groundnut/Sesamum/Sunflower) · Topcrops (Onion/Potato/Tomato). |
 | RBI Bulletin (A4) | MONTHLY/DAILY/WEEKLY/QUARTERLY | Bulletin publishes mid-month for prior month | 317 | 847 | **11 tables**: CPI T19C (28×84), Call Money T27 (3×84), IIP T23 (9×36), Money Stock T6 (15×45), Reserve Money T11 (10×30), NEER/REER T37 (2×32 — section-detection needs refinement), WPI T22 (48×144), RBI BS T2 (29×78), **FX Reserves T33 (12×24, dual-unit INR Cr + USD Mn)**, **Foreign Trade T32 (10×54, dual-unit)**, **BoP T40 (151×236, Credit/Debit/Net × 2 quarters — includes Current Acc / Merchandise / Invisibles / Services / Software Services / etc.)**. Three parser helpers cover all layouts: `parse_wide_table` (6 tables) · `parse_dual_unit` (2 tables) · `parse_bop` (T40). Single-month snapshot per release — monthly orchestrator accumulates back-history MoM. **Headed Chrome required (TSPD).** |
-| **Pre-prod subtotal** | | | **~1,081** | **~62,414** | |
+| RBI DBIE SAP-BO scraper (A5-A7 partial) | DAILY (Exchange Rate) | continuous | 4 | 400 | **First DBIE-SAP-BO report end-to-end 2026-06-11**: Exchange Rate (reportId 575, USD/GBP/EUR/JPY daily 2026-01-07 → 2026-06-11). Headed Chrome navigates DBIE menu → SAP-BO iframe → DOM table scrape. Same pattern unlocks the other 27 priority reports (NRI/FCNR/ECB/NBFC/Forward Premia) — needs per-report `menu_path` config + layout calibration. |
+| **Pre-prod subtotal** | | | **~1,085** | **~62,814** | |
 
 Two prod-wire-up options for the user to pick:
 
