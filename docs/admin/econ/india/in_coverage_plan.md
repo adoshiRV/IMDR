@@ -239,7 +239,11 @@ Verified end-to-end at [`playground/econ/rbi/probe_crypto.py`](../../../playgrou
 5. Scrapes `<table>` rows from the iframe DOM
 6. Parses by per-report layout (currently `wide_dated`: col-0 date, cols 1+ currencies / values)
 
-**Verified end-to-end 2026-06-11** for reportId=575 Exchange Rate: **4 indicators × 400 obs** (USD/GBP/EUR/JPY × 100 daily values from 2026-01-07 → 2026-06-11). Latest USD/INR ≈ 89.94 (column-mapping needs per-report calibration — preview row showed different values, suggesting multiple sub-tables on the page).
+**Verified end-to-end 2026-06-11** for reportId=575 Exchange Rate: **4 indicators × 400 obs** (USD/GBP/EUR/JPY × 100 daily values).
+
+**Known per-report calibration limits** (apply when promoting):
+- Multi-table SAP-BO reports may render a title/filter chrome table BEFORE the data table. `_scrape_iframe_table` was hardened 2026-06-12 to pick the **leaf-most table with the most rows** rather than concatenating all tables — but for Exchange Rate the current scrape still shows USD≈89.89 against a preview-row value of 95.72 from the same report. Likely cause: the SAP BO viewer has two sub-views (spot vs forward, or different tabs) rendered as parallel leaf tables. Calibration per report = inspect with DevTools, lock to the specific table via a CSS path. Documented but not blocking.
+- T37 NEER/REER under-extracts (2 instead of expected ~12 indicators) — `parse_wide_table`'s slug strips the `1.1 NEER`/`1.2 REER` numbering, causing collisions across 4 baskets (40-Currency × Trade/Export-Weighted, 6-Currency × Base 2015/2022). Fix is section-context-aware slug generation — separate parser-refinement task.
 
 **Pattern is generic across all 1,225 DBIE reports** — register `menu_path` + `leaf_text` + `table_layout` in `REPORTS` list. Headed Chrome required (SAP-BO refuses headless context).
 
@@ -294,6 +298,24 @@ For deep history, the better RBI source is the **Handbook of Statistics on the I
 - `scripts/econ/in/rbi/rbi_bulletin.py` — monthly tick; appends 1-4 weeks of new data to ~10 tables. **Requires headed Chrome (TSPD)**.
 - `scripts/econ/in/rbi/rbi_handbook.py` — annual tick; replaces the deep back-history snapshot once a year when RBI updates the Handbook. (Future work.)
 - Cell coverage when complete: 1.1 (CPI core), 1.2 (WPI), 2.4 (CPI division YoY), 4.3 (Call Money daily, Repo/Reverse Repo curve), 4.4 (Reserve Money M0, Money Stock M3).
+
+### Code-review findings + applied fixes (2026-06-12)
+
+Per the IMDR code-reviewer pass on 2026-06-12, the following must-fix
+issues from this session's later batches were resolved:
+
+| # | File | Issue | Fix |
+|---|---|---|---|
+| 1 | `rbi_dbie_report.py` | Inverted page-allocation condition would IndexError when `ctx.pages` is empty AND leak pages otherwise. | Always `ctx.new_page()`; close in `finally`. |
+| 2 | `rbi_dbie_report.py` `_scrape_iframe_table` | Read ALL `<table>` elements, concatenating rows across multiple sub-tables — caused header/column-mapping corruption. | Pick the **leaf-most table with the most rows** (the data table); skip nested-table-containing tables. |
+| 3 | `rbi_bulletin.py` `parse_wide_table` | Hard-coded `header_row_idx + 4` skip mis-positioned data start for T37 NEER/REER and other tables with deeper headers. | Walk forward dynamically until first row with ≥2 numeric values in period columns. IIP +1, WPI +1. T37 still under-extracting (separate slug-collision bug — see "Known limits" above). |
+| 4 | `upag_imc.py` | `fetch_signature` called per section = 4 unnecessary `_dash-dependencies` GETs per run. | Hoisted to one cached per-section signature dict up-front. |
+| 5 | `rbi_bulletin.py` `parse_dual_unit` | `"SDRs Million"` mapped to `"ratio"` (semantically wrong). | Mapped to `"usd_mn"` as closest dim_unit row; promote to dedicated `sdr_mn` row at prod-promotion time. |
+
+**Remaining known limitations** (not blocking, tracked for promotion):
+- **RBI Bulletin URL discovery** — `PRIORITY_TARGETS` carries hard-coded May 2026 hash-suffix XLSX URLs. When RBI publishes June 2026, these return TSPD-challenge HTML, get magic-byte-rejected, and `run_fetch` silently returns 0 obs. **Before prod**: add a step that scrapes the current month's XLSX URLs from `BS_ViewBulletin.aspx`.
+- **T37 NEER/REER multi-basket slug collision** — needs section-context-aware slug generator that tracks the last "section header" row (e.g. "40-Currency Trade-Weighted") and prepends to the indicator slug.
+- **DBIE SAP-BO Exchange Rate value calibration** — leaf-table filter eliminated cross-table contamination but a sub-table choice within the leaf-set may still mis-pick (USD value differs from RBI Reference Rate). Per-report DevTools inspection + CSS-selector lock-in resolves.
 
 ### Government filings + events — Korea-pattern roadmap (new 2026-06-11)
 
@@ -356,7 +378,7 @@ Code at `playground/econ/in/{vendor}/`; shared MOSPI helper at [`src/imdr/domain
 | UPAg AIAPY (A26) | ANNUAL | Estimation cycles M-1 yr (Third Adv) through M-3 yr (Final) | 324 | 15,030 | **1966-67→2025-26 (60 FYs)** × 37 crops × {Kharif, Rabi, Summer, Total} × {Area Lakh-Ha, Production Lakh-Tonnes, Yield Kg/Ha}; cycle-dedup prefers Final over Third Advance |
 | UPAg IMC (A33) | WEEKLY | Daily mandi prices, anchor-date snapshot timeline | 16 | 128 | 4 sections × 3-5 commodities × 8 anchor dates per run (3yr / 2yr / 1yr / 1mo / 3wk / 2wk / 1wk / today). Wholesale Agmarknet INR/Qtl. Cereals (Paddy/Rice/Wheat) · Pulses (Tur/Gram/Lentil/Moong/Urad) · Oilseeds (Rapeseed-Mustard/Soybean/Groundnut/Sesamum/Sunflower) · Topcrops (Onion/Potato/Tomato). |
 | RBI Bulletin (A4) | MONTHLY/DAILY/WEEKLY/QUARTERLY | Bulletin publishes mid-month for prior month | 317 | 847 | **11 tables**: CPI T19C (28×84), Call Money T27 (3×84), IIP T23 (9×36), Money Stock T6 (15×45), Reserve Money T11 (10×30), NEER/REER T37 (2×32 — section-detection needs refinement), WPI T22 (48×144), RBI BS T2 (29×78), **FX Reserves T33 (12×24, dual-unit INR Cr + USD Mn)**, **Foreign Trade T32 (10×54, dual-unit)**, **BoP T40 (151×236, Credit/Debit/Net × 2 quarters — includes Current Acc / Merchandise / Invisibles / Services / Software Services / etc.)**. Three parser helpers cover all layouts: `parse_wide_table` (6 tables) · `parse_dual_unit` (2 tables) · `parse_bop` (T40). Single-month snapshot per release — monthly orchestrator accumulates back-history MoM. **Headed Chrome required (TSPD).** |
-| RBI DBIE SAP-BO scraper (A5-A7 partial) | DAILY (Exchange Rate) | continuous | 4 | 400 | **First DBIE-SAP-BO report end-to-end 2026-06-11**: Exchange Rate (reportId 575, USD/GBP/EUR/JPY daily 2026-01-07 → 2026-06-11). Headed Chrome navigates DBIE menu → SAP-BO iframe → DOM table scrape. Same pattern unlocks the other 27 priority reports (NRI/FCNR/ECB/NBFC/Forward Premia) — needs per-report `menu_path` config + layout calibration. |
+| RBI DBIE SAP-BO scraper (A5-A7 partial) | DAILY (Exchange Rate) | continuous | 4 | 400 | **First DBIE-SAP-BO report end-to-end 2026-06-11**: Exchange Rate (reportId 575, USD/GBP/EUR/JPY × 100 daily). Headed Chrome navigates DBIE menu → SAP-BO iframe → DOM table scrape (leaf-most table). Same pattern unlocks the other 27 priority reports — needs per-report `menu_path` config + layout calibration. Known: column-value calibration vs RBI Reference Rate still needs per-report DevTools lock-in (see § A5-A7 SAP-BO doc). |
 | **Pre-prod subtotal** | | | **~1,085** | **~62,814** | |
 
 Two prod-wire-up options for the user to pick:
