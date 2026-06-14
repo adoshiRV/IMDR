@@ -341,6 +341,22 @@ gates). See [`scrapers/`](scrapers/) for one doc per vendor. When
 | BNP Paribas Markets360 | live | [scrapers/bnp.md](scrapers/bnp.md) |
 | J.P. Morgan Markets | TBD | [scrapers/jpm.md](scrapers/jpm.md) |
 
+## Email channel (Outlook) — second acquisition source
+
+Alongside the portal scrapers, sell-side research that arrives by **email**
+in the `research@rvcapital.com` mailbox (13 hand-filtered per-bank folders,
+~1,250 msgs/month) is read and pushed through the same parse → chunk → embed
+→ write pipeline, tagged `source='email'`. It's a *channel*, not a vendor
+(a GS email is still `vendor_id=goldman`). Filtering is **lenient** (folders
+are pre-curated — only obvious noise is dropped, no single-name-equity gate),
+and body-only emails are rendered to a PDF so `pdf_path` stays populated. The
+unique value is desk/sales commentary that never appears on portals.
+
+See [`outlook_email_channel.md`](outlook_email_channel.md) for the full
+design (access model, archetypes, adapter, lenient relevance, `source`/
+`source_type` provenance via migration 099, code map, status). Prototype
+status: code-complete + dry-run-validated; migration not applied; not wired.
+
 ## Vendor authentication
 
 See [`auth.md`](auth.md) — the central operator runbook for
