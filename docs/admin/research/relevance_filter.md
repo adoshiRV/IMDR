@@ -1,6 +1,6 @@
 # Relevance filter — drop single-name equity research
 
-Last updated: 2026-06-15
+Last updated: 2026-06-15 (Barclays EQUITY + CREDIT branches added)
 
 The relevance filter is a discovery-time gate that drops single-name
 equity research (company-coverage notes like "Tate & Lyle: Post Results
@@ -67,12 +67,14 @@ The `n_tickers == 1` rule is the cleanest cross-vendor signal but
 relies on the classifier extracting tickers. Two vendors don't
 populate ticker tags reliably and get vendor-specific fallbacks:
 
-- **Barclays.** Their listing API ships no ticker fields. The cleanest
-  single-name marker is `L1_BRANDING == "Equity Research"` (bottom-up
-  corporate coverage). `L1_BRANDING == "Equity Strategy"` /
-  `"Equity Quantitative"` are sector / top-down → kept. The filter
-  inspects the `discipline` tag from `ClassifyResult.tags` for this.
-  Reason logged: `single-name-equity:barclays-discipline`.
+- **Barclays.** Their listing API ships no ticker fields at all — no
+  `eqSecurities[]` equivalent for credit, no ticker-in-title convention
+  for EQUITY. The old branch checked `discipline == "equity research"`, a
+  string that **never occurs** in the corpus (the real canonical value is
+  `"Equity Fundamental"`), so 273 EQUITY docs leaked through unfiltered.
+  Fixed 2026-06-15 with two vendor-specific default-drop branches — see
+  [scrapers/barclays.md](scrapers/barclays.md#single-name--sector-filtering-2026-06-15)
+  for full detail.
 
 - **MS.** MS titles are plain English ("Steady Progress", "1Q26
   Results"). Tickers don't appear in titles; MS uses
@@ -91,7 +93,7 @@ Snapshot from a 24h dry test on 2026-05-21:
 | Vendor   | Drop signal that fires | Discovered | Dropped | Kept | Drop rate |
 |----------|------------------------|-----------:|--------:|-----:|----------:|
 | anz      | n/a (no EQUITY in feed)|         18 |       0 |   18 |        0% |
-| barclays | `barclays-discipline`  |        236 |     143 |   93 |       61% |
+| barclays | EQUITY: `equity-vendor-default-drop:barclays`; CREDIT: `credit-vendor-default-drop:barclays` (both added 2026-06-15) | 236 | 143 | 93 | 61% (stale — see 2026-06-15 smoke below) |
 | bnp      | n/a (no EQUITY in feed)|         12 |       0 |   12 |        0% |
 | goldman  | `1-ticker` (incl. RIC) |        271 |     135 |  136 |       49% |
 | hsbc     | `1-ticker` (title regex, added 2026-06-02) |         11 |       0 |   11 |        0% |
@@ -123,7 +125,7 @@ drop a healthy minority via ticker extraction.
 | Vendor   | Source of ticker tags |
 |----------|------------------------|
 | anz      | none (feed is mostly macro / rates / FX) |
-| barclays | none (falls back to `barclays-discipline`) |
+| barclays | none — no ticker fields in the API. Relies on `asset_class + title allowlist` for both EQUITY and CREDIT. See [Barclays EQUITY + CREDIT branches](#barclays-equity--credit-branches-2026-06-15) below. |
 | bnp      | none — feed is pure macro/strategy; never tags `tickers`/`issuers`. Relevance filter is a no-op (the chart-pack drop happens at the discovery filter instead) |
 | goldman  | `primaryCompanyTickers[]` + `companyTickers[]` listing fields. **Title-regex fallback** when both are empty — catches RIC `(601231.SS, NC)` and Bloomberg-pair `(AAPL US)` formats. |
 | hsbc     | title regex `_BB_TICKER` (Bloomberg pair `(SYM EXCH)` — added 2026-06-02). HSBC titles encode single-name coverage as `{Company} ({SYM} {EXCH}) {Buy\|Hold\|Sell\|Initiate}: {topic}`. SYM 2–9 alnum, EXCH from the global Bloomberg code list. `Equity Strategy` product is excluded from the drop. |
@@ -253,6 +255,109 @@ in the same 2026-06-10 milestone:
 Routes the 144 historical Goldman blank-asset_class docs into the right
 bucket; the EQUITY ones then fall through `_is_equity_conf_event` and
 the existing `_GS_EQUITY_KEEP` allowlist.
+
+## Barclays EQUITY + CREDIT branches (2026-06-15)
+
+Barclays exposes no ticker fields anywhere in its publication API — no
+`eqSecurities[]` analog for credit, no company-ticker-in-title convention for
+equity. The standard `n_tickers == 1` branch therefore never fires. Both asset
+classes need dedicated default-drop + title-allowlist branches.
+
+### EQUITY (`_BARCLAYS_EQUITY_KEEP`)
+
+```
+vendor_code == "barclays" AND asset_class == EQUITY:
+
+  title matches _BARCLAYS_EQUITY_KEEP?   → KEEP
+        ↓ no
+                                          → DROP  "equity-vendor-default-drop:barclays"
+```
+
+The `_BARCLAYS_EQUITY_KEEP` allowlist is intentionally narrow:
+
+```python
+_BARCLAYS_EQUITY_KEEP = re.compile(
+    r"\bequity\s+(?:and|&)\s+credit\s+(?:strategy|research)|"
+    r"\bcross[-\s]?asset\b",
+    re.IGNORECASE,
+)
+```
+
+Only two patterns keep: the explicit cross-book phrasing `"equity and/&
+credit strategy/research"` and `"cross-asset"`. Bare keywords like
+`"allocation"`, `"outlook"`, and `"strategy"` are excluded — they appear
+prolifically in sector titles (`"Capital Allocation"`, `"Capital Outlook"`,
+`"Auto Retail Strategy"`). Net result over the 2026-05-20 → 2026-06-15 corpus
+(274 EQUITY docs): 1 kept, 273 dropped. The sole survivor was `[5781]
+"European Equity and Credit Strategy: What after the ECB hikes rates?"`.
+
+This branch sits in the `n_tickers == 0` fallthrough of
+`is_single_name_equity()`, after the cross-vendor conf-event drop but before
+the MS default-drop, and is only reached when `vendor_code == "barclays"`.
+
+### CREDIT (`_BARCLAYS_CREDIT_KEEP`)
+
+```
+vendor_code == "barclays" AND asset_class == CREDIT:
+
+  title matches _BARCLAYS_CREDIT_KEEP?   → KEEP
+        ↓ no
+                                          → DROP  "credit-vendor-default-drop:barclays"
+```
+
+This branch runs **before** the `asset_class != EQUITY` early-return (it's
+one of the CREDIT-specific branches alongside DB and JPM CREDIT). Default is
+DROP; the keep-allowlist is the signal.
+
+`_BARCLAYS_CREDIT_KEEP` matches multi-name sector / strategy / product-series
+titles across ~65 named patterns grouped as:
+- Strategy / alpha / cross-cutting — `"credit alpha"`, `"em credit"`,
+  `"systematic credit"`, `"macro credit"`, `"creditcast"`, `"crosscast"`,
+  `"hy-lights"`, `"castss"` (Barclays cross-sector strategy series)
+- Securitised data-runs — `"mbs price report"`, `"mbs daily market
+  analysis"`, pass-through OAS / carry / roll / price-change reports
+  (kept as structured data)
+- CLOs / structured credit instruments — `"clo"`, `"cds"`, `"cdx"`,
+  `"cmbs"`, `"rmbs"`, `"abs"`
+- Flow / supply series — `"corporate credit fund flows"`, `"high grade
+  supply"`, `"leveraged finance"`, `"hybrid capital"`, `"the aaa investor"`
+  (covered bonds)
+- Sector-level HG/HY (multi-issuer) — `"hg pharmaceuticals"`, `"hg
+  chemicals"`, `"ig technology"`, `"high yield telecom cable consumer
+  media"`, `"hy consumer products"`, etc.
+- Regional / sovereign credit — `"latam corporate credit"`, `"asia credit
+  research"`, `"eemea corporate credit: israel"`, `"zambia/egypt sovereign"`
+- European and US credit product series — `"european investment grade"`,
+  `"european high yield"`, `"us credit alpha"`, `"us leveraged finance"`,
+  `"sterling high grade"`
+- Municipals — always multi-issuer; any `"municipal(s) strategy/weekly/
+  research/bond"` title
+
+**What drops:** named-company issuer notes in the formats:
+`"US HG Research: HPE F2Q26 Results:"`, `"European HG Research: Adecco
+(ADENVX):"`, `"US HY Research: ADRBID:"`, `"META: Quick Take"`. These are
+the patterns the discovery filter's title-paren regex (`_TITLE_TICKER_PAREN`)
+missed because the issuer identifier appears as a sub-topic separator (colon)
+rather than in parentheses.
+
+One marginal false-keep noted: `"LatAm Corporate Credit: PetroPeru"` — matched
+by the `"latam corporate credit"` prefix. Kept because PetroPeru appears in a
+sovereign-guarantee context; a company-name exclusion list would be needed to
+drop it cleanly and is not currently implemented.
+
+### Smoke (2026-06-15, 889 docs since 2026-05-20)
+
+| Bucket | Discovered | Kept | Dropped |
+|---|---|---|---|
+| EQUITY (Equity Fundamental) | 274 | 1 | 273 |
+| EQUITY conf-event (cross-vendor) | 10 | 0 | 10 |
+| CREDIT | 193 | 174 | 19 |
+| MACRO / RATES / FX / STRATEGY / COMMODITIES | 412 | 412 | 0 |
+| **Total** | **889** | **598** | **291** |
+
+Drop reasons: `equity-vendor-default-drop:barclays` (262),
+`equity-conf-event` (10), `credit-vendor-default-drop:barclays` (19).
+Zero non-equity / non-credit docs dropped. 630 tests green post-change.
 
 ## Trade-offs to know about
 

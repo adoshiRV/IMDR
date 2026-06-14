@@ -470,6 +470,145 @@ These are not listed in `_CHART_ONLY_TITLE_SUBSTRINGS` because the
 digit-density gate catches them reliably and adding explicit prefixes
 would risk over-dropping future prose-rich variants with similar titles.
 
+## Single-name / sector filtering (2026-06-15)
+
+Last updated: 2026-06-15
+
+### Problem
+
+Barclays was discovering ~320 publications/week but the relevance filter
+was nearly inoperative. Two bugs combined:
+
+1. **EQUITY: dead discipline check.** The old branch inside
+   `relevance.is_single_name_equity()` checked `discipline == "equity
+   research"`, a string that occurs **zero times** in the Barclays corpus.
+   The canonical asset-class name is `"Equity Fundamental"`, not `"equity
+   research"`. Because the check never fired, 273 EQUITY documents in the
+   2026-05-20 → 2026-06-15 window flowed straight through to ingest.
+2. **CREDIT: paren-only detection missed patterns.** The discovery filter's
+   title-paren regex (`_TITLE_TICKER_PAREN`) catches `(IBM US)` and
+   `(IFF)` formats, but missed:
+   - Issuer tickers embedded as sub-topics after a colon separator:
+     `"US HG Research: HPE F2Q26 Results: ..."`, `"European HY Research:
+     ADRBID: ..."`
+   - Named companies spelled out without a ticker paren: `"Tyson, JBS and
+     Pilgrim's Pride: ..."`, `"Asia-Pac HY Research: SoftBank Group Corp: ..."`
+   - Bare ticker-as-title-start: `"META: Quick Take - ..."`
+
+   Additionally, Barclays extracts **no ticker tags** at all — there is no
+   `eqSecurities[]` equivalent for credit — so the standard `n_tickers == 1`
+   branch in `relevance.py` never fires for Barclays CREDIT.
+3. **CJK leak.** Some Japanese-titled pubs arrive with no `language` field
+   (the `should_exclude_by_language` check passes them through because empty
+   language is defensively kept). CJK mojibake titles then reach the corpus.
+
+### Fix (three parts)
+
+#### (a) EQUITY: default-drop + tight keep-allowlist (`_BARCLAYS_EQUITY_KEEP`)
+
+Added to `relevance.py` (in the `n_tickers == 0` fallthrough, vendor_code
+== `"barclays"` branch):
+
+```python
+_BARCLAYS_EQUITY_KEEP = re.compile(
+    r"\bequity\s+(?:and|&)\s+credit\s+(?:strategy|research)|"
+    r"\bcross[-\s]?asset\b",
+    re.IGNORECASE,
+)
+```
+
+**Anchored phrases only.** Bare keywords like `"allocation"`, `"outlook"`,
+and `"strategy"` are deliberately excluded from the allowlist — they appear
+prolifically in sector titles (`"Capital Allocation"`, `"Capital Outlook"`,
+`"Auto Retail Strategy"`). Only the explicit cross-asset phrasing `"equity
+and credit strategy"` / `"equity & credit strategy"` / `"cross-asset"` is
+kept.
+
+Verified on the full 274 EQUITY docs (2026-05-20 → 2026-06-15):
+- KEPT (1 doc): `[5781] "European Equity and Credit Strategy: What after the
+  ECB hikes rates?"`
+- DROPPED (273 docs): all sector-equity Equity Fundamental pubs, daily
+  sector briefs, valuation sheets.
+
+#### (b) CREDIT: structural single-name drop + keep-allowlist
+
+Two additions to `relevance.py`:
+
+**`_BARCLAYS_CREDIT_SINGLE_NAME`** (regex, for documentation — the current
+implementation uses the default-drop + keep-allowlist pattern instead):
+The structural patterns it catches conceptually:
+- `"US/European HY Research: <TICKER>:"` — ticker-like all-caps sub-topic
+- `"US/European HG Research: <Company (TICKER)>:"` — company+ticker paren
+- `"US HG Research: HPE F2Q26 Results:"` — earnings-format company name
+- `"EEMEA Corporate Credit: <Company (TICKER)>:"` — EM regional issuer notes
+- `"META: Quick Take"` — bare ticker at title start
+
+**`_BARCLAYS_CREDIT_KEEP`** (allowlist regex, 65+ named patterns): the
+default for `vendor_code == "barclays" AND asset_class == CREDIT` is now
+**DROP unless the title matches the allowlist**. The allowlist keeps:
+
+| Category | Examples |
+|---|---|
+| Strategy / alpha series | `"US/European/Asia Credit Alpha"`, `"Macro Credit Views"`, `"Credit Strategy"`, `"EM Credit Strategy"`, `"Systematic Credit: Barclays Credit Factor Insights"` |
+| Named Barclays series | `"Creditcast"`, `"Crosscast"`, `"HY-Lights"`, `"CASTSS"` (Cross-Sector Strategy) |
+| Securitised data-runs (KEPT as data) | `"MBS Price Report"`, `"MBS Daily Market Analysis"`, pass-through OAS / carry / roll / price-change reports, `"US Securitized Credit"` |
+| Structured credit instruments | `"Global CLOs"`, `"CDS Relative Value"`, `"CDX"`, `"CMBS"`, `"RMBS"`, `"ABS"` |
+| Flow / supply series | `"Corporate Credit Fund Flows"`, `"High Grade Supply Update"`, `"European Leveraged Loans"`, `"Hybrid Capital"`, `"The AAA Investor"` (covered bonds), `"US Leveraged Finance"` |
+| Sector-level HG/HY (multi-issuer) | `"HG Pharmaceuticals"`, `"HG Chemicals"`, `"HG Autos"`, `"IG Technology"`, `"High Yield Telecom, Cable, Satellites: Comp Sheets"`, `"HY Consumer Products"` |
+| Regional / sovereign credit | `"LatAm Corporate Credit Strategy"`, `"Asia Credit Research & Strategy"`, `"Emerging Asia Sovereign"`, `"EEMEA Corporate Credit: Israel"`, `"Zambia Sovereign"`, `"Egypt Sovereign"` |
+| European credit product series | `"European Investment Grade"`, `"European High Yield"`, `"European Credit Alpha"`, `"European Hybrid Capital"`, `"Euro High Grade Supply"` |
+| US credit product series | `"US Investment Grade"`, `"US High Yield Corporate"`, `"US Credit Alpha"` |
+| Municipals | Always multi-issuer; matched by `"municipals? strategy/weekly/research/bond"` |
+| Multi-issuer cross-sector | `"Five in Five"`, `"BDCs vs. REITs"`, `"Insurance Case Studies"`, `"Italian Banks"`, `"European Banks:"` |
+
+Drops confirmed (named-company notes not matched by the allowlist):
+- `"US HG Research: HG Healthcare: CVS versus HCA"` — named-company pair
+- `"European HG Research: Adecco (ADENVX):"` — company + ticker
+- `"US HG Research: HPE F2Q26 Results:"` — single-company earnings note
+- `"Tyson, JBS and Pilgrim's Pride:"` — named companies, no sector framing
+
+One acceptable marginal false-keep noted: `"LatAm Corporate Credit:
+PetroPeru"` — matched by the `"latam corporate credit"` prefix in the
+allowlist. Acceptable because the series covers multiple EM credits and
+PetroPeru is mentioned in a sovereign-context (PERU government guarantee);
+would require a company-name exclusion list to fix cleanly.
+
+#### (c) CJK: `_HAS_CJK` regex in `filters/barclays.py`
+
+Added the same `_HAS_CJK` backstop used in `filters/citi.py`,
+`filters/db.py`, and `filters/jpm.py`:
+
+```python
+_HAS_CJK = re.compile(r"[　-〿぀-ゟ゠-ヿ一-鿿]")
+```
+
+Matches Hiragana, Katakana, CJK Unified Ideographs, CJK Symbols &
+Punctuation (including full-width colon used in Japanese titles). Fires
+first in `should_exclude()` as the cheapest check. Drop reason:
+`"cjk:'japanese'"`.
+
+No English-twin exemption — all CJK-titled Barclays docs in the corpus
+were Japanese mojibake leaks with zero retrieval value. The language filter
+(`should_exclude_by_language`) already drops `jpn`-labelled pubs; this
+regex is the backstop for pubs that arrive without a language tag.
+
+### Smoke result (2026-06-15)
+
+889 documents discovered since 2026-05-20 were re-evaluated with the new
+filter logic:
+
+| Bucket | Discovered | Kept | Dropped |
+|---|---|---|---|
+| EQUITY (Equity Fundamental) | 274 | 1 | 273 |
+| EQUITY conf-event (cross-vendor) | 10 | 0 | 10 |
+| CREDIT (Credit Fundamental + others) | 193 | 174 | 19 |
+| MACRO / RATES / FX / STRATEGY / COMMODITIES | 412 | 412 | 0 |
+| **Total** | **889** | **598** | **291** |
+
+Drop reasons: `equity-vendor-default-drop:barclays` (262), `equity-conf-event`
+(10), `credit-vendor-default-drop:barclays` (19). Zero non-equity/non-credit
+docs dropped. 630 tests green post-change.
+
 ## Noise filter update (2026-06-10)
 
 Shared cross-vendor noise classifier wired into
