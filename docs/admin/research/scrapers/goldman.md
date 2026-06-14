@@ -5,15 +5,22 @@ Pattern: **A. Listing-API firehose** + direct PDF (see
 
 ## Daily volume
 
-~330 PDF reports/day across all GIR disciplines (post path-filter).
-Discovered via ``/research/search/reports/advanced-search`` — fetched
-in ~3–5 pages of 200 with date-sorted early-stop.
+~**395 reports/day** across all GIR disciplines + FICC desk content
+(post-filter, post-Stage-1 path-relax — see the 2026-06-12 update at
+the bottom for context). Discovered via ``/research/search/reports/
+advanced-search`` — fetched in ~3–6 pages of 200 with date-sorted
+early-stop.
 
-The raw search API returns ~470/day across all content types but only
-``/content/research/en/reports/`` paths have PDFs — the others are
-interactive Excel models, blogs, MarketView audio/video. We filter at
-discovery time so fetch_pdf isn't wasted on items that 404 or return
-empty bodies.
+The raw search API returns ~470/3 day-window across all content types.
+Three path prefixes now yield ingestible content (Stage 1, 2026-06-12):
+
+* ``/content/research/en/reports/`` → direct PDF GET (the legacy fast path)
+* ``/content/markets/en/...`` → playwright `page.pdf()` render
+* ``/content/research/en/blogs/`` → playwright `page.pdf()` render
+
+Models (`/content/research/en/models/`) and GS.com insights
+(`/content/insights/en/reports/`) are still skipped at discovery —
+interactive Excel widgets and marketing fluff, respectively.
 
 ## Listing API (current — 2026-05-07)
 
@@ -56,22 +63,39 @@ PDF URL: prefer ``downloadPath`` when populated (always set on
 * ``downloadPath`` is null AND
 * ``path`` doesn't start with ``/content/research/en/reports/``
 
-The 4 Goldman content types in the search index and their PDF status:
+The 5 Goldman content types in the search index, their render mode,
+and what we do with them (updated 2026-06-12, Stage 1):
 
-| Path prefix | Has PDF? | Notes |
-|---|---|---|
-| `/content/research/en/reports/` | ✓ — `downloadPath` populated | The actual research-report PDFs |
-| `/content/research/en/models/` | ✗ — empty body | Interactive Excel/web model — not a PDF |
-| `/content/markets/en/...` | ✗ — 404 | MarketView audio / video / commentary |
-| `/content/research/en/blogs/` | ✗ — 404 | Blog post |
+| Path prefix | Render mode | Status | Notes |
+|---|---|---|---|
+| `/content/research/en/reports/` | **`pdf`** (direct GET) | ingested | The classic research-report PDFs (~50% of firehose) |
+| `/content/markets/en/...` | **`html`** (playwright `page.pdf()`) | ingested | FICC desk content — MarketStrats family, GS MORNING, regional dailies, GS What is Priced In (~35% of firehose) |
+| `/content/research/en/blogs/` | **`html`** (playwright `page.pdf()`) | ingested | Research blogs — US Economics Weekly Update, FX Wrap Up, The Euro into the ECB (~5/week) |
+| `/content/research/en/models/` | — | **skipped** | Interactive Excel/web tools — no useful narrative text |
+| `/content/insights/en/reports/` | — | **skipped** | GS.com marketing (Talks at GS, Exchanges podcast) — already source-allow-list filtered |
 
-Filter applied in `_derive_pdf_url()` so non-PDF items are dropped at
-discovery (``kept += 1`` only for items with a resolvable PDF).
+Routing is in `_derive_fetch_target()` in
+[`crawler_goldman.py`](../../../../playground/research/ingest/crawler_goldman.py)
+which returns `(url, render_mode)`. Each `ReportRef` carries the
+`render_mode` field which propagates through `ReportMeta` into
+`pipeline.ingest_one`, which dispatches to `fetch_pdf` or
+`fetch_html_as_pdf`.
 
 ## Fetch strategy
 
-Direct GET on the derived PDF URL. ``fetch.py`` fast path returns
-`%PDF-...` bytes immediately on the persistent-profile cookies.
+Two paths depending on `ReportRef.render_mode`:
+
+* **`render_mode="pdf"`** — `fetch_pdf` direct GETs the `.pdf` URL via
+  the persistent-profile cookies. On HTTP 401 the playwright context is
+  re-launched once (re-reads SSO cookies from disk) before declaring
+  failure. Same fast path as before Stage 1.
+* **`render_mode="html"`** — `fetch_html_as_pdf` opens the `.html` URL
+  in headless playwright, polls `document.body.innerText.length` until
+  stable (max 25 s), scrolls bottom→top to force lazy-loaded sections,
+  re-polls body length after scroll, and emits `page.pdf()` bytes. If
+  the post-scroll body collapsed below 3 k chars the whole render is
+  retried once in a fresh page (Marquee SPA flakiness — see retry guards
+  in [`fetch.py`](../../../../playground/research/ingest/fetch.py)).
 
 ## Legacy approach (DOM scrape — superseded)
 
@@ -257,7 +281,10 @@ Axes we now parse and structure on `ReportRef`:
 2. **`girAssetTypes` → canonical** via the 9-row map (`Currencies / FX → FX`, `Rates → RATES`, `Credit → CREDIT`, `Commodities → COMMODITIES`, `Economics Research → MACRO`, `Portfolio Strategy Research → STRATEGY`, `Equity Research / Equities → EQUITY`, `ESG → ESG`). **This was the missing layer** — 61/200 docs ship empty `disciplines[]` (the FICC desks) and the old classifier fell through to title regex, often returning empty.
 3. `disciplines[]` substring (legacy fallback)
 4. `sourceDisplayName` substring (legacy fallback)
-5. Title regex (final fallback)
+5. Title regex (legacy fallback)
+6. **Tier-3.5 desk-title** (`_from_desk_title`, gated `render_mode=="html"`) — `/content/markets/` desk-daily naming patterns (added 2026-06-12)
+7. **Tier-4 structured backfill** — `Macro` in subjects → MACRO; `industries`/non-Issuer focus → EQUITY (added 2026-06-10)
+8. **Tier-5 content-title** (`_from_content_title`, ungated) — content-signal regex for metadata-less docs (added 2026-06-14; see the 2026-06-14 section)
 
 Country code from `primary_country` (aemTags `countries-Primary`) →
 `normalize_country` → ISO 2-char. Was hardcoded `None` before.
@@ -482,3 +509,359 @@ regex, all 22 now drop on the next discovery cycle.
 * [`test_relevance_conf_event.py`](../../../../playground/research/test_relevance_conf_event.py) — 35 tests pin the conf-event regex + gating contract
 * [`_smoke_noise_filter.py`](../../../../playground/research/_smoke_noise_filter.py) — per-vendor drop tabulation against `dim_report`
 * [`_smoke_conf_event.py`](../../../../playground/research/_smoke_conf_event.py) — would-drop / would-keep / macro-bypass tabulation
+
+## Stage 1 + 2 — path-relax + HTML render + classifier patch (2026-06-12)
+
+### Motivation
+
+A 7-day unfiltered probe ran on 2026-06-11 against
+`/research/search/reports/advanced-search` and bucketed 1,200 docs by
+path prefix:
+
+```
+/content/research/en/reports/   557   (45%)   — ingested
+/content/markets/en/...         414   (35%)   — silently dropped
+/content/research/en/models/    220   (18%)   — silently dropped
+/content/research/en/blogs/       5   (<1%)   — silently dropped
+/content/insights/en/reports/     4   (<1%)   — silently dropped
+```
+
+**54% of GS content was being silently dropped** by the old
+`_PDF_PATH_PREFIX = "/content/research/en/reports/"` gate in
+`_derive_pdf_url()`. The dropped paths included the entire GS Rates
+MarketStrats franchise (Bond Report / Bond Futures Carry / IR Gamma /
+Best Trades / Movers / Seasonality), the FXpresso Daily, FX Carry Vol
+Monitor, GS MORNING desk-roundups, Treasury RV Reports, plus the
+research blogs (US Economics Weekly Update, Weekly FX Wrap Up).
+
+Probe artefact: [`_probe_goldman_unfiltered.jsonl`](../../../../playground/research/_probe_goldman_unfiltered.jsonl).
+
+### Stage 1 — path-relax + HTML render
+
+Five file edits, summarised:
+
+1. **`ingest/crawler_goldman.py`** — `_RENDERABLE_PATH_PREFIXES` map
+   replaces the single-prefix gate. `_derive_fetch_target()` returns
+   `(url, render_mode)`. `ReportRef` gains a `render_mode` field
+   (`"pdf"` or `"html"`).
+2. **`ingest/models.py`** — `ReportMeta.render_mode: str = "pdf"` added.
+3. **`ingest/fetch.py`** — new `fetch_html_as_pdf()`:
+   `domcontentloaded` → smart-wait (poll `document.body.innerText.length`
+   until 2 consecutive reads match, max **25 s**, min body 1.5 k chars)
+   → scroll-bottom-then-top → re-poll body length → `page.pdf()`. If
+   post-scroll body < **3 k chars** the whole render is retried once in
+   a fresh page (Marquee SPA flakiness).
+4. **`ingest/pipeline.py`** — `ingest_one` dispatches on
+   `meta.render_mode`: `"html"` routes to `fetch_html_as_pdf`,
+   `"pdf"` keeps the legacy `fetch_pdf` flow.
+5. **`ingest_today.py`** — threads `ref.render_mode` into the
+   `ReportMeta(...)` call. **One-line bug** discovered in the first
+   prod run (the unified orchestrator missed this; legacy
+   `ingest_today_goldman.py` had it). Fixing it took the same
+   2026-06-09..06-12 backfill from **5.6% → 88.5% success rate**.
+
+### Stage 1 — blog-allow + CJK filter (`ingest/filters/goldman.py`)
+
+* `"Blogs / Commentary"` removed from `_EXCLUDED_REPORT_TYPES` — it was
+  blocking exactly the weekly franchises we want (US Economics Weekly
+  Update, FX Wrap Up, Weekly Commodities Wrap Up, The Euro into the
+  ECB, The Dollar into US CPI).
+* `_HAS_CJK` regex added — drops GS Tokyo's Japanese-language daily
+  editions (`【GS】LDNデイリーコメント`, `【GS】NYデイリーコメント`,
+  `高盛晨读`) that the advanced-search `language=["en"]` body filter
+  doesn't catch (that flag is UI locale, not document content). Mirrors
+  the same regex used in `filters/jpm.py` and `filters/db.py`.
+
+### Stage 1 — fetch reliability guards (`ingest/fetch.py`)
+
+Two retry guards added after the first 30-ref observe showed 95%
+success with 5% failing on two distinct shapes:
+
+* **HTML body too short** — `_HTML_POST_SCROLL_MIN_BODY_LEN = 3000` +
+  `_HTML_RETRY_ON_SHORT_BODY = 1`. Catches the case where the page
+  hydrated past the smart-wait threshold but the scroll-bottom step
+  triggered a content collapse, and `page.pdf()` captured the partial
+  state (the "770-char outliers"). Render is retried once in a fresh
+  page; second short body fails hard.
+* **PDF HTTP 401** — `_PDF_401_RETRY = 1`. Goldman's persistent-profile
+  session intermittently returns 401 on direct PDF GETs even when
+  `auth check --vendor goldman` reports the session live (~5% of GETs).
+  Closing and re-launching the playwright context re-reads SSO cookies
+  from the profile dir and clears the stale in-memory session.
+
+### Stage 2 — false-trail probes (no content gap found)
+
+Two follow-up probes ran to check for content not in the advanced-
+search firehose:
+
+* **Publications probe** ([`_probe_goldman_publications.py`](../../../../playground/research/_probe_goldman_publications.py))
+  rendered the 6 "Featured Publications" UUIDs advertised on
+  `marquee.gs.com/content/markets/home.html`. **Verdict: containers
+  only.** Each publication page is ~2.5 k chars of nav chrome + 11
+  outbound links to `/content/markets/en/.../{uuid}.html` children that
+  Stage 1 already covers. 3 of the 6 franchises (MAPS RoadMap Weekly,
+  Two-Minute Views, Editor Picks) haven't published a new issue since
+  2023-2024 — defunct.
+* **Roundup link-mining probe** ([`_probe_goldman_roundup_links.py`](../../../../playground/research/_probe_goldman_roundup_links.py))
+  rendered 3 typical roundups (GS MORNING, GS What is Priced In, Top
+  Stories 2026-06-11) and extracted every `<a href>` pointing at GS
+  content paths, cross-referenced against the 1,200-UUID firehose.
+  **Verdict: near-zero gap** — across all 3 roundups, only 3 outbound
+  article links, of which 2 were already in the firehose and 1 was a
+  timing artefact (article published just before our snapshot).
+  Roundups talk inline; they don't link out.
+
+**Both probes returned negative, ruling out further discovery work on
+GS.** Stage 1 is the complete fix; the firehose is the only content
+source worth wiring.
+
+### Tier-3.5 desk-naming classifier (`ingest/classifiers/goldman.py`)
+
+The 2026-06-12 backfill landed 127 rows with empty `asset_class` — all
+from `/content/markets/...` paths where the doc carries no resolved
+`girAssetTypes` / `disciplines` / `subjects` metadata. GS desk dailies
+follow consistent naming patterns:
+
+```
+GS <SECTOR>:          → EQUITY (drops via relevance default-drop)
+GS <REGION> <CADENCE> → MACRO
+GS CLO / LevFin       → CREDIT
+GS Ags                → COMMODITIES
+```
+
+`_from_desk_title()` runs as a new tier between Tier-3 (legacy title
+regex) and Tier-4 (structured-backfill subjects/industries), gated on
+`render_mode == "html"` so it only fires for `/content/markets/` and
+`/content/research/en/blogs/` paths.
+
+Sample rules (full pattern set in [classifiers/goldman.py](../../../../playground/research/ingest/classifiers/goldman.py)):
+
+| Pattern | Asset class | Examples |
+|---|---|---|
+| `^(GS )?<SECTOR>` near start | EQUITY | "GS CONSUMER:", "GS INDUSTRIALS:", "GS TMT TODAY", "GS FINS & REITs Daily" |
+| `## Marketcolour`, `EQUITIES COLOR`, `HK MARKET WRAP` | EQUITY | "## Marketcolour + P911...", "US EQUITIES COLOR: TECH UNWIND" |
+| `Alpha Generat` stem | EQUITY | "Hanwha Engine - Key Takeaways (GS Korea Alpha Generation Call)" |
+| `CLO`, `LevFin`, `Leveraged Finance` | CREDIT | "GS CLO Secondary Weekly Commentary", "GS EMEA LevFin Digest" |
+| `GS Ags`, `Agriculture` | COMMODITIES | "GS Ags: Cheap Vol" |
+| `(GS )?<Region> <Cadence>` | MACRO | "GS US Daily Download", "GS CEEMEA Today", "GS CHINA OPEN", "GS Korea Weekly", "ASIA: NEED TO KNOW" |
+| Standalone franchise (`Duttenhoefer`, `Armchair QB`, `Macro to Micro`, `Top Stories`, `IR Kick-Start`) | MACRO | "Duttenhoefer's Daily", "Armchair QB - Japan" |
+
+### One-shot backfill of existing rows
+
+[`_backfill_goldman_asset_class.py`](../../../../playground/research/_backfill_goldman_asset_class.py)
+runs the new `_from_desk_title()` against every Goldman row in
+`research.dim_report` with empty `asset_class`. Two-pass commit
+(after fixing `Alpha Generator` → `Alpha Generat` stem) re-classified
+**113 of 147 historical blanks** into:
+
+| Class | Rows backfilled |
+|---|---|
+| MACRO | 49 |
+| EQUITY | 57 (55 + 2 Alpha Generation Call) |
+| CREDIT | 6 |
+| COMMODITIES | 1 |
+
+The residual ~34 stay blank — wildly varied shapes (single-name
+initiations without ticker, "## US Strategy" without a sector word,
+"GS Daily \| <sector body>" without a region anchor, generic "Different"
+/ "Lithium + DVN + CASY" / "Swedish Initiation - Boliden to Sell").
+Chasing each shape with another regex rule is whack-a-mole; downstream
+queries that filter `asset_class IN ('RATES','FX','MACRO',…)` skip them
+which is the correct behaviour for ambiguous content.
+
+### Final state — 2026-06-09..06-12 window post-backfill
+
+| asset_class | n | examples |
+|---|---|---|
+| MACRO | 67 | GS desk dailies + IR Kick-Start + ECB/BoE/BoJ previews |
+| EQUITY | 55 | Sector spec-sales + Alpha Generation Call single-name |
+| RATES | 36 | GS Rates MarketStrats family (6 daily reports × 3 days), Treasury RV, Fed Communication |
+| (blank) | 34 | Ambiguous one-liners; relevance queries skip |
+| FX | 24 | FXpresso Daily, FX Carry Vol Monitor, FX Forward Point Roll Monitor |
+| CREDIT | 14 | GS CLO, EMEA LevFin Digest, Credit Volatility Report |
+| COMMODITIES | 13 | Including GS Ags |
+
+**Goldman is now ingesting all 7 asset classes** for the first time —
+previously RATES/FX/COMMODITIES landed only a handful of docs per week
+because the desk content lived under `/content/markets/` and was
+silently dropped at discovery.
+
+## Stage 3 — coverage audit + DB reconciliation + Tier-5 classifier + blank backfill (2026-06-14)
+
+### Read-only coverage audit
+
+Full-instrumented 7-day read-only smoke
+([`smoke_goldman_7day_full.py`](../../../../playground/research/smoke_goldman_7day_full.py))
+re-implements the discovery pagination inline so it tallies **every**
+stage — raw API → discovery-filter drops (by reason) → path-prefix gate
+→ relevance drops → classifier — with zero DB / Qdrant / PDF side
+effects. 7-day window 2026-06-07..06-14:
+
+```
+raw API docs in window        1,464
+  − discovery-filter drops      628  (focus:Issuer 348, single-name 189,
+                                      podcast 28, chart-pack 26, cjk 15,
+                                      video 8, morning-note 9, GS.com 4, …)
+  − path-prefix gate drops       43  (models/insights)
+  = survivors                   793  (488 html / 305 pdf)
+  − relevance drops             311  (equity-default 282, conf-event 20, 1-tkr 9)
+  = kept                        482
+```
+
+A franchise/CB-event coverage audit (same script) confirmed **all major
+recurring franchises are kept in text**: GS Rates MarketStrats 32/32,
+Swaption/rates-vol 12/12, Treasury RV 7/7, FX Monitors 8/8, FXpresso 5/5,
+Commodity Futures 6/6, FOMC/Fed 29 kept, ECB 21, BoJ 4. Every discovery
+drop in the CB/franchise buckets is intentional (Japanese re-writes of
+kept English docs, podcasts that dupe kept written content, chart-only
+SKUs). `US Morning Update` confirmed a correct drop — it is the GS
+**equity**-desk daily recap (source `Research | Equity`, gir
+`Equity Research`, subject `Micro`, authors Hussey/Herr/Garg), distinct
+from the kept FICC `GS MORNING` / `GS What is Priced In`. RBA was absent
+the audit week (meeting fell the following Tuesday; preview publishes the
+day before — a timing artefact, not a coverage gap). Probe of the
+`US Morning Update` content lives at
+[`_probe_goldman_us_morning_update.py`](../../../../playground/research/_probe_goldman_us_morning_update.py).
+
+### DB reconciliation — pre/post 06-12-fix drift
+
+DB held **985 Goldman rows**; the 06-07..06-12 slice was a mix of pre-
+and post-fix ingests. Pre-fix (≤ 06-11) leaked sector / spec-sales /
+single-name EQUITY and under-ingested RATES/FX (markets-path content was
+dropped at discovery before the 06-12 path-relax). The tell: per-day
+EQUITY ran 8→18→20→19→**3**, collapsing on 06-12 when the fixes landed;
+DB EQUITY 68 / RATES 37 inverted the current-code smoke's EQUITY 19 /
+RATES 100.
+
+### Stale-leak cleanup — end-to-end delete (272 rows)
+
+[`cleanup_goldman_stale.py`](../../../../playground/research/cleanup_goldman_stale.py)
+replays the **real** `filters/goldman.should_exclude` (title-only —
+conservative, can only fire a subset of discovery reasons) +
+`relevance.is_single_name_equity` (Goldman branch) against persisted DB
+state, reusing the tested end-to-end delete path from
+[`cleanup_filter_violations.py`](../../../../playground/research/cleanup_filter_violations.py)
+(Qdrant points + OneDrive/SharePoint PDF + DB FK cascade). Dry-run
+reviewed for RATES/FX/macro false-positives (none), then committed:
+
+| reason | n |
+|---|---|
+| relevance: equity-vendor-default-drop | 208 |
+| relevance: equity-conf-event | 34 |
+| discovery: noise chart-pack (Ratings & TP Changes / Chartbook) | 13 |
+| discovery: noise morning-note (Asian equity / US Morning Update) | 17 |
+| **total deleted** | **272** (5,304 Qdrant points, 269 PDFs) |
+
+EQUITY collapsed ~204 → 34 (the legit Macro-tagged / allowlist survivors).
+
+### Tier-5 content-title classifier — the blank-asset_class fix
+
+Audit of the residual **169 blank-`asset_class`** rows found they were
+not desk-daily named franchises (Tier-3.5) but ordinary research with no
+resolved `girAssetTypes`/`disciplines`/`subjects` (markets- AND reports-
+path docs with empty aemTags). Blank rows **bypass relevance.py** (its
+single-name/sector drops early-exit when `asset_class != EQUITY`), so
+equity leak landed silently. Added **Tier-5** `_from_content_title` to
+[`classifiers/goldman.py`](../../../../playground/research/ingest/classifiers/goldman.py)
+— ungated final fallback (after Tier-4), content-signal regex ordered
+**MACRO → RATES → FX → COMMODITIES → STRATEGY → EQUITY**:
+
+| signal family | → class | examples |
+|---|---|---|
+| central banks (`BoG/BoI/SARB/FOMC`, `\d+bps?`, `rate hike/cut`), econ releases (`PMIs`, `trade balance`, `current account`, `inflation`, `unemployment`, `fiscal`), country-prefix (`Mexico:`/`USA:`/`Euro Area—`), sovereign rating actions | MACRO | "BoG On Hold", "USA: FOMC Minutes", "Mexico: Moody's Downgrades…Foreign Currency" |
+| `treasury valuation`, `yield reversal/curve`, `bond selloff`, `swaption`, `rate reality` | RATES | "US Treasury Valuations…Yield Reversal" |
+| `NOK`, `Korean Won`, `won poised`, `de-dollar` | FX | "The NOK Oil Proposition" |
+| `stock/inventory draws`, `crude oil import` | COMMODITIES | "Visible Stock Draws Accelerate" |
+| `^US/Global/EM Strategy`, `cross-asset`, `asset allocation` | STRATEGY | "## US Strategy - Capex" |
+| earnings (`1Q26`/`first take`/`EPS`/`guidance`/`read-across`), ratings (`upgrade`/`downgrade`/`initiation`), events (`takeaways`/`conference`/`NDR`/`mgmt`), sector compounds, GS equity-desk prefixes (`GS KOREA`/`GS EU HC`/`GS Focus Idea`) | EQUITY | "1Q26 First Take", "Asia Communacopia Takeaways", "GS KOREA: …" |
+
+**Ordering is load-bearing**: macro is checked first so sovereign
+"Downgrades" and country-prefixed releases aren't stolen by the equity
+`downgrade`/`results` stems. Post-code-review hardening (2026-06-14):
+`bps?` plural, `central bank`/`conference board` macro phrases, rating-
+agency-name sovereign guard (`Moody's/Fitch` + rating verb), dead
+`trade:` made standalone, `[12]H\d{2}`, and the dangerous broad equity
+stems scoped — bare `results?` → `results? (beat|miss|preview|recap|
+in-line)`, bare `sector` → `sector (check|specific|valuation|…)`, bare
+`downgrade`/`upgrade` anchored, ambiguous `^GS:`/`GS Daily |` dropped
+(safer blank than a false equity-delete). Pinned by **74 tests** in
+[`test_goldman_tier5_classifier.py`](../../../../playground/research/test_goldman_tier5_classifier.py)
+(macro-keep, equity-drop, tail classes, junk-stays-blank, macro-before-
+equity ordering, and FP guards for sovereign downgrade / Conference Board
+/ Auction Results).
+
+### Blank backfill — end-to-end (169 rows)
+
+[`backfill_goldman_blanks.py`](../../../../playground/research/backfill_goldman_blanks.py)
+reclassified the 169 blanks via Tier-5, consistent with the live
+pipeline: **45 UPDATE** (MACRO 34 / RATES 3 / FX 2 / COMMODITIES 2 /
+STRATEGY 1 / EQUITY allowlist-survivors 3), **74 EQUITY-leak DELETE**
+end-to-end (1,108 Qdrant points, 74 PDFs), **50 left blank** (genuine
+junk + ambiguous one-liners — left rather than risk deleting macro;
+downstream class-filtered queries correctly skip them). Validation tool:
+[`_validate_goldman_tier5.py`](../../../../playground/research/_validate_goldman_tier5.py).
+
+### Final Goldman state (713 rows)
+
+| asset_class | n |
+|---|---|
+| MACRO | 384 |
+| STRATEGY | 50 |
+| RATES | 41 |
+| EQUITY | 37 |
+| FX | 33 |
+| CREDIT | 22 |
+| COMMODITIES | 22 |
+| (blank) | 50 |
+
+## Chart-only series drops (2026-06-15)
+
+Content audit 2026-06-15 confirmed the following series produce PDFs whose
+extractable text is title + disclaimer only — the analysis lives in chart images
+that PyMuPDF cannot OCR. Added as `_CHART_ONLY_TITLE_PREFIXES` in `filters/goldman.py`,
+applied via `match_title_prefix` after the admin-prefix check and before `classify_noise`.
+
+| Series prefix | Family | Notes |
+|---|---|---|
+| `commodity futures volatility report` | Commodities | Futures vol surface chart deck |
+| `commodity futures curve report` | Commodities | Futures curve chart deck |
+| `commodity pre post roll report` | Commodities | Pre/post roll data charts |
+| `gs rates marketstrats` | Rates | Covers Bond Report / Bond Futures Carry / Movers / Best Trades / Seasonality |
+| `gs marketstrats \| the tail stratbook` | Strategy | Tail-risk chart deck |
+| `views from the treasury desk` | Rates/FX | Treasury desk chart series |
+| `fx forward point roll` | FX | FX forward point roll data charts |
+| `fx carry vol monitor` | FX | FX carry vol chart series |
+| `gs credit marketstrats` | Credit | CDS positioning + volume charts |
+| `gs credit reports - credit volatility report` | Credit | Credit vol chart pack |
+| `gs clo secondary` | Credit | CLO secondary market run sheets |
+| `gs what is priced in` | Macro | Raw CB meeting probability numbers + boilerplate |
+
+Drop reason logged as `title-prefix:'<prefix>'`. These are also caught
+defence-in-depth by the prose-density gate if the title match is missed.
+
+Note: the GS Rates MarketStrats family was previously ingested as RATES (confirmed
+by the 2026-06-12 state table above, e.g. "GS Rates MarketStrats - Global Bond
+Futures Carry"). These now drop at discovery.
+
+## Last verified
+
+2026-06-15 — `_CHART_ONLY_TITLE_PREFIXES` added to `filters/goldman.py` (12 series
+prefixes confirmed low-value by content audit). These complement the Tier-5
+classifier and prose-density gate as a discovery-stage drop.
+
+2026-06-14 — Coverage audit (read-only) confirmed all major macro / CB /
+rates-FX franchises kept in text. DB reconciled to current logic: **272
+stale-leak rows deleted end-to-end** (DB + Qdrant + SharePoint) via
+`cleanup_goldman_stale.py`; **Tier-5 content-title classifier** added +
+hardened post-review (74 tests); **169 blank rows backfilled** (45
+reclassified-kept / 74 equity-leak deleted / 50 residual blank). Goldman
+now 713 rows, EQUITY down to 37, blank down to 50. Tier-5 propagates the
+fix to all future ingests.
+
+2026-06-12 — Stage 1 + 2 + classifier patch landed. Backfill of
+2026-06-09..06-12 window: **243 inserted / 51 dup / 37 fail / 88.5%
+success** (was 5.6% the day before with the `render_mode` threading
+bug). Cross-asset coverage normalised: RATES 36 / FX 24 / CREDIT 14 /
+COMMODITIES 13 / MACRO 67 / EQUITY 55 (over 3 days). 113 historical
+blank-asset_class rows re-classified by the Tier-3.5 desk-naming
+patterns + Alpha Generation Call fix.

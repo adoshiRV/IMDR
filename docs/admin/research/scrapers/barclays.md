@@ -415,6 +415,61 @@ Used only by Barclays today; other 5 vendors still go through fetch.
 Barclays needs this because its API only honours `page.evaluate('fetch(...)')`
 (needs the SPA's Origin/headers), not the pipeline's `ctx.request.get`.
 
+## Content audit (2026-06-15)
+
+Last updated: 2026-06-15
+
+First content audit for Barclays. Three changes to `filters/barclays.py`
+plus one dead-code fix in `crawler_barclays.py`.
+
+### (a) QPS presentation drop — `publication_type == "Presentation"` + `qps` prefix
+
+Barclays QPS-FICC is a legitimate allowlisted asset class (cross-asset
+quant research). However, QPS slide decks published as Presentation-type
+extract to pure disclaimer text with no analytical prose. The fix narrows
+on both axes:
+
+- `publication_type == "Presentation"` (from `publications[].classifications[type=PRODUCT].value`)
+- normalised title starts with `"qps"`
+
+QPS research notes ship as PDF/report-type (not Presentation), so they
+are unaffected. Drop reason: `"chart-only:qps-presentation"`.
+
+**Dead-code fix in `crawler_barclays.py`**: `should_exclude` previously
+only received `title=` — `publication_type` was not being passed. The
+QPS-presentation rule was therefore unreachable. Fixed by resolving
+`ptype = _extract_publication_type(pub)` before calling `should_exclude`
+and passing `publication_type=ptype`. The same `ptype` value is then
+reused when building the `ReportRef` (no extra extraction cost).
+
+### (b) Valuation Overview / Valuation Summary substring drops
+
+`_CHART_ONLY_TITLE_SUBSTRINGS` adds:
+
+- `"valuation overview"` — e.g. "European Media Valuation Overview"
+- `"valuation summary"` — e.g. "Valuation Summary: ..."
+
+These are companions to the `"valuation sheet"` entry already in
+`_noise.CHART_PACK_SUBSTRINGS`. They belong to the same chart-only
+sector-model family; extracted text is title + disclaimer only.
+
+These are substring matches (via `match_title_substring`), not prefix
+matches, so they fire regardless of title structure.
+
+### (c) High-volume number-dump series — caught by prose-density gate
+
+The following Barclays series account for approximately 24% of raw
+Barclays volume and are dropped by the shared prose-density gate (digit-
+density threshold), not by explicit prefix/substring rules:
+
+- MBS analytics: FRM OAS / Carry / Roll / Price / Cross-Sector (daily number tables)
+- CBOT Futures Multi-factor Analysis (factor data table)
+- Comp Sheets (equity comparables grids)
+
+These are not listed in `_CHART_ONLY_TITLE_SUBSTRINGS` because the
+digit-density gate catches them reliably and adding explicit prefixes
+would risk over-dropping future prose-rich variants with similar titles.
+
 ## Noise filter update (2026-06-10)
 
 Shared cross-vendor noise classifier wired into

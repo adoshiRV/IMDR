@@ -861,6 +861,44 @@ discover the exact `researchQueryNodeChildren` item name JPM accepts
 for language. Low priority: 10 rows in 30 days suggests <0.5%
 catalog leak.
 
+## Macro-desk keep bypass (2026-06-15)
+
+JPM macro-desk content (`Market Intelligence`, `US MACRO THEMATICS`, `SSA CB`) was
+being dropped by a combination of three independent layers:
+
+1. **Crawler** (`crawler_jpm._unfetchable_reason`): `isResearch == "N"` drop
+2. **Filter** (`filters/jpm.should_exclude`): `EXCLUDED_BUSINESS_GROUPS` drop
+   (`Specialist Sales` / `Data Assets & Alpha Group`)
+3. **Relevance** (`relevance.py`): equity-vendor-default-drop for any EQUITY-tagged
+   doc not in `_JPM_EQUITY_KEEP`
+
+Fix: added `MACRO_DESK_KEEP` as a module-level compiled regex in `filters/jpm.py`:
+
+```python
+MACRO_DESK_KEEP = re.compile(
+    r"market\s+intelligence"
+    r"|macro\s+thematics"
+    r"|ssa\s+cb",
+    re.IGNORECASE,
+)
+```
+
+This is the **single source of truth** — `crawler_jpm.py` imports it as
+`_MACRO_DESK_KEEP` (bypasses the `isResearch=N` gate) and `relevance.py` imports
+it as `_JPM_MACRO_DESK_KEEP` (bypasses the industry-drop and keep-allowlist logic).
+The filter's `should_exclude` also uses it to bypass the business-group drop.
+
+Effect: all three drop layers are bypassed for matching titles. A macro-desk title
+that also contains CJK or matches a noise pattern still drops on those later checks —
+only the business-group drop is bypassed per filter, only the `isResearch=N` gate is
+bypassed per crawler, and only the industry/equity-allowlist gate is bypassed per
+relevance.
+
+**Known open item**: further JPM filter polish is deferred. The 2026-06-03 tightening
+left several follow-on tuning questions (Australian rates thin coverage, encoding
+artefact root cause, server-side language facet for CJK). None of these have been
+actioned as of 2026-06-15.
+
 ## Noise filter update (2026-06-10)
 
 Shared cross-vendor noise classifier wired into

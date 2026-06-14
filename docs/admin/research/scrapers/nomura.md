@@ -379,3 +379,52 @@ Test pins: [`test_noise_filter.py`](../../../../playground/research/test_noise_f
 [`_smoke_noise_filter.py`](../../../../playground/research/_smoke_noise_filter.py),
 [`_smoke_conf_event.py`](../../../../playground/research/_smoke_conf_event.py).
 
+## Content audit (2026-06-15)
+
+Last updated: 2026-06-15
+
+Two additional drop layers added to `filters/nomura.py` based on a
+content audit of surviving publications — both operate in `should_exclude`
+after the noise-report-title and single-name-equity checks.
+
+### Layer 1 — `_CHART_ONLY_TITLE_PREFIXES` (new prefix drops)
+
+Five low-value series where extracted text is title + disclaimer with
+near-zero analytical prose (chart images only, unreadable by PyMuPDF):
+
+| prefix | series description |
+|---|---|
+| `usd/cny fix model` | FX fixing model — pure model-output table |
+| `g10 fx month-end model` | month-end FX model output — trade table + disclaimer |
+| `fx and rates portfolio update` | position table, minimal prose |
+| `credit portfolio update` | position table, minimal prose |
+| `macro portfolio update` | position table, minimal prose |
+
+These are anchored title-prefix matches (case-insensitive after
+`normalize_title`). Matched via the same `match_title_prefix` helper as
+`EXCLUDED_TITLE_PREFIXES`, then `classify_noise` is the final fallback.
+
+Note: in the 7-day smoke the "USD/CNY fix model" series appeared in the
+kept set under FX (e.g. *"USD/CNY fix model - Projection: 6.7762"*) —
+it is now dropped.
+
+### Layer 2 — prose-density gate (high-volume number-dump series)
+
+The following high-volume series are NOT in the per-series prefix list
+because they are caught further upstream by the shared prose-density
+gate (digit-density threshold in `_noise.py`):
+
+| series | token volume | description |
+|---|---|---|
+| Yen RV Analytics | ~89k tokens/day | Yield-curve table dump |
+| Yen Rates Daily Monitor | ~89k tokens/day (combined est.) | Daily JGB analytics |
+| SDR FX Analysis | high | SDR basket FX data table |
+| Agency MBS Chart Book | high | MBS chart deck (now also caught by chart-pack family) |
+| Agency Worst Billion / Prepayment / Lockup / Issuance / Buyout reports | high | Agency MBS operational data |
+| FHL Exchange Report | high | FHLB exchange data table |
+| FX and Rates Weekly Analytics | high | Weekly analytics table dump |
+
+These series are digit-heavy enough that the prose-density gate fires
+independently; the `_CHART_ONLY_TITLE_PREFIXES` list is defence-in-depth
+for any image-only variants that slip the density check.
+

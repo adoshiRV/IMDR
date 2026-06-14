@@ -1,5 +1,7 @@
 # Relevance filter — drop single-name equity research
 
+Last updated: 2026-06-15
+
 The relevance filter is a discovery-time gate that drops single-name
 equity research (company-coverage notes like "Tate & Lyle: Post Results
 Agenda" or "FY25/26 results, EPS 1% below... LMPL.L") before any PDF
@@ -176,6 +178,61 @@ Net effect (smoke against 4,498 dim_report titles):
 
 Test pin: [`test_relevance_conf_event.py`](../../../playground/research/test_relevance_conf_event.py).
 Smoke harness: [`_smoke_conf_event.py`](../../../playground/research/_smoke_conf_event.py).
+
+### JPM macro-desk keep (`MACRO_DESK_KEEP`)
+
+J.P. Morgan routes its "Market Intelligence" and "MACRO THEMATICS"
+series through business groups that are normally excluded at discovery
+(`Specialist Sales`, `Non Research Other`) and sometimes receives an
+EQUITY asset-class classification because their titles mention "Equity
+Rotation" or similar. These are genuine pre-event macro analysis and
+must never be dropped by the relevance filter.
+
+**How it works.** `MACRO_DESK_KEEP` is a regex defined in
+`filters/jpm.py` (single source of truth) and imported into
+`relevance.py`:
+
+```python
+from .filters.jpm import MACRO_DESK_KEEP as _JPM_MACRO_DESK_KEEP
+```
+
+Inside the `vendor_code == "jpm"` branch of `is_single_name_equity()`,
+the macro-desk check fires **first** — before `_JPM_INDUSTRY_DROP` and
+before `_JPM_EQUITY_KEEP`. Any title matching `MACRO_DESK_KEEP` returns
+`(False, "")` (keep) immediately, regardless of how the industry-drop
+or equity-keep allowlists would evaluate the same title.
+
+```
+JPM EQUITY branch (n_tickers == 0):
+
+   title matches MACRO_DESK_KEEP?   → KEEP  ← fires first
+         ↓ no
+   title matches _JPM_INDUSTRY_DROP? → DROP
+         ↓ no
+   title matches _JPM_EQUITY_KEEP?   → KEEP
+         ↓ no
+                                      → DROP (equity-vendor-default-drop)
+```
+
+**Patterns kept by `MACRO_DESK_KEEP`:**
+
+| Pattern | Example series |
+|---|---|
+| `market\s+intelligence` | "JPM US Market Intelligence \| …" / "JPM International Market Intelligence \| …" |
+| `macro\s+thematics` | "JPM \| US MACRO THEMATICS - …" |
+| `ssa\s+cb` | "JP Morgan SSA CB - Week in Review …" |
+
+**Why `MACRO_DESK_KEEP` also lives in `filters/jpm.py`.** The same
+pattern is used in the **discovery filter** (`crawler_jpm.py`) to
+exempt these series from the business-group drop (the crawler checks
+`isResearch=N` but keeps MACRO_DESK_KEEP titles regardless). Having
+one authoritative regex in `filters/jpm.py` means both gatekeepers
+stay in sync automatically when the pattern is updated.
+
+This mirrors the Goldman macro-bypass pattern, where
+`any(t.category == "theme" and t.value == "Macro" for t in result.tags)`
+keeps Goldman EQUITY docs that carry the Macro subject tag from the GS
+Subjects facet.
 
 ### Goldman classifier Tier-4 backfill
 

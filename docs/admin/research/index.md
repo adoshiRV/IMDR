@@ -313,6 +313,16 @@ The `imdr-research` block sits alongside `imdr-db` with
 needs Driver 18 for `VARBINARY` / `NVARCHAR(MAX)`; the SQL MCP works
 on the legacy driver).
 
+## Content quality
+
+[`content_quality.md`](content_quality.md) — cross-cutting mechanisms
+shipped 2026-06-15: prose-density gate (skips chart-pack/data-dump PDFs
+at parse time), per-vendor series title drop-lists, deduplication fix
+(pre-fetch `(vendor_code, pdf_path)` gate + `(vendor_id, date, title)`
+fallback), and the repeatable coverage harness. Two reports removed from
+the corpus: 471 surplus dim_report rows and ~11.7k surplus fact_chunk
+rows across 13 vendors.
+
 ## Per-vendor scrapers
 
 Each vendor has its own quirks (URL patterns, DOM structure, viewer

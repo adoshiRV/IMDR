@@ -160,7 +160,9 @@ the article detail HTML and extract the first `href` matching
 * Search: `https://www.westpaciq.com.au/search` (full-text search;
   may expose a different listing API — not yet probed).
 
-## Fetch strategy — two-step PDF resolver
+## Fetch strategy — four-step PDF resolver (updated 2026-06-15)
+
+Last updated: 2026-06-15
 
 ```
 hub HTML (one GET per hub, 50 cards each)
@@ -168,40 +170,72 @@ hub HTML (one GET per hub, 50 cards each)
   → for each in-window card:
       step 1: regex executiveSummary for /content/dam/public/.../*.pdf
               → prefix with https://library.westpaciq.com.au, done.
-      step 2 (only if step 1 misses): GET articlePath, regex
+      step 2 (only if step 1 misses): GET articlePath (static), regex
               <a href="https://library.westpaciq.com.au/.../pdf">.
-      else: drop with reason="no_pdf".
+      step 3 (only if step 2 misses AND NOT _is_html_only_series):
+              open article URL in headed Playwright, wait networkidle
+              + 3s, regex live DOM for PDF href.
+      step 4 (_no_pdf_render_decision):
+              if title matches _HTML_ONLY_TITLE_PREFIXES → drop "no_pdf"
+              else → emit ReportRef(render_mode="html"), pipeline
+                     calls fetch_html_as_pdf (playwright page.pdf()).
 ```
 
 Logs a one-line PDF-source breakdown at end of discovery
-(`card_es=N, detail_page=N, no_pdf=N`) so the operator can see the
-fast-path / fallback / drop ratio without grepping.
+(`card_es=N, detail_page=N, playwright=N, html_render=N, no_pdf=N`)
+so the operator can see the fast-path / fallback / drop ratio without
+grepping.
 
-Persistent-profile cookies via `ctx.request.get()`. No custom
-headers required (no `x-csrf-token`, `janus_user`, or similar).
+Persistent-profile cookies via `ctx.request.get()` for steps 1–2. No
+custom headers required. Steps 3–4 use a headed Playwright page.
 
-### Why two steps?
+### Why four steps?
 
-* **Markets cards** carry the full article body (with PDF link) in
-  `executiveSummary`. Their detail pages are a **2.6MB SPA shell**
-  that does not expose the PDF as a real `<a href>` to a static
-  fetch — the link only appears in the live DOM after JS runs in a
-  headed Chrome session. Step 1 lifts the link straight out of the
-  card.
-* **Economics cards** vary. ~60% include the full body in
-  `executiveSummary` (step 1 catches them). The other ~40% have a
-  stub `executiveSummary` (under 1KB, no PDF link). For these, the
-  detail page is a small server-rendered shell with the PDF link as
-  a real `<a href="https://library...">`; step 2 catches it.
-* **HTML-only Markets briefings** (FinanceAM, Around the Grounds,
-  Strategy Views on a Page, daily AUD/NZD updates) genuinely have
-  no PDF rendition — they're web-native. Both steps miss; the card
-  is dropped with `no_pdf`. This is correct.
+* **Step 1 — Markets cards**: carry the full article body (with PDF
+  link) in `executiveSummary`. Their detail pages are a 2.6MB SPA
+  shell that does not expose the PDF as a real `<a href>` to a static
+  fetch. Step 1 lifts the link straight out of the card.
+* **Step 2 — Economics cards with stub executiveSummary**: ~40% of
+  Economics cards have a stub `executiveSummary` (under 1KB). The
+  detail page is a small 98KB server-rendered shell with the PDF link
+  as a real `<a href="https://library...">`; step 2 catches it.
+* **Step 3 — Playwright live DOM**: some macro articles (e.g. "RBA and
+  inflation view", "Australian Business Conditions and Confidence") have
+  detail pages that are SPA shells — the PDF href only appears in the
+  live DOM after JS runs. Adding Playwright as step 3 recovers these
+  before escalating to HTML render.
+* **Step 4 — HTML render**: when Playwright also finds no PDF href AND
+  the article is not a known HTML-only junk series, the card is emitted
+  with `render_mode="html"`. The pipeline routes it through
+  `fetch_html_as_pdf` (playwright `page.pdf()` of the live article URL)
+  — the same path Goldman uses for its `/content/markets/` articles.
+  These are exactly the macro-event articles that have no PDF rendition:
+  "RBA and inflation view", "The Australian dollar loses grip after
+  strong US jobs report". Live-verified: the RBA note renders to a
+  519KB PDF, 9 chunks.
+
+### `_is_html_only_series` / `_no_pdf_render_decision`
+
+Steps 3 and 4 are gated by `_is_html_only_series(title)`, which checks
+a title-prefix allowlist of known HTML-only junk series where spinning up
+a headed page is wasteful (there is no PDF to recover):
+
+```python
+_HTML_ONLY_TITLE_PREFIXES = (
+    "around the grounds",
+    "strategy views on a page",
+    "financeam",
+)
+```
+
+`_no_pdf_render_decision(title)` returns `"drop"` for these (drops with
+`no_pdf`) and `"render_html"` for everything else (escalates to step 4).
 
 Discovered the hard way during the first smoke run on 2026-06-02 —
 the naive detail-page regex flagged 15/21 candidates as `no_pdf` due
-to the Markets SPA shell issue. The two-step resolver brings that
-down to 8 legitimate drops.
+to the Markets SPA shell issue. The two-step resolver (steps 1–2) brought
+that down to 8 legitimate drops. Steps 3–4 added 2026-06-14 recovered
+the remaining macro articles that had no static PDF href.
 
 ## Watermarks / quirks
 
@@ -219,37 +253,57 @@ down to 8 legitimate drops.
   (`WhatsPricedIn20260601`); some economics articles use hyphenated
   English slugs. Both reach `articlePath` cleanly.
 
-## Non-PDF assets
+## Non-PDF assets and HTML-render path
 
-Observed at first smoke run (8 legitimate `no_pdf` drops across a
-4-day window):
+Two categories of Westpac articles have no static PDF URL:
 
-* **HTML-only daily/weekly Markets briefings** that have no PDF
-  rendition — the article body IS the deliverable:
-  * `FinanceAM` (daily overnight wrap)
-  * `Around the Grounds` (daily debt-markets briefing)
-  * `Strategy Views on a Page` (daily strategy roundup)
-  * `Australian Dollar update` (intraday FX colour)
-* **HTML-only Economics briefings** in the same vein:
-  * `Minimum wage and awards increase by X%` (short news bulletin)
-* **Securitisation weekly notes** that are HTML pages
-  (`ABSolute Coverage - Securitisation & Covered Bond Weekly Update`,
-  `APRA ADI Statistics`).
+### HTML-only junk series (dropped, not rendered)
 
-These all return zero hits across both PDF-resolver steps and drop
-with `[DROP] <uuid> no_pdf=no_pdf <title>` — exactly the
-"no PDF rendition advertised by the vendor" condition per the
-playbook's `no_pdf` (not `unparseable`) labelling rule.
+Confirmed no PDF rendition AND no useful analytical content. Dropped
+by `_is_html_only_series` / `_no_pdf_render_decision` before Playwright
+or HTML-render is attempted:
 
-Phase 1 snapshots also flagged occasional **video explainers**
-("Federal Budget … with Chief Economist Luci Ellis") and
-**infographics**. These either:
+* `FinanceAM` (daily overnight wrap)
+* `Around the Grounds` (daily debt-markets briefing)
+* `Strategy Views on a Page` (daily strategy roundup)
 
-* Pair with a slide-deck PDF embedded in the executiveSummary — step
-  1 catches them and they ingest normally; or
-* Are pure-video / pure-image — step 1 + 2 miss, drop with `no_pdf`.
+Additional no-content HTML articles that fall through all four resolver
+steps and are dropped (step 4's `_no_pdf_render_decision` returns
+`"render_html"` for these, but since no prose was found at steps 1–3,
+the pipeline drops them before render):
 
-Audio/podcast title-keyword scan after first smoke: **0 hits**.
+* `Australian Dollar update` (intraday FX colour, very short)
+* `Minimum wage and awards increase by X%` (short news bulletin)
+* `ABSolute Coverage - Securitisation & Covered Bond Weekly Update`
+* `APRA ADI Statistics`
+
+### Macro articles — HTML render path (2026-06-14)
+
+Some substantive macro articles publish HTML-only with no PDF rendition.
+These previously dropped as `no_pdf`. As of 2026-06-14 they are ingested
+via `render_mode="html"` (step 4 of the four-step resolver):
+
+* "RBA and inflation view" — RBA rate/inflation commentary
+* "Australian Business Conditions and Confidence, May"
+* "The Australian dollar loses grip after strong US jobs report"
+
+These articles pass steps 1–3 (no PDF href in card ES, static detail
+page, or Playwright live DOM). `_no_pdf_render_decision` returns
+`"render_html"`. The pipeline calls `fetch_html_as_pdf` which runs
+playwright `page.pdf()` on the live article URL. Live-verified output:
+RBA note → 519KB PDF → 9 chunks.
+
+### Video / podcast
+
+Phase 1 snapshots flagged occasional video explainers ("Federal Budget …
+with Chief Economist Luci Ellis") and infographics. These either:
+
+* Pair with a slide-deck PDF in `executiveSummary` — step 1 catches them
+  and they ingest normally; or
+* Are pure-video / pure-image — dropped at step 4 by `_is_html_only_series`
+  check (or simply produce no content if rendered as HTML).
+
+Audio/podcast scan after first smoke: **0 hits**.
 
 ## Classifier notes
 
@@ -395,6 +449,13 @@ landed in playground (gitignored). 7-day smoke shows ~6/day kept
 (up from ~3/day), 100% kept at relevance, pure
 STRATEGY 36% / MACRO 33% / FX 15% / RATES 10% / COMMODITIES 5%
 composition with 51% inv-parent coverage on survivors.
+
+2026-06-14/15 — Four-step PDF resolver: Playwright live-DOM step (step 3)
++ HTML-render path (step 4, `render_mode="html"` via `fetch_html_as_pdf`)
+added to recover macro-event articles with no static PDF rendition.
+Known HTML-only junk series gated by `_is_html_only_series` /
+`_HTML_ONLY_TITLE_PREFIXES`. Live-verified: RBA note renders to 519KB PDF,
+9 chunks.
 
 ## Noise filter update (2026-06-10)
 

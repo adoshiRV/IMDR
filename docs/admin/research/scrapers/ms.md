@@ -525,6 +525,32 @@ dropping sector EQUITY. The macro/rates/fx/credit stream is what
 we want, and ~19/day of clean signal is the right shape. Revisit
 if downstream users miss the sector wraps.
 
+## Chart-only series drops (2026-06-15)
+
+Content audit 2026-06-15 confirmed the following MS series produce PDFs whose
+extractable text is title + disclaimer only. Added as `_CHART_ONLY_TITLE_PREFIXES`
+in `filters/ms.py`, applied via `match_title_prefix` after the admin-prefix check
+and before `classify_noise`:
+
+| Series prefix | Notes |
+|---|---|
+| `strait of hormuz - daily tracker` | Daily shipping-traffic / geopolitical data tracker — pure chart table |
+| `key data watch calendar` | Calendar / data-watch table — no prose analysis |
+| `factor effectiveness` | Australia quant factor-screen chart deck |
+| `key forecasts` | Aggregated forecast table — no narrative |
+
+Drop reason logged as `title-prefix:'<prefix>'`.
+
+Note: `"chart of the day"` is intentionally NOT in this list — it is already a
+cross-vendor substring drop in `_noise.CHART_PACK_SUBSTRINGS` and catches MS's
+`"Chart of the Day: ..."` series there. Do not add it here as well (would fire
+twice with different reason strings).
+
+MS number-dump XLS companions are already dropped at card stage via the
+`should_exclude_by_card` `dt != "application/pdf"` check. The prose-density gate
+provides a further defence-in-depth backstop for any chart-only docs that reach the
+parse step.
+
 ## Noise filter update (2026-06-10)
 
 Shared cross-vendor noise classifier wired into

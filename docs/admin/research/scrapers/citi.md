@@ -94,9 +94,12 @@ POST https://www.citivelocity.com/cvr/publicationqueryws/eppublic/V1/publication
   "publications": [
     {
       "publishDate": "2026-06-02T09:34:14.000Z",
-      "pubHeadline": "EGB Supply Monthly: ...",
-      "distHeadline": "EGB Supply Monthly: ...",
-      "pubTitle": "...",
+      "pubHeadline": "EGB Supply Monthly: ...",   // for standalone notes = descriptive headline;
+                                                   // for Compendium/Point/Roundup = edition date
+                                                   // label ("Monday, 08 June 2026", "June 1 - June 7")
+      "distHeadline": "{series}: {pubHeadline}",  // always present; used by _resolve_title when
+                                                   // pubHeadline is a bare date
+      "pubTitle": "{series name}",                 // series name only, no date context
       "pubSynopsis": "We forecast …",
       "htmlSynopsis": "...",
       "pubId": "30435046",          // ← the doc id used in the PDF URL
@@ -404,4 +407,119 @@ Test pins: [`test_noise_filter.py`](../../../../playground/research/test_noise_f
 (35 conf-event assertions). Re-runnable smoke harnesses:
 [`_smoke_noise_filter.py`](../../../../playground/research/_smoke_noise_filter.py),
 [`_smoke_conf_event.py`](../../../../playground/research/_smoke_conf_event.py).
+
+## Content audit (2026-06-15)
+
+Last updated: 2026-06-15
+
+### (a) Classifier — RATES/FX/CREDIT emission via title-keyword tiers
+
+`classifiers/citi.py` previously collapsed all `productFocus=DISCIPLINE`
+docs into MACRO or STRATEGY — zero RATES, FX, or CREDIT rows were ever
+written. A title-keyword refinement pass (`_title_refine_asset_class`)
+was added as a Tier-1 late pass that fires only when the structured-
+signal result is STRATEGY or MACRO.
+
+**Ordering** (first match wins):
+
+1. **Macro guard** (`_MACRO_CB_RE` / `_MACRO_DATA_RE` / `_MACRO_FOMC_COMBO_RE`)
+   — central-bank names (Federal Reserve, ECB, BoE, BoJ, RBA, RBNZ, BoC,
+   Norges Bank, Riksbank, PBoC, SNB), or macro data releases (CPI/PCE/PPI,
+   payrolls/NFP, GDP, PMI/ISM, retail sales, industrial production, trade
+   balance, rate cut/hike/decision), or "FOMC preview/minutes/SEP/statement"
+   combos → keep MACRO. This guard fires first so titles like "ECB: once
+   hikes are underway" or "Payrolls acceleration but dovish catalysts ahead"
+   are never mis-promoted to RATES or FX.
+2. `_RATES_RE` — auction/OIS/SOFR/IORB/ESTER/JGB/Bund/Gilt/BTP/Treasury/
+   2s10s steepener/flattener/swap spread/asset swap/duration/roll down/
+   linker/breakeven/TIPS/SSA RV/EMU spread/summer seasonality/30Y/10Y
+   auction → RATES.
+3. `_FX_RE` — USD/JPY EUR/USD GBP/… NZD TWD KRW CNY CNH SGD THB MYR IDR /
+   FX / currency / carry trade / FX volatility / de-dollarisation / DXY /
+   REER → FX.
+4. `_CREDIT_RE` — CDX/iTraxx/CDS/high yield/HYG/investment grade/IG credit/
+   RMBS/CMBS/ABS/CLO/non-QM/credit snapshot/leveraged loan/hybrids/
+   prepayment/spreads widen-tighten/index roll down → CREDIT.
+5. No match → unchanged (STRATEGY or MACRO).
+
+EQUITY and COMMODITIES results from Tier-0 are never overridden by this
+pass.
+
+**Effect**: 50 existing STRATEGY/MACRO rows backfilled to correct
+RATES/FX/CREDIT asset class via a one-off SQL update.
+
+### (b) Title extraction fix — `_resolve_title` with `distHeadline`
+
+See "Title resolution fix (2026-06-15)" section below for the full write-up.
+
+### (c) `EXCLUDED_TITLE_PREFIXES` — "iboxx snapshot" added
+
+`filters/citi.py` adds `"iboxx snapshot"` to the Excel-rendition
+prefix denylist. The iBoxx Snapshot series publishes bond-index data
+snapshots that extract to 2 near-empty chunks (title + disclaimer only;
+chart images unreadable by PyMuPDF).
+
+**"us corporate mutual fund flows" was considered and NOT added.** The
+prefix would also catch the "...Weekly" variant which is prose-rich
+research. The daily fund-flow tables are digit-heavy enough that the
+prose-density gate drops them independently, so omitting the explicit
+prefix avoids over-dropping the Weekly note. This decision is pinned
+in a comment in `filters/citi.py`.
+
+### (d) Prose-density gate catches remaining number-dump series
+
+The following series are NOT in the prefix denylist — they are caught
+by the shared prose-density gate (digit-density threshold):
+
+- Credit Snapshot family (daily credit-market data tables)
+- Index Roll Down (CDX/iTraxx roll-down model output)
+- Hedge Comparison (structured hedge analytics table)
+- Quant Style Rotation (factor-rotation data dump)
+
+## Title resolution fix (2026-06-15)
+
+**Problem**: 52 ingested Citi docs had titles that were bare dates ("Monday,
+08 June 2026") or date-ranges ("June 1 - June 7"). These are Compendium,
+Point, and Roundup series — real research digests with a proper series name
+in the API — but the crawler was taking `pubHeadline`, which Citi uses as
+an edition label for these series.
+
+**Root cause confirmed via probe**: For Compendium/Point/Roundup publications,
+the three title fields behave differently from standalone notes:
+
+| field | standalone note | compendium |
+|---|---|---|
+| `pubHeadline` | descriptive topic (e.g. "When, not if?") | edition label (e.g. "Monday, 08 June 2026") |
+| `distHeadline` | "{series}: {topic}" | "{series}: {date}" |
+| `pubTitle` | series name | series name |
+
+Series observed: "The Global Point" (daily), "The Point for Latin America"
+(daily), "The Point for CEEMEA" (daily), "Citi's Most Read - Real Estate"
+(weekly), "Citi's Most Read - North America" (weekly), "Global Supply Chain
+Research Highlights" (fortnightly).
+
+**Fix** (`crawler_citi.py`): `_resolve_title(pub)` replaces the old
+`pubHeadline or distHeadline or pubTitle` chain. It uses `pubHeadline` when
+it is non-empty and does NOT match `_BARE_DATE_RE` (weekday-date or
+month-range pattern). When `pubHeadline` is a bare date it falls back to
+`distHeadline`, which carries `"{series}: {date}"` — searchable by series
+name. `_BARE_DATE_RE` is anchored and case-insensitive; tested against 11
+date-label variants and 8 real research titles.
+
+**Side effect**: these compendium titles now pass through the
+`_WEEKDAY_DATE_RE` morning-note filter cleanly (it anchors on `^monday|...`
+which no longer matches "The Global Point: Monday..."), so they will be
+ingested going forward rather than noise-dropped.
+
+**Backfill of 52 existing rows**: NOT implemented. The 52 DB rows ingested
+before the fix have date-style titles. Re-title by re-fetching
+`publications.json` for each pubId (extracted from pdf_path) and UPDATEing
+`research.dim_report.title`. Scope this as a follow-up (IMD-?? or manual
+SQL). pubIds are in `pdf_path` column, e.g.
+`2026/06/08/citi/Monday_08_June_2026_30436072.pdf` → pubId `30436072`.
+
+**Tests**: [`test_citi_title_resolution.py`](../../../../playground/research/test_citi_title_resolution.py)
+— 28 assertions covering `_BARE_DATE_RE` coverage (11 date labels, 8 real
+titles) and `_resolve_title` correctness (4 compendium fixtures, 2 standalone
+fixtures, 2 edge cases).
 

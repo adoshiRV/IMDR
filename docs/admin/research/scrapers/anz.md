@@ -330,6 +330,31 @@ drop-list landed in playground (gitignored). 7-day smoke shows
 MACRO 67% / RATES 16% / COMMODITIES 8% / FX 8% composition, 100%
 country/region coverage on survivors with Sub-Topic geo.
 
+## Rates series rescue (2026-06-15)
+
+The 2026-06-10 noise-filter wiring collapsed kept RATES from ~8/week to ~1/week
+by routing three ANZ titles through `MORNING_NOTE_PREFIXES` in `_noise.py`.
+User directive 2026-06-14: these series are wanted for rates-event coverage.
+
+Fix: added `_ANZ_RATES_KEEP` in `filters/anz.py` with three entries:
+
+```python
+_ANZ_RATES_KEEP: tuple[str, ...] = (
+    "daily rates rv pack",       # daily relative-value table, genuine rates signal
+    "aud rates weekly snapshot", # weekly rates positioning summary
+    "nzgb tender",               # NZ govt bond tender, hard rates-supply event
+)
+```
+
+These were also **removed from `_noise.MORNING_NOTE_PREFIXES`** in `_noise.py`
+(the comment there now says "used to be here too, but ANZ wants those KEPT").
+The keep-override check runs at the end of `should_exclude` — after the pubtype
+and topic drops — so it only fires when the title is not already dropped by a
+harder signal. All other ANZ morning-notes (`australian morning focus`,
+`nz morning focus`, `charts that matter`) continue to drop via the shared classifier.
+
+Effect: RATES recovered from ~1/week to ~6/week.
+
 ## Noise filter update (2026-06-10)
 
 Shared cross-vendor noise classifier wired into
@@ -339,7 +364,7 @@ Three universal title-pattern families plus a cross-vendor EQUITY
 conference / sales-event drop in [`relevance._is_equity_conf_event`](../../../../playground/research/ingest/relevance.py).
 
 Smoke against the full 4,498-title `research.dim_report` corpus dropped
-**56 anz docs**:
+**56 anz docs** (prior to the 2026-06-15 rates-rescue fix):
 
 | family | n | sample |
 |---|---|---|
@@ -347,6 +372,10 @@ Smoke against the full 4,498-title `research.dim_report` corpus dropped
 | morning-note | 53 | Australian Morning Focus / NZ Morning Focus / Daily Rates RV Pack / Charts that Matter |
 | event-admin | 0 | (none — covered by existing EXCLUDED_TITLE_PREFIXES tuple) |
 | conf-event (EQUITY only) | 0 | (none in current corpus) |
+
+Note: the 2026-06-15 fix removed "Daily Rates RV Pack", "AUD Rates Weekly
+Snapshot", and "NZGB tender" from `MORNING_NOTE_PREFIXES`, so those 3 of the 53
+morning-note drops are rescued going forward.
 
 The conf-event rule fires only when `result.asset_class == EQUITY` so
 MACRO-tagged "Takeaways" / "Trip Notes" titles (real policy / sovereign

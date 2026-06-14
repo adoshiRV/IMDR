@@ -534,6 +534,62 @@ same listing response:
 
 Either form is a valid `rid` in the URL.
 
+## Filter and dedup changes (2026-06-15)
+
+### DBDaily now KEPT via `_DB_MACRO_KEEP`
+
+`DBDaily:` prefix was previously dropped by `MORNING_NOTE_PREFIXES` in the shared
+noise classifier. Added `_DB_MACRO_KEEP = ("dbdaily",)` in `filters/db.py` — this
+tuple is checked immediately before `classify_noise` is called, so a matching title
+short-circuits the morning-note drop and returns `None` (kept). Verified 2026-06-14.
+
+### Narrow CJK exemption `_DB_CJK_KEEP`
+
+Added `_DB_CJK_KEEP = ("japan monetary policy watch",)`. Titles whose normalised form
+contains this substring pass through the CJK drop even though they contain Japanese
+characters — they are BoJ-meeting previews with no English twin in `research.dim_report`
+(verified against `vendor_id=18` as of 2026-06-14). "The House View (Japanese)" and
+"US Economic Notes (Japanese)" are NOT in the list because they have English twins.
+
+### "Fixed Income Chart Of The Day" revert (2026-06-15)
+
+This series was briefly added to `_DB_MACRO_KEEP` but the 2026-06-15 content audit
+found its extractable text is almost entirely watermark + legal disclaimer +
+contact boilerplate. The analysis lives in the chart images, which PyMuPDF cannot
+OCR. It was reverted — it drops again as a chart-pack via the shared
+`CHART_PACK_SUBSTRINGS` substring `"chart of the day"`. Recovering it would require
+image/OCR extraction — deferred as a separate piece of work.
+
+### Filter precedence (current)
+
+`filters/db.py` — first match wins:
+
+1. `cjk:'japanese'` — CJK character in title, unless title is in `_DB_CJK_KEEP`
+2. `is-demotion` — vendor-flagged superseded re-publish
+3. `product-type:<value>` — `Catalyst Call` or `Charts`
+4. `single-name:companies_primary=<n>` — at least one `isPrimary == True` company
+5. `title-prefix:'expert call'` — admin / KOL-setup notes
+6. `_DB_MACRO_KEEP` bypass — if the normalised title contains `"dbdaily"`, skip noise classifier (return None)
+7. `classify_noise(title)` — shared cross-vendor noise classifier (morning-note / chart-pack / event-admin)
+
+### Cross-vendor dedup fix
+
+Prior to 2026-06-15, pipeline idempotency was keyed on `content_hash`. DB (and
+several other vendors) embed per-download watermarks that change the hash even for
+identical underlying content, allowing re-downloads to create duplicate rows. Dedup
+is now keyed on `(vendor_id, pdf_path)` with `(vendor_id, date, title)` as fallback
+(see `ingest/pipeline.py` and `ingest/db.py`). Effect on DB: 67% of existing DB rows
+were duplicates; 298 duplicate rows were cleaned up.
+
+### Low-value bond-table series flagged
+
+The following DB series are caught by the new prose-density gate (defence-in-depth
+against chart-only / number-table documents): `* Weekly Rel Val`,
+`Corporate Credit: Relative Value Monitor`, `Model Book`, `CORAX`,
+`FX Liquidity Snapshot`, `DB EPIC+`. These are bond-table dumps — minimal extractable
+prose; even if the noise classifier misses a title variant, the prose-density gate
+prevents them from reaching the embedding step.
+
 ## Noise filter update (2026-06-10)
 
 Shared cross-vendor noise classifier wired into
