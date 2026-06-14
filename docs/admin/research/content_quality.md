@@ -33,9 +33,17 @@ nothing beyond the already-completed fetch+parse.
 **Gate rule.** A document is skipped if either condition holds:
 
 ```
-digit_frac >= 0.20
+digit_frac >= 0.35
 OR  (prose_sentences <= 3  AND  digit_frac >= 0.15)
 ```
+
+> **Re-calibrated 2026-06-15** (was `digit_frac >= 0.20` on the pure-digit arm).
+> The 0.20 threshold wrongly flagged table-heavy NARRATIVE notes — confirmed example:
+> JPM "Credit Strategy Weekly Update" has `digit_frac` ~0.23–0.24 but contains genuine
+> credit-strategy prose alongside spread tables. Raising the pure-digit threshold to
+> 0.35 spares those notes; RICH documents top out at `digit_frac = 0.138` so 0.35
+> has wide clearance and FN=0 is maintained. Net boilerplate drop: 64/128 vs 66/138
+> — the 2 now-spared docs are per-series-list candidates handled by Section 2.
 
 **Metric definitions.**
 

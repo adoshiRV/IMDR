@@ -1,5 +1,7 @@
 # J.P. Morgan — Markets research scraper
 
+Last updated: 2026-06-15
+
 Status: **LIVE (2026-06-01)** — full onboarding through Phase 7. End-to-
 end smoke run wrote `research.dim_report` ids 2018 + 2019 with 53
 chunks across the two reports. `dim_vendor` row seeded as id=16 via
@@ -898,6 +900,78 @@ relevance.
 left several follow-on tuning questions (Australian rates thin coverage, encoding
 artefact root cause, server-side language facet for CJK). None of these have been
 actioned as of 2026-06-15.
+
+## Filter polish + stale cleanup (2026-06-15)
+
+### Filter changes
+
+A content audit (chunk\_text) of JPM rows surfaced EQUITY leakage and boilerplate
+that earlier filter passes hadn't caught.
+
+**`_JPM_EQUITY_KEEP` tightened (relevance.py):**
+Removed the over-broad bare tokens `ftm`, `forecast`, and `derivatives`.
+
+- `ftm` — "Flow of the Morning" regional equity wraps aggregate single-name ratings,
+  price targets, and analyst OW/N calls by ticker. These are equity-coverage digests,
+  not macro analysis. Dropping the `ftm` token removes ~6/day.
+- `forecast` — was catching auto-sector forecasts and equity-forecasting toolkits.
+- `derivatives` — was catching equity-derivatives-strategy and data-table packages.
+
+Added `morgan view` as a defensive keep so "The J.P. Morgan View" (macro flagship)
+survives if the classifier assigns it EQUITY.
+
+**`_JPM_INDUSTRY_DROP` extended (relevance.py):**
+Four new entries appended to the single-industry blocklist, applied to BOTH EQUITY
+and CREDIT before the keep allowlist runs:
+
+- `china quant strategy`, `japan quant strategy` — boilerplate quant series; the
+  prose-density gate misses them because `digit_frac` is moderate, not extreme.
+- `equity derivatives strategy`, `tactical derivatives strategy` — equity-vol strategy
+  data tables; formerly caught by the now-removed `derivatives` keep token, which
+  created an inconsistency.
+- `technology outlook` — sector-equity outlook series that was surviving via the
+  `outlook` keep token.
+
+**`filters/jpm.py should_exclude` — `admin:extel-vote` drop added:**
+Fires as the first check (before business-group) for titles containing `extel vote`
+or starting with `*extel`. Catches the "Extel Vote Ends Tomorrow …" admin ping series.
+Does not affect MI Briefings or any normal research title.
+
+**Kept (user decisions):**
+MI Morning/Afternoon Briefings, eco/auction calendars, ToC digests — all pass through
+unchanged.
+
+### Number-dump packages
+
+JPM's large recurring number-dump packages ("US Interest Rate Derivatives Package",
+~282k tokens; Futures & Options Package; High Grade Bond Curve; CDX Summary; spread
+matrices) are **not** handled by per-series title lists. They are caught by the
+cross-cutting prose-density gate (see
+[`../content_quality.md`](../content_quality.md) Section 1) which fires after
+`parse_pdf()` completes. No per-series JPM entry was added to Section 2 of that doc
+for these packages.
+
+### Stale cleanup
+
+[`cleanup_jpm_stale.py`](../../../../playground/research/cleanup_jpm_stale.py)
+replayed the polished filters and prose-density gate against existing JPM rows and
+deleted stale matches end-to-end:
+
+| Resource | Deleted |
+|---|---|
+| `dim_report` rows | 539 |
+| Qdrant points | 38,672 |
+| `map_report_tag` rows | 2,244 |
+| PDFs (local OneDrive sync) | 539 |
+
+**JPM corpus: 1,374 → 835 rows.**
+
+Verified zero macro loss: Global Data Watch, The J.P. Morgan View, Fixed Income
+Markets Weekly, MACRO THEMATICS, Macro Week Ahead, and MI Briefings are all
+preserved. The only MACRO-classed deletes were "QED: Global GDP Nowcaster"
+number-grids — their narrative content lives in the kept Global Data Watch reports.
+
+---
 
 ## Noise filter update (2026-06-10)
 
