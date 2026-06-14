@@ -68,6 +68,7 @@ force_utf8_stdout()
 from ingest import embed as _embed_mod  # noqa: E402
 from ingest._vendor_log import VendorLogger  # noqa: E402
 from ingest.classifiers import get_classifier, has_classifier  # noqa: E402
+from ingest.classifiers.canonical import region_from_tags  # noqa: E402
 from ingest.models import ReportMeta  # noqa: E402
 from ingest.paths import build_sharepoint_path  # noqa: E402
 from ingest.pipeline import IngestResult, ingest_one  # noqa: E402
@@ -377,11 +378,20 @@ async def _ingest_one_ref(
             pdf_url=ref.pdf_url,
             sharepoint_path=None,
             asset_class=asset_class,
-            region="",
+            # Region is multi-valued in tags but single-valued on the
+            # column. Collapse the classifier's region tags into the
+            # canonical bucket so dim_report.region is filterable on
+            # ingest (previously left blank — backfilled retroactively).
+            region=region_from_tags(tags),
             country_code=country_code,
             authors=authors,
             context=context,
             tags=tags,
+            # Threaded from the per-vendor crawler — Goldman markets/ and
+            # blogs/ refs set this to "html" so pipeline.ingest_one routes
+            # them through fetch_html_as_pdf. Other vendors stay on the
+            # default "pdf" path.
+            render_mode=getattr(ref, "render_mode", "pdf"),
         )
         sharepoint_relative = build_sharepoint_path(
             vendor_code=vendor.code,

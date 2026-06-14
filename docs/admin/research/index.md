@@ -98,6 +98,11 @@ classifier (stage 3) runs twice — once before the filter for the
 relevance check, again inside the MSSQL transaction at write time.
 Both calls produce identical output, so payload tags stay consistent.
 
+At write time the orchestrator also collapses the multi-valued
+`Tag('region', ...)` output into the single `dim_report.region` column
+via `region_from_tags()` from `classifiers/canonical.py`. See
+[`region_country_enrichment.md`](region_country_enrichment.md).
+
 **Observed daily volume** (24h samples; BNP from 2026-05-26 sample,
 others from 2026-05-21):
 
@@ -142,6 +147,18 @@ Migrations applied (see [`migrations/`](../../../migrations/)):
   `fact_chunk_embedding.vector` as `VARBINARY(MAX)`.
 * **052** — adds report context (`asset_class`, `region`, etc.) to
   `research.dim_report`.
+
+**`dim_report.region` enrichment (2026-06-14):** the `region` column was
+blank on ~95% of sell-side reports even though region tags existed. Root
+cause: the orchestrator hardcoded `region=""` instead of collapsing the
+multi-valued `Tag('region', ...)` output. Fixed in `ingest_today.py` via
+`region_from_tags()` from `classifiers/canonical.py`. A one-time backfill
+populated 2,638 sell-side rows (apac 955, americas 673, global 647, emea
+299, latam 64); a title-heuristic backfill set `country_id` on 132
+additional rows (BoJ, RBA, FOMC, RBNZ, PBoC, RBI anchors). Econ/govt rows
+with `ASIA-EM` / `ASIA-DM` region values were untouched. See
+[`region_country_enrichment.md`](region_country_enrichment.md) for the full
+spec, backfill scripts, verification results, and known remaining gaps.
 
 Live state of the embedding tables:
 

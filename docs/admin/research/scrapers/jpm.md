@@ -397,8 +397,11 @@ for the diagnostic that pinned this.
      `region=""` to `ReportMeta`. The classifier's output (tags,
      context, country_code, canonical asset_class) is only used by
      the relevance filter to drop single-name-equity research; it's
-     **not persisted to `dim_report`**. Cross-vendor gap — applies to
-     `goldman`, `nomura`, `ms`, etc. equally — separate work.
+     **not persisted to `dim_report`** by the per-vendor runner (JPM
+     is not yet wired into the orchestrator). When JPM is promoted to
+     `ingest_today.py`, the orchestrator will call `region_from_tags()`
+     on the classifier output automatically — see
+     [`../region_country_enrichment.md`](../region_country_enrichment.md).
 
 4. **Phase 6 — DB seed + smoke run (DONE 2026-06-01)**:
    - `migrations/060_seed_jpm_dim_vendor.sql` — idempotent INSERT;
