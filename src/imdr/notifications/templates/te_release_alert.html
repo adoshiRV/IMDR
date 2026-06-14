@@ -1,0 +1,119 @@
+<!--
+  Macro release alert — RV Capital brand palette.
+  Colours sourced from docs/admin/research/brief_assets/rv_tokens.css
+  Email-safe HTML: table layout, inline styles, no flexbox, no images.
+  Google fonts NOT loaded (Outlook blocks them); Public Sans listed as
+  a hint with a system fallback chain that matches RV's tokens.
+-->
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#FFFFFF;color:#3D3E3E;font-family:'Public Sans','Segoe UI',Arial,sans-serif;font-size:14px;line-height:1.55;">
+
+<!-- Brand bar -->
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#001830;border-bottom:3px solid #004527;">
+  <tr>
+    <td style="padding:20px 28px 8px 28px;">
+      <span style="color:#FFFFFF;font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:500;letter-spacing:-0.3px;">Macro release alert</span>
+      <span style="background:#B2D0B9;color:#001830;padding:3px 10px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-left:14px;vertical-align:middle;">{{ n_total }} {% if n_total == 1 %}release{% else %}releases{% endif %}</span>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:0 28px 18px 28px;">
+      <span style="color:#85A2BE;font-size:11px;text-transform:uppercase;letter-spacing:1.4px;">{{ run_time_sgt }} &nbsp;&middot;&nbsp; source: TradingEconomics</span>
+    </td>
+  </tr>
+</table>
+
+<!-- Body -->
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#FFFFFF;">
+  <tr><td style="padding:22px 28px 8px 28px;">
+
+    <table width="100%" cellpadding="9" cellspacing="0" style="border-collapse:collapse;border:1px solid #E0E0DE;">
+      <thead>
+        <tr style="background:#F4F5F3;">
+          <th align="left"  style="border-bottom:1px solid #C9CAC8;font-size:10.5px;text-transform:uppercase;letter-spacing:1.2px;color:#7A7C7C;font-weight:600;width:44px;">Imp</th>
+          <th align="left"  style="border-bottom:1px solid #C9CAC8;font-size:10.5px;text-transform:uppercase;letter-spacing:1.2px;color:#7A7C7C;font-weight:600;width:78px;">Time SGT</th>
+          <th align="left"  style="border-bottom:1px solid #C9CAC8;font-size:10.5px;text-transform:uppercase;letter-spacing:1.2px;color:#7A7C7C;font-weight:600;">Country</th>
+          <th align="left"  style="border-bottom:1px solid #C9CAC8;font-size:10.5px;text-transform:uppercase;letter-spacing:1.2px;color:#7A7C7C;font-weight:600;">Event</th>
+          <th align="right" style="border-bottom:1px solid #C9CAC8;font-size:10.5px;text-transform:uppercase;letter-spacing:1.2px;color:#7A7C7C;font-weight:600;">Actual</th>
+          <th align="right" style="border-bottom:1px solid #C9CAC8;font-size:10.5px;text-transform:uppercase;letter-spacing:1.2px;color:#7A7C7C;font-weight:600;">Previous</th>
+          <th align="right" style="border-bottom:1px solid #C9CAC8;font-size:10.5px;text-transform:uppercase;letter-spacing:1.2px;color:#7A7C7C;font-weight:600;">Cons</th>
+          <th align="right" style="border-bottom:1px solid #C9CAC8;font-size:10.5px;text-transform:uppercase;letter-spacing:1.2px;color:#7A7C7C;font-weight:600;">Forecast</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for r in rows %}
+        <tr style="background:{% if loop.index0 is even %}#FFFFFF{% else %}#FBFBFA{% endif %};">
+          <td valign="middle" style="border-bottom:1px solid #EEEEEC;">
+            <span style="color:{{ r.dot_colour }};font-size:13px;letter-spacing:1px;">{{ r.dots }}</span>
+          </td>
+          <td valign="middle" style="border-bottom:1px solid #EEEEEC;font-variant-numeric:tabular-nums;color:#7A7C7C;font-size:12.5px;font-family:'SF Mono',Consolas,Menlo,monospace;">
+            {{ r.time_sgt }}
+          </td>
+          <td valign="middle" style="border-bottom:1px solid #EEEEEC;font-size:13px;color:#3D3E3E;">
+            {{ r.country_name }}
+          </td>
+          <td valign="middle" style="border-bottom:1px solid #EEEEEC;font-size:13px;color:#3D3E3E;">
+            {% if r.te_url %}
+              <a href="{{ r.te_url }}" style="color:#004527;text-decoration:none;font-weight:500;">{{ r.event_name }}</a>
+            {% else %}
+              <span style="font-weight:500;">{{ r.event_name }}</span>
+            {% endif %}
+            {% if r.is_revised %}
+              <span style="color:#A7A8A8;font-size:10.5px;margin-left:6px;text-transform:uppercase;letter-spacing:0.8px;" title="Revised from {{ r.old_actual }}">revised</span>
+            {% endif %}
+          </td>
+          <td valign="middle" align="right" style="border-bottom:1px solid #EEEEEC;font-variant-numeric:tabular-nums;font-family:'SF Mono',Consolas,Menlo,monospace;">
+            <span style="font-size:15px;font-weight:600;color:{{ r.actual_colour }};">{{ r.actual }}</span>
+          </td>
+          <td valign="middle" align="right" style="border-bottom:1px solid #EEEEEC;font-variant-numeric:tabular-nums;color:#7A7C7C;font-size:12.5px;font-family:'SF Mono',Consolas,Menlo,monospace;">
+            {{ r.previous }}
+          </td>
+          <td valign="middle" align="right" style="border-bottom:1px solid #EEEEEC;font-variant-numeric:tabular-nums;color:#7A7C7C;font-size:12.5px;font-family:'SF Mono',Consolas,Menlo,monospace;">
+            {{ r.consensus }}
+          </td>
+          <td valign="middle" align="right" style="border-bottom:1px solid #EEEEEC;font-variant-numeric:tabular-nums;color:#7A7C7C;font-size:12.5px;font-family:'SF Mono',Consolas,Menlo,monospace;">
+            {{ r.forecast }}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+
+    {% if n_truncated > 0 %}
+    <p style="font-size:11.5px;color:#7A7C7C;margin:10px 2px 0 2px;">
+      +{{ n_truncated }} more release{{ '' if n_truncated == 1 else 's' }} not shown.
+    </p>
+    {% endif %}
+
+  </td></tr>
+</table>
+
+<!-- Legend -->
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#FFFFFF;">
+  <tr><td style="padding:6px 28px 14px 28px;">
+    <table cellpadding="0" cellspacing="0">
+      <tr>
+        <td style="font-size:10.5px;color:#A7A8A8;text-transform:uppercase;letter-spacing:1.2px;padding-right:14px;">Importance</td>
+        <td style="font-size:12px;color:#7A7C7C;padding-right:14px;"><span style="color:#B23A2B;letter-spacing:1px;">●●●</span>&nbsp; high</td>
+        <td style="font-size:12px;color:#7A7C7C;padding-right:24px;"><span style="color:#B8862F;letter-spacing:1px;">●●</span>&nbsp; medium</td>
+        <td style="font-size:10.5px;color:#A7A8A8;text-transform:uppercase;letter-spacing:1.2px;padding-right:14px;">Actual vs cons</td>
+        <td style="font-size:12px;color:#7A7C7C;padding-right:14px;"><span style="color:#004527;font-weight:600;">above</span></td>
+        <td style="font-size:12px;color:#7A7C7C;"><span style="color:#B23A2B;font-weight:600;">below</span></td>
+      </tr>
+    </table>
+  </td></tr>
+</table>
+
+<!-- Footer -->
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#F4F5F3;border-top:1px solid #E0E0DE;">
+  <tr>
+    <td style="padding:12px 28px;font-size:10.5px;color:#7A7C7C;text-transform:uppercase;letter-spacing:1.2px;">
+      Automated alert &nbsp;&middot;&nbsp; Source: TradingEconomics /calendar &nbsp;&middot;&nbsp; Window: rolling 4 weeks &nbsp;&middot;&nbsp; Cadence: 15-minute digest
+    </td>
+  </tr>
+</table>
+
+</body>
+</html>

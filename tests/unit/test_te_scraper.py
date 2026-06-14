@@ -1,0 +1,164 @@
+"""Regression tests for the TradingEconomics /calendar parser.
+
+Pins the column-index mapping after the 2026-06-12 incident where
+parse_calendar_html() treated td[3] as a separate "reference" column
+and shifted Actual/Previous/Consensus/Forecast one cell right — so
+every cb_events.actual ended up holding TE's *Previous* value (e.g.
+the India May CPI YoY release was alerted as 3.48% instead of 3.93%).
+"""
+from __future__ import annotations
+
+from datetime import date, datetime, timezone
+
+from imdr.market_calendar.te_scraper import (
+    TECalendarEvent,
+    _build_collision_set,
+    _is_placeholder_symbol,
+    parse_calendar_html,
+)
+
+
+def _ev(*, country_iso_te: str, symbol: str | None, event_slug: str,
+        event_date: date = date(2026, 6, 18)) -> TECalendarEvent:
+    """Minimal TECalendarEvent for upsert-side helper tests."""
+    return TECalendarEvent(
+        event_date=event_date,
+        event_datetime=datetime(2026, 6, 18, 8, 40, tzinfo=timezone.utc),
+        country_iso_te=country_iso_te,
+        country_name=country_iso_te,
+        event_slug=event_slug,
+        event_text=event_slug,
+        category="calendar",
+        symbol=symbol,
+        te_id="419028",
+        te_url=None,
+        importance=1,
+        time_text="08:40 AM",
+        actual=None,
+        previous=None,
+        consensus=None,
+        forecast=None,
+    )
+
+
+# Minimal markup mirroring TE's live /calendar row structure. Two rows:
+# one with all four numeric cells populated, one with missing consensus/
+# forecast (e.g. the India MoM row from the same release).
+_FIXTURE_HTML = """
+<html><body>
+<table id="calendar">
+  <tr data-id="400945"
+      data-country="India"
+      data-event="inflation rate yoy"
+      data-category="Inflation Rate"
+      data-symbol="INDIANINFLATION"
+      data-url="/india/inflation-cpi"
+      data-importance="2">
+    <td class="2026-06-12">
+      <span class="calendar-date-2"></span>06:30 PM
+    </td>
+    <td>
+      <table><tr><td class="calendar-iso">IN</td></tr></table>
+    </td>
+    <td>Inflation Rate YoY <span class="calendar-period">MAY</span></td>
+    <td>3.93%</td>
+    <td>3.48%</td>
+    <td>4%</td>
+    <td>3.9%</td>
+    <td><span class="bars"></span><span class="bell"></span></td>
+  </tr>
+  <tr data-id="400946"
+      data-country="India"
+      data-event="inflation rate mom"
+      data-category="Inflation Rate"
+      data-symbol="INDIANINFLATIONMOM"
+      data-url="/india/inflation-mom"
+      data-importance="1">
+    <td class="2026-06-12">
+      <span class="calendar-date-1"></span>06:30 PM
+    </td>
+    <td>
+      <table><tr><td class="calendar-iso">IN</td></tr></table>
+    </td>
+    <td>Inflation Rate MoM <span class="calendar-period">MAY</span></td>
+    <td>0.75%</td>
+    <td>0.27%</td>
+    <td></td>
+    <td>0.7%</td>
+    <td><span class="bars"></span><span class="bell"></span></td>
+  </tr>
+</table>
+</body></html>
+"""
+
+
+class TestParseCalendarHtmlColumnOrder:
+    """The 2026-06-12 bug: Actual/Previous/Consensus/Forecast off by one."""
+
+    def test_india_cpi_yoy_columns_map_correctly(self):
+        events = parse_calendar_html(_FIXTURE_HTML)
+        assert len(events) == 2
+        yoy = events[0]
+        assert yoy.event_slug == "inflation rate yoy"
+        assert yoy.event_date == date(2026, 6, 12)
+        assert yoy.country_iso_te == "IN"
+        # The cells that matter — these were all shifted by one column
+        # before the fix. Pin them here.
+        assert yoy.actual == "3.93%"
+        assert yoy.previous == "3.48%"
+        assert yoy.consensus == "4%"
+        assert yoy.forecast == "3.9%"
+
+    def test_missing_consensus_does_not_shift_forecast(self):
+        events = parse_calendar_html(_FIXTURE_HTML)
+        mom = events[1]
+        assert mom.event_slug == "inflation rate mom"
+        assert mom.actual == "0.75%"
+        assert mom.previous == "0.27%"
+        # Empty consensus stays empty — must NOT pull the Forecast value
+        # forward (that was the exact failure mode of the old parser).
+        assert mom.consensus is None
+        assert mom.forecast == "0.7%"
+
+
+class TestPlaceholderSymbol:
+    """The 2026-06-15 bug: 'ESP CALENDAR' hit the ticker unique index.
+
+    Generic 'CALENDAR' placeholders are shared across many distinct
+    same-country events, so they must always be NULLed and routed through
+    the event_name uniqueness index.
+    """
+
+    def test_calendar_family_is_placeholder(self):
+        for sym in ("CALENDAR", "ESP CALENDAR", "USD CALENDAR", "OPECALENDAR",
+                    "esp calendar"):
+            assert _is_placeholder_symbol(sym), sym
+
+    def test_real_tickers_are_not_placeholders(self):
+        for sym in ("FDTR", "EURR002W", "INDIANINFLATION", "GERMANYSERPMI"):
+            assert not _is_placeholder_symbol(sym), sym
+
+    def test_none_and_empty_are_not_placeholders(self):
+        assert not _is_placeholder_symbol(None)
+        assert not _is_placeholder_symbol("")
+
+
+class TestCollisionSet:
+    """In-batch backstop for non-placeholder symbols reused same-day."""
+
+    def test_real_symbol_reused_same_day_collides(self):
+        # Use a non-overridden ISO so the assertion doesn't depend on
+        # _COUNTRY_OVERRIDES — collision detection is what's under test.
+        events = [
+            _ev(country_iso_te="US", symbol="FDTR", event_slug="a"),
+            _ev(country_iso_te="US", symbol="FDTR", event_slug="b"),
+        ]
+        out = _build_collision_set(events, {"US": 1})
+        assert ("2026-06-18", 1, "FDTR") in out
+
+    def test_unique_symbol_does_not_collide(self):
+        events = [
+            _ev(country_iso_te="US", symbol="FDTR", event_slug="a"),
+            _ev(country_iso_te="US", symbol="EURR002W", event_slug="b"),
+        ]
+        assert _build_collision_set(events, {"US": 1}) == set()
