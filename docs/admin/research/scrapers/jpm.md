@@ -945,11 +945,17 @@ unchanged.
 
 JPM's large recurring number-dump packages ("US Interest Rate Derivatives Package",
 ~282k tokens; Futures & Options Package; High Grade Bond Curve; CDX Summary; spread
-matrices) are **not** handled by per-series title lists. They are caught by the
-cross-cutting prose-density gate (see
-[`../content_quality.md`](../content_quality.md) Section 1) which fires after
-`parse_pdf()` completes. No per-series JPM entry was added to Section 2 of that doc
-for these packages.
+matrices) are handled by the **per-series title drop-lists and the cross-vendor
+`_noise` classifier** (`filters/_noise.py`). The 2026-06-10 noise-filter update
+dropped 289 JPM docs including ~40 distinct daily SKUs from this family (CDX.NA.HY
+Daily Analytics, US Cash Interest Rate Analytics Package, Front-end Spread Analytics
+Report, Pricing and Analytics Package, and others — see the full list in the "Noise
+filter update (2026-06-10)" section below).
+
+The prose-density gate that previously caught some of these was **evaluated and
+removed on 2026-06-15** — see [`../content_quality.md`](../content_quality.md)
+Section 1 for the full rationale. The per-series title drop-lists and `_noise` are
+the correct, sufficient mechanism for JPM number-dump boilerplate.
 
 ### Stale cleanup
 

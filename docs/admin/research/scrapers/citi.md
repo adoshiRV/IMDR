@@ -373,11 +373,12 @@ Aluminum, Restaurants, Auto, Health Care) — correctly dropped per
 
 ## Last verified
 
-2026-06-06 — Phase 0–8 complete. 3 reports in `research.dim_report`
-(IDs 4129–4131, written pre-Phase-8 so they lack the new ticker /
-company / industry tags — backfill not needed at this volume). 7-day
-smoke shows ~18/day net with 1% single-name leakage. Daily orchestrator
-wiring pending user OK per [`memory/feedback_no_prod_wiring_without_permission`](../../../../memory/feedback_no_prod_wiring_without_permission.md).
+2026-06-15 — Phase 0–8 complete + content audit. CJK filter added to
+`filters/citi.py`. Credit Snapshot / Index Roll Down family now kept
+(prose gate removed — see content_quality.md §1). 3 reports in
+`research.dim_report` (IDs 4129–4131). 7-day smoke shows ~18/day net
+with 1% single-name leakage. Daily orchestrator wiring pending user OK
+per [`memory/feedback_no_prod_wiring_without_permission`](../../../../memory/feedback_no_prod_wiring_without_permission.md).
 
 ## Noise filter update (2026-06-10)
 
@@ -461,20 +462,39 @@ chart images unreadable by PyMuPDF).
 
 **"us corporate mutual fund flows" was considered and NOT added.** The
 prefix would also catch the "...Weekly" variant which is prose-rich
-research. The daily fund-flow tables are digit-heavy enough that the
-prose-density gate drops them independently, so omitting the explicit
-prefix avoids over-dropping the Weekly note. This decision is pinned
-in a comment in `filters/citi.py`.
+research. Omitting the explicit prefix avoids over-dropping the Weekly
+note. This decision is pinned in a comment in `filters/citi.py`.
 
-### (d) Prose-density gate catches remaining number-dump series
+### (d) CJK title filter added (2026-06-15)
 
-The following series are NOT in the prefix denylist — they are caught
-by the shared prose-density gate (digit-density threshold):
+`filters/citi.py` now includes a `_HAS_CJK` regex (same character
+ranges as `filters/db.py` and `filters/jpm.py`: Hiragana, Katakana,
+CJK Unified Ideographs, CJK Symbols & Punctuation including full-width
+colon). It fires as the first check in `should_exclude`, logging
+`cjk:'japanese'`.
+
+Citi has **no English-twin exemption** — all CJK-titled docs are
+Japanese-mojibake leaks with zero retrieval value and are dropped
+unconditionally.
+
+### (e) Credit Snapshot / Index Roll Down — KEPT (prose gate removed)
+
+The following series were previously caught by the prose-density gate
+and are now **kept in the corpus** following the gate's removal on
+2026-06-15:
 
 - Credit Snapshot family (daily credit-market data tables)
 - Index Roll Down (CDX/iTraxx roll-down model output)
 - Hedge Comparison (structured hedge analytics table)
 - Quant Style Rotation (factor-rotation data dump)
+
+These are high-digit-fraction documents — tabular data that extracts
+cleanly as text and is retrievable by a RAG query. Markets desk
+confirmed they are valuable desk data-runs, not junk. The prose gate
+was evaluated and found to drop them while adding no marginal junk
+coverage across 10 of 14 vendors. See
+[`../content_quality.md`](../content_quality.md) Section 1 for the
+full evaluation results and rationale.
 
 ## Title resolution fix (2026-06-15)
 

@@ -8,92 +8,75 @@ as part of the content-quality programme.
 
 ---
 
-## 1. Prose-density gate
+## 1. Prose-density gate — BUILT, EVALUATED, and REMOVED (2026-06-15)
 
-**Purpose.** Many sell-side portals publish recurring "series" that
-consist almost entirely of numbers, chart images, and legal disclaimer —
-e.g. DB "Fixed Income Chart Of The Day", Nomura "Yen Rates Daily
-Monitor", Citi "Credit Snapshot", GS "Rates MarketStrats", Barclays MBS
-OAS reports. PyMuPDF extracts the text overlay of a PDF but cannot OCR
-chart images. The result is extracted text that is just a disclaimer
-block plus a sprinkling of numbers: near-zero retrieval value and token
-waste.
+The prose-density gate (`playground/research/ingest/prose_density.py`) was
+built, calibrated to FN=0 on 187 labeled documents, and wired into
+`pipeline.py`. It was then **evaluated for marginal contribution across the
+full corpus and removed on 2026-06-15**. This section preserves the rationale
+so the gate is not rebuilt.
 
-**Code.** `playground/research/ingest/prose_density.py` — the
-`prose_gate(text)` function; wired into the per-PDF pipeline in
-`playground/research/ingest/pipeline.py` after `parse_pdf()` completes
-and before the upload/embed/DB write phases. A gated-out doc costs
-nothing beyond the already-completed fetch+parse.
+### What it was
 
-**Setting.**
-- Field: `Settings.research_prose_gate_enabled` (default `True`).
-- Env var: `IMDR_RESEARCH_PROSE_GATE_ENABLED=false` to disable for a
-  backfill that should pull everything.
-
-**Gate rule.** A document is skipped if either condition holds:
+A two-arm rule applied after `parse_pdf()` and before upload/embed/DB write:
 
 ```
 digit_frac >= 0.35
 OR  (prose_sentences <= 3  AND  digit_frac >= 0.15)
 ```
 
-> **Re-calibrated 2026-06-15** (was `digit_frac >= 0.20` on the pure-digit arm).
-> The 0.20 threshold wrongly flagged table-heavy NARRATIVE notes — confirmed example:
-> JPM "Credit Strategy Weekly Update" has `digit_frac` ~0.23–0.24 but contains genuine
-> credit-strategy prose alongside spread tables. Raising the pure-digit threshold to
-> 0.35 spares those notes; RICH documents top out at `digit_frac = 0.138` so 0.35
-> has wide clearance and FN=0 is maintained. Net boilerplate drop: 64/128 vs 66/138
-> — the 2 now-spared docs are per-series-list candidates handled by Section 2.
+where `digit_frac = digits / (letters + digits)` over the full PDF text,
+and `prose_sentences` counted body sentences with ≥8 words, alpha-dominant
+character ratio, and ≥2 function words (stripping disclaimer chunks first).
 
-**Metric definitions.**
+### Why it was removed
 
-- `digit_frac` = `digits / (letters + digits)` over the **full** PDF
-  text. Number-dump tables run 0.4–0.7; analytical prose runs below
-  0.15 even when terse.
+`playground/research/_coverage_audit/eval_prose_gate.py` measured the gate's
+**marginal** contribution — docs it drops that the per-series title drop-lists
+and `_noise` rules do NOT already catch.
 
-- `prose_sentences` is counted over the **body** text only — disclaimer
-  chunks are stripped first. The process:
+Key results across 4,245 docs:
 
-  1. The full text is split into ~1500-char pseudo-chunks on blank lines
-     (or at a fixed character boundary if paragraphs are absent), mirroring
-     how the calibration script works.
-  2. A chunk is classified as a **disclaimer chunk** if the combined
-     count of legal-phrase regex hits (`_DISCLAIMER_RE`) and bank-name
-     regex hits (`_BANK_RE`) is >= 3. Legal phrases alone anchor the
-     rule; bank names are included only in the density count so that a
-     body chunk that incidentally names the bank (e.g. "Deutsche Bank
-     Research") is not stripped.
-  3. A sentence in a body chunk is a **prose sentence** if it satisfies
-     all three of: >= 8 words, alpha-dominant (`alpha / len >= 0.55`),
-     and >= 2 function words from a fixed vocabulary. Ticker-list rows,
-     number rows, and chart-axis label runs are alpha-heavy but contain
-     no function words, so they do not count.
+- Gate dropped 209 docs (5% of corpus).
+- **192 of those were "gate-only" drops** — not caught by any other rule.
+- Those 192 were concentrated in **3 vendors only**:
+  - Barclays MBS analytics runs
+  - Nomura Yen-Rates Daily Monitor / SDR FX Analysis
+  - Citi Credit Snapshots / Index Roll Down
+- **10 of 14 vendors had zero gate-only drops** — the gate added nothing for them.
+- Markets-desk review of the 192 gate-only drops found them to be
+  **valuable desk data-runs** — tabular data that extracted as text and is
+  retrievable by a RAG query. These are NOT junk.
 
-**Calibration.** Run against 187 labeled documents
-(`playground/research/_coverage_audit/calibrate_prose_density.py`,
-2026-06-15):
+### Root insight (do not rebuild the gate without re-reading this)
 
-| Class | Count | Dropped by gate | False negatives |
-|---|---|---|---|
-| BOILERPLATE | 138 | 66 (48%) | — |
-| RICH | 49 | 0 | **0 (FN=0)** |
+`digit_frac` is an **inverted** signal in this corpus. High `digit_frac`
+means the data EXTRACTED AS TEXT (tabular, retrievable, valuable to a
+markets desk). The genuinely useless docs — chart-IMAGE dumps such as GS
+MarketStrats and Tail StratBook — have **low** `digit_frac` (data locked
+in images, little text extracted) and are caught precisely by the per-series
+title drop-lists.
 
-RICH documents top out at `digit_frac = 0.138`; number-dumps run
-0.4–0.7. The two-arm rule is set conservatively to guarantee zero
-false-negatives at the expense of leaving ~52% of BOILERPLATE uncaught
-(those rely on the per-series title lists — see Section 2 below).
+The gate therefore traded ~192 valuable data-runs dropped for ~5 incidental
+CJK-mojibake catches — a bad trade. The correct, precise junk filter is the
+per-series title drop-lists plus `_noise`. A global digit-based gate cannot
+distinguish valuable data tables from chart-image junk.
 
-**Log output.** When the gate fires, the pipeline prints:
+### State after removal
 
-```
-[~] goldman/GS Rates MarketStrats … SKIPPED prose-density: prose-density:digit_frac=0.472 (ps=1, df=0.472)
-```
-
-Return value: `IngestResult(report_id=-1, was_inserted=False, ...)`.
+- `playground/research/ingest/prose_density.py` — **deleted**.
+- `playground/research/ingest/pipeline.py` — gate call removed; no
+  `prose_gate()` import.
+- `src/imdr/config/settings.py` — `research_prose_gate_enabled` field
+  removed.
+- `.env.example` — `IMDR_RESEARCH_PROSE_GATE_ENABLED` entry removed.
+- The CJK-mojibake catches that the gate incidentally provided are now
+  handled by per-vendor `_HAS_CJK` regex in `filters/citi.py` (added
+  2026-06-15; Citi has no English-twin exemption — plain drop).
 
 ---
 
-## 2. Per-series title drop-lists (defence-in-depth)
+## 2. Per-series title drop-lists (the surviving junk mechanism)
 
 The prose gate catches **high-digit** number-dumps. A second class of
 low-value docs — chart-only publications where the analysis is embedded
@@ -117,17 +100,21 @@ watermark + disclaimer + contact boilerplate only — the analysis lives
 in chart images. It now drops via the cross-vendor `_noise` rule
 `"chart of the day"` in `filters/_noise.py::classify_noise`.
 
-**Two-layer defence summary:**
+**Defence summary (post-gate-removal):**
 
 ```
-High digit_frac docs   ──▶  prose-density gate  ──▶  dropped
-(number-dump tables)         (pipeline.py)
+Chart-image-only docs   ──▶  per-series title    ──▶  dropped
+(low digit_frac, images)     drop-lists (filters/)
 
-Low digit_frac / image  ──▶  per-series title    ──▶  dropped
-chart-only docs              drop-lists (filters/)
+CJK / mojibake titles   ──▶  _HAS_CJK per-vendor ──▶  dropped at discovery
+                              regex (filters/)
+
+Broad recurring junk    ──▶  _noise.classify_noise ──▶  dropped
 ```
 
-The two layers are complementary: neither is sufficient alone.
+The per-series title drop-lists and `_noise` are the complete, precise
+junk filter. A global digit-density gate is not in use — see Section 1
+for why it was evaluated and removed.
 
 ---
 
@@ -144,7 +131,7 @@ boilerplate series. Numbers are approximate based on sampled
 | Nomura | Large token bloat from Agency MBS chart books, FX fixing model output, Yen rates tables | substantial |
 | MS | 5 distinct series confirmed boilerplate in audit | ~5 series |
 | DB | "Fixed Income Chart Of The Day" confirmed chart-only (reverted to drop); broader `product_type=Charts` drop already live | ongoing |
-| Citi | ~40 records identified as digit-heavy data-table series | ~40 records |
+| Citi | ~40 records identified as digit-heavy data-table series (previously gate-only drops; now kept — confirmed as valuable desk data-runs per markets desk) | ~40 records |
 
 The canonical example of the "recovered-then-reverted" pattern is DB
 "Fixed Income Chart Of The Day" — added to a macro-keep exception list,
