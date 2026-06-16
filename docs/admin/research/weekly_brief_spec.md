@@ -39,6 +39,14 @@ Tear off the HTML alone (image refs break) for plaintext-only consumption.
 
 ## 3 · Section structure
 
+**A preview is forward-looking sell-side commentary on the week ahead — and the
+week ahead is not only central-bank decisions.** Marquee *economic-data releases*
+(CPI, payrolls/labour, GDP, activity, retail sales, PMIs) get the same preview
+treatment as policy decisions: what the desks expect, where the dispersion is,
+and the rates read. A brief that is wall-to-wall CB previews with the data
+relegated to bare calendar rows is incomplete — the **Data Preview** section
+(below) exists so the data leg is always covered, not assumed.
+
 ### Weekly — deep on Tier-1, medium on others
 
 ```
@@ -48,7 +56,20 @@ Tear off the HTML alone (image refs break) for plaintext-only consumption.
 3. §0 Story of the Week (big callout)
 4. §1 Event Calendar (UTC, desktop table + mobile day-cards)
 5. §2 Cross-Asset Markets Snapshot (4-8 charts)
-6. §3..§N DEEP DIVES (one per Tier-1 event)
+6. §2x Data Preview — STANDING SECTION (the week's key economic-data releases)
+   - One consolidated section covering every non-CB data print of consequence:
+     consensus · prior · sell-side expectation (verbatim) · rates/market read.
+   - Lead with the prints that would otherwise get no treatment (the US data
+     cluster — CPI/retail sales/IP/claims; JP CPI; PPIs; PMIs). Fold in any
+     data-driven medium sections (China activity, NZ GDP, UK labour) by
+     reference so the data lives in ONE place, not scattered.
+   - A data release big enough to be Tier-1 (e.g. a marquee US CPI or payrolls)
+     graduates to a full DEEP DIVE in §3..§N — the Data Preview then carries a
+     one-line pointer to it. Tier-2/monitored data stays inline here.
+   - **Honesty rule:** where no desk previewed a print in scope, say so
+     ("no sell-side preview indexed — consensus/prior only") rather than
+     manufacture a view. Mirrors the brief's "flagged-not-papered-over" habit.
+7. §3..§N DEEP DIVES (one per Tier-1 event — CB decision OR marquee data print)
    per deep dive:
      a. lead paragraph
      b. consensus banner (big number + text)
@@ -57,21 +78,22 @@ Tear off the HTML alone (image refs break) for plaintext-only consumption.
      e. component drivers table
      f. scenario reaction matrix (bull/base/bear × 3 markets)
      g. PDF embeds (1-3 bank pages with "look at" notes)
-7. §N+1..§N+M MEDIUM SECTIONS (BoC, Japan, China, Korea, India, ...)
+8. §N+1..§N+M MEDIUM SECTIONS (BoC, Japan, China, Korea, India, ...)
    per medium section:
      a. lead paragraph
      b. optional callout (alert/warn)
      c. table + optional chart + 1 PDF embed
-8. §N+M+1 Trade Ideas (table FIRST, supporting charts AFTER — augmentation)
-9. §N+M+2 Tail Risks (numbered list — what breaks the consensus)
-10. Appendix · Reports Referenced (every cited ID linked to SharePoint)
-11. Footer rule (RV brand mark + date + version)
+9. §N+M+1 Trade Ideas (table FIRST, supporting charts AFTER — augmentation)
+10. §N+M+2 Tail Risks (numbered list — what breaks the consensus)
+11. Appendix · Reports Referenced (every cited ID linked to SharePoint)
+12. Footer rule (RV brand mark + date + version)
 ```
 
 ### Daily — same components, lighter
 
 Replace deep-dives with medium sections (1-3 today). Add:
 - `Yesterday's Surprises` (small table: print / actual / consensus / surprise / reaction)
+- `Data on Deck` (the day's economic-data releases + any sell-side preview line — the daily-cadence equivalent of the weekly §2x Data Preview; keep it to a compact table)
 - `Top Conviction Today` (2-3 trades from the spec)
 - `Watch For` (3-5 bullets — what would change my mind)
 
@@ -170,6 +192,30 @@ groups by day-card.
 - Equities rebased → SPX, SX5E, N225, KS200, NSEI
 
 Captions cite the IMDR source table.
+
+### Data Preview (§2x) — standing section
+
+The data-leg counterpart to the CB deep-dives. **One table** is the backbone:
+
+| Column | Content |
+|---|---|
+| Release (day/time UTC) | e.g. "US retail sales · Wed 12:30" |
+| Consensus | the street number (cite source) |
+| Prior | last print |
+| Sell-side view | **verbatim** desk expectation from `research.fact_chunk` (data-preview notes — "US Data Weekly", "JP CPI preview", labour/retail previews) |
+| Rates / market read | one line: what the print does to the front end / curve / FX |
+
+Rules:
+- **Order by importance, not by day.** Lead with the prints that carry the
+  most rates content and that would otherwise be invisible (the US data
+  cluster, JP CPI). A bare calendar already exists in §1 — this section is the
+  *commentary*, not a second calendar.
+- **Consolidate.** Data that already has a medium/deep section (China activity,
+  NZ GDP, UK CPI under BoE, UK labour) is referenced here with a one-line
+  pointer, not duplicated — the reader sees the whole data leg in one place.
+- **No manufactured consensus.** Where no desk previewed a release, write
+  "no sell-side preview indexed — consensus/prior only" and move on.
+- 1 optional PDF embed (a desk's data-week table) if a money-page exists.
 
 ### Deep dive (§3+)
 
@@ -334,7 +380,12 @@ The encoded `pdf_path` uses `quote(rel, safe='/')` — slashes are not encoded.
 4. **No hallucination.** If a quote/number isn't available, leave the field
    empty or drop the vendor card. Never invent.
 5. **Tier-1 events get the full deep-dive.** Skipping a sub-block (no reaction
-   matrix, no quotes, no PDF embed) is a defect.
+   matrix, no quotes, no PDF embed) is a defect. "Tier-1 event" includes a
+   marquee *data release*, not only a CB decision.
+5b. **The data leg is always covered.** The Data Preview (§2x) is a standing
+   section — a weekly that previews the central banks but leaves the week's
+   economic-data releases as bare calendar rows is incomplete. Where no desk
+   previewed a print, say so; never manufacture a consensus.
 6. **Text + tables come BEFORE images.** Images augment, never lead.
 7. **Headings hierarchy strict:** h1 > h2 > h3 > h4. Subtitles never larger
    than titles.
@@ -353,6 +404,7 @@ Before declaring done:
 
 - [ ] Open the HTML in a browser; resize to 375px; visual layout still works
 - [ ] Every Tier-1 event has all 7 sub-blocks present
+- [ ] Data Preview (§2x) present and covers the week's key data releases (US data cluster + any JP/EZ/UK data); no print left as a bare calendar row; "no preview indexed" stated where true
 - [ ] All KPI numbers match a fresh IMDR query (re-run, compare)
 - [ ] All vendor quotes grep against `chunk_text` in `research.fact_chunk`
 - [ ] All `<a href="…sharepoint.com…">` URLs reachable (200 / 302 OK)

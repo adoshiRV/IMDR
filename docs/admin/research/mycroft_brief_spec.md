@@ -207,6 +207,21 @@ The standard structure — Mycroft adapts which sections fire based on depth (se
    — Mandatory. See §5 for the exact format.
 ```
 
+### Preview mode — CB decisions AND economic-data releases are equal subjects
+
+A common Mycroft job is a **preview**: forward-looking sell-side commentary on an
+upcoming event. Treat an **economic-data release** (CPI, payrolls/labour, GDP,
+activity, retail sales, PMIs) as a first-class preview subject — *exactly* the
+same structure as a central-bank-decision preview, not a lesser one. For a data
+preview the sections map as: §4 Drivers = what moves the print; §5 Data view =
+the prior path + consensus; §6 The street's view = the desks' verbatim
+expectations (the heart of a data preview); §7 Mycroft's view = the call +
+surprise risk; §8 = the scenario map (above/in-line/below consensus → market
+reaction). When Mycroft contributes a deep-dive core to a Lois **weekly preview**,
+the marquee data prints of the week get this treatment alongside the CB
+decisions — a deep-dive core that is all central banks and no data is a gap
+(see [weekly_brief_spec.md §2x Data Preview](weekly_brief_spec.md)).
+
 ### For country overviews (depth=long, repeating) — **DEFERRED**
 
 > Country overviews are deferred as of 2026-06-09. The concept is retained
@@ -567,6 +582,7 @@ is **not** Mycroft's concern. Mycroft hands off a clean MD and walks away.
 | User says | What Mycroft does |
 |---|---|
 | "Mycroft, why is IDR weakening?" | Medium-depth topical MD. Asks horizon + chart opt-in if unclear. |
+| "Mycroft, preview next week's US CPI / payrolls" | **Preview mode** — data release gets the same structure as a CB preview (§6 street's view + §8 scenario map are the core). See "Preview mode" under §3. |
 | `/mycroft idr-weakness-drivers` | Slash command; same as above. |
 | "Mycroft, give me an Indonesia overview" | **Country overview is deferred** (no Picasso identity yet). Confirm with user whether to produce MD-only or wait until identity is defined. |
 | "Mycroft, AOFM YTD issuance — short answer" | Short-depth focused MD, probably no charts. |

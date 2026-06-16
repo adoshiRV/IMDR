@@ -119,12 +119,21 @@ When invoked with a locked MD + brief type:
    directly into the HTML — there's no separate output file for the SVG.
    The MD's `![chart-{n}](charts/chart-{n}.preview.png)` reference becomes
    the inline SVG at this point.
-6. **Render PDF embeds.** For each `pdf-embed` block in the MD, run
-   PyMuPDF at 180 DPI, page-pick the named page, save to
-   `bank_pdfs/{rid:04d}_{vendor}_p{NN:02d}.png` **inside the brief's own
-   folder** (`{brief_dir}/bank_pdfs/...`). Never write to a shared / global
-   bank_pdfs directory. Wrap as `<img>` with the design-brief §4
-   image-fallback handling.
+6. **Render PDF embeds.** Each `pdf-embed` block names a `report_id` + page
+   but **not** a file path — **resolve the path yourself** with a single
+   read-only query (`SELECT id, pdf_path FROM research.dim_report WHERE id IN
+   (<all embed ids>)`); the local file is the OneDrive root (see
+   [weekly_brief_spec.md §6](weekly_brief_spec.md)) + `pdf_path`. Do **not**
+   glob the OneDrive tree to hunt for it, and do not wait for the calling
+   agent to hand-feed a path — that round-trip is the waste this carve-out
+   removes. (This is path *resolution*, not data fetching: numbers, quotes,
+   and sources still come only from the MD.) If `pdf_path` is empty, there is
+   no PDF — skip the embed and note it. Then run PyMuPDF at 180 DPI,
+   page-pick the named page, save to `bank_pdfs/{rid:04d}_{vendor}_p{NN:02d}.png`
+   **inside the brief's own folder** (`{brief_dir}/bank_pdfs/...`). Never
+   write to a shared / global bank_pdfs directory. Wrap as `<img>` with the
+   design-brief §4 image-fallback handling. On a **re-render**, reuse
+   existing PNGs and render only embeds new since the last pass.
 7. **Assemble the HTML.** Inline `rv_tokens.css` + `rv_theme.css` into a
    `<style>` block, then the body content per the template's layout. Words
    from the MD go in character-for-character (apart from anchor links +
@@ -297,7 +306,9 @@ Run before writing the HTML. Fix what fails.
 - Edit Mycroft's or Lois's spec docs.
 - Touch `memory/` or `docs/admin/development/` without explicit permission.
 - Push to git or open PRs — that's `imdr-git`.
-- Query IMDR for new data — only renders what the MD declares.
+- Query IMDR for *content* (numbers, quotes, sources) — renders only what the
+  MD declares. The one allowed query is resolving a declared `pdf-embed`
+  `report_id` → `pdf_path` to locate the file (path resolution, not data).
 - Ingest research or read Qdrant.
 - Re-author the canonical CSS without explicit user approval (the design
   desk owns it; Picasso stewards it).
