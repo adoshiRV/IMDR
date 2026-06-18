@@ -48,6 +48,10 @@ PIPELINES: list[dict] = [
     # Non-Citi vendor feeds (no tag quota).
     {"cmd": ["python", "-m", "scripts.econ.id.bis.bis_indonesia"], "estimated_tags": 0},
     {"cmd": ["python", "-m", "scripts.econ.id.bi.bi_srbi"], "estimated_tags": 0},
+    # BOK Base Rate (BIS WS_CBPOL D.KR) — daily 24h-latency path for the KR
+    # policy rate; kr_monthly.py carries the monthly backstop. MERGE-on-PK
+    # makes daily re-runs free. See docs/admin/econ/econ_to_prod.md §G.3.
+    {"cmd": ["python", "-m", "scripts.econ.kr.bis.bis_korea"], "estimated_tags": 0},
     # Per-country daily orchestrators — own their email summary. Add
     # countries here as their {country}_daily.py is built. Use
     # ``sys.executable`` to bind the subprocess to the same Python env

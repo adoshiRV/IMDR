@@ -1,6 +1,6 @@
 # Korea Econ — Production Pipeline
 
-Last updated: 2026-06-05
+Last updated: 2026-06-16
 
 Operations reference for the Korea economic data ingest that landed in
 production on 2026-06-05. For the broader Korea data landscape (sources,
@@ -56,6 +56,7 @@ delegates to one subsystem today; more KR daily entries can extend the
 | Sub-orchestrator | Purpose | Cadence per source |
 |---|---|---|
 | `scripts.econ.kr.govt.ingest_filings` | Discovers + ingests govt policy filings (BoK, MOEF, MOTIR, FSC, FSS, KCS, KDI, MoDS) into `research.dim_report` + `research.fact_chunk` + Qdrant + SharePoint via `imdr.research.filings.ingest_filing`. Per-vendor dedup at `data/econ/kr/govt/{vendor}/seen.json`; daily new-items manifest at `data/econ/kr/govt/{vendor}/snapshots/{YYYY-MM-DD}.json`; orchestrator log at `data/econ/kr/govt/_last_run.log`. Failed items retry on next run. | per-source — BoK ~1/day, MOEF ~5/day, MOTIR ~2/day, FSS ~0.3/day, FSC ~0.4/day, KDI ~0.1/day, MoDS monthly (CPI) |
+| `scripts.econ.kr.bis.bis_korea` | Fetches `BIS.POLICY_RATE.KR` (BOK Base Rate) from BIS SDMX WS_CBPOL D.KR. Daily series, 6,757 obs 1999-05-06→present, latest 2.5%. Maps to cell 4.4 Policy Reaction. No auth required. Mirrors `scripts.econ.id.bis.bis_indonesia`. | Daily (BIS typically 24h lag on policy-rate updates) |
 
 Writes to (per-filing — 3 or 4 layers depending on source type):
 - `research.dim_report` (one row per filing, `vendor_category` ∈ `official_cb / official_ministry / official_regulator / official_thinktank / official_statistics`)
@@ -117,8 +118,7 @@ Smoke result 2026-06-05: 22 s total, 2/2 OK, 4 parquet files written.
 python -m scripts.econ.kr.kr_monthly
 ```
 
-Fans out to 19 KOSIS fetchers **sequentially** (KOSIS rate-limits concurrent
-connections from the same API key):
+Fans out to 19 KOSIS fetchers + 1 BIS fetcher **sequentially** (KOSIS rate-limits concurrent connections from the same API key). `frequency_scope` in `kr_monthly.py` extended to include DAILY to cover the BIS policy-rate series. Migration 102 applied 2026-06-16 (deactivated `FRED.RATES.KR_DISCOUNT.KR`; registered `BIS.POLICY_RATE.KR` id 1435).
 
 | Fetcher | Topics | Primary cadence |
 |---|---|---|
@@ -141,6 +141,7 @@ connections from the same API key):
 | `kosis_trade_indices` | Export + Import × Value + Volume indices | Monthly |
 | `kosis_trade_prices` | Import + Export prices × Won + USD | Monthly |
 | `kosis_wages` | National avg wage level + YoY growth | Annual |
+| `scripts.econ.kr.bis.bis_korea` | `BIS.POLICY_RATE.KR` BOK Base Rate (BIS WS_CBPOL D.KR) — cell 4.4. **Added 2026-06-16. Wired into `scripts/imdr_daily.py:PIPELINES` + `scripts/econ/kr/kr_monthly.py` 2026-06-16. Migration 102 applied 2026-06-16.** | Daily |
 
 Annual and quarterly fetchers are included here: MERGE on PK makes them
 idempotent — running monthly catches every release window without needing

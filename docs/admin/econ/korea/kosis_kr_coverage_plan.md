@@ -244,15 +244,14 @@ break down as:
 
 | Status | Count | Cells |
 |---|:---:|---|
-| **✅ Loaded in `econ.dim_indicator`** | 14 | 1.1 Retail · 1.2 Fiscal · 1.3 External · 1.4 Macro Core · 2.1 Input Costs · 2.2 PPI · 2.3 Wages · 2.4 CPI · 3.1 ToT · 3.2 CA · 3.3 Capital Acc · 4.1 Demand Trans · 4.2 Balance Sheets · 4.4 Policy Reaction (FRED side) |
-| **⚠ Partial — KOSIS deposit-side only** | 1 | 4.3 Fin Conds (BOK Base Rate proper is in cell 4.4 via FRED; KOSIS DT_121Y002 carries deposit-side rates) |
+| **✅ Loaded in `econ.dim_indicator`** | 14 | 1.1 Retail · 1.2 Fiscal · 1.3 External · 1.4 Macro Core · 2.1 Input Costs · 2.2 PPI · 2.3 Wages · 2.4 CPI · 3.1 ToT · 3.2 CA · 3.3 Capital Acc · 4.1 Demand Trans · 4.2 Balance Sheets · 4.4 Policy Reaction (BIS CBPOL — BOK Base Rate `BIS.POLICY_RATE.KR` as of 2026-06-16; KOSIS DT_121Y002 carries deposit-side rates only) |
+| **⚠ Partial — KOSIS deposit-side only** | 1 | 4.3 Fin Conds (KOSIS DT_121Y002 carries deposit-side rates; BOK Base Rate confirmed absent from KOSIS — lives in ECOS only; covered in cell 4.4 via BIS CBPOL) |
 | **parked — user-deferred** | 1 | 3.4 FX/REER (route via Citi spot + FRED BIS REER/NEER when needed) |
 | **❓ Concept exists, table unknown** | 0 | — |
-| **❌ KOSIS-absent — fallback required** | 0 | (4.4 now ✅ via FRED; original "BOK Base Rate via Citi" route remains a documented gap — Citi BENCH_RATES catalogue has no KR entry) |
+| **❌ KOSIS-absent — fallback required** | 0 | (4.4 now ✅ via BIS CBPOL 2026-06-16 — the BOK Base Rate is not on KOSIS and was never on Citi BENCH_RATES; BIS WS_CBPOL D.KR is the correct source) |
 
 Net: KR is at **14 ✅ / 1 ⚠ partial / 1 parked**. All cells either filled or
-explicitly deferred. Citi BENCH_RATES side of cell 4.4 is the only outstanding
-"future-add" item (would require a Citi-side request to add KR_BASE).
+explicitly deferred. The Citi BENCH_RATES gap is now moot — cell 4.4 is covered by `BIS.POLICY_RATE.KR` (BIS SDMX WS_CBPOL, wired 2026-06-16).
 
 **Closed 2026-06-05:**
 - BoP refactor: `fetch_bop.py` rewritten Playwright → OpenAPI; 24 BoP indicators loaded; cells 3.2 + 3.3 ⚠ → ✅.

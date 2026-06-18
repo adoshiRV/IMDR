@@ -1,9 +1,9 @@
 # Korea — Econ Documentation
 
-Last updated: 2026-06-11
+Last updated: 2026-06-16
 
-> **Current corpus state (2026-06-11):**
-> - **Track A (`econ.fact_indicator`)** — 172 indicators / ~52k obs. KOSIS depth: GDP 1961→ (65yr), BoP 1980→ (45yr), CPI/retail/IIP 2000→. See [korea_prod_pipeline.md](korea_prod_pipeline.md) Track A section.
+> **Current corpus state (2026-06-16):**
+> - **Track A (`econ.fact_indicator`)** — **173 indicators / ~53,757 obs**. KOSIS depth: GDP 1961→ (65yr), BoP 1980→ (45yr), CPI/retail/IIP 2000→. **BIS.POLICY_RATE.KR** (BOK Base Rate, daily 1999→, id 1435) added 2026-06-16 — cell 4.4 Policy Reaction now has the real Base Rate. FRED Discount Rate deactivated (migration 102). See [korea_prod_pipeline.md](korea_prod_pipeline.md) Track A section.
 > - **Track B (`research.dim_report` + Qdrant + SharePoint)** — **2,135 govt policy filings** across 8 agencies. MOEF 2009→ (17yr), FSC 2020→ (6yr), FSS 2024→, BoK 2025-04→ (14mo, deep-backfill to 2011 pending decision). Backfill landed 2026-06-11; tracker at [`../../development/kr_govt_filings.md`](../../development/kr_govt_filings.md).
 
 Korean macroeconomic data source. BOK's Economic Statistics System (ECOS)
@@ -51,9 +51,7 @@ Fans out to 2 fetchers: `scripts.econ.kr.reb.reb_housing` (REB R-ONE direct,
 python -m scripts.econ.kr.kr_monthly
 ```
 
-Fans out to 19 KOSIS fetchers covering all monthly/quarterly/annual
-cadence topics. Total ~170 s. Sequential (KOSIS rate-limits concurrent
-connections).
+Fans out to 19 KOSIS fetchers + 1 BIS fetcher (`scripts.econ.kr.bis.bis_korea` — BOK Base Rate) covering all monthly/quarterly/annual/daily cadence topics. Total ~170 s. Sequential (KOSIS rate-limits concurrent connections). `frequency_scope` extended to DAILY 2026-06-16 to cover the BIS policy-rate series.
 
 ---
 
@@ -71,7 +69,7 @@ connections).
   + frequency for each. Treats KRW market data (FX, KTB curve, KOSPI)
   as already covered.
 - **[korea_indicator_inventory.md](korea_indicator_inventory.md)** —
-  **canonical reference**: all 141 Korea rows currently in
+  **canonical reference**: all 173 Korea rows currently in
   `econ.dim_indicator`, grouped by macro engine (Growth / Inflation /
   External / Policy), with date ranges, frequency, and a one-line
   "why this matters" annotation per indicator. The doc to hand to
@@ -90,7 +88,8 @@ connections).
 |---|---|---|---|---|
 | **KOSIS OpenAPI** — `kosis.kr/openapi/Param/...` | KOSIS API key (`IMDR_KOSIS_API_KEY`, free, instant) | Fast (REST) | Full KOSIS catalogue inc. `orgId=301` BOK series | **Production — auto-load via `kr_monthly` (2026-06-05)** |
 | **REB R-ONE OpenAPI** — data.go.kr | REB API key (`IMDR_REB_API_KEY`, 32-char hex) | Fast (REST) | 8 weekly housing tables (apt sale + jeonse) back to 2012-05-07 | **Production — auto-load via `kr_weekly` (2026-06-05)** |
-| **FRED mirror** — `KORB6*CXCUM` family | FRED API key | Fast (REST) | Headline + selected sub-aggregates; no full FA decomposition | Live (manual load via `load_econ_indicator_from_playground`) |
+| **BIS SDMX** — `WS_CBPOL D.KR` | None (public) | Fast (SDMX-JSON) | BOK Base Rate daily 1999→ (`BIS.POLICY_RATE.KR`, cell 4.4) | **Production — auto-load via `imdr_daily.py` + `kr_monthly` (2026-06-16)** |
+| **FRED mirror** — `KORB6*CXCUM` family | FRED API key | Fast (REST) | Headline + selected sub-aggregates; no full FA decomposition; FRED KR Discount Rate deactivated 2026-06-16 | Live (manual load via `load_econ_indicator_from_playground`) |
 | **KOSIS browser download** | None | Slow (Playwright) | Full table including all `BOPF…` line items | Legacy fallback (playground only) |
 | **BOK ECOS Open API** — `ecos.bok.or.kr/api/` | ECOS API key | Fast (REST) | Full | **BLOCKED — registration requires Korean mobile + citizenship** |
 

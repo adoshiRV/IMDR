@@ -1,8 +1,8 @@
 # Korea — Full Econ Indicator Inventory
 
-**Date**: 2026-06-05 (post gap-closure round)
+**Date**: 2026-06-16 (BIS CBPOL policy-rate fetcher added; FRED Discount Rate deactivated)
 **Scope**: Every Korea row in `econ.dim_indicator` (`country_id=27`). Market data (FX spot, KRW rates curve, KRW vol, KOSPI) is **out of scope** of this doc — those live in `fx.*` and `rates.*` and have their own reference docs.
-**Total**: **172 indicators / ~47,000 observations** across 3 vendors (KOSIS 164 + REB 4 + FRED 4).
+**Total**: **173 indicators / ~53,757 observations** across 4 vendors (KOSIS 164 + REB 4 + FRED 4 + BIS 1).
 
 KR is the most-populated country in `econ.dim_indicator`, ahead of US (133).
 
@@ -15,7 +15,8 @@ KR is the most-populated country in `econ.dim_indicator`, ahead of US (133).
 | KOSIS (BOK + KOSTAT via KOSIS OpenAPI) | 164 | 1961-Q1 | 2026-06 |
 | REB (R-ONE Open API direct) | 4 | 2012-05-07 | 2026-06-01 |
 | FRED (St Louis Fed mirror of OECD/BOK) | 4 | 1990-01 | 2026-04 |
-| **Total** | **172** | | |
+| BIS (SDMX WS_CBPOL — policy rate) | 1 | 1999-05-06 | present |
+| **Total** | **173** | | |
 
 | Category (`dim_indicator_category`) | Indicators | What it covers |
 |---|---:|---|
@@ -25,7 +26,7 @@ KR is the most-populated country in `econ.dim_indicator`, ahead of US (133).
 | `balance_sheet` | 18 | Household Credit, Mfg Corporate financial ratios × 13, FSS Bank NPL |
 | `sentiment` | 11 | BOK Lending Attitude Survey + Consumer Tendency Survey CCI components |
 | `labour` | 10 | EAPS (employment, LFPR, unemployment), wages |
-| `rates` | 10 | Bank deposit-side rates + FRED Korea Discount/Call/3M/10Y |
+| `rates` | 11 | Bank deposit-side rates + FRED Korea Discount (deactivated)/Call/3M/10Y + BIS BOK Base Rate |
 | `housing` | 8 | REB weekly Apartment Sale + Jeonse × Nationwide + Seoul (KOSIS-mirror + REB-direct) |
 | `cb_balance_sheet` | 2 | BOK M2 + Lf monetary aggregates |
 | `credit` | 3 | Household Loans by purpose (monthly) |
@@ -208,10 +209,22 @@ KR is the most-populated country in `econ.dim_indicator`, ahead of US (133).
 
 | `imdr_code` | Freq | Why important |
 |---|:---:|---|
-| `FRED.RATES.KR_DISCOUNT.KR` | M | BOK Discount Rate — historical BOK Base-Rate proxy (1964 start). |
+| `FRED.RATES.KR_DISCOUNT.KR` | M | **DEACTIVATED (is_active=0) 2026-06-16 via migration 102.** Korea BOK Discount Rate (FRED INTDSRKRM193N) — NOT the policy rate; see `BIS.POLICY_RATE.KR` for the BOK Base Rate. Retained for historical record; no longer the cell 4.4 source. |
 | `FRED.RATES.KR_CALL.KR` | M | Korea overnight call money rate — BOK's policy-rate target proxy. |
 | `FRED.RATES.KR_3M_INTERBANK.KR` | M | KR 3M interbank — money-market term-premium gauge. |
 | `FRED.RATES.KR_10Y_GOV.KR` | M | 10Y KTB yield — long-end fixed-income benchmark, USD-DM-rate cointegrated. |
+
+### 5.3 BIS CBPOL — BOK Base Rate (daily, 1999-05-06 → present, %)
+
+**Production fetcher**: `scripts/econ/kr/bis/bis_korea.py`. Wired into `scripts/imdr_daily.py:PIPELINES` + `scripts/econ/kr/kr_monthly.py` 2026-06-16. Migration 102 applied 2026-06-16.
+
+Source: BIS SDMX-JSON `WS_CBPOL D.KR` (same BIS CBPOL dataflow used for Indonesia `BIS.POLICY_RATE.ID` and India `BIS.POLICY_RATE.IN`).
+
+**Note on KOSIS / ECOS**: KOSIS does NOT expose the BOK Base Rate as a fetchable table. The KOSIS BoK catalogue branch "한국은행 주요계정 및 기준금리" carries only balance-sheet tables (DT_641Y001 won loans, DT_103Y002 key accounts); the 금리 branch carries only weighted-average bank deposit/loan rates. The Base Rate lives in BOK's ECOS system, which is separate from KOSIS and not mirrored into the KOSIS OpenAPI. BIS CBPOL is the correct authoritative source. (Confirmed 2026-06-16.)
+
+| `imdr_code` | DB id | Freq | Why important |
+|---|:---:|:---:|---|
+| `BIS.POLICY_RATE.KR` | 1435 | D | **Korea central bank policy rate — BOK Base Rate (BIS CBPOL, %).** 6,757 obs, 1999-05-06 → present, latest 2.5%. Cell 4.4 Policy Reaction. Mirrors `BIS.POLICY_RATE.ID` (id 600) and `BIS.POLICY_RATE.IN` (id 900). |
 
 ### 5.6 Monetary Aggregates (BOK monthly, 2003-10 → 2026-03, KRW bn, SA)
 
@@ -383,22 +396,22 @@ YoY % reconciles 0 bp between REB-direct and KOSIS-mirror; levels differ due to 
 | 4.1 Demand Transmission | ✅ | (none) |
 | 4.2 Balance Sheets | ✅ | (closed — added BOK Corporate × 13 financial ratios for Mfg 2026-06-05). FSS NPL still stale to 2016 — non-blocking. |
 | 4.3 Financial Conditions | ⚠ | Bank deposit rates ✅; **KR corporate credit spreads** missing; equities are market-data domain |
-| 4.4 Policy Reaction | ✅ | (closed — added BOK M2 + Lf monetary aggregates 2026-06-05). Macroprudential tools (LTV/DTI) still FSC-press-release sourced — non-blocking. |
+| 4.4 Policy Reaction | ✅ | **2026-06-16:** `BIS.POLICY_RATE.KR` (BOK Base Rate, daily 1999→) is now the live source. FRED Discount Rate (`FRED.RATES.KR_DISCOUNT.KR`) deactivated — it was the BOK *discount* rate, not the Base Rate. Macroprudential tools (LTV/DTI) still FSC-press-release sourced — non-blocking. |
 
-**Final score: 15 ✅ / 1 ⚠ / 1 parked**. Only cell 4.3 retains a known gap (no KR corporate credit spreads).
+**Final score: 15 ✅ / 1 ⚠ / 1 parked**. Only cell 4.3 retains a known gap (no KR corporate credit spreads). Cell 4.4 now has the correct real BOK Base Rate via BIS CBPOL (not the FRED discount-rate proxy).
 
 ### 8.2 Remaining non-KOSIS gaps
 
 After the 2026-06-05 gap-closure round, the only outstanding work needs external sources:
 
-| Gap | Why outstanding | Path forward |
+| Gap | Status | Path forward |
 |---|---|---|
-| **3.4 FX / REER** | User-parked this session | Citi spot already loaded in `fx.fact_fx_rate`; FRED `RBKRBIS` + `NBKRBIS` (BIS REER/NEER) easy add to econ when needed |
-| **4.3 Corp credit spreads** | KOSIS has no KR corporate spread series | Citi corp bond curves or vendor like Markit — separate domain |
-| **BOK Base Rate via Citi** | Citi BENCH_RATES catalogue has only 10 entries (no KR) | Citi-side request to add `KR_BASE`. FRED Discount Rate already covers cell 4.4 |
-| **Current bank NPL (post-2016)** | FSS KOSIS table discontinued | FSS website direct scrape or newer BOK FSR table — catalogue browse |
-| **PMI Manufacturing** | S&P Global — paid vendor | Out of cheap-data scope |
-| **Monthly customs trade by country** | KOSIS only has annual; MOTIE not yet wired | New MOTIE vendor — separate work |
+| **3.4 FX / REER** | User-parked | Citi spot already loaded in `fx.fact_fx_rate`; FRED `RBKRBIS` + `NBKRBIS` (BIS REER/NEER) easy add to econ when needed |
+| **4.3 Corp credit spreads** | Outstanding | KOSIS has no KR corporate spread series; Citi corp bond curves or vendor like Markit — separate domain |
+| **BOK Base Rate** | **RESOLVED 2026-06-16** | `BIS.POLICY_RATE.KR` (BIS WS_CBPOL D.KR) is now the live cell 4.4 source. `FRED.RATES.KR_DISCOUNT.KR` (discount rate, NOT the Base Rate) deactivated via migration 102. Citi BENCH_RATES request is no longer needed. |
+| **Current bank NPL (post-2016)** | Outstanding | FSS KOSIS table discontinued; FSS website direct scrape or newer BOK FSR table — catalogue browse |
+| **PMI Manufacturing** | Outstanding | S&P Global — paid vendor; out of cheap-data scope |
+| **Monthly customs trade by country** | Outstanding | KOSIS only has annual; MOTIE not yet wired — new MOTIE vendor, separate work |
 
 ### 8.3 Out-of-scope (lives elsewhere by design)
 
