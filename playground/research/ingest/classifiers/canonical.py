@@ -240,6 +240,7 @@ VENDOR_DISPLAY: dict[str, str] = {
     "barclays": "Barclays Research",
     "bnp":      "BNP Paribas Markets360",
     "bofa":     "BofA Securities Research",
+    "cba":      "CBA Global Economic & Markets Research",
     "citi":     "Citi Velocity Research",
     "db":       "Deutsche Bank Research",
     "goldman":  "Goldman Sachs Research",

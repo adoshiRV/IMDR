@@ -590,6 +590,55 @@ against chart-only / number-table documents): `* Weekly Rel Val`,
 prose; even if the noise classifier misses a title variant, the prose-density gate
 prevents them from reaching the embedding step.
 
+## Macro-desk reclassification (2026-06-18)
+
+**Bug:** DB files its economics / central-bank / EM-macro desks under the
+**EQUITY topic template** (`EQ`/`REC`/`TP`). `_asset_class_from_topics`
+trusted the template, so these were classified `EQUITY` and then
+blanket-dropped by `relevance.py`'s DB-EQUITY default-drop (titles don't
+hit `_DB_EQUITY_KEEP`). This silently lost the **entire "Fed Notes"
+Fed-watching series** (incl. FOMC previews/recaps), plus `China Macro`,
+`Latam Macro Notes`, `Asia Macro Insight`, `India Economics Weekly`,
+`Japan Monetary Policy Watch`, `RBA Blog`, etc. — confirmed across
+`logs/research_ingest_*.log` as `equity-vendor-default-drop`.
+
+**Fix** (`classifiers/db.py`): a `_desk_override(periodical, topics,
+title)` that corrects the class when the template-derived class was
+`EQUITY` or empty (genuine `RATES`/`CREDIT`/`STRATEGY` are left
+untouched). Three desk signals, in precedence order:
+
+1. **FX** — periodical hits `_FX_DESK_RE` (`\bfx\b|\bforex\b|\bcurrenc`).
+   Safe as a free signal: equity-sector titles don't carry FX vocab, and
+   `\bcurrenc` skips "crypto**currenc**y" (no word boundary). Catches
+   `FX Blog`, `FX Valuation Snapshot`. FX wins over macro for FX-desk
+   notes (the periodical is the desk of record).
+2. **COMMODITIES** — periodical hits `_COMMODITY_DESK_RE`, a **tight
+   allowlist** (currently just `Hsueh On Oil`). Generic commodity words
+   (oil/gas/copper/metals/energy/mining) are NOT usable — at DB they
+   overwhelmingly tag equity SECTOR coverage (`EMEA Metals & Mining`,
+   `Global Copper`, `India Oil and Gas`, `Grupo Mexico & Southern
+   Copper`, …) which is correctly dropped. Add named commodity-strategy
+   series here; never widen to bare keywords.
+3. **MACRO** — `_is_macro_series` matches `_MACRO_SERIES_RE` on
+   periodical / topic name / title (macro/econom/inflation/monetary
+   policy/central bank/fed notes/fomc/federal reserve/ecb/boj/pboc/rba/
+   rbi/boe/bok/snb). `"outlook"` is deliberately excluded (too broad —
+   overlaps equity-sector "Outlook" wraps).
+
+`MACRO`/`FX`/`COMMODITIES` are never default-dropped by relevance, so the
+notes now survive. Mirrors the `_em_macro_reclassify` pattern in
+`classifiers/bofa.py`.
+
+Pinned by [`tests/unit/research/test_db_classifier.py`](../../../../tests/unit/research/test_db_classifier.py)
+(40 assertions: macro/FX/commodity desk reclassification, equity-sector
+commodity coverage staying EQUITY, crypto-not-misrouted-to-FX, an
+end-to-end keep, and a pre-fix-would-drop regression).
+
+**Backfill:** docs dropped before this fix (≈2026-06-04 → 06-17) are NOT
+recovered by normal daily runs (the crawler early-stops at the recent
+date window). A deliberate `db`-only discovery run with a wider `--since`
+is required to recover them.
+
 ## Noise filter update (2026-06-10)
 
 Shared cross-vendor noise classifier wired into

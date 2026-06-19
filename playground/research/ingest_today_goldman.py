@@ -130,6 +130,7 @@ async def _ingest_one_ref(
             sharepoint_path=None,
             asset_class="",
             region="",
+            render_mode=getattr(ref, "render_mode", "pdf"),
         )
         sharepoint_relative = build_sharepoint_path(
             vendor_code="goldman",

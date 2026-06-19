@@ -66,38 +66,10 @@ LOCAL_PDF_DIR = HERE / "pdfs"
 
 
 def _research_engine(settings):
-    """Build a research-only SQLAlchemy engine using ODBC Driver 18.
+    """Build the research SQLAlchemy engine (delegates to ingest.engine)."""
+    from ingest.engine import research_engine  # noqa: PLC0415
 
-    The project default is the legacy "SQL Server" driver (per .env), chosen
-    for DATETIMEOFFSET handling in other pipelines. That driver chokes on
-    NVARCHAR(MAX) and BINARY parameter binding above ~8 KB — fatal for
-    pdf_text and vector. Driver 18 handles both natively. We isolate the
-    upgrade to this single research pipeline so other pipelines are
-    untouched.
-    """
-    from sqlalchemy import create_engine  # noqa: PLC0415
-
-    url = (
-        f"mssql+pyodbc://@{settings.mssql_host}:{settings.mssql_port}"
-        f"/{settings.mssql_database}"
-        f"?driver=ODBC+Driver+18+for+SQL+Server"
-        f"&Trusted_Connection=yes"
-        f"&Encrypt=yes"
-        f"&TrustServerCertificate=yes"
-        # Driver 18's TLS handshake to AWS RDS occasionally exceeds the
-        # default 15s login timeout — give it ~60s of headroom.
-        f"&LoginTimeout=60"
-    )
-    return create_engine(
-        url,
-        pool_size=2,
-        max_overflow=2,
-        pool_pre_ping=True,
-        pool_timeout=60,
-        echo=False,
-        fast_executemany=True,
-        connect_args={"timeout": 60},
-    )
+    return research_engine(settings)
 
 
 async def _amain() -> None:

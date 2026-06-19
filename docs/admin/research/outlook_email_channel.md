@@ -1,6 +1,6 @@
 # Outlook email — research acquisition channel
 
-**Status: prototype (route-B), updated 2026-06-18. Migration 099 APPLIED; minimal `--load` IMPLEMENTED (writes `source='email'` `dim_report` rows, no chunks/embeds/Qdrant/SharePoint yet); NOT wired into any orchestrator.**
+**Status: prototype (route-B), updated 2026-06-19. Migration 099 APPLIED; FULL `--load` pipeline IMPLEMENTED (classify → portal-twin dedup-merge → chunk → embed → upload `.html` to the SharePoint tree → MSSQL `source='email'` → Qdrant), one command. Validated by a 2-week Citi+DB backfill smoke: 41 loaded, fuzzy merge skipped 9 portal-dup re-forwards with 0 false positives, clean 36-row corpus. Artifacts land in `ResearchData1/IMDR/` identical to portal. NOT wired into any orchestrator; route-A (Graph) producer + per-vendor subject parsers are the next builds.**
 
 A *second acquisition channel* for sell-side research, alongside the
 per-vendor portal scrapers ([`scrapers/`](scrapers/)). Research that
@@ -117,14 +117,26 @@ builds it two ways:
   tails) → synthesize a `Document` (`content_hash` = SHA-256 of the **stable
   sanitized source**, `parser_version="email-html-v1"`).
 
-**`pdf_path` stays `NOT NULL` — every email report keeps a stored artifact.**
-*Current minimal `--load`:* body-only emails save the sanitized body as a
-`.txt` under `playground/research/outlook/rendered/{vendor}/` and `pdf_path`
-records that repo-relative path (prototype). *Production target:* render the
-body (HTML + inline charts as base64) via playwright `set_content` →
-`page.pdf()` and upload to the normal SharePoint path, so email research is a
-first-class PDF uniform with the portal corpus. `content_hash` comes from the
-stable sanitized source, **not** rendered bytes, so re-renders never dupe.
+**`pdf_path` stays `NOT NULL` — every email report keeps a stored artifact,
+in the SAME date-first SharePoint tree as portal PDFs** (`build_sharepoint_path`
+with the email's message-id hash as the uuid → `{YYYY}/{MM}/{DD}/{vendor}/
+{slug}_{imi8}.{ext}`, uploaded via `upload.upload_bytes` into
+`LOCAL_IMDR_ROOT` = the OneDrive sync of `ResearchData1/IMDR/`). No lossy
+render step. Artifact format by archetype + access route:
+
+* **Body-only, route B (now):** the raw body HTML → `.html` (browser-readable,
+  `pdf_path` ends `.html`). Proven: id=10870 →
+  `2026/06/10/nomura/Nomura_EUR_Rates_Strategy_France_..._aaac884b.html`.
+* **Body-only, route A (Graph):** the canonical raw `.eml` (lossless MIME —
+  headers + attachments + message-id). Same path, `.eml` extension → no schema
+  change, just a different suffix in `pdf_path`.
+* **Attached-PDF emails** (CBA / DB-desk / Nomura): the real attachment `.pdf`
+  is `pdf_path`; keep the `.eml` alongside as provenance. (Needs route A for
+  the bytes — MCP gives text only.)
+
+`content_hash` (dedup) comes from the **stable sanitized body source**, NOT the
+stored artifact bytes, so a later route-B→route-A swap (`.html`→`.eml`) never
+creates a false duplicate.
 
 ## Relevance — lenient by design
 
@@ -177,22 +189,42 @@ portal class on dedup-merge.
 
 ## Dedup rules
 
-Email path (in `write_report`, primary→backstop order):
+Gates in order, cheapest/most-certain first:
 
-1. **`internet_message_id`** already in `dim_report` → skip (the migration-099
-   filtered-unique key; the PRIMARY email gate).
-2. `content_hash` already present → skip.
-3. `(vendor_id, publish_date, LOWER(title))` match → skip (catches the same
-   report under a different message-id / a portal copy with the same title).
-4. Adapter-level (`decide_dedup`): pure notification wrapper (no substantive
+1. **`internet_message_id`** already in `dim_report` → skip (migration-099
+   filtered-unique key; PRIMARY email gate; pre-checked in `ingest_email_one`
+   before chunk/embed, and again inside `write_report`).
+2. **Portal-twin fuzzy merge** ([`dedup_merge.find_portal_twin`](../../../playground/research/ingest/dedup_merge.py)) →
+   skip if the report already exists from the portal crawler under a reworded
+   title. See below.
+3. `content_hash` already present → skip (in `write_report`).
+4. `(vendor_id, publish_date, LOWER(title))` exact match → skip.
+5. Adapter-level (`decide_dedup`): pure notification wrapper (no substantive
    body) → skip; PDF whose hash exists → retry body-only.
 
-> **TODO (dedup-merge):** exact title+date dedup catches portal-overlap only
-> when titles match exactly (Westpac/ANZ did; GS/HSBC/Barclays teasers use a
-> reworded title). A fuzzy title / `pdf_text`-similarity merge against
-> `source='portal'` rows is needed before bulk-loading the Lane-3 (portal-
-> overlap) vendors. The current minimal load targets net-new desk items where
-> no portal collision is possible.
+### Portal-twin fuzzy merge
+
+Desks re-forward portal research with a masthead prefix + a +1-day lag —
+e.g. portal `Fed Notes: June FOMC recap…` (06-17) arrives as email
+`[/] DB Fed Notes - June FOMC recap…` (06-18). Exact title/date/hash gates
+all miss it, so without this the email would insert a duplicate report.
+
+`find_portal_twin` normalizes both titles to significant-token sets (drop
+vendor names, `RE:`/`FW:` markers, stopwords, generic cadence words
+[week/ahead/weekly/daily/monthly/monitor/update], and pure-digit year/day
+tokens), then scores **Jaccard `|A∩B|/|A∪B|`**; a match needs `≥0.70` AND
+`≥3` shared tokens, both titles `≥3` tokens, same vendor, within `±3 days`.
+
+**Precision-first by design** (the gate is destructive — it skips the
+email): it catches verbatim-headline forwards (~1.0) but deliberately
+MISSES differing-masthead twins (`DB Strategy: X` vs portal `FX Blog: X`
+→ 0.5), leaving those as a dup row — far better than a false positive
+dropping a net-new desk note. Jaccard (not overlap-coefficient) + the
+digit-drop + the ≥3-shared guard prevent the degenerate single-shared-token
+false match (a Citi `ASW Run … 2026` once matched a mojibake portal title
+`2026年6月8日`). `--keep-portal-twins` disables the gate for investigation.
+Future recall boost: core-headline extraction (after the masthead separator)
+to catch the differing-masthead cases.
 
 ## Schema — migration 099 (APPLIED 2026-06-18)
 
@@ -220,21 +252,42 @@ has_filter=1`. (The read-only DB MCP returns NULL for `object_definition`/
 | [`ingest/classifiers/cba.py`](../../../playground/research/ingest/classifiers/cba.py) | CBA classifier (AU/MACRO default) |
 | [`ingest/engine.py`](../../../playground/research/ingest/engine.py) | shared ODBC Driver 18 engine factory (used by `ingest_one.py` + `ingest_outlook.py`) |
 | [`ingest/db.py`](../../../playground/research/ingest/db.py) | `write_report()` — gained `source`/`source_type`/`internet_message_id` params + the imi dedup gate |
-| [`ingest_outlook.py`](../../../playground/research/ingest_outlook.py) | dry-run + `--load` CLI (`--limit` safety cap) |
-| [`tests/unit/research/test_outlook_adapter.py`](../../../tests/unit/research/test_outlook_adapter.py) | 25 unit tests |
+| [`ingest/dedup_merge.py`](../../../playground/research/ingest/dedup_merge.py) | `find_portal_twin()` — fuzzy email→portal title match (Jaccard) so desk re-forwards of portal notes are skipped |
+| [`ingest/email_pipeline.py`](../../../playground/research/ingest/email_pipeline.py) | `ingest_email_one()` — full per-message pipeline (portal-twin gate → chunk → embed → upload → DB → Qdrant); the ~10x-simpler analogue of `pipeline.ingest_one` |
+| [`ingest_outlook.py`](../../../playground/research/ingest_outlook.py) | dry-run + full `--load` CLI (`--no-embed`, `--limit`, `--keep-portal-twins`); the `ingest_today.py` analogue |
+| [`tests/unit/research/test_outlook_adapter.py`](../../../tests/unit/research/test_outlook_adapter.py) + [`test_dedup_merge.py`](../../../tests/unit/research/test_dedup_merge.py) | 25 + 11 unit tests |
 
 ## Running
 
 ```
 python playground/research/ingest_outlook.py                          # dry-run, all staged
 python playground/research/ingest_outlook.py --vendors citi            # dry-run, one vendor
-# Actual write (uses the imdr conda env for pyodbc + ODBC Driver 18):
-C:/Users/adoshi/.conda/envs/imdr/python.exe playground/research/ingest_outlook.py --load --vendors citi --limit 1
+# Full end-to-end (needs the imdr conda env for pyodbc/Driver18 + Voyage/Gemini + Qdrant):
+C:/Users/adoshi/.conda/envs/imdr/python.exe playground/research/ingest_outlook.py --load
+...ingest_outlook.py --load --vendors ms --limit 1                     # one note, full pipeline
+...ingest_outlook.py --load --vendors citi --no-embed                  # DB row only (no embed/Qdrant)
 ```
 
-`--load` writes a minimal `source='email'` `dim_report` row per net-new
-email and is idempotent (re-runs DB-DEDUP on `internet_message_id`). First
-real load: 2 Citi desk notes (ids 10475/10476, `desk_commentary`/RATES).
+`--load` runs the full pipeline (portal-twin gate → chunk → embed → upload
+artifact to SharePoint → DB → Qdrant) per net-new email; embed + Qdrant are ON
+by default (`--no-embed` for a DB-only row). Idempotent — re-runs DB-DEDUP on
+`internet_message_id` and skip chunk/embed/upload.
+
+**2-week backfill smoke (2026-06-19, Citi + DB, route-B MCP staging):**
+staged 7 Citi + 35 DB → loaded 41, 0 failed, all SharePoint+chunks+Qdrant. The
+portal-twin merge then removed **9 DB rows** that re-forward portal notes
+(Fed Notes, FX Blog, Asia Macro Strategy Notes, Asia Chart Alert, Japan MPM
+Watch); **0 false positives** (after the digit-drop fix). Clean corpus = **36
+email rows** (db 25, citi 9, nomura 1, ms 1), 0 remaining twins. Net-new desk
+content (JPY PM Summary ×N, Trading Comments, Citi ASW/Correlation Grid) all
+preserved.
+
+> **Bulk-loading status:** the portal-twin merge makes wider loads safe — it
+> skips desk re-forwards of portal notes. It's precision-first, so a few
+> differing-masthead twins still slip through as dup rows (acceptable). The
+> route-B *producer* (MCP staging) is the practical limiter for a full backfill;
+> the live variant (route A / Graph) is the unattended producer. CBA/CACIB
+> remain held (no `dim_vendor` row).
 
 ## Status — built vs pending
 
@@ -243,9 +296,17 @@ real load: 2 Citi desk notes (ids 10475/10476, `desk_commentary`/RATES).
   keyword classifiers, dry-run + minimal `--load`, 25 unit tests.
 * ✅ migration 099 applied + verified; `internet_message_id` dedup gate live.
 * ✅ bank-by-bank link/artifact smoke + dedup smoke vs live corpus.
-* ⏳ chunk + embed + Qdrant for email rows (currently dim_report row only).
-* ⏳ render-to-PDF artifact + SharePoint upload (currently a local `.txt`).
-* ⏳ fuzzy dedup-merge vs portal rows (before loading Lane-3 vendors).
-* ⏳ per-vendor subject parsers (classification accuracy).
-* ⏳ route-A Graph API (unattended pulls + real PDF bytes).
+* ✅ **full `--load` pipeline** — `ingest_email_one()` (chunk → embed → upload
+  → DB → Qdrant), one command, proven end-to-end (id=10870).
+* ✅ **artifact in the SharePoint tree** — body `.html` under
+  `ResearchData1/IMDR/{YYYY}/{MM}/{DD}/{vendor}/`, identical layout to portal
+  (`upload.upload_bytes` + `build_sharepoint_path(ext=...)`).
+* ✅ **fuzzy portal-twin dedup-merge** (`dedup_merge.find_portal_twin`,
+  Jaccard, precision-first) — validated on the 2-week backfill: 9 DB dups
+  skipped, 0 false positives.
+* ✅ **2-week backfill smoke** (Citi + DB) — bulk-stage → load → merge,
+  clean 36-row corpus.
+* ⏳ per-vendor subject parsers (classification accuracy on net-new rows).
+* ⏳ core-headline extraction (recall boost: catch differing-masthead twins).
+* ⏳ route-A Graph API (unattended producer; `.eml` artifact + real PDF bytes).
 * ⏳ `dim_vendor` rows for `cba` + `cacib`; orchestrator wiring (user-gated).
