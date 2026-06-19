@@ -11,6 +11,11 @@ Run:
     python -m scripts.prediction.polymarket.backfill --hours 72
     python -m scripts.prediction.polymarket.backfill --slugs slug1 slug2 ...
 
+Window mode — fill an explicit interior gap (e.g. an outage) across all active
+slugs rather than only warming up new ones:
+    python -m scripts.prediction.polymarket.backfill \
+        --start 2026-06-13T18:00 --end 2026-06-15T00:00
+
 Notes:
 - Backfilled rows have NULL for spread / bid / ask / volume / liquidity —
   CLOB price-history only returns (t, p). Polywatch's SPIKE, MODAL_FLIP, DRIFT
@@ -112,44 +117,49 @@ def fetch_history(token_id: str, start_ts: int, end_ts: int, fidelity: int) -> l
     return payload or []
 
 
-def backfill_slug(
-    conn: sqlite3.Connection, slug: str, *, hours: int, fidelity: int
-) -> tuple[int, int, str]:
-    """Returns (n_markets, n_rows, status_msg)."""
-    ev = fetch_event(slug)
-    if not ev:
-        return 0, 0, "no event returned"
+def _parse_ts(value: str) -> int:
+    """Parse epoch-seconds or an ISO8601 date/datetime into an int epoch.
+
+    Naive datetimes are assumed UTC (the snapshot_ts convention).
+    """
+    value = value.strip()
+    if value.isdigit():
+        return int(value)
+    dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return int(dt.timestamp())
+
+
+def _global_max_cap(conn: sqlite3.Connection) -> int:
+    """End-ts ceiling that keeps backfill points from overtaking live polls.
+
+    Capping strictly below the global MAX(snapshot_ts) preserves the
+    macro_snapshot invariant: a backfilled point must never become the newest
+    observation, or macro_snapshot looks up rows at that instant and surfaces
+    dozens of false-missing entries.
+    """
+    cap = int(time.time()) - 60
+    global_max = conn.execute(
+        "SELECT MAX(snapshot_ts) FROM market_observation"
+    ).fetchone()[0]
+    if global_max:
+        max_dt = datetime.fromisoformat(global_max.replace("Z", "+00:00"))
+        cap = min(cap, int(max_dt.timestamp()) - 1)
+    return cap
+
+
+def _collect_rows(
+    ev: dict, *, start_ts: int, end_ts: int, fidelity: int, slug: str
+) -> tuple[int, list[tuple]]:
+    """Fetch CLOB price-history for each live market in ``ev`` within the window.
+
+    Returns ``(n_live_markets, rows)`` ready for ``_insert_rows``.
+    """
     ev_id = ev.get("id")
     ev_slug = ev.get("slug")
     ev_title = ev.get("title")
     markets = ev.get("markets") or []
-
-    # Don't let backfill points overtake live polled observations. Cap end_ts
-    # strictly below BOTH (a) this slug's earliest existing row and (b) the
-    # global MAX(snapshot_ts) — otherwise a genuinely-new slug (no existing
-    # rows) can land a backfill point at now-60s, past the most recent live
-    # poll, and become the new global MAX. macro_snapshot then looks up rows
-    # at that MAX and finds only the handful of slugs that backfilled to a
-    # similar instant, surfacing dozens of false-missing entries.
-    cap_row = conn.execute(
-        "SELECT MIN(snapshot_ts), MAX(snapshot_ts) FROM market_observation WHERE event_slug=?",
-        [ev_slug],
-    ).fetchone()
-    existing_min = cap_row[0] if cap_row else None
-    global_max = conn.execute(
-        "SELECT MAX(snapshot_ts) FROM market_observation"
-    ).fetchone()[0]
-    now_ts = int(time.time())
-    end_ts = now_ts - 60
-    if existing_min:
-        cap_dt = datetime.fromisoformat(existing_min.replace("Z", "+00:00"))
-        end_ts = min(end_ts, int(cap_dt.timestamp()) - 1)
-    if global_max:
-        max_dt = datetime.fromisoformat(global_max.replace("Z", "+00:00"))
-        end_ts = min(end_ts, int(max_dt.timestamp()) - 1)
-    start_ts = end_ts - hours * 3600
-    if end_ts <= start_ts:
-        return 0, 0, "no window to backfill"
 
     rows: list[tuple] = []
     n_live_markets = 0
@@ -175,6 +185,15 @@ def backfill_slug(
         except requests.HTTPError as e:
             print(f"  [{slug}] cond={cond_id[:10]} history fetch failed: {e}")
             continue
+        # CLOB /prices-history does NOT honor endTs — it always appends a
+        # trailing near-current point (observed ~2h past a requested end). Left
+        # unfiltered, that point lands at ~now with a handful of rows and
+        # becomes the global MAX(snapshot_ts), breaking macro_snapshot (which
+        # reads only rows at the MAX). Clamp to the requested window here.
+        hist = [
+            pt for pt in hist
+            if pt.get("t") is not None and start_ts <= int(pt["t"]) <= end_ts
+        ]
         if not hist:
             continue
         n_live_markets += 1
@@ -206,10 +225,10 @@ def backfill_slug(
                     None,         # updated_at_src
                 )
             )
+    return n_live_markets, rows
 
-    if not rows:
-        return n_live_markets, 0, "no history points"
 
+def _insert_rows(conn: sqlite3.Connection, rows: list[tuple]) -> None:
     conn.executemany(
         """INSERT OR IGNORE INTO market_observation (
             snapshot_ts, condition_id, event_id, event_slug, event_title,
@@ -218,9 +237,90 @@ def backfill_slug(
         ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         rows,
     )
-    n_inserted = conn.total_changes
     conn.commit()
+
+
+def backfill_slug(
+    conn: sqlite3.Connection, slug: str, *, hours: int, fidelity: int
+) -> tuple[int, int, str]:
+    """Warm-up mode: backfill the N hours *before* the slug's earliest row.
+
+    Returns (n_markets, n_rows, status_msg).
+    """
+    ev = fetch_event(slug)
+    if not ev:
+        return 0, 0, "no event returned"
+    ev_slug = ev.get("slug")
+
+    # Cap end_ts strictly below BOTH this slug's earliest existing row and the
+    # global MAX — see _global_max_cap. A genuinely-new slug (no existing rows)
+    # backfills right up to the global-max ceiling.
+    end_ts = _global_max_cap(conn)
+    existing_min = conn.execute(
+        "SELECT MIN(snapshot_ts) FROM market_observation WHERE event_slug=?",
+        [ev_slug],
+    ).fetchone()[0]
+    if existing_min:
+        cap_dt = datetime.fromisoformat(existing_min.replace("Z", "+00:00"))
+        end_ts = min(end_ts, int(cap_dt.timestamp()) - 1)
+    start_ts = end_ts - hours * 3600
+    if end_ts <= start_ts:
+        return 0, 0, "no window to backfill"
+
+    n_live_markets, rows = _collect_rows(
+        ev, start_ts=start_ts, end_ts=end_ts, fidelity=fidelity, slug=slug
+    )
+    if not rows:
+        return n_live_markets, 0, "no history points"
+    _insert_rows(conn, rows)
     return n_live_markets, len(rows), "ok"
+
+
+def backfill_slug_window(
+    conn: sqlite3.Connection, slug: str, *, start_ts: int, end_ts: int, fidelity: int
+) -> tuple[int, int, str]:
+    """Window mode: backfill an explicit [start_ts, end_ts] (e.g. fill an outage gap).
+
+    Unlike warm-up mode this does NOT cap to the slug's earliest row, so it can
+    fill an *interior* hole; INSERT OR IGNORE keeps it from clobbering live rows.
+    end_ts is still capped below the global MAX to protect macro_snapshot.
+    Returns (n_markets, n_rows, status_msg).
+    """
+    ev = fetch_event(slug)
+    if not ev:
+        return 0, 0, "no event returned"
+    end_ts = min(end_ts, _global_max_cap(conn))
+    if end_ts <= start_ts:
+        return 0, 0, "window collapsed after global-max cap"
+
+    n_live_markets, rows = _collect_rows(
+        ev, start_ts=start_ts, end_ts=end_ts, fidelity=fidelity, slug=slug
+    )
+    if not rows:
+        return n_live_markets, 0, "no history points"
+    _insert_rows(conn, rows)
+    return n_live_markets, len(rows), "ok"
+
+
+def _process(targets: list[str], per_slug) -> None:
+    """Run ``per_slug(conn, slug)`` over each target, printing a per-slug line."""
+    conn = sqlite3.connect(str(DB_FILE), timeout=5)
+    conn.execute("PRAGMA journal_mode=WAL")
+    total_rows = 0
+    total_markets = 0
+    try:
+        for slug in targets:
+            try:
+                n_mkts, n_rows, msg = per_slug(conn, slug)
+                print(f"  {slug:<60s}  markets={n_mkts:<3d}  rows={n_rows:<5d}  {msg}")
+                total_rows += n_rows
+                total_markets += n_mkts
+            except Exception as e:
+                print(f"  {slug:<60s}  FAILED: {e!r}")
+    finally:
+        conn.close()
+    print(f"[backfill] done — {len(targets)} slugs, {total_markets} live markets, "
+          f"{total_rows} rows inserted (INSERT OR IGNORE).")
 
 
 def cmd_run(args: argparse.Namespace) -> None:
@@ -243,37 +343,56 @@ def cmd_run(args: argparse.Namespace) -> None:
             return
         print(f"[backfill] {len(targets)} watchlist slugs lack {args.hours}h of history")
 
-    conn = sqlite3.connect(str(DB_FILE), timeout=5)
-    conn.execute("PRAGMA journal_mode=WAL")
-    total_rows = 0
-    total_markets = 0
-    try:
-        for slug in targets:
-            try:
-                n_mkts, n_rows, msg = backfill_slug(
-                    conn, slug, hours=args.hours, fidelity=args.fidelity
-                )
-                print(f"  {slug:<60s}  markets={n_mkts:<3d}  rows={n_rows:<5d}  {msg}")
-                total_rows += n_rows
-                total_markets += n_mkts
-            except Exception as e:
-                print(f"  {slug:<60s}  FAILED: {e!r}")
-    finally:
-        conn.close()
-    print(f"[backfill] done — {len(targets)} slugs, {total_markets} live markets, "
-          f"{total_rows} rows inserted (INSERT OR IGNORE).")
+    _process(targets, lambda conn, slug: backfill_slug(
+        conn, slug, hours=args.hours, fidelity=args.fidelity))
+
+
+def cmd_window(args: argparse.Namespace) -> None:
+    if not DB_FILE.exists():
+        print(f"[backfill] no DB at {DB_FILE} — run streaming poll first.")
+        return
+    start_ts = _parse_ts(args.start)
+    end_ts = _parse_ts(args.end)
+    if end_ts <= start_ts:
+        print("[backfill] --end must be after --start.")
+        return
+
+    if args.slugs:
+        targets = args.slugs
+    else:
+        wl = load_watchlist(WATCHLIST_FILE)
+        targets = [s for s in active_slugs(wl) if not s.endswith("*")]
+    s_iso = datetime.fromtimestamp(start_ts, tz=timezone.utc).isoformat(timespec="seconds")
+    e_iso = datetime.fromtimestamp(end_ts, tz=timezone.utc).isoformat(timespec="seconds")
+    print(f"[backfill] window mode {s_iso} .. {e_iso} over {len(targets)} active slugs "
+          f"(fidelity={args.fidelity}m)")
+
+    _process(targets, lambda conn, slug: backfill_slug_window(
+        conn, slug, start_ts=start_ts, end_ts=end_ts, fidelity=args.fidelity))
 
 
 def main() -> None:
     p = argparse.ArgumentParser(prog="polymarket_backfill")
     p.add_argument("--hours", type=int, default=48,
-                   help="Hours of history to fetch (default 48)")
+                   help="Warm-up mode: hours of history to fetch before a slug's "
+                        "earliest row (default 48)")
     p.add_argument("--fidelity", type=int, default=15,
                    help="Minutes between price points (default 15, matches streamer cadence)")
     p.add_argument("--slugs", nargs="+",
-                   help="Specific slugs to backfill (default: any active watchlist slug "
-                        "with zero rows in observations.db)")
-    cmd_run(p.parse_args())
+                   help="Specific slugs (default warm-up: active slugs with zero rows; "
+                        "default window: all active slugs)")
+    p.add_argument("--start",
+                   help="Window mode: ISO8601 or epoch start (UTC if naive). Requires --end. "
+                        "Fills an explicit interior gap across active slugs.")
+    p.add_argument("--end",
+                   help="Window mode: ISO8601 or epoch end. Requires --start.")
+    args = p.parse_args()
+    if args.start or args.end:
+        if not (args.start and args.end):
+            p.error("window mode needs BOTH --start and --end")
+        cmd_window(args)
+    else:
+        cmd_run(args)
 
 
 if __name__ == "__main__":
