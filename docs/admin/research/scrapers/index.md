@@ -1,10 +1,16 @@
 # Research scrapers — vendor inventory
 
-Last updated: 2026-06-15
+Last updated: 2026-06-19
 
 Per-vendor scraper documentation. One markdown file per vendor capturing
 the portal's authentication flow, URL patterns, DOM structure, fetch
 strategy, and known quirks.
+
+> **Second acquisition channel:** sell-side research also arrives by
+> **email** (`research@rvcapital.com`, 13 hand-filtered folders). That's a
+> *channel*, not a portal — handled separately, with lenient filtering and
+> `source='email'` provenance. See
+> [`../outlook_email_channel.md`](../outlook_email_channel.md).
 
 ## Cross-cutting content quality (2026-06-15)
 
@@ -76,7 +82,7 @@ gating, phase 2 listing-API discovery, phase 6 smoke runs, etc.) see
 | `bnp` | markets360.bnpparibas.com | Pattern A — `PUT /contentportal/research-service/v1.1/research_documents` returns `documentLink` (JWS slink, directly fetchable as PDF). ~21/day discovered; ~12/day net after chart-pack drop ([details](bnp.md)) | — | live, ~12/day net |
 | `ubs` | neo.ubs.com | Pattern A — `POST /api/search/v2/research-stream-advanced` (paginated via `_links.next` offset cursor) fired through `page.evaluate(fetch)` with `x-csrf-token` + `x-{,original-}client-component-id` headers; deterministic PDF at `/api/super-grid-provider-research/v1/document/{wireId}.pdf` (plain `ctx.request.get`). Headed Chrome required (HeadlessChrome UA rejected); programmatic login (no MFA), sessions persist across `ctx.close()` once `#rememberMe1fa` opt-out is left unchecked. | — | live, ~40/day raw → ~25/day net ([details](ubs.md)) |
 | `socgen` | insight.sgmarkets.com | API `do-search-publications` (POST, skip/take, Bearer auth) on `api-z.sgmarkets.com`; PDFs via `preview/en` → `doc.sgmarkets.com/*.html?sid=…` with per-Playwright-session OIDC handshake (in-session `fetch_pdfs` like Barclays) | — | live, ~7-8/day net ([details](socgen.md)) |
-| `bofa` | markets.ml.com | Liferay HTML scrape across 22 hubs + portlet `pdfResourceUrl` resolver POST → direct PDF on `research1.ml.com/C?q=<token>&e=<email>&h=<hash>` (HMAC self-auth). Programmatic login (PingFederate, like Barclays). | `rv-pingfed` | **PROD-HOLD** — code built, 2 reports in DB; orchestrator wiring removed pending Phase 8 ([details](bofa.md)) |
+| `bofa` | markets.ml.com | Liferay HTML scrape across 21 production hubs + portlet `pdfResourceUrl` resolver POST → direct PDF on `research1.ml.com/C?q=<token>&e=<email>&h=<hash>` (HMAC self-auth). Expired-interstitial reports recoverable via `_fetch_via_proceed_page` (download-pref + `#Proceed` click). **Viewer-remint (2026-06-19)**: forwarded / foreign-recipient `rsch.baml.com` links that land on Liferay HTML viewer fetched via re-minted `research1.ml.com/C?...` URL bound to our session — forwarded links are fetchable. Programmatic login (PingFederate, like Barclays). Phase 8 (2026-06-15): wiring-gap fixed, credit-hub default-drop allowlist, noise additions, EM-macro reclassification, country-code fix, 123 new tests. Firehose module (`crawler_bofa_firehose.py`) built + 31 tests: 16 macro disciplines via Advanced Search, 98 kept/week (2.3x hub, 14/day). **MFA triggered 2026-06-15** — `login_bofa.py` needs Outlook OTP poll before prod. | `rv-pingfed` | **PROD-HOLD** — Phase 8 COMPLETE (2026-06-16); hub ~6/day + firehose ~14/day; MFA handler + firehose integration decision + Phase 6c embed smoke pending ([details](bofa.md)) |
 | `cacib` | research.ca-cib.com | TBD | — | not yet built |
 | `citi` | www.citivelocity.com | Pattern A + B — `POST /cvr/publicationqueryws/eppublic/V1/publications.json?platformId=79` with `callerId: CVR` header; ISO-8601 `startDate`/`endDate` body; **omit `sortBy`** (backend has no string index on PublicationDate). Deterministic PDF at `/rendition/eppublic/uiservices/print?doc_id={pubId}&type=print&isJP=false`. Phase 8 tightening: `companies[].refType=PRI` + `isSubject=Y` is the canonical single-name signal (overrides productFocus); `_CITI_EQUITY_KEEP` allowlist + generic `n_tickers==1` check; sectors[] emitted as industry tags. ~70/day raw → ~18/day net (7-day smoke 5/5 gates pass: 98% macro-family, 2% EQUITY, 1% single-name leakage). | — | live through Phase 8 (2026-06-06; daily wiring pending) ([details](citi.md)) |
 | `stanc` | research.sc.com | Pattern A — `POST /research/api/common/global/search/newSearch` (Lucene `filterExpression`, sort `payload.publishedDateTime` desc, `resultSetLimit=500`); deterministic PDF at `/protected/rp/api/data/render/{reportId}`; session-cookie auth | — | live, ~4/day net ([details](stanc.md)) |
