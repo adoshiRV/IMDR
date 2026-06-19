@@ -1,10 +1,10 @@
 # Australia (AU) — Econ Indicator Inventory
 
-Last updated: 2026-06-10
+Last updated: 2026-06-19
 
 Tracker forked from [`../country_econ_blueprint.md`](../country_econ_blueprint.md) §1-4 per the [onboarding playbook](../onboarding_new_country.md#step-1--fork-the-blueprint-into-a-country-tracker).
 
-**Status (2026-06-11):** DB-LIVE — **464 indicators / 397,118 obs** (verified against `econ.fact_indicator`). ABS **18 fetchers across 21 dataflows (179 indicators incl. BA value + count + derived ToT)** + RBA 9 fetchers via CSV snapshot (119 indicators incl. TIB + ICP + REER + F17 zero-coupon curve) + AOFM 5 fetchers (157 indicators) + **Cotality (6 daily HVI series)** + FRED-mirror (3 indicators). **16 of 16 wiring-map cells ✅** — 3.1 ToT closed 2026-06-11 via derived `ABS.TOT.NET_BARTER.AU` from ITPI ratio. Second-most-populated country after Indonesia. Phase G blocker lifted. Production promotion can proceed with user sign-off.
+**Status (2026-06-19):** DB-LIVE — **469 indicators / 397,118+ obs** (verified against `econ.fact_indicator`). ABS **18 fetchers across 22 dataflows (184 indicators incl. BA value + count + derived ToT + 6 CPI_Q SA quarterly analytical)** + RBA 9 fetchers via CSV snapshot (119 indicators incl. TIB + ICP + REER + F17 zero-coupon curve) + AOFM 5 fetchers (157 indicators) + **Cotality (6 daily HVI series)** + FRED-mirror (3 indicators). **16 of 16 wiring-map cells ✅** — 3.1 ToT closed 2026-06-11 via derived `ABS.TOT.NET_BARTER.AU` from ITPI ratio. Second-most-populated country after Indonesia. Phase G blocker lifted. Production promotion can proceed with user sign-off.
 
 ## Status markers
 
@@ -26,7 +26,7 @@ Tracker forked from [`../country_econ_blueprint.md`](../country_econ_blueprint.m
 | 2.1 Input Costs       | ✅ | ABS ITPI import-side SITC 1-digit (18 indicators — food / beverages-tobacco / crude materials / energy / fats-oils / chemicals / mfg-by-material / machinery-transport / misc-manufactures × Index + YoY) | 18/5 | Extended `fetch_trade_prices.py`; INDEX codes 6013001–6013009 from ITPI_IMP. Import crude materials YoY Q1-2026: +4.5%; energy YoY: +0.7%. |
 | 2.2 Producer Prices   | ✅ | ABS PPI_FD — final demand (TSEST=TOTXE, not TOTIE)       | 3/7   | 3 indicators loaded. PPI by industry (PPI_IND) deferred. |
 | 2.3 Domestic Costs    | ✅ | ABS WPI — OHRPEB/TOT (NSA only; SA not published)        | 6/10  | 6 indicators. SA unavailable from ABS. |
-| 2.4 CPI Pressure      | ✅ | ABS CPI — headline (INDEX=10001, Q NSA) + Trimmed Mean + Weighted Median M | 16/13 | 16 indicators including subcategory breakdown. |
+| 2.4 CPI Pressure      | ✅ | ABS CPI — headline (INDEX=10001, Q NSA) + Trimmed Mean + Weighted Median M + **6 SA quarterly analytical series via `CPI_Q` dataflow** | 22/13 | 22 indicators. `CPI_Q` adds Q SA trimmed mean + weighted median × index/QoQ/YoY (6 series, history 2000-Q1→, loaded 2026-06-19). Legacy `CPI` dataflow carries NSA quarterly only (TSEST=10) — the SA quarterly analytical series are absent there. |
 | 3.1 Terms of Trade    | ✅ | ABS.TOT.NET_BARTER.AU (derived from ITPI export/import ratio × 100) | 1/4 | 65 quarterly obs back to 2010-Q1, latest Q1-2026 = 117.05. Loaded 2026-06-11 via `fetch_tot.py` derived from `ABS.ITPI.EXPORT_HEADLINE_INDEX.AU` / `ABS.ITPI.IMPORT_HEADLINE_INDEX.AU × 100`. |
 | 3.2 Current Account   | ✅ | ABS BOP — CA + primary income + secondary income + capital | 14/10 | Full BOP flow loaded via `fetch_bop.py`. |
 | 3.3 Capital Account   | ✅ | ABS BOP financial account + AOFM non-resident AGS holdings + **ABS IIP stocks** | 80/16 | BOP financial account 13 series + ITPI 6 + AOFM foreign holdings 34 series (quarterly since 2003; Mar-2026: non-resident AGS holdings AUD 469bn = 50.9% of outstanding) + **ABS IIP 33 series** (Q stock 1988-Q3 → 2026-Q1; Net IIP Mar-2026 = AUD +707bn net liability, Total FL = AUD 5.27tn, Gross External Debt = AUD 2.76tn). |
@@ -36,7 +36,7 @@ Tracker forked from [`../country_econ_blueprint.md`](../country_econ_blueprint.m
 | 4.3 Fin Conditions    | ✅ | RBA F1+F2 rates + AOFM term premium + AOFM turnover      | 108/15 | 11 RBA rates + 30 AOFM term premium (FY/TP/RNY × 1Y..10Y, daily since 1992; 10Y Mar-2026: 95bp) + 67 AOFM turnover by region/tenor. |
 | 4.4 Policy Reaction   | ✅ | RBA D3 — M1/M3/Broad money/Money base NSA+SA + RBA A2 — cash-rate event log (4 series) | 18/16 | D3: 14 indicators. A2: Cash Rate Target + administered rates event log, 4 series. Cash Rate Target May-2026: 4.35%. |
 
-**Score (2026-06-11):** **16 of 16 cells ✅.** 464 indicators / 397,118 obs in DB. Cell 3.1 ToT closed via derived `ABS.TOT.NET_BARTER.AU` (ITPI export/import ratio × 100, quarterly back to 2010). ABS IIP (33 series) closes cell 3.3 stock-side. AOFM fills 1.2 (Fiscal Demand), 3.3 (Capital Account — bond-holders-by-investor), and supplements 4.3 (term premium + turnover). RBA D2+E1+E2+A2 close 4.1, 4.2, and supplements 4.4. **Identity checks 4 of 5 pass exact**: ToT derivation, Net IIP = FA+FL, 10Y breakeven (2.36% plausible), Household NW = TA-TL; BoP CA decomposition reconciles after manual goods+services balance derivation (Q1-2026: −25,743 = −26,693 primary + −1,696 secondary + 2,646 implied goods+services).
+**Score (2026-06-19):** **16 of 16 cells ✅.** 469 indicators / 397,118+ obs in DB. +6 CPI_Q SA quarterly analytical added 2026-06-19. Cell 3.1 ToT closed via derived `ABS.TOT.NET_BARTER.AU` (ITPI export/import ratio × 100, quarterly back to 2010). ABS IIP (33 series) closes cell 3.3 stock-side. AOFM fills 1.2 (Fiscal Demand), 3.3 (Capital Account — bond-holders-by-investor), and supplements 4.3 (term premium + turnover). RBA D2+E1+E2+A2 close 4.1, 4.2, and supplements 4.4. **Identity checks 4 of 5 pass exact**: ToT derivation, Net IIP = FA+FL, 10Y breakeven (2.36% plausible), Household NW = TA-TL; BoP CA decomposition reconciles after manual goods+services balance derivation (Q1-2026: −25,743 = −26,693 primary + −1,696 secondary + 2,646 implied goods+services).
 
 ## Playground fetcher inventory
 
@@ -44,7 +44,7 @@ All 31 playground fetchers as of 2026-06-10. All loaded into DB.
 
 | Fetcher | Vendor | Dataflow / Table | Cell | Indicators |
 |---|---|---|:---:|:---:|
-| `fetch_cpi.py` | ABS | `CPI` | 2.4 | 16 |
+| `fetch_cpi.py` → `abs_cpi.py` | ABS | `CPI` (NSA quarterly + monthly headline + SA monthly analytical) + **`CPI_Q`** (SA quarterly analytical — trimmed mean + weighted median × index/QoQ/YoY, 6 series) | 2.4 | 22 |
 | `fetch_gdp.py` | ABS | `ANA_AGG` | 1.4 | 7 |
 | `fetch_labour.py` | ABS | `LF` | 1.4 | 6 |
 | `fetch_lf_under.py` | ABS | `LF_UNDER` (M21/M23/M24 — underutilisation) | 1.4 | 3 |
@@ -76,7 +76,7 @@ All 31 playground fetchers as of 2026-06-10. All loaded into DB.
 | `fetch_turnover.py` | AOFM | Turnover XLSX | 4.3 | 67 |
 | `fetch_issuance_buybacks.py` | AOFM | Issuance/buybacks XLSX | 1.2 | 10 |
 
-**Total: 463 indicators (ABS 178 + RBA 119 + AOFM 157 + Cotality 6 + FRED-mirror 3) / 397,053 obs.** ABS sub-totals reconcile: CPI 16 + GDP 7 + Labour 6 + LF_UNDER 3 + WPI 6 + PPI_FD 3 + Retail 10 + CAPEX 4 + Lending 11 + RPPI 17 + BOP 14 + BOP_GOODS 7 + Trade Prices 24 + GDP_EXP 10 + JV 3 + IIP 33 + BA 4 = 178. RBA: F1+F2 12 + F11.1 19 + D3 14 + D2+E1+E2+A2 34 + I2 ICP 21 + F15 REER 3 + F17 ZCY 16 = 119.
+**Total: 469 indicators (ABS 184 + RBA 119 + AOFM 157 + Cotality 6 + FRED-mirror 3) / 397,053 obs.** ABS sub-totals reconcile: CPI 22 (16 legacy `CPI` + 6 `CPI_Q` SA quarterly analytical added 2026-06-19) + GDP 7 + Labour 6 + LF_UNDER 3 + WPI 6 + PPI_FD 3 + Retail 10 + CAPEX 4 + Lending 11 + RPPI 17 + BOP 14 + BOP_GOODS 7 + Trade Prices 24 + GDP_EXP 10 + JV 3 + IIP 33 + BA 4 = 184. RBA: F1+F2 12 + F11.1 19 + D3 14 + D2+E1+E2+A2 34 + I2 ICP 21 + F15 REER 3 + F17 ZCY 16 = 119.
 
 ## Phase G — BLOCKER LIFTED
 
@@ -146,6 +146,7 @@ Completed in this order:
 27. Cotality (formerly CoreLogic) Daily HVI — new vendor (migration 090, `dim_vendor.cotality` id=69). `playground/econ/cotality/fetch_hvi.py` Playwright-renders the JS-only indices page and emits 6 daily-frequency series (5 capitals + 5-capital aggregate). Each run captures today's snapshot; daily reruns accumulate the time-series. [✓ loaded 2026-06-10]
 28. RBA F15 REER — `fetch_reer.py`, 3 quarterly series (Real TWI + Real import-weighted + Real export-weighted), since 1970. Closes cell 3.4 REER sub-bullet previously addressable only via BIS WS_EER. [✓ loaded 2026-06-10]
 29. RBA F17 Zero-coupon AGB curve — `fetch_zerocoupon.py`, 16 daily series (8 desk-relevant tenors × yields + forward rates: 0.25Y / 0.5Y / 1Y / 2Y / 3Y / 5Y / 7Y / 10Y). Daily since 2017-01-03. Cleaner analytical curve than F2 interpolated bonds; useful for any rates relative-value or forwards trade. Discount factors NOT loaded (computable from yields). [✓ loaded 2026-06-10]
+30. ABS CPI_Q — quarterly SA analytical series (`abs_cpi.py` extended). 6 new series added: `ABS.CPI.TRIMMED_MEAN_Q_{INDEX,QOQ,YOY}.AU` + `ABS.CPI.WEIGHTED_MEDIAN_Q_{INDEX,QOQ,YOY}.AU`. All SA (TSEST=20), national (REGION=50), history 2000-Q1→. Key shape `CPI_Q/{MEASURE}.{999902|999903}.20.50.Q`. Finding: the legacy `CPI` dataflow only carries TSEST=10 (NSA) at quarterly cadence — the SA quarterly analytical series were absent there. Trimmed Mean Q YoY (Q1-26: 3.5%) = RBA's canonical underlying-inflation gauge. [✓ loaded 2026-06-19]
 
 ## Expected ❌ cells
 
@@ -157,11 +158,12 @@ Completed in this order:
 
 ## Vendor / dataflow inventory (ABS SDMX)
 
-All 19 dataflows verified and loaded as of 2026-06-10 (CPI, ANA_AGG, ANA_EXP, BOP, BOP_GOODS, CAPEX, **IIP**, ITPI_IMP, ITPI_EXP, JV, LEND_BUSINESS, LEND_HOUSING, LEND_PERSONAL, LF, LF_UNDER, PPI_FD, RPPI, RT, WPI). Full enumeration of all 1,223 ABS dataflows in `playground/econ/abs/discovery/dataflows_full.json`.
+20 dataflows loaded as of 2026-06-19 (CPI, **CPI_Q**, ANA_AGG, ANA_EXP, BOP, BOP_GOODS, CAPEX, **IIP**, ITPI_IMP, ITPI_EXP, JV, LEND_BUSINESS, LEND_HOUSING, LEND_PERSONAL, LF, LF_UNDER, PPI_FD, RPPI, RT, WPI). `CPI_Q` added 2026-06-19 — carries the SA quarterly analytical series absent from the legacy `CPI` flow. Full enumeration of all 1,223 ABS dataflows in `playground/econ/abs/discovery/dataflows_full.json`.
 
 | Dataflow | Topic | National headline key | Loaded |
 |---|---|---|:---:|
-| `CPI` | Consumer Price Index | `1.10001.10.50.Q` (Q NSA national) | ✅ |
+| `CPI` | Consumer Price Index | `1.10001.10.50.Q` (Q NSA national); also M headline + SA M analytical. **NSA-only at quarterly cadence** — the SA quarterly analytical series (trimmed mean / weighted median) are absent. | ✅ |
+| `CPI_Q` | CPI Quarterly Analytical (SA) | `{1,2,3}.{999902,999903}.20.50.Q` — MEASURE 1=index, 2=QoQ%, 3=YoY%; INDEX 999902=Trimmed Mean, 999903=Weighted Median; TSEST=20 (SA); REGION=50 (national); FREQ=Q. 6 series, history 2000-Q1→. Trimmed Mean Q YoY (`ABS.CPI.TRIMMED_MEAN_Q_YOY.AU`) is RBA's canonical underlying-inflation gauge; latest Q1-26 YoY 3.5%. **Not present in legacy `CPI` dataflow.** | ✅ (added 2026-06-19) |
 | `ANA_AGG` | National Accounts Key Aggregates | `M1.GPM.20.AUS.Q` (chain-vol GDP SA) | ✅ |
 | `LF` | Labour Force | `M13.3.1599.20.AUS.M` (unemployment rate, SA) | ✅ |
 | `WPI` | Wage Price Index | `1.OHRPEB.7.TOT.10.AUS.Q` (NSA; SA not published) | ✅ |

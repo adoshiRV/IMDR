@@ -1,30 +1,34 @@
 """ABS CPI playground fetch.
 
-Dataflow: CPI. Key shape: {MEASURE}.{INDEX}.{TSEST}.{REGION}.{FREQ}.
+Dataflows: CPI (legacy combined) + CPI_Q (quarterly) + CPI_M (monthly).
+Key shape (all three): {MEASURE}.{INDEX}.{TSEST}.{REGION}.{FREQ}.
 
 MEASURE: 1 = Index numbers, 2 = % chg prev period, 3 = % chg prev year (YoY).
 INDEX:   10001 = All groups CPI; 999902 = Trimmed Mean; 999903 = Weighted Median;
          20001..20006 = food/alcohol/clothing/housing/furnishings/transport top groups.
 TSEST:   10 = Original (NSA), 20 = Seasonally Adjusted, 30 = Trend.
 REGION:  50 = Australia (national); 1..8 = capital cities.
-FREQ:    Q (quarterly headline) or M (monthly headline since Nov 2023).
+FREQ:    Q (quarterly) or M (monthly headline since Nov 2023).
 
-Verified live combinations (2026-06-09 codelist + wildcard probe):
-  - Headline Q (NSA) index: 1.10001.10.50.Q
-  - Headline M (NSA) index: 1.10001.10.50.M
-  - Headline M YoY %:       3.10001.10.50.M
-  - Trimmed Mean M YoY:     3.999902.20.50.M  (SA, monthly only)
-  - Weighted Median M YoY:  3.999903.20.50.M  (SA, monthly only)
-  - Capital cities Q index: 1.10001.10.{1..8}.Q
+Verified live combinations (2026-06-19 codelist + wildcard probe):
+  - Headline Q (NSA) index: CPI/1.10001.10.50.Q
+  - Headline M (NSA) index: CPI/1.10001.10.50.M
+  - Headline M YoY %:       CPI/3.10001.10.50.M
+  - Trimmed Mean M YoY:     CPI/3.999902.20.50.M  (SA, monthly)
+  - Weighted Median M YoY:  CPI/3.999903.20.50.M  (SA, monthly)
+  - Trimmed Mean Q YoY:     CPI_Q/3.999902.20.50.Q  (SA, quarterly — RBA's canonical underlying)
+  - Weighted Median Q YoY:  CPI_Q/3.999903.20.50.Q  (SA, quarterly)
+  - Capital cities Q index: CPI/1.10001.10.{1..8}.Q
 
 Notes:
-  - Quarterly Trimmed Mean / Weighted Median are NOT in the SDMX dataflow as
-    of 2026-06-09 — only the monthly analytical series are exposed. The
-    quarterly versions live in catalogue 6401.0 XLSX downloads (out of scope
-    for this fetcher).
-  - Quarterly headline YoY (MEASURE=3) is also not exposed for FREQ=Q —
-    only MEASURE=1 (index) and MEASURE=2 (QoQ %). Compute YoY downstream
-    from the index series if needed.
+  - The quarterly SA analytical series (Trimmed Mean / Weighted Median) are
+    NOT in the legacy ``CPI`` dataflow — that flow only carries NSA quarterly
+    (TSEST=10). They live in the dedicated ``CPI_Q`` dataflow under TSEST=20,
+    history 2000-Q1→ in index (MEASURE=1), QoQ (2) and YoY (3). Confirmed
+    2026-06-19; supersedes the earlier "XLSX-only" note.
+  - Quarterly headline YoY (MEASURE=3) is still not exposed for the legacy
+    ``CPI`` headline series — only MEASURE=1 (index) and MEASURE=2 (QoQ %).
+    Compute YoY downstream from the index series if needed.
 """
 
 from __future__ import annotations
@@ -85,7 +89,7 @@ def _build_series() -> list[SDMXSeries]:
         SDMXSeries(
             dataflow="CPI", key="3.999902.20.50.M",
             imdr_code="ABS.CPI.TRIMMED_MEAN_M_YOY.AU",
-            display_name="ABS CPI Trimmed Mean monthly YoY % (SA) — RBA's preferred underlying inflation",
+            display_name="ABS CPI Trimmed Mean monthly YoY % (SA) — underlying inflation (monthly indicator)",
             unit="pct_yoy", frequency="MONTHLY", category="cpi", is_sa=True,
         ),
         SDMXSeries(
@@ -99,6 +103,44 @@ def _build_series() -> list[SDMXSeries]:
             imdr_code="ABS.CPI.WEIGHTED_MEDIAN_M_YOY.AU",
             display_name="ABS CPI Weighted Median monthly YoY % (SA)",
             unit="pct_yoy", frequency="MONTHLY", category="cpi", is_sa=True,
+        ),
+        # Analytical SA — quarterly (CPI_Q dataflow). The quarterly trimmed
+        # mean YoY is the RBA's canonical underlying-inflation gauge.
+        SDMXSeries(
+            dataflow="CPI_Q", key="1.999902.20.50.Q",
+            imdr_code="ABS.CPI.TRIMMED_MEAN_Q_INDEX.AU",
+            display_name="ABS CPI Trimmed Mean quarterly index (SA)",
+            unit="index", frequency="QUARTERLY", category="cpi", is_sa=True,
+        ),
+        SDMXSeries(
+            dataflow="CPI_Q", key="2.999902.20.50.Q",
+            imdr_code="ABS.CPI.TRIMMED_MEAN_Q_QOQ.AU",
+            display_name="ABS CPI Trimmed Mean quarterly QoQ % (SA)",
+            unit="pct", frequency="QUARTERLY", category="cpi", is_sa=True,
+        ),
+        SDMXSeries(
+            dataflow="CPI_Q", key="3.999902.20.50.Q",
+            imdr_code="ABS.CPI.TRIMMED_MEAN_Q_YOY.AU",
+            display_name="ABS CPI Trimmed Mean quarterly YoY % (SA) — RBA's canonical underlying inflation",
+            unit="pct_yoy", frequency="QUARTERLY", category="cpi", is_sa=True,
+        ),
+        SDMXSeries(
+            dataflow="CPI_Q", key="1.999903.20.50.Q",
+            imdr_code="ABS.CPI.WEIGHTED_MEDIAN_Q_INDEX.AU",
+            display_name="ABS CPI Weighted Median quarterly index (SA)",
+            unit="index", frequency="QUARTERLY", category="cpi", is_sa=True,
+        ),
+        SDMXSeries(
+            dataflow="CPI_Q", key="2.999903.20.50.Q",
+            imdr_code="ABS.CPI.WEIGHTED_MEDIAN_Q_QOQ.AU",
+            display_name="ABS CPI Weighted Median quarterly QoQ % (SA)",
+            unit="pct", frequency="QUARTERLY", category="cpi", is_sa=True,
+        ),
+        SDMXSeries(
+            dataflow="CPI_Q", key="3.999903.20.50.Q",
+            imdr_code="ABS.CPI.WEIGHTED_MEDIAN_Q_YOY.AU",
+            display_name="ABS CPI Weighted Median quarterly YoY % (SA)",
+            unit="pct_yoy", frequency="QUARTERLY", category="cpi", is_sa=True,
         ),
     ]
     # Capital cities — quarterly headline index
