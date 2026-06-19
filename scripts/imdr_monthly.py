@@ -27,6 +27,8 @@ PIPELINES: list[list[str]] = [
     ["python", "-m", "scripts.econ.kr.kr_monthly"],
     ["python", "-m", "scripts.econ.id.id_monthly"],
     ["python", "-m", "scripts.econ.au.au_monthly"],
+    ["python", "-m", "scripts.econ.nz.nz_monthly"],
+    ["python", "-m", "scripts.econ.in.in_monthly"],
 ]
 
 # ============================================================================

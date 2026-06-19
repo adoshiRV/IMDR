@@ -47,3 +47,7 @@ playground/*
 # itself shouldn't be tracked.
 scripts/**/profile_*/
 playground/**/profile_*/
+
+# RBI Bulletin headed-Chrome profile + xlsx download cache (never commit — contains cookies)
+playground/econ/in/rbi/_profile/
+playground/econ/in/rbi/_downloads/

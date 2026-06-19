@@ -24,7 +24,11 @@ import time
 #     ["python", "-m", "scripts.fx.clean.fx_quarterly_quality_audit"],
 # ============================================================================
 
-PIPELINES: list[list[str]] = []
+PIPELINES: list[list[str]] = [
+    # India quarterly/annual series folded into scripts.econ.in.in_monthly
+    # on 2026-06-19 (idempotent — fine to over-pull monthly). No quarterly
+    # pipelines registered at present.
+]
 
 # ============================================================================
 

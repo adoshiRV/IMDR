@@ -1,15 +1,22 @@
 # India (IN) — coverage plan (RBI DBIE / RBI CIMS / MOSPI / DGCIS / MoF / BIS)
 
-Last updated: 2026-06-11
+Last updated: 2026-06-19
+
+> **PROD-LIVE 2026-06-19** — Track A Phase G complete. 15 fetchers promoted to
+> `scripts/econ/in/{vendor}/`; wired into `imdr_daily.py` / `imdr_monthly.py`.
+> The quarterly orchestrator was folded into monthly on 2026-06-19 (fetchers are
+> idempotent; `in_quarterly.py` deleted; `imdr_quarterly.py` has no India entry).
+> See [india_prod_pipeline.md](india_prod_pipeline.md) for the operations reference.
+> The coverage plan below documents the scoping history and remaining discovery work.
 
 Maps every India (IN) cell of the
 [macro_economy_wiring_map.md §7.12](../macro_economy_wiring_map.md#712-india-in)
 to specific vendor identifiers per source agency.
 
-This is the **scoping plan** for filling `econ.dim_indicator` India rows — as of
-2026-06-09 there are **0 indicators × 0 observations** loaded in
-`econ.fact_indicator` for IN. 36 series are discovered-but-unloaded in
-`playground/econ/rbi/sample_output/2026/` (FX 5 + Bulletin 31).
+This is the **scoping plan** for filling `econ.dim_indicator` India rows. As of the
+prod promotion 2026-06-19, **~1,242 indicators / ~99,810 obs** are live in `econ.fact_indicator`
+(DB-verified 2026-06-19; includes 26 prior prod rows + 15 promoted fetchers incl. DGCIS + UPAg + RBI Bulletin). Original note below reflects the state at
+2026-06-09 when this doc was first written; prod counts now supersede it.
 
 **Scope (per user 2026-06-09):**
 - **RBI** — both DBIE (legacy SPA, partial discovery complete) AND CIMS (10
@@ -153,8 +160,8 @@ Estimated end-to-end build: ~2-3hr for the Plotly Dash callback decoder (Playwri
 
 ### Tier 6 — promotion-side gating (no new data — sign-offs only)
 
-- **Cadence sign-off** for the 8 pre-prod playground fetchers built 2026-06-11 (MOSPI CPI/IIP/NAS · DPIIT WPI/8-Core · CGA · IMD · FAO). Two options documented in `index.md` § Loading status — pick one, then wire into `imdr_monthly.py:PIPELINES`.
-- **Promotion-DB cleanup** if needed (15,081 obs / 197 dim rows from build-session smoke load — currently in DB but harmless; idempotent on re-run).
+- ~~**Cadence sign-off**~~ — **DONE 2026-06-19.** Cadence-split selected (IMD → daily, all other series → monthly). All 15 fetchers wired into `imdr_daily.py` / `imdr_monthly.py`; quarterly/annual fetchers folded into monthly on 2026-06-19 (`in_quarterly.py` deleted). See [india_prod_pipeline.md](india_prod_pipeline.md).
+- ~~**Promotion-DB cleanup**~~ — **DONE.** Idempotent MERGE on PK; historical smoke-load rows absorbed on re-run.
 - **In-coverage gaps after Tier 1-5 land**: 1.1 Private Demand (no formal retail-sales index in IN) · 2.3 Domestic Costs proper wage series (Labour Bureau WRI sits in Tier 2) · 3.1 Terms of Trade (derivable from A13 once multi-month).
 
 ### A13 end-to-end log — DGCIS multi-month loop (2026-06-11)
@@ -359,9 +366,9 @@ This whole roadmap is **gated on a PDF→Markdown→Qdrant production pipeline**
 | RBI DBIE Key Rates (A5 partial) | EVENT | 8 | 8 | snapshots |
 | **Prod total** | | **26** | **39,569** | |
 
-### Pre-prod playground (built + smoke-tested 2026-06-11; awaiting cadence sign-off)
+### Prod-live (promoted 2026-06-19)
 
-Code at `playground/econ/in/{vendor}/`; shared MOSPI helper at [`src/imdr/domains/econ/mospi.py`](../../../src/imdr/domains/econ/mospi.py); orchestrator scaffold at [`playground/econ/in/in_monthly.py`](../../../playground/econ/in/in_monthly.py). 197 indicators × 15,081 obs landed in `econ.fact_indicator` during the build session and stay in place (idempotent MERGE) until cadence + promotion sign-off; the code itself is pre-prod until then.
+Fetchers promoted from `playground/econ/in/{vendor}/` to `scripts/econ/in/{vendor}/`. Library helpers at [`src/imdr/domains/econ/mospi.py`](../../../src/imdr/domains/econ/mospi.py) and [`src/imdr/domains/econ/upag.py`](../../../src/imdr/domains/econ/upag.py). **Two** cadence-split orchestrators at `scripts/econ/in/in_{daily,monthly}.py`. Wired into `scripts/imdr_{daily,monthly}.py:PIPELINES` 2026-06-19. (`in_quarterly.py` was created then folded into monthly on 2026-06-19; `imdr_quarterly.py` has no India entry — see header note.) Migration 103 (`migrations/103_seed_upag_vendor.sql`) seeded the `upag` vendor in `dbo.dim_vendor` — migration 089 had omitted it, which was the blocker that prevented UPAg loading.
 
 | Source | Cadence | Release window | Indicators | Obs | Window |
 |---|---|---|---:|---:|---|
@@ -377,20 +384,16 @@ Code at `playground/econ/in/{vendor}/`; shared MOSPI helper at [`src/imdr/domain
 | UPAg MSP (A31) | ANNUAL | Kharif (Jun) + Rabi (Oct) announcement events | 28 | 353 | 2013-14→2026-27 (14 FYs × 28 crops × MSP level INR/Qtl; Δ + Δ% derivable) |
 | UPAg AIAPY (A26) | ANNUAL | Estimation cycles M-1 yr (Third Adv) through M-3 yr (Final) | 324 | 15,030 | **1966-67→2025-26 (60 FYs)** × 37 crops × {Kharif, Rabi, Summer, Total} × {Area Lakh-Ha, Production Lakh-Tonnes, Yield Kg/Ha}; cycle-dedup prefers Final over Third Advance |
 | UPAg IMC (A33) | WEEKLY | Daily mandi prices, anchor-date snapshot timeline | 16 | 128 | 4 sections × 3-5 commodities × 8 anchor dates per run (3yr / 2yr / 1yr / 1mo / 3wk / 2wk / 1wk / today). Wholesale Agmarknet INR/Qtl. Cereals (Paddy/Rice/Wheat) · Pulses (Tur/Gram/Lentil/Moong/Urad) · Oilseeds (Rapeseed-Mustard/Soybean/Groundnut/Sesamum/Sunflower) · Topcrops (Onion/Potato/Tomato). |
-| RBI Bulletin (A4) | MONTHLY/DAILY/WEEKLY/QUARTERLY | Bulletin publishes mid-month for prior month | 317 | 847 | **11 tables**: CPI T19C (28×84), Call Money T27 (3×84), IIP T23 (9×36), Money Stock T6 (15×45), Reserve Money T11 (10×30), NEER/REER T37 (2×32 — section-detection needs refinement), WPI T22 (48×144), RBI BS T2 (29×78), **FX Reserves T33 (12×24, dual-unit INR Cr + USD Mn)**, **Foreign Trade T32 (10×54, dual-unit)**, **BoP T40 (151×236, Credit/Debit/Net × 2 quarters — includes Current Acc / Merchandise / Invisibles / Services / Software Services / etc.)**. Three parser helpers cover all layouts: `parse_wide_table` (6 tables) · `parse_dual_unit` (2 tables) · `parse_bop` (T40). Single-month snapshot per release — monthly orchestrator accumulates back-history MoM. **Headed Chrome required (TSPD).** |
+| RBI Bulletin (A4) | MONTHLY/DAILY/WEEKLY/QUARTERLY | Bulletin publishes mid-month for prior month | ~478 | ~1,188 | **23 tables** (original 11 + 12 new added 2026-06-18): CPI T19C · Call Money T27 · IIP T23 · Money Stock T6 · Reserve Money T11 · NEER/REER T37 · WPI T22 · RBI BS T2 · FX Reserves T33 · Foreign Trade T32 · BoP T40 · **T34 NRI Deposits** (FCNR(B)/NR(E)RA/NRO Outstanding+Flow, 8 ind/24 obs — desk's FCNR ask) · T35 Foreign Investment Inflows · T36 LRS Remittances · T30 FX Market Turnover · T25 T-bill Ownership by tenor · T38 ECB Registrations · T5 RBI Standing Facilities · T28 CDs · T29 CP · T3 LAF Daily · T44 IIP Assets/Liab · T26 T-bill Auctions yield. URL auto-discovery from `BS_ViewBulletin.aspx` — no hard-coded monthly hash-suffix URLs. Single-month snapshot per release — monthly orchestrator accumulates back-history MoM. **Headed Chrome required (TSPD).** |
 | RBI DBIE SAP-BO scraper (A5-A7 partial) | DAILY (Exchange Rate) | continuous | 4 | 400 | **First DBIE-SAP-BO report end-to-end 2026-06-11**: Exchange Rate (reportId 575, USD/GBP/EUR/JPY × 100 daily). Headed Chrome navigates DBIE menu → SAP-BO iframe → DOM table scrape (leaf-most table). Same pattern unlocks the other 27 priority reports — needs per-report `menu_path` config + layout calibration. Known: column-value calibration vs RBI Reference Rate still needs per-report DevTools lock-in (see § A5-A7 SAP-BO doc). |
-| **Pre-prod subtotal** | | | **~1,085** | **~62,814** | |
+| **Prod total (post-promotion 2026-06-19, DB-verified)** | | | **~1,242** | **~99,810** | |
 
-Two prod-wire-up options for the user to pick:
+**Wired into `scripts/imdr_daily.py:PIPELINES` + `scripts/imdr_monthly.py:PIPELINES` 2026-06-19.** Cadence-split: IMD → daily, all other series (including quarterly/annual) → monthly. `in_quarterly.py` was created then folded into monthly on 2026-06-19; `imdr_quarterly.py` has no India entry. See [india_prod_pipeline.md](india_prod_pipeline.md).
 
-1. **Single monthly trigger** (Indonesia/Korea pattern) — all 8 fetchers go into `imdr_monthly.py:PIPELINES`. Fetchers are MERGE-idempotent so re-running monthly catches every release window. IMD becomes slightly stale (up to ~30 days off-monsoon) but the rainfall narrative cares about cumulative deviation, not single-day freshness.
-2. **Cadence-split** — IMD into `imdr_daily.py` (correct freshness during monsoon), other 7 into `imdr_monthly.py`. Extra wire-up step but matches the actual release cadence.
-
-### Still in playground (NOT in DB)
+### Still in playground (exploration / not yet promoted)
 
 | Source | Status | Gating |
 |---|---|---|
-| DGCIS MEIDB (A13) | scaffold — single-month POST proven | multi-month loop + IndicatorRow emission still needed |
 | MOSPI PDF download (B5/B6 deferred) | PDF corpus harvested | PDF→Markdown→Qdrant pipeline (post migrations 086/087, done — pipeline next) |
 
 ### Deferred — known but blocked / hard
@@ -406,9 +409,9 @@ Two prod-wire-up options for the user to pick:
 
 ### Headline counts
 
-- **Group A data series**: 15 done (4 prod + 11 playground) / 30 deferred or blocked / 45 total
+- **Group A data series**: 15 done (**all 15 prod-live 2026-06-19**) / 30 deferred or blocked / 45 total
 - **Group B events**: 0 done / 24 pending (PDF download contract verified for MOSPI + RBI + PPAC)
-- **Wiring map §7.12**: 12 of 16 cells now covered (5 ✅ prod + 5 ✅ playground + 4 ⚠ partial + 2 ❌ no data)
+- **Wiring map §7.12**: 14 of 16 cells covered (8 ✅ prod + 6 ⚠ partial) + 2 ❌ (wages / DBIE Sectoral Deployment); **~1,242 indicators / ~99,810 obs** in `econ.fact_indicator` (DB-verified 2026-06-19)
 
 ### Critical capability gaps
 
@@ -859,8 +862,8 @@ XLSX scraping work.
 | **K — DPIIT WPI scrape** | Monthly WPI release XLSX. Promotes 2.2. | `playground/econ/dpiit/fetch_wpi.py` |
 | **L — MoF / CGA fiscal scrape** | Monthly Accounts of GoI XLSX from `cga.nic.in`. Promotes 1.2. | `playground/econ/mof/fetch_monthly_accounts.py` |
 | **M — BIS IN package** ✅ | `scripts/econ/in/bis/bis_india.py` shipped 2026-06-10. 6 of 8 candidate indicators live (DSR.HOUSEHOLDS + DSR.NFC return HTTP 404 — confirmed BIS gap for IN). **24,957 obs loaded** to `econ.fact_indicator` covering NEER/REER 1994→, Private-NFS DSR 1999→, Credit-to-GDP ratio 1951→, Credit-to-GDP gap 1961→, RBI repo rate daily 1946→. | `scripts.econ.in.bis.bis_india` |
-| **N — Audit + promotion** | Run the load-from-playground command per vendor; verify Phase G coverage map; update wiring map §7.12 and §6 tables; commit. | `econ.fact_indicator` IN rows live; coverage table flipped |
-| **O — Prod wiring** | Build `scripts/econ/in/in_monthly.py` (BBG-style orchestrator); user-OK before registering in `scripts/imdr_monthly.py:PIPELINES`. | Orchestrator script committed but **not auto-wired** until user signs off (per [[feedback-no-prod-wiring-without-permission]]) |
+| **N — Audit + promotion** ✅ | Run the load-from-playground command per vendor; verify Phase G coverage map; update wiring map §7.12 and §6 tables; commit. **DONE 2026-06-19.** | `econ.fact_indicator` IN rows live; coverage tables updated |
+| **O — Prod wiring** ✅ | Build `scripts/econ/in/in_{daily,monthly}.py` cadence-split orchestrators; wired into `scripts/imdr_{daily,monthly}.py:PIPELINES`. **DONE 2026-06-19.** (`in_quarterly.py` was built then folded into monthly 2026-06-19; `imdr_quarterly.py` has no India entry.) See [india_prod_pipeline.md](india_prod_pipeline.md). | Two orchestrators wired 2026-06-19 |
 
 Phase A is the unblocker — until DBIE auth proves stable (or we have the replay
 flow), nothing downstream is reliable.
@@ -1012,7 +1015,7 @@ Mark items in PRs that close them.
 - [ ] **D3** Build `scripts/econ/in/in_monthly.py` orchestrator (BBG-style)
 - [ ] **D4** Build `scripts/econ/in/in_daily.py` orchestrator (FX reserves W, FBIL/MIBOR/MIFOR D, LAF D, FPI D)
 - [ ] **D5** Build `scripts/econ/in/in_weekly.py` (Reserve Money W, OMO/VRR/VRRR auction results)
-- [ ] **D6** Build `scripts/econ/in/in_quarterly.py` (BoP, IIP-Q-rev, NAS GDP, BSR, IIP, Sectoral Deployment publication)
+- [ ] **D6** Build `scripts/econ/in/in_quarterly.py` (BoP, IIP-Q-rev, NAS GDP, BSR, IIP, Sectoral Deployment publication) — *superseded 2026-06-19: quarterly fetchers (mospi_nas_gdp / upag_msp / upag_aiapy) folded into `in_monthly.py`; `in_quarterly.py` was built and then deleted.*
 - [ ] **D7** User-OK before registering any of the above in `scripts/imdr_{daily,weekly,monthly,quarterly}.py:PIPELINES` (per [[feedback-no-prod-wiring-without-permission]])
 - [ ] **D8** Linear epic created — `IMD-INDIA-ECON` parent + per-phase sub-issues mapped to this checklist
 - [ ] **D9** Smoke test on the FCNR-MIFOR worked example end-to-end before declaring "production"

@@ -9,7 +9,7 @@ This file is the **coverage target** for `econ.dim_indicator`. Every cluster bel
 - **Onboarding playbook**: [onboarding_new_country.md](onboarding_new_country.md) — 5-step workflow with vendor cascade, build order, identity checks, quality bar, ❌→⚠→✅ promotion rules.
 - **Indicator catalogue**: [country_econ_blueprint.md](country_econ_blueprint.md) — country-agnostic master list of series per cluster.
 - **Schema + build log**: [economics_data_ingest.md](economics_data_ingest.md) — pipeline + per-vendor build state.
-- **Date**: 2026-06-10 (ID SBN-position added: **308 indicators / 114,106 obs** for ID; **AU 463 indicators / 397,053 obs — 15 of 16 cells ✅**; total across all countries updated)
+- **Date**: 2026-06-19 (IN Track A Phase G: 15 fetchers wired, §6 IN rows updated, §7.12 prod-live note added; prior 2026-06-10 ID + AU)
 
 ---
 
@@ -157,7 +157,7 @@ Countries in scope (Phase 1–3): G10 + key APAC. Edit this table as fetchers la
 | CN | ❌ | ❌ | ❌ | ❌ |
 | HK | ❌ | ❌ | ❌ | ❌ |
 | SG | ❌ | ❌ | ❌ | ❌ |
-| IN | ❌ | ❌ | ❌ | ❌ |
+| IN | ⚠️ (MOSPI NAS PFCE Q + UPAg AIAPY) | ⚠️ (CGA 30 fiscal line items; MOSPI NAS GFCE Q) | ✅ (DGCIS 198 × HS-2 + Bulletin T32 Foreign Trade) | ✅ (MOSPI IIP + DPIIT 8-Core + MOSPI NAS GDP + Bulletin T23 + FRED) |
 | KR | ✅ (KOSTAT Retail + BOK CCI + Consumer Tendency Survey) | ✅ (BOK 200Y154 Public Sector Revenue/Expenditure/Net Lending) | ✅ (BOK Trade Value+Volume indices + BoP goods X/M) | ✅ (KOSIS GDP-Q + KOSTAT EAPS labour + KOSTAT IIP + BSI Mfg) |
 | TW | ❌ | ❌ | ❌ | ❌ |
 | PH | ❌ | ❌ | ❌ | ❌ |
@@ -178,7 +178,7 @@ Countries in scope (Phase 1–3): G10 + key APAC. Edit this table as fetchers la
 | CN | ❌ | ❌ | ❌ | ❌ |
 | HK | ❌ | ❌ | ❌ | ❌ |
 | SG | ❌ | ❌ | ❌ | ❌ |
-| IN | ❌ | ❌ | ❌ | ⚠️ (RBI Bulletin T19C) |
+| IN | ⚠️ (DPIIT 8-Core fuel/energy + UPAg MSP + UPAg IMC mandi) | ✅ (DPIIT WPI 8 series + Bulletin T22 WPI 48 sub-aggregates) | ❌ (wages — Labour Bureau corp-firewall blocked) | ✅ (MOSPI CPI 78 + Bulletin T19C 28 + FRED OECD MEI + FAO FPI) |
 | KR | ✅ (BOK Import/Export prices × Won/USD; CPI Fresh-food) | ✅ (KOSIS BOK PPI Total + 5 sectors) | ✅ (KOSTAT Wages annual + Mfg Capacity Util + BOK Expected Inflation) | ✅ (KOSTAT CPI Headline + Living + Core × MoM/YoY/YTD) |
 | TW | ❌ | ❌ | ❌ | ❌ |
 | PH | ❌ | ❌ | ❌ | ❌ |
@@ -199,7 +199,7 @@ Countries in scope (Phase 1–3): G10 + key APAC. Edit this table as fetchers la
 | CN | ❌ | ❌ | ❌ | ❌ |
 | HK | ❌ | ❌ | ❌ | ❌ |
 | SG | ❌ | ❌ | ❌ | ❌ |
-| IN | ❌ | ❌ | ⚠️ (RBI FX reserves) | ❌ |
+| IN | ⚠️ (derivable from DGCIS + Bulletin T32) | ✅ (Bulletin T40 BoP — Current Acc / Merchandise / Invisibles / Services × Credit+Debit+Net) | ✅ (RBI DBIE FX reserves weekly + Bulletin T33 + T34 NRI Deposits) | ✅ (BIS NEER+REER 1994→ + Bulletin T37 + FRED DEXINUS) |
 | KR | ✅ (KOSIS BOK Net Barter + Income ToT) | ✅ (KOSIS BoP CA + Goods/Services/Primary/Secondary 1980→) | ✅ (KOSIS BoP FA + DI/PI/Deriv/OI/Reserves + E&O 1980→) | ❌ (KOSIS-absent — FX rates + reserves need Citi spot / BOK direct) |
 | TW | ❌ | ❌ | ❌ | ❌ |
 | PH | ❌ | ❌ | ❌ | ❌ |
@@ -220,7 +220,7 @@ Countries in scope (Phase 1–3): G10 + key APAC. Edit this table as fetchers la
 | CN | ❌ | ❌ | ❌ | ❌ |
 | HK | ❌ | ❌ | ❌ | ⚠️ (HKMA aggregate balance + EFBN) |
 | SG | ❌ | ❌ | ❌ | ❌ |
-| IN | ❌ | ❌ | ⚠️ (RBI call money) | ❌ |
+| IN | ❌ (needs DBIE Sectoral Deployment) | ⚠️ (BIS DSR + Credit-to-GDP + Bulletin T2 RBI BS; A7 BSR + NBFC pending) | ⚠️ (RBI DBIE WACR daily + Bulletin T27 Call Money + FRED OECD Call Money) | ✅ (RBI DBIE Repo/SDF/Reverse Repo/CRR/SLR + BIS CBPOL + Bulletin T6 Money Stock + T11 Reserve Money) |
 | KR | ✅ (BOK Lending Attitude Survey + Household Loans monthly + REB housing) | ✅ (BOK HH Credit + Corp financial ratios × 13 + FSS NPL legacy) | ⚠️ (KOSIS bank deposit + CD 91d + Repo rates — deposit-side only; KOSIS confirmed not to carry BOK Base Rate; Base Rate is in cell 4.4 via BIS CBPOL) | ✅ (BIS CBPOL BOK Base Rate daily 1999→ **[primary]** + FRED Call / 3M Interbank / 10Y Govt + BOK M2/Lf monetary aggregates. FRED Discount Rate deactivated 2026-06-16 — was discount rate not Base Rate.) |
 | TW | ❌ | ❌ | ❌ | ❌ |
 | PH | ❌ | ❌ | ❌ | ❌ |
@@ -359,9 +359,9 @@ HK score: **0 ✅ / 7 ⚠️ / 9 ❌** (was 0/1/15 before v2). All right-side cl
 
 Scoping plan landed 2026-06-10: [`india/in_coverage_plan.md`](india/in_coverage_plan.md) — dual-track DBIE + CIMS plus MOSPI / DGCIS / MoF / DPIIT / CCIL / NSDL / BIS / UPAg / RBI Bulletin cascade.
 
-**Prod-live 2026-06-11:** BIS + FRED + RBI DBIE India — **26 indicators × 39,569 obs** in `econ.fact_indicator` via [`scripts/econ/in/{bis,rbi}/`](../../scripts/econ/in/). DBIE bootstrap-auth client at [`src/imdr/domains/econ/rbi_dbie.py`](../../src/imdr/domains/econ/rbi_dbie.py).
+**Prod-live 2026-06-19 (Track A Phase G complete):** 15 prod fetchers at `scripts/econ/in/{vendor}/` — IMD · BIS · FAO · RBI FX Reserves · RBI Key Rates · MOSPI CPI/IIP · DPIIT WPI/8-Core · CGA · DGCIS · UPAg IMC/MSP/AIAPY · MOSPI NAS GDP · **RBI Bulletin (23 tables incl. T34 NRI Deposits, T40 BoP)**. Two cadence-split orchestrators: `scripts/econ/in/in_daily.py` (frequency_scope=["DAILY"]) + `scripts/econ/in/in_monthly.py` (frequency_scope=["MONTHLY","WEEKLY","DAILY","QUARTERLY","ANNUAL"]). Quarterly/annual fetchers (`mospi_nas_gdp`, `upag_msp`, `upag_aiapy`) folded into monthly 2026-06-19; `in_quarterly.py` deleted; `scripts/imdr_quarterly.py` has no India entry. Wired into `scripts/imdr_daily.py:PIPELINES` + `scripts/imdr_monthly.py:PIPELINES` 2026-06-19. Ops runbook: [`india/india_prod_pipeline.md`](india/india_prod_pipeline.md).
 
-**Pre-prod playground (2026-06-11; smoke-tested, awaiting cadence sign-off):** 13 fetchers at [`playground/econ/in/{vendor}/`](../../playground/econ/in/) — MOSPI CPI/IIP/NAS · DPIIT WPI/8-Core · CGA · IMD · FAO · DGCIS · **UPAg MSP + AIAPY + IMC** · **RBI Bulletin (11 tables incl. BoP T40 with 151 Credit/Debit/Net indicators)**. **~1,081 indicators × ~62,414 obs**. Orchestrator scaffold at [`playground/econ/in/in_monthly.py`](../../playground/econ/in/in_monthly.py).
+**rbi_bulletin.py requires headed Chrome** (TSPD anti-bot) — monthly orchestrator must run on a display-capable host.
 
 | Engine | A | B | C | D |
 |---|:---:|:---:|:---:|:---:|
@@ -372,7 +372,7 @@ Scoping plan landed 2026-06-10: [`india/in_coverage_plan.md`](india/in_coverage_
 
 **Cluster 4 (agriculture)** — full coverage via **UPAg**: A26 ✅ AIAPY (324 × 15,030 obs, **1966-67 → 2025-26 = 60 FYs**); A31 ✅ MSP (28 × 353); A33 ✅ IMC mandi prices (16 × 128, Agmarknet wholesale). Closes Cluster 4 input-price + output-volume + market-price axes that were previously corp-firewall blocked at agricoop.gov.in / cacp.dacnet.nic.in / agmarknet.gov.in.
 
-IN cell coverage: **8 ✅ + 6 ⚠ + 2 ❌** if pre-prod playground promotes (was 1 ✅ / 4 ⚠ / 11 ❌ pre-session). **The BoP T40 path via RBI Bulletin essentially eliminates the A5-A7 SAP-BO iframe requirement for the BoP cell**. Remaining ❌ cells: 2.3 Domestic Costs (wages — Labour Bureau corp-firewall blocked) · 4.1 Demand Transmission (needs A7 DBIE Sectoral Deployment, or alt path TBD).
+IN cell coverage (prod-live 2026-06-19): **8 ✅ + 6 ⚠ + 2 ❌** (was 1 ✅ / 4 ⚠ / 11 ❌ pre-session). **The BoP T40 path via RBI Bulletin eliminates the A5-A7 SAP-BO iframe requirement for the BoP cell**. Remaining ❌ cells: 2.3 Domestic Costs (wages — Labour Bureau corp-firewall blocked) · 4.1 Demand Transmission (needs A7 DBIE Sectoral Deployment, or alt path TBD).
 
 ### 7.13 South Korea (KR)
 

@@ -1,8 +1,10 @@
 # India — Econ Documentation
 
-Last updated: 2026-06-11
+Last updated: 2026-06-19
 
-IN macroeconomic data. **Status: pre-prod.** RBI DBIE (Database on Indian Economy) is the discovery target — SPA-driven, requires Playwright + network interception to capture the underlying API patterns.
+IN macroeconomic data. **Status: prod-live (Track A Phase G complete 2026-06-19).** 15 prod fetchers promoted to `scripts/econ/in/{vendor}/`; two cadence-split orchestrators wired into `imdr_daily.py` and `imdr_monthly.py`. (The quarterly orchestrator was folded into monthly 2026-06-19 — see Loading status below.)
+
+RBI DBIE (Database on Indian Economy) is the primary RBI access path — SPA-driven, requires Playwright + network interception for some endpoints; XLSX Bulletin path avoids the SAP-BO iframe for most desk-relevant tables.
 
 DBIE is being migrated to **RBI CIMS** (10 portals: BoP / FLAIR / SMS / FED / CISBI / FIRMS / etc.). No firm deprecation date. Discovery work needs to be ported as the migration lands.
 
@@ -17,41 +19,54 @@ DBIE is being migrated to **RBI CIMS** (10 portals: BoP / FLAIR / SMS / FED / CI
 
 India is the weakest API landscape in Asia. Real-economy series (CPI, IIP, GDP) are MOSPI-published with no programmatic access — only PDF/XLSX releases. Foreign trade (DGCIS) is similar. RBI is the only agency with structured access, and even that is SPA-mediated rather than REST. Commercial vendors (CEIC, Macrobond) are the typical workaround.
 
-## Pre-prod
+## Quick links
 
-- [`in_coverage_plan.md`](in_coverage_plan.md) — full scoping doc: wiring-map × vendor matrix (RBI DBIE + CIMS + MOSPI + DGCIS + MoF + DPIIT + CCIL + NSDL + BIS), per-cell candidate datasets, A→O phase plan.
-- [`_playground/rbi.md`](_playground/rbi.md) — RBI DBIE Playwright probes (XHR capture, payload inspection, SPA click-through).
-- [`_playground/rbi_explore.md`](_playground/rbi_explore.md) — captured screenshots + HTML snapshots from probe runs.
+| Doc | Purpose |
+|---|---|
+| **[india_prod_pipeline.md](india_prod_pipeline.md)** | Production ops reference — architecture, cadence map, invocation, archive layout, failure modes, smoke tests. |
+| [in_coverage_plan.md](in_coverage_plan.md) | Full scoping doc: wiring-map × vendor matrix, per-cell candidate datasets, A→O phase plan. |
+| [india_govt_doc_sources.md](india_govt_doc_sources.md) | Policy/fiscal document source inventory (237 PDFs / 250 MB harvested; Track B pending). |
+| [in_nri_rates_sourcing.md](in_nri_rates_sourcing.md) | NRI / FCNR(B) / NRE / NRO deposit rate sourcing notes. |
+| [`_playground/rbi.md`](_playground/rbi.md) | RBI DBIE Playwright probes (XHR capture, payload inspection, SPA click-through). |
+| [`_playground/rbi_explore.md`](_playground/rbi_explore.md) | Captured screenshots + HTML snapshots from probe runs. |
 
 ## Loading status
 
-**Prod-live in `econ.fact_indicator`:** BIS · FRED · RBI DBIE (26 indicators × 39,569 obs from prior sessions).
+**Prod-live in `econ.fact_indicator` (2026-06-19):** 15 prod fetchers promoted from `playground/econ/in/` to `scripts/econ/in/{vendor}/` (clean absolute imports; libs already in `src/imdr/domains/econ/{mospi,upag}.py`). Two cadence-split orchestrators created using `scripts.econ._country_runner.run`:
 
-**Pre-prod playground** (built + smoke-tested 2026-06-11 from `playground/econ/in/{vendor}/`, awaiting cadence sign-off + prod promotion): **13 fetchers / ~1,081 indicators / ~62,414 obs** across MOSPI CPI/IIP/NAS · DPIIT WPI/8-Core · CGA monthly · IMD rainfall · FAO FPI · DGCIS trade (A13) · UPAg MSP (A31) · UPAg AIAPY (A26) · UPAg IMC mandi prices (A33) · **RBI Bulletin (A4, 11 tables incl. BoP T40 with 151 Credit/Debit/Net indicators)**. Library helpers at [`src/imdr/domains/econ/mospi.py`](../../../src/imdr/domains/econ/mospi.py) (MOSPI listing API) and [`src/imdr/domains/econ/upag.py`](../../../src/imdr/domains/econ/upag.py) (Plotly Dash callback decoder). Orchestrator scaffold at [`playground/econ/in/in_monthly.py`](../../../playground/econ/in/in_monthly.py).
-
-A subset (197 indicators × 15,081 obs) was loaded into the DB during an earlier 2026-06-11 build session as part of `run_main` default behaviour; that code was pulled back to `playground/` pending cadence + sign-off review. Rows stay in place (idempotent MERGE on PK) so re-runs cost nothing. The newer fetchers built later in the session (DGCIS, UPAg MSP/AIAPY, RBI Bulletin) ran `--no-load` only — no DB rows from those.
-
-### Cadence map (release calendar — drives prod scheduler choice)
-
-| Vendor / fetcher | Cadence | Release window | Suggested scheduler |
+| Orchestrator | Scheduler | frequency_scope | Fetchers |
 |---|---|---|---|
-| MOSPI CPI ([`mospi_cpi.py`](../../../playground/econ/in/mospi/mospi_cpi.py)) | MONTHLY | ~12th of month for prior-month obs | `imdr_monthly.py` (13th UTC retry) |
-| MOSPI IIP ([`mospi_iip.py`](../../../playground/econ/in/mospi/mospi_iip.py)) | MONTHLY | ~12th of month for M-2 obs | `imdr_monthly.py` |
-| MOSPI NAS GDP ([`mospi_nas_gdp.py`](../../../playground/econ/in/mospi/mospi_nas_gdp.py)) | QUARTERLY + ANNUAL | Q4 ~May 30 · Q1 ~Aug 30 · Q2 ~Nov 30 · Q3 ~Feb 28 | `imdr_quarterly.py` (or monthly idempotent) |
-| DPIIT WPI ([`dpiit_wpi.py`](../../../playground/econ/in/dpiit/dpiit_wpi.py)) | MONTHLY | ~14th of month for prior-month obs | `imdr_monthly.py` |
-| DPIIT 8-Core ([`dpiit_core_industries.py`](../../../playground/econ/in/dpiit/dpiit_core_industries.py)) | MONTHLY | ~last-working-day for M-2 obs | `imdr_monthly.py` |
-| CGA fiscal ([`cga_monthly.py`](../../../playground/econ/in/cga/cga_monthly.py)) | MONTHLY | ~last working day for M-1 obs | `imdr_monthly.py` |
-| IMD rainfall ([`imd_rainfall.py`](../../../playground/econ/in/imd/imd_rainfall.py)) | DAILY (monsoon Jun-Sep), snapshot otherwise | Refreshed daily on the IMD portal | `imdr_daily.py` during monsoon |
-| FAO FPI ([`fao_fpi.py`](../../../playground/econ/in/fao/fao_fpi.py)) | MONTHLY | ~first Friday of month | `imdr_monthly.py` |
-| DGCIS trade ([`dgcis_trade.py`](../../../playground/econ/in/dgcis/dgcis_trade.py)) | MONTHLY | ~15-day lag for prior-month | `imdr_monthly.py` (290 POSTs ≈ 10 min first run; later runs can re-fetch latest ~6 mo only) |
-| UPAg MSP ([`upag_msp.py`](../../../playground/econ/in/upag/upag_msp.py)) | ANNUAL | Kharif (Jun) + Rabi (Oct) announcement events | `imdr_quarterly.py` (or monthly idempotent) |
-| UPAg AIAPY ([`upag_aiapy.py`](../../../playground/econ/in/upag/upag_aiapy.py)) | ANNUAL | Final Estimate ~3yr lag, Third Advance ~1yr lag | `imdr_quarterly.py` (or monthly idempotent) |
-| UPAg IMC mandi prices ([`upag_imc.py`](../../../playground/econ/in/upag/upag_imc.py)) | WEEKLY | Daily on Agmarknet portal | `imdr_weekly.py` or `imdr_monthly.py` (8-anchor sliding snapshots) |
-| RBI Bulletin ([`rbi_bulletin.py`](../../../playground/econ/in/rbi/rbi_bulletin.py)) | MONTHLY | Bulletin publishes mid-month | `imdr_monthly.py` — **requires headed Chrome (TSPD)**, can't run on a server without display |
+| `scripts/econ/in/in_daily.py` | `scripts/imdr_daily.py:PIPELINES` | `["DAILY"]` | IMD rainfall (`imd.imd_rainfall`) |
+| `scripts/econ/in/in_monthly.py` | `scripts/imdr_monthly.py:PIPELINES` | `["MONTHLY","WEEKLY","DAILY","QUARTERLY","ANNUAL"]` | bis_india · fao_fpi · rbi_fx_reserves · rbi_key_rates · mospi_cpi · mospi_iip · **mospi_nas_gdp** · dpiit_wpi · dpiit_core_industries · cga_monthly · dgcis_trade · upag_imc · **upag_msp** · **upag_aiapy** · **rbi_bulletin (last, headed Chrome)** |
 
-Two cadence-honest options for prod wiring:
-1. **Single monthly trigger** (Indonesia/Korea pattern) — all 12 fetchers + RBI go into `imdr_monthly.py` since fetchers are MERGE-idempotent; daily IMD just gets ≤30 stale-day re-runs per month. Simplest, validated elsewhere.
-2. **Cadence-split** — IMD into `imdr_daily.py` (correct freshness), MSP + NAS GDP + AIAPY into `imdr_quarterly.py`, rest into `imdr_monthly.py`. Better for the rainfall-driven CPI-food narrative if daily rainfall freshness matters.
+Both wired 2026-06-19. The three quarterly/annual fetchers (`mospi_nas_gdp`, `upag_msp`, `upag_aiapy`) were originally in a separate `in_quarterly.py` but were folded into `in_monthly.py` on 2026-06-19; fetchers are idempotent (MERGE on PK) so running quarterly/annual data monthly is harmless. `scripts/imdr_quarterly.py` has no India entry. Code passed the §G.6 code-review gate (zero playground imports, no sys.path hacks, `country_code="IN"` everywhere).
+
+**FCNR/NRI thread is LIVE**: RBI Bulletin T34 NRI Deposits (FCNR(B)/NR(E)RA/NRO × outstanding+flow, 8 indicators) is in `econ.fact_indicator`.
+
+**Migration 103** (`migrations/103_seed_upag_vendor.sql`) seeded the `upag` vendor in `dbo.dim_vendor`. Migration 089 had omitted it — that was the blocker that prevented all three UPAg fetchers (IMC / MSP / AIAPY) from loading. All three are now loaded.
+
+**rbi_bulletin.py requires headed Chrome** (TSPD anti-bot) — the monthly orchestrator must run on a host with a display; cannot run headless on a server. Chrome profile + XLSX cache live at `data/econ/in/rbi/_profile` and `_downloads` (gitignored via `data/*`). See [india_prod_pipeline.md](india_prod_pipeline.md) for the full constraint + failure-mode guidance.
+
+### Cadence map (prod — wired 2026-06-19)
+
+| Fetcher (prod path) | Cadence | Release window | Orchestrator |
+|---|---|---|---|
+| `scripts.econ.in.imd.imd_rainfall` | DAILY (monsoon Jun-Sep), snapshot otherwise | Refreshed daily on the IMD portal | `in_daily.py` → `imdr_daily.py` |
+| `scripts.econ.in.bis.bis_india` | DAILY/MONTHLY/QUARTERLY | Continuous (BIS SDMX) | `in_monthly.py` → `imdr_monthly.py` |
+| `scripts.econ.in.fao.fao_fpi` | MONTHLY | ~first Friday of month | `in_monthly.py` → `imdr_monthly.py` |
+| `scripts.econ.in.rbi.rbi_fx_reserves` | WEEKLY | Continuous (DBIE) | `in_monthly.py` → `imdr_monthly.py` |
+| `scripts.econ.in.rbi.rbi_key_rates` | EVENT | Per RBI MPC decision | `in_monthly.py` → `imdr_monthly.py` |
+| `scripts.econ.in.mospi.mospi_cpi` | MONTHLY | ~12th for prior-month obs | `in_monthly.py` → `imdr_monthly.py` |
+| `scripts.econ.in.mospi.mospi_iip` | MONTHLY | ~12th for M-2 obs | `in_monthly.py` → `imdr_monthly.py` |
+| `scripts.econ.in.dpiit.dpiit_wpi` | MONTHLY | ~14th for prior-month obs | `in_monthly.py` → `imdr_monthly.py` |
+| `scripts.econ.in.dpiit.dpiit_core_industries` | MONTHLY | ~last working day for M-2 obs | `in_monthly.py` → `imdr_monthly.py` |
+| `scripts.econ.in.cga.cga_monthly` | MONTHLY | ~last working day for M-1 obs | `in_monthly.py` → `imdr_monthly.py` |
+| `scripts.econ.in.dgcis.dgcis_trade` | MONTHLY | ~15-day lag; 290 POSTs ≈ 10 min first run | `in_monthly.py` → `imdr_monthly.py` |
+| `scripts.econ.in.upag.upag_imc` | WEEKLY | Daily on Agmarknet portal (8-anchor snapshots) | `in_monthly.py` → `imdr_monthly.py` |
+| `scripts.econ.in.rbi.rbi_bulletin` | MONTHLY | Bulletin publishes mid-month — **headed Chrome required** | `in_monthly.py` → `imdr_monthly.py` (runs last) |
+| `scripts.econ.in.mospi.mospi_nas_gdp` | QUARTERLY + ANNUAL | Q4~May30 · Q1~Aug30 · Q2~Nov30 · Q3~Feb28 | `in_monthly.py` → `imdr_monthly.py` |
+| `scripts.econ.in.upag.upag_msp` | ANNUAL | Kharif (Jun) + Rabi (Oct) announcement events | `in_monthly.py` → `imdr_monthly.py` |
+| `scripts.econ.in.upag.upag_aiapy` | ANNUAL | Final Estimate ~3yr lag, Third Advance ~1yr lag | `in_monthly.py` → `imdr_monthly.py` |
 
 ### Coverage map snapshot (vendor × frequency)
 
@@ -69,14 +84,15 @@ Two cadence-honest options for prod wiring:
 | **UPAg** | ANNUAL (MSP A31) | 28 | 353 | 2013-14 → 2026-27 (28 crops × INR/Qtl) |
 | **UPAg** | ANNUAL (AIAPY A26) | 324 | 15,030 | **1966-67 → 2025-26** (37 crops × 4 seasons × Area/Production/Yield) |
 | **UPAg** | WEEKLY (IMC mandi A33) | 16 | 128 | 4 sections × 3-5 commodities × 8 anchor dates per run (Agmarknet wholesale, INR/Qtl) |
-| **RBI Bulletin** | MONTHLY/DAILY/WEEKLY/QUARTERLY (11 tables) | 317 | 847 | May 2026 snapshot — T19C CPI / T27 Call Money / T23 IIP / T6 Money Stock / T11 Reserve Money / T37 NEER-REER / T22 WPI / T2 RBI BS / **T33 FX Reserves** / **T32 Foreign Trade** / **T40 BoP (151 ind: Credit/Debit/Net × 2 quarters)** |
-| **Pre-prod subtotal** | | **~1,081** | **~62,414** | |
+| **RBI Bulletin** | MONTHLY/DAILY/WEEKLY/QUARTERLY (23 tables) | ~478 | ~1,188 | May 2026 snapshot (DB-verified 2026-06-19) — original 11 tables + **12 new (2026-06-18)**: T34 NRI Deposits (FCNR(B)/NR(E)RA/NRO Outstanding+Flow 8 ind/24 obs) · T35 Foreign Investment (19/120) · T36 LRS Remittances (11/33) · T30 FX Market Turnover (15/42) · T25 T-bill Ownership by tenor (15/45) · T38 ECB Registrations (33/96) · T5 RBI Standing Facilities (8/15) · T28 CDs (4/8 incl range) · T29 CP (4/8 incl range) · T3 LAF Daily (8/78) · T44 IIP Assets/Liab (27/108) · **T26 T-bill Auctions yield** (9/42). URL-discovery refactored: no more hard-coded monthly-hash URLs; scrapes `BS_ViewBulletin.aspx` at run start. |
+| **New fetchers subtotal** | | **~1,216** | **~60,241** | |
 | BIS | DAILY + MONTHLY + QUARTERLY | 6 | 24,957 | 1946 → 2026 |
 | FRED | DAILY + MONTHLY + ANNUAL | 7 | 11,589 | 1990 → 2026 |
 | RBI DBIE | WEEKLY + EVENT | 13 | 3,023 | 2015 → 2026 |
-| **Prod subtotal** | | **26** | **39,569** | |
+| **Pre-existing prod subtotal** | | **26** | **39,569** | |
+| **GRAND TOTAL (DB-verified 2026-06-19)** | | **~1,242** | **~99,810** | |
 
-Wiring-map §7.12 coverage if all 12 pre-prod fetchers land in prod: **5 ✅ + 7 ⚠ + 4 ❌** (was 1 ✅ / 4 ⚠ / 11 ❌ pre-session). New ✅ cells closed this session: 1.4 Macro Core (IIP + 8-Core + NAS GDP + Bulletin IIP); 2.2 Producer Prices (WPI); 2.4 CPI Pressure (MOSPI + Bulletin T19C + FAO); 3.3 Capital Acc (DBIE FX Reserves — was already ✅); 4.4 Policy Reaction (DBIE Key Rates + BIS + Bulletin Money Stock + Reserve Money); **Cluster 4 agriculture broadly covered** via UPAg MSP (input price) + UPAg AIAPY (output area/production/yield, 60 FYs). Remaining ❌: 2.3 Domestic Costs (wages — Labour Bureau corp-firewall blocked); 3.1 Terms of Trade (derivable); 3.2 Current Account (needs A6 DBIE SAP-BO iframe); 4.1 Demand Transmission (needs A7 DBIE Sectoral Deployment).
+Wiring-map §7.12 coverage (prod-live 2026-06-19): **8 ✅ + 6 ⚠ + 2 ❌** (was 1 ✅ / 4 ⚠ / 11 ❌ pre-session). ✅ cells: 1.3 External Demand (DGCIS + Bulletin T32) · 1.4 Macro Core (IIP + 8-Core + NAS GDP + Bulletin T23) · 2.2 Producer Prices (WPI + Bulletin T22) · 2.4 CPI Pressure (MOSPI CPI + Bulletin T19C + FAO FPI) · 3.2 Current Acc (Bulletin T40 BoP — eliminated the A5-A7 SAP-BO iframe requirement) · 3.3 Capital Acc (DBIE FX Reserves + Bulletin T33 + T34 NRI Deposits) · 3.4 FX/REER (BIS NEER+REER + Bulletin T37) · 4.4 Policy Reaction (DBIE Key Rates + BIS CBPOL + Bulletin T6/T11). Remaining ❌: 2.3 Domestic Costs (wages — Labour Bureau corp-firewall blocked) · 4.1 Demand Transmission (needs A7 DBIE Sectoral Deployment).
 
 ## Policy & fiscal document sources
 
@@ -95,6 +111,8 @@ Sample resolution PDF for parser prototyping: `rbi.org.in/commonman/Upload/Engli
 
 ## Related
 
-- [`../macro_economy_wiring_map.md`](../macro_economy_wiring_map.md) — IN coverage state.
+- [`india_prod_pipeline.md`](india_prod_pipeline.md) — **production ops reference** (architecture, cadence, failure modes, smoke tests).
+- [`../macro_economy_wiring_map.md`](../macro_economy_wiring_map.md) — IN coverage state (§7.12).
 - [`../onboarding_new_country.md`](../onboarding_new_country.md) — onboarding playbook.
-- [`../economics_data_ingest.md`](../economics_data_ingest.md) §sources — RBI CIMS family vendor entry.
+- [`../economics_data_ingest.md`](../economics_data_ingest.md) §2.5 — India / RBI deep dive + source catalogue.
+- [`../econ_to_prod.md`](../econ_to_prod.md) — prod-promotion playbook (Track A Phase G).
