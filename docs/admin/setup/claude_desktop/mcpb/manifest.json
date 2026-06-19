@@ -10,7 +10,8 @@
       "${__dirname}/server/server.py"
     ],
     "env": {
-      "IMDR_MSSQL_HOST": "<DB_HOST>",
+      "IMDR_MSSQL_HOST": "rv-database-1.ctym72ljvrjq.ap-southeast-1.rds.amazonaws.com",
+      "IMDR_MSSQL_PORT": "1433",
       "IMDR_MSSQL_DATABASE": "IMDR"
     }
   },
