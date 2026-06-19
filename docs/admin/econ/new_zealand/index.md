@@ -1,23 +1,34 @@
 # New Zealand — Econ Documentation
 
-Last updated: 2026-06-05
+Last updated: 2026-06-19
 
-NZ macroeconomic data. **Status: pre-prod.** Two vendors discovered, neither loaded.
+NZ macroeconomic data. **Status: Stats NZ Track A PROD-LIVE 2026-06-18 — 1,063 indicators × 154,731 obs in `econ.fact_indicator` (1914→2026), 9 of 16 cells.** 13 prod fetchers under `scripts/econ/nz/statsnz/` + orchestrator `scripts/econ/nz/nz_monthly.py`, **wired into `scripts/imdr_monthly.py:PIPELINES` 2026-06-18** (runs on the weekly Windows-task cadence). Two access paths: release-page CSV (CPI/GDP/BoP) + **Infoshare** Playwright (PPI/CGPI/OTI/HLPI/LCI/QES/ECT/OMT/RTS/HLFS). Track B (RBNZ CB events) planned — Cloudflare-gated, see prod-pipeline doc. See [`new_zealand_prod_pipeline.md`](new_zealand_prod_pipeline.md) for prod; [`new_zealand_indicator_inventory.md`](new_zealand_indicator_inventory.md) for the 4×4 tracker.
 
-- **RBNZ (Reserve Bank of New Zealand)** — XLSX/CSV statistical tables. JS challenge — Playwright required.
-- **Stats NZ** — multi-interface (REST API, bulk CSV, legacy Infoshare). API-based discovery validated.
+- **RBNZ (Reserve Bank of New Zealand)** — 78 XLSX statistical tables (B/C/D/E/F/H/J/L/M/R/S/T series). Akamai-gated — Playwright required. 7,000 req/day cap. Owns cells 3.3 (foreign holdings), 3.4 (FX/TWI/reserves), 4.1-4.4 (monetary/financial).
+- **Stats NZ** — three live interfaces: ADE SDMX API (`api.data.stats.govt.nz`, subscription key required), Infoshare (deep history, stateful ASP.NET — Playwright + `.sch` Export Direct), release pages (latest snapshot only, JS-rendered). Owns cells 1.1, 1.3, 1.4 (real-econ + labour), 2.1-2.4, 3.1, 3.2, 3.3 (flow side).
+- **NZDMO** — sovereign debt manager (`debtmanagement.treasury.govt.nz`). AOFM-analogue but narrower — owns issuance/outstanding/tender results (cell 1.2 debt-stock); does NOT publish foreign holdings (that's RBNZ D30).
+- **NZ Treasury** — Fiscal Time Series XLSX 1972→, monthly FSGNZ, BEFU/HYEFU semi-annual XLSX. Owns cell 1.2 revenue/expenditure + 1.4 forecasts.
+- **BIS** — full NZ coverage on WS_EER / WS_CBPOL / WS_DSR / WS_CREDIT_GAP / WS_TC. Reuses `_bis_sdmx.py` helper.
+- **FRED OECD mirror** — Tier-2 fallback; ~14 NZ-tagged series; existing ⚠ partial coverage in cells 1.4, 2.4, 4.4.
 
-Per [[feedback-js-rendered-dont-bail]], Stats NZ release pages render data via JS — one Playwright pass with `networkidle` + 2s settle yields 6 download URLs.
+Per [[feedback-js-rendered-dont-bail]], every `www.stats.govt.nz` and `www.rbnz.govt.nz/-/media/...` URL is JS-rendered or Akamai-gated — Playwright with `networkidle` + 2s settle on each. Per [[feedback-no-anti-detection-research]] + [[feedback-slow-down]], no stealth plugins, no aggressive parallelism.
 
 ## Access paths
 
 | Path | Auth | Speed | Coverage | Status |
 |---|---|---|---|---|
-| **RBNZ statistics** | None | Slow (Playwright) | Rates / FX / monetary aggregates / banking | **Discovery only** |
-| **Stats NZ — Price indexes** — `stats.govt.nz/topics/price-indexes/` | None | Fast | CPI (Q + monthly from early 2027), SPI, HLPI, PPI, CGPI, FEPI, labour cost index, overseas trade indexes | **Discovery only** |
-| **Stats NZ Infoshare / bulk CSV** | None | Fast | Long-run CSV time series across all topics | **Discovery only** |
-| **data.govt.nz / MBIE** | None | Mixed | Selected employment, fuel/oil/gas/energy, reserves, and MRTE datasets | **Discovery only** |
-| **FRED OECD mirror** | FRED API key | Fast | Headline NZ series via OECD | Live (partial) |
+| **RBNZ data-file-index** — `rbnz.govt.nz/statistics/series/data-file-index-page` | None (Akamai gate) | Slow (Playwright persistent context) | 78 XLSX tables — rates / FX / monetary aggregates / banking / sector lending | **Discovery resolved — 0 loaded** |
+| **Stats NZ ADE SDMX API** — `api.data.stats.govt.nz/rest/...` | `Ocp-Apim-Subscription-Key` header | Fast | Recent & heavily-used dataflows (CPI / GDP / HLFS / BoP likely migrated; full scope confirmed post-signup) | **Discovery resolved — 0 loaded** |
+| **Stats NZ Infoshare Export Direct** — `infoshare.stats.govt.nz/infoshare/exportdirect.aspx` | None | Slow (Playwright + `.sch` upload) | All historical series (CPI back to 1949, PPI to 1977, OTI to 1957) | **Discovery resolved — 0 loaded** |
+| **Stats NZ release-page CSV** — `stats.govt.nz/information-releases/...` | None | Slow (Playwright) | Latest period only — already what existing `fetch.py` does | **1 CPI parquet sample on disk** |
+| **NZDMO data hub** — `debtmanagement.treasury.govt.nz/investor-resources/data` | None | Fast (direct XLSX) | Nominal bonds + T-bills + IIB tender + issuance history + repurchases | **Discovery resolved — 0 loaded** |
+| **NZ Treasury** — `treasury.govt.nz/publications/...` + `budget.govt.nz/budget/{YYYY}/data-library.htm` | None | Fast | Fiscal Time Series 1972→, FSGNZ monthly, BEFU/HYEFU XLSX | **Discovery resolved — 0 loaded** |
+| **BIS SDMX-JSON** — `stats.bis.org/api/v2/data/...` | None | Fast | WS_EER + WS_CBPOL + WS_DSR + WS_CREDIT_GAP + WS_TC | **Discovery resolved — 0 loaded** |
+| **FRED OECD mirror** | FRED API key | Fast | Headline NZ series via OECD | Live (partial — 4 cells ⚠) |
+
+## Indicator inventory + phase plan
+
+- [`new_zealand_indicator_inventory.md`](new_zealand_indicator_inventory.md) — **canonical** 4×4 tracker + vendor cascade per cell + Phase 2-9 build plan (gated).
 
 ## Pre-prod
 
@@ -26,7 +37,7 @@ Per [[feedback-js-rendered-dont-bail]], Stats NZ release pages render data via J
 
 ## Loading status
 
-Per [[project-econ-loaded]]: "Stats NZ (301/1622)" — 301 indicators discovered, 1622 cells of metadata captured, **0 loaded** to `econ.fact_indicator`. Parquet exists at `playground/econ/statsnz/sample_output/`. One `--vendor statsnz` away once parquet schema matches `schema_prototype.py`.
+Per [[project-econ-loaded]]: still **0 indicators in `econ.fact_indicator`** (DB load gated). 13 Stats NZ playground fetchers (~1,000 indicators) smoke-verified to parquet under `playground/econ/statsnz/`. Two live access paths: release-page CSV (`_statsnz_common.py`) for CPI/GDP/BoP, and **Infoshare via Playwright** (`_infoshare.py`) for everything else — the Infoshare Export-Direct `.sch` path was NOT needed; the browse-tree → select-all → CSV mechanism works (see [[reference-statsnz-infoshare-recipe]]).
 
 ## Policy & fiscal document sources
 
