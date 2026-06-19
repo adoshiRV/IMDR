@@ -45,7 +45,6 @@ class Settings(BaseSettings):
     # false via IMDR_RESEARCH_DROP_SINGLE_NAME_EQUITY=false in the
     # shell or .env for a one-off backfill that should pull single-name.
     research_drop_single_name_equity: bool = True
-
     # Inter-report pacing for research ingest. A random sleep in
     # [min, max] seconds is inserted before every ingest_one() call so
     # successive PDF downloads from the same vendor session look more
@@ -139,6 +138,11 @@ class Settings(BaseSettings):
     email_enabled: bool = False
     email_to: str = ""
     email_anomaly_to: str = ""
+    # Macro release alerter (TE calendar 15-min digest). Falls back to email_to
+    # when unset. Requires email_enabled AND te_alert_enabled.
+    email_macro_to: str = ""
+    te_alert_enabled: bool = False
+    te_alert_importance_threshold: float = 66.0
 
     # Teams (Workflows webhook — "Post to a channel when a webhook request is received")
     teams_polymarket_webhook: str = ""

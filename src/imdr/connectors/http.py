@@ -17,14 +17,24 @@ _SENSITIVE_PARAM_KEYS = frozenset({
 })
 
 
-def _redact_params(params: dict[str, Any] | None) -> dict[str, Any] | None:
-    """Return a copy of params with sensitive values masked for logging."""
+def _redact_params(params: Any) -> Any:
+    """Return a copy of params with sensitive values masked for logging.
+
+    httpx accepts params as a dict OR as a sequence of (key, value) tuples
+    (used for repeated keys, e.g. multiple ``slug`` values). Handle both so
+    logging never crashes on a non-dict params shape.
+    """
     if not params:
         return params
-    return {
-        k: ("***REDACTED***" if k.lower() in _SENSITIVE_PARAM_KEYS else v)
-        for k, v in params.items()
-    }
+
+    def _mask(key: Any, value: Any) -> Any:
+        return "***REDACTED***" if str(key).lower() in _SENSITIVE_PARAM_KEYS else value
+
+    if isinstance(params, dict):
+        return {k: _mask(k, v) for k, v in params.items()}
+    if isinstance(params, (list, tuple)):
+        return [(k, _mask(k, v)) for k, v in params]
+    return params
 
 
 class HTTPClient:
