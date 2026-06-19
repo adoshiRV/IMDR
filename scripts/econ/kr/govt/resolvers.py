@@ -201,17 +201,27 @@ def resolve(item: FilingItem) -> ResolveResult:
 
 
 if __name__ == "__main__":
-    # Smoke test — pick one item from the latest snapshot per vendor and resolve.
+    # Smoke test — pick the latest per-vendor snapshot and resolve its
+    # first item. Per-vendor snapshot layout: data/econ/kr/govt/{vendor}/
+    # snapshots/{YYYY-MM-DD}.json.
     import io as _io
     import json as _json
     sys.stdout = _io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-    snap_dir = Path(__file__).parent / "data" / "snapshots"
-    snaps = sorted(snap_dir.glob("*.json"))
-    if not snaps:
+    from _models import DATA_DIR as _DATA_DIR, vendor_snapshots_dir  # noqa: PLC0415
+
+    if not _DATA_DIR.exists():
         print("no snapshot — run ingest_filings.py first")
         sys.exit(1)
-    payload = _json.loads(snaps[-1].read_text(encoding="utf-8"))
-    for vendor, items in payload.get("vendors", {}).items():
+    n_resolved = 0
+    for sub in sorted(_DATA_DIR.iterdir()):
+        if not sub.is_dir():
+            continue
+        vendor = sub.name
+        snaps = sorted(vendor_snapshots_dir(vendor).glob("*.json"))
+        if not snaps:
+            continue
+        payload = _json.loads(snaps[-1].read_text(encoding="utf-8"))
+        items = payload.get("items", [])
         if not items:
             continue
         item = FilingItem.from_json(items[0])
@@ -222,3 +232,7 @@ if __name__ == "__main__":
             print(f"  {vendor:6}  kind={kind}  size={size}  preview={preview!r}")
         except Exception as exc:  # noqa: BLE001
             print(f"  {vendor:6}  ERR  {type(exc).__name__}: {str(exc)[:160]}")
+        n_resolved += 1
+    if n_resolved == 0:
+        print("no snapshot — run ingest_filings.py first")
+        sys.exit(1)

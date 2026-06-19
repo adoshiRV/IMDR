@@ -21,12 +21,16 @@ Direct usage:
     python -m scripts.econ.kr.govt.ingest_filings --ingest --limit 3
                                                                # ingest at most N new items (smoke)
 
-Runtime state (per-machine, NOT committed):
-    data/snapshots/{YYYY-MM-DD}.json   — new items discovered that day
-    data/seen.json                     — rolling source_url set (dedup)
-    data/_last_run.log                 — most recent run output
+Runtime state (per-machine, gitignored under the repo's ``data/*`` rule):
+    data/econ/kr/govt/_last_run.log            — orchestrator stdout
+    data/econ/kr/govt/{vendor}/seen.json       — per-agency rolling dedup
+    data/econ/kr/govt/{vendor}/snapshots/
+        {YYYY-MM-DD}.json                       — per-agency daily manifest
 
-The seen.json is only updated for items that successfully resolved +
+State is partitioned per agency (one folder per vendor_code: bok, moef,
+motir, fsc, fss, kcs, kdi, mods) — same shape as the per-vendor
+SharePoint mirror and the broader ``data/econ/{vendor}/`` repo convention.
+``seen.json`` is updated only for items that successfully resolved +
 ingested, so transient failures are retryable on the next run.
 """
 from __future__ import annotations
@@ -40,12 +44,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from _models import (  # noqa: E402
-    SEEN_FILE,
+    DATA_DIR,
     FetchResult,
     FilingItem,
     dedup_key,
     load_seen,
     save_seen,
+    vendor_dir,
+    vendor_seen_file,
+    vendor_snapshots_dir,
 )
 
 import fetch_bok       # noqa: E402
@@ -56,8 +63,8 @@ import fetch_kdi       # noqa: E402
 import fetch_moef      # noqa: E402
 import fetch_motir     # noqa: E402
 
-DATA_DIR = Path(__file__).parent / "data"
-SNAPSHOTS_DIR = DATA_DIR / "snapshots"
+# Runtime state lives under data/econ/kr/govt/{vendor}/ — see ``_models.py``.
+# Only the orchestrator log is cross-vendor and stays at the parent level.
 LAST_RUN_LOG = DATA_DIR / "_last_run.log"
 
 # Fetcher order: lowest-complexity first (RSS) so a failed BoK/FSC doesn't
@@ -262,11 +269,19 @@ def main(argv: list[str] | None = None) -> int:
     log: list[str] = []
     _print_and_log(f"=== Korea govt filings daily pull — {run_id} ===", log)
 
-    if args.reset and SEEN_FILE.exists() and not args.dry_run:
-        SEEN_FILE.unlink()
-        _print_and_log("  [reset] seen.json wiped", log)
+    if args.reset and not args.dry_run:
+        # Wipe every per-vendor seen.json so the next run re-discovers
+        # everything as if first ingest.
+        n_wiped = 0
+        if DATA_DIR.exists():
+            for sub in DATA_DIR.iterdir():
+                f = sub / "seen.json" if sub.is_dir() else None
+                if f and f.exists():
+                    f.unlink()
+                    n_wiped += 1
+        _print_and_log(f"  [reset] wiped {n_wiped} per-vendor seen.json file(s)", log)
     seen = load_seen()
-    _print_and_log(f"  seen.json: {len(seen)} known items pre-run", log)
+    _print_and_log(f"  seen.json: {len(seen)} known items pre-run (aggregated across vendors)", log)
 
     results: list[FetchResult] = []
     new_items_by_vendor: dict[str, list[FilingItem]] = {}
@@ -308,38 +323,45 @@ def main(argv: list[str] | None = None) -> int:
         )
         total_new = sum(len(v) for v in new_items_by_vendor.values())
 
-    # Persist
+    # Persist — one snapshot file per vendor (mirrors the per-vendor
+    # SharePoint layout). Each file contains just that vendor's new
+    # items discovered/ingested on the given day.
     if not args.dry_run and total_new > 0:
-        SNAPSHOTS_DIR.mkdir(parents=True, exist_ok=True)
-        snapshot_path = SNAPSHOTS_DIR / f"{date.today().isoformat()}.json"
-        payload = {
-            "run_at": datetime.now().isoformat(timespec="seconds"),
-            "vendors": {
-                v: [it.to_json() for it in new_items_by_vendor[v]]
-                for v in new_items_by_vendor
-                if new_items_by_vendor[v]
-            },
-        }
-        # If the same date file exists (multiple runs same day), merge by dedup key
-        if snapshot_path.exists():
-            existing = json.loads(snapshot_path.read_text(encoding="utf-8"))
-            existing_keys = {
-                f"{vendor}|{i['source_url']}"
-                for vendor, items in existing.get("vendors", {}).items()
-                for i in items
+        run_at = datetime.now().isoformat(timespec="seconds")
+        today_iso = date.today().isoformat()
+        snapshot_paths: list[str] = []
+        for vendor, items in new_items_by_vendor.items():
+            if not items:
+                continue
+            v_snap_dir = vendor_snapshots_dir(vendor)
+            v_snap_dir.mkdir(parents=True, exist_ok=True)
+            snapshot_path = v_snap_dir / f"{today_iso}.json"
+            payload = {
+                "vendor": vendor,
+                "run_at": run_at,
+                "items": [it.to_json() for it in items],
             }
-            for vendor, items in payload["vendors"].items():
-                merged = existing.get("vendors", {}).get(vendor, [])
-                for it in items:
-                    if f"{vendor}|{it['source_url']}" not in existing_keys:
+            # Multiple runs same day: merge on source_url
+            if snapshot_path.exists():
+                existing = json.loads(snapshot_path.read_text(encoding="utf-8"))
+                existing_urls = {i["source_url"] for i in existing.get("items", [])}
+                merged = list(existing.get("items", []))
+                for it in payload["items"]:
+                    if it["source_url"] not in existing_urls:
                         merged.append(it)
-                existing.setdefault("vendors", {})[vendor] = merged
-            existing["run_at"] = payload["run_at"]
-            payload = existing
-        snapshot_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-        _print_and_log(f"  snapshot: {snapshot_path}", log)
+                existing["items"] = merged
+                existing["run_at"] = run_at
+                payload = existing
+            snapshot_path.write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            snapshot_paths.append(str(snapshot_path))
+        if snapshot_paths:
+            _print_and_log(f"  wrote {len(snapshot_paths)} per-vendor snapshot(s) under data/econ/kr/govt/{{vendor}}/snapshots/", log)
 
-        # Update rolling seen.json
+        # Update rolling per-vendor seen.json (handled inside save_seen by
+        # partitioning the flat set on the "{vendor}|" prefix).
         for items in new_items_by_vendor.values():
             for it in items:
                 seen.add(dedup_key(it))

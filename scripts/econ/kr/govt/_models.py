@@ -57,25 +57,75 @@ class FetchResult:
     note: str = ""    # human-readable extra context for the daily report
 
 
-# Rolling seen.json — content-hash-keyed dedup across daily runs.
-# The orchestrator compares fetched items against this set and writes
-# only the unseen ones to the daily snapshot.
-SEEN_FILE = Path(__file__).parent / "data" / "seen.json"
+# Runtime state lives under the canonical ``data/`` tree, NOT alongside
+# the source code. State is partitioned per-agency so each vendor maps
+# to one folder — same shape as the per-vendor SharePoint mirror
+# (econ/kr/{vendor}/) and the existing data/econ/{vendor}/ convention
+# (kosis, reb, bi, bps, ...). Created on first run; gitignored via the
+# top-level ``data/*`` rule.
+#
+#   data/econ/kr/govt/
+#     _last_run.log                — orchestrator stdout (cross-vendor)
+#     {vendor}/
+#       seen.json                  — rolling source_url dedup
+#       snapshots/{YYYY-MM-DD}.json — per-day new-items manifest
+#
+# load_seen() / save_seen() keep a flat-set API (one big set keyed by
+# dedup_key = "{vendor}|{source_url}") so the orchestrator doesn't care
+# about partitioning. The on-disk split happens at IO time.
+_REPO_ROOT = Path(__file__).resolve().parents[4]
+DATA_DIR = _REPO_ROOT / "data" / "econ" / "kr" / "govt"
+
+
+def vendor_dir(vendor_code: str) -> Path:
+    """Per-vendor runtime-state directory."""
+    return DATA_DIR / vendor_code
+
+
+def vendor_seen_file(vendor_code: str) -> Path:
+    return vendor_dir(vendor_code) / "seen.json"
+
+
+def vendor_snapshots_dir(vendor_code: str) -> Path:
+    return vendor_dir(vendor_code) / "snapshots"
 
 
 def load_seen() -> set[str]:
-    if not SEEN_FILE.exists():
-        return set()
-    data = json.loads(SEEN_FILE.read_text(encoding="utf-8"))
-    return set(data.get("seen", []))
+    """Load every per-vendor seen.json into one flat set of dedup_keys."""
+    out: set[str] = set()
+    if not DATA_DIR.exists():
+        return out
+    for sub in sorted(DATA_DIR.iterdir()):
+        if not sub.is_dir():
+            continue
+        f = sub / "seen.json"
+        if not f.exists():
+            continue
+        try:
+            payload = json.loads(f.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            continue
+        vendor = sub.name
+        for url in payload.get("seen", []):
+            out.add(f"{vendor}|{url}")
+    return out
 
 
 def save_seen(seen: set[str]) -> None:
-    SEEN_FILE.parent.mkdir(parents=True, exist_ok=True)
-    SEEN_FILE.write_text(
-        json.dumps({"seen": sorted(seen)}, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
+    """Partition the flat set by vendor and write one seen.json per agency."""
+    by_vendor: dict[str, set[str]] = {}
+    for key in seen:
+        if "|" not in key:
+            continue
+        vendor, url = key.split("|", 1)
+        by_vendor.setdefault(vendor, set()).add(url)
+    for vendor, urls in by_vendor.items():
+        path = vendor_seen_file(vendor)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps({"seen": sorted(urls)}, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
 
 
 def dedup_key(item: FilingItem) -> str:

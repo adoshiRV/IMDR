@@ -215,7 +215,7 @@ duration {duration_s/60:.1f} min · {n_new} new filings / {n_chunks} chunks ·
 <tbody>{rows_recent}</tbody></table>
 
 <p class="meta">Orchestrator: <code>scripts.econ.kr.kr_daily</code>.
-Pipeline detail: <code>scripts/econ/kr/govt/data/_last_run.log</code> on the host.</p>
+Pipeline detail: <code>data/econ/kr/govt/_last_run.log</code> on the host.</p>
 </body></html>"""
     return subject, body
 
