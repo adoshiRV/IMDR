@@ -255,7 +255,10 @@ has_filter=1`. (The read-only DB MCP returns NULL for `object_definition`/
 | [`ingest/dedup_merge.py`](../../../playground/research/ingest/dedup_merge.py) | `find_portal_twin()` — fuzzy email→portal title match (Jaccard) so desk re-forwards of portal notes are skipped |
 | [`ingest/email_pipeline.py`](../../../playground/research/ingest/email_pipeline.py) | `ingest_email_one()` — full per-message pipeline (portal-twin gate → chunk → embed → upload → DB → Qdrant); the ~10x-simpler analogue of `pipeline.ingest_one` |
 | [`ingest_outlook.py`](../../../playground/research/ingest_outlook.py) | dry-run + full `--load` CLI (`--no-embed`, `--limit`, `--keep-portal-twins`); the `ingest_today.py` analogue |
-| [`tests/unit/research/test_outlook_adapter.py`](../../../tests/unit/research/test_outlook_adapter.py) + [`test_dedup_merge.py`](../../../tests/unit/research/test_dedup_merge.py) | 25 + 11 unit tests |
+| [`tests/unit/research/test_outlook_adapter.py`](../../../tests/unit/research/test_outlook_adapter.py) + [`test_dedup_merge.py`](../../../tests/unit/research/test_dedup_merge.py) | adapter sanitizer/synthesize/folder-map/source_type/decide_dedup (25) + dedup-merge jaccard/tokens (7) |
+| [`tests/unit/research/test_email_common_classifier.py`](../../../tests/unit/research/test_email_common_classifier.py) | keyword classifier: per-class scoring, commodities-specificity guard, no-stem word-boundary, country/region scan, theme/author tags (15) |
+| [`tests/unit/research/test_email_doc.py`](../../../tests/unit/research/test_email_doc.py) | adapter edges: earliest-cut boilerplate, `DESK_DISCLAIMER_RE`, `best_body_text` summary fallback, `build_email_document` synthetic/skip/pdf_missing, inline-attachment skip (11) |
+| [`tests/unit/research/test_email_pipeline.py`](../../../tests/unit/research/test_email_pipeline.py) | `ingest_email_one` dedup short-circuits: imi-idempotency + portal-twin skip, fake Engine + monkeypatched twin (3) |
 
 ## Running
 
@@ -293,7 +296,9 @@ preserved.
 
 * ✅ 16-folder map (CBA/CACIB held), lenient noise gate, source_type
   (body-disclaimer → vendor-default → sender), email→Document adapter, CBA +
-  keyword classifiers, dry-run + minimal `--load`, 25 unit tests.
+  keyword classifiers, dry-run + minimal `--load`, 61 unit tests
+  (adapter 25, dedup-merge 7, keyword-classifier 15, email-doc edges 11,
+  pipeline dedup-branches 3).
 * ✅ migration 099 applied + verified; `internet_message_id` dedup gate live.
 * ✅ bank-by-bank link/artifact smoke + dedup smoke vs live corpus.
 * ✅ **full `--load` pipeline** — `ingest_email_one()` (chunk → embed → upload
