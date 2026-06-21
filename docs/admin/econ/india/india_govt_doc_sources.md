@@ -1,7 +1,7 @@
 # India — Government & Quasi-Government Document Sources
 
-Last updated: 2026-06-10
-Status: **Phase H discovery — playground daily-pull running.** 237 PDFs / 250 MB harvested across 11 streams from 5 agency clusters (RBI / MoSPI / PPAC / MoF / DEA). Migrations 086 + 087 + 089 applied — `dim_vendor` carries the official categories for the India publishers. Phase-J prod promotion **not entered** yet; everything lives in `playground/econ/in/govt/`.
+Last updated: 2026-06-22
+Status: **PROD-LIVE (Track B Phase J complete 2026-06-22).** 237 PDFs / 250 MB harvested in Phase H; 209 docs in `research.dim_report` (discovery backfill 2026-06-11). Production fetchers promoted to `scripts/econ/in/govt/`; wired into `scripts/imdr_daily.py:PIPELINES` via `scripts.econ.in.in_daily` 2026-06-22. Migrations 086 + 089 applied. See [india_govt_prod_pipeline.md](india_govt_prod_pipeline.md) for the ops reference.
 
 This file is the master inventory of **Indian policy / macro-relevant text** sources (Reserve Bank of India, central-govt ministries, financial regulators, statistical agencies, fiscal documents, debt management). Sell-side research (JPM/MS/Goldman/etc.) is already covered in the broader research/Qdrant corpus; this document is the **official-voice counterpart**, discriminated downstream by `dim_vendor.vendor_category`.
 
@@ -185,6 +185,30 @@ Status of each Tier-1 agency's `(body_text, pdf_bytes)` paths for the `filings.i
 
 ---
 
+## Production fetchers (Phase J — LIVE 2026-06-22)
+
+| Module | Role | Location |
+|---|---|---|
+| `scripts.econ.in.govt.daily_pull` | 16-stream PDF harvester — fetches to `data/econ/in/govt/{vendor}/{Y}/{M}/{D}/` | `scripts/econ/in/govt/daily_pull.py` |
+| `scripts.econ.in.govt.ingest_filings` | Disk-walk → `research.dim_report` + Qdrant + SharePoint via `ingest_filing_sync`; `--since-days 2` for daily cron; `--all` for backfill | `scripts/econ/in/govt/ingest_filings.py` |
+| `scripts.econ.in.in_daily` | Country daily orchestrator — Track A IMD rainfall + Track B harvest + ingest; combined email | `scripts/econ/in/in_daily.py` |
+
+Wired into `scripts/imdr_daily.py:PIPELINES` via `scripts.econ.in.in_daily` 2026-06-22.
+Migrations 086 + 089 applied.
+
+Per-agency status post-Phase J:
+
+| Agency | Status | Notes |
+|---|---|---|
+| RBI (streams 1–8) | **LIVE** | 8 streams: speeches · MPC minutes · MPR · FSR · press releases · Bulletin · Notifications · Annual Report |
+| MoSPI (streams 9–12) | **LIVE** | 4 streams: CPI · IIP · GDP · PLFS press releases |
+| PPAC (stream 13) | **LIVE** | Monthly petroleum price reports |
+| MoF / Budget (stream 14) | **LIVE** | Annual Union Budget documents |
+| DEA / Economic Survey (stream 15) | **LIVE** | Annual Economic Survey editions |
+| CGA press notes (stream 16) | **DEFERRED** | ASP.NET PostBack — no PDFs reachable via plain httpx; needs Playwright pass |
+
+---
+
 ## Discovery deliverable status (Phase H stop-here checklist)
 
 Per [onboarding_new_country.md §H.7](../onboarding_new_country.md#h7-discovery-deliverable--stop-here):
@@ -197,7 +221,7 @@ Per [onboarding_new_country.md §H.7](../onboarding_new_country.md#h7-discovery-
 - [x] `data/econ/in/govt/_manifest_2026-06-10.json` — proves idempotency hook for re-runs
 - [x] Migrations 086 / 087 / 089 applied — India official vendors seeded with `vendor_category=official_*`
 
-**Discovery deliverable: COMPLETE.** Promotion to `scripts/econ/in/govt/` + `scripts/econ/in/in_daily.py` + scheduler registration is the Phase-J workflow — see [`../econ_to_prod.md`](../econ_to_prod.md) Track B.
+**Discovery deliverable: COMPLETE.** Phase J prod promotion also complete 2026-06-22 — fetchers in `scripts/econ/in/govt/`; orchestrator at `scripts/econ/in/in_daily.py`; wired into `scripts/imdr_daily.py:PIPELINES`. See [india_govt_prod_pipeline.md](india_govt_prod_pipeline.md) and [`../econ_to_prod.md`](../econ_to_prod.md) Track B Phase J.
 
 ---
 

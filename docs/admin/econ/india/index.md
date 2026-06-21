@@ -1,8 +1,8 @@
 # India — Econ Documentation
 
-Last updated: 2026-06-19
+Last updated: 2026-06-22
 
-IN macroeconomic data. **Status: prod-live (Track A Phase G complete 2026-06-19).** 15 prod fetchers promoted to `scripts/econ/in/{vendor}/`; two cadence-split orchestrators wired into `imdr_daily.py` and `imdr_monthly.py`. (The quarterly orchestrator was folded into monthly 2026-06-19 — see Loading status below.)
+IN macroeconomic data. **Status: prod-live — Track A Phase G complete 2026-06-19; Track B Phase J complete 2026-06-22.** 15 prod fetchers (Track A) + 16-stream govt-doc harvester (Track B) promoted to `scripts/econ/in/`; orchestrators wired into `imdr_daily.py` and `imdr_monthly.py`. (The quarterly orchestrator was folded into monthly 2026-06-19 — see Loading status below.)
 
 RBI DBIE (Database on Indian Economy) is the primary RBI access path — SPA-driven, requires Playwright + network interception for some endpoints; XLSX Bulletin path avoids the SAP-BO iframe for most desk-relevant tables.
 
@@ -23,9 +23,10 @@ India is the weakest API landscape in Asia. Real-economy series (CPI, IIP, GDP) 
 
 | Doc | Purpose |
 |---|---|
-| **[india_prod_pipeline.md](india_prod_pipeline.md)** | Production ops reference — architecture, cadence map, invocation, archive layout, failure modes, smoke tests. |
+| **[india_prod_pipeline.md](india_prod_pipeline.md)** | Production ops reference (Track A) — architecture, cadence map, invocation, archive layout, failure modes, smoke tests. |
+| **[india_govt_prod_pipeline.md](india_govt_prod_pipeline.md)** | Production ops reference (Track B) — govt-doc harvester, 16-stream/15-folder table, invocation, failure modes, open items. |
 | [in_coverage_plan.md](in_coverage_plan.md) | Full scoping doc: wiring-map × vendor matrix, per-cell candidate datasets, A→O phase plan. |
-| [india_govt_doc_sources.md](india_govt_doc_sources.md) | Policy/fiscal document source inventory (237 PDFs / 250 MB harvested; Track B pending). |
+| [india_govt_doc_sources.md](india_govt_doc_sources.md) | Policy/fiscal document source inventory — full agency + tier inventory; all probed sources. |
 | [in_nri_rates_sourcing.md](in_nri_rates_sourcing.md) | NRI / FCNR(B) / NRE / NRO deposit rate sourcing notes. |
 | [`_playground/rbi.md`](_playground/rbi.md) | RBI DBIE Playwright probes (XHR capture, payload inspection, SPA click-through). |
 | [`_playground/rbi_explore.md`](_playground/rbi_explore.md) | Captured screenshots + HTML snapshots from probe runs. |
@@ -96,7 +97,7 @@ Wiring-map §7.12 coverage (prod-live 2026-06-19): **8 ✅ + 6 ⚠ + 2 ❌** (wa
 
 ## Policy & fiscal document sources
 
-**Full inventory**: see [`india_govt_doc_sources.md`](india_govt_doc_sources.md) — 10 sections across central bank · ministries · regulators · statistical agencies · fiscal documents · debt-management · pensions · elections · think-tanks. **237 PDFs / 250 MB harvested 2026-06-10** across 11 streams from 5 agency clusters (RBI / MoSPI / PPAC / MoF / DEA); discovery deliverable per Phase-H complete.
+**Full inventory**: see [`india_govt_doc_sources.md`](india_govt_doc_sources.md) — 10 sections across central bank · ministries · regulators · statistical agencies · fiscal documents · debt-management · pensions · elections · think-tanks. **237 PDFs / 250 MB harvested 2026-06-10** across 11 streams from 5 agency clusters (RBI / MoSPI / PPAC / MoF / DEA). **Track B Phase J PROD-LIVE 2026-06-22**: 15 streams active, 209 docs in `research.dim_report`, daily pipeline wired. Production ops: [`india_govt_prod_pipeline.md`](india_govt_prod_pipeline.md).
 
 The summary table below shows the original Tier-1 RBI seeds; the full doc covers all probed agencies + tier/crawl-shape classification:
 
@@ -111,8 +112,10 @@ Sample resolution PDF for parser prototyping: `rbi.org.in/commonman/Upload/Engli
 
 ## Related
 
-- [`india_prod_pipeline.md`](india_prod_pipeline.md) — **production ops reference** (architecture, cadence, failure modes, smoke tests).
+- [`india_prod_pipeline.md`](india_prod_pipeline.md) — **Track A production ops reference** (architecture, cadence, failure modes, smoke tests).
+- [`india_govt_prod_pipeline.md`](india_govt_prod_pipeline.md) — **Track B production ops reference** (govt-doc harvester, stream table, invocation, failure modes, open items).
 - [`../macro_economy_wiring_map.md`](../macro_economy_wiring_map.md) — IN coverage state (§7.12).
 - [`../onboarding_new_country.md`](../onboarding_new_country.md) — onboarding playbook.
 - [`../economics_data_ingest.md`](../economics_data_ingest.md) §2.5 — India / RBI deep dive + source catalogue.
-- [`../econ_to_prod.md`](../econ_to_prod.md) — prod-promotion playbook (Track A Phase G).
+- [`../econ_to_prod.md`](../econ_to_prod.md) — prod-promotion playbook (Track A Phase G + Track B Phase J).
+- [`../../development/in_govt_filings.md`](../../development/in_govt_filings.md) — Track B execution tracker (open items, migration log).
