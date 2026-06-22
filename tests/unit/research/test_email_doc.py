@@ -139,6 +139,61 @@ def test_build_skips_pure_wrapper():
     assert doc is None
 
 
+# ─── portal-pointer detection (teaser cover-note + report link) ──────────
+def _deal_pointer_html():
+    # Mirrors DB "[/] … What a 'deal' …": a short teaser + a report link +
+    # the DB confidentiality footer (which must be cut, else it inflates).
+    return (
+        "<p>From: Sameer Goel</p>"
+        "<p>It looks like a deal is finally on the table in the Middle East. "
+        "While the specifics still need work, the reaction in commodity markets "
+        "this morning suggests confidence that getting oil back on water is "
+        "where the gap between the two sides is narrowest. In our latest Asia "
+        "Macro Strategy Notes report, 1) we discuss what a deal potentially "
+        "means for Asia macro; 2) we rank currencies in Asia in order of their "
+        "relative potential benefit from a deal; and 3) we highlight 3 trades — "
+        "2 FX and 1 rates — we like.</p>"
+        "<p><a href='http://research.db.com/research/TinyUrl/XLXMW'>link</a></p>"
+        "<p>This email may contain confidential and/or privileged information. "
+        + ("blah " * 200) + "</p>"
+    )
+
+
+def test_cuts_db_confidentiality_footer():
+    out = ed.sanitize_email_html(_deal_pointer_html())
+    assert "rank" in out  # substantive teaser kept
+    assert "may contain confidential" not in out  # DB footer cut
+    assert len(out) < ed.POINTER_MAX_CHARS  # boilerplate no longer inflates it
+
+
+def test_is_portal_pointer_short_body_with_report_link():
+    ref = SimpleNamespace(body_html=_deal_pointer_html(), body_text_summary="", attachments=())
+    body = ed.best_body_text(ref)
+    assert ed.is_portal_pointer(ref, body) is True
+    doc, path, _ = ed.build_email_document(ref)
+    assert path == "skip(portal_pointer)" and doc is None
+
+
+def test_portal_pointer_ignores_long_body_with_link():
+    # A full desk note that merely cites a report link must NOT be flagged.
+    ref = SimpleNamespace(
+        body_html="<p>" + ("real analysis " * 80) +
+                  "see http://research.db.com/research/TinyUrl/ABCDE</p>",
+        body_text_summary="", attachments=())
+    body = ed.best_body_text(ref)
+    assert len(body) >= ed.POINTER_MAX_CHARS
+    assert ed.is_portal_pointer(ref, body) is False
+
+
+def test_portal_pointer_ignores_short_body_without_report_link():
+    # Short genuine desk one-liner with no report-download link → kept.
+    ref = SimpleNamespace(
+        body_html="<p>BI surprised with a 25bp hike; we stay received front-end IDR.</p>",
+        body_text_summary="", attachments=())
+    body = ed.best_body_text(ref)
+    assert ed.is_portal_pointer(ref, body) is False
+
+
 def test_build_pdf_missing_degrades_to_body():
     # PDF advertised but bytes not staged -> degrade to a body-only synthetic
     # tagged so the caller can see the bytes were unavailable.

@@ -157,6 +157,16 @@ def test_dedup_skips_pure_wrapper():
     assert "wrapper" in reason
 
 
+def test_dedup_skips_portal_pointer():
+    # build_email_document returns "skip(portal_pointer)" for teaser cover-notes.
+    action, reason = decide_dedup(
+        _ref("<pp@x>"), "skip(portal_pointer)", None,
+        seen_message_ids=set(), known_content_hashes=set(),
+    )
+    assert action == "skip"
+    assert "portal-link pointer" in reason
+
+
 def test_dedup_skips_known_pdf_hash():
     h = b"\x02" * 32
     action, reason = decide_dedup(

@@ -1,6 +1,6 @@
 # Outlook email — research acquisition channel
 
-**Status: prototype (route-B), updated 2026-06-22. Migration 099 APPLIED; FULL `--load` pipeline IMPLEMENTED (classify → portal-twin dedup-merge → chunk → embed → upload `.html` to the SharePoint tree → MSSQL `source='email'` → Qdrant), one command. First multi-vendor production load done 2026-06-22 (7-day desk-core, 8 vendors): 77 net-new rows loaded / 0 failed in 76s; gates skipped 17 portal-twins + 14 db-dedups + 4 hash-dups. Email corpus now 113 rows (104 desk_commentary + 9 research). Artifacts land in `ResearchData1/IMDR/` identical to portal. Still NOT wired into any orchestrator; route-A (Graph) producer + per-vendor subject parsers are the next builds. NB route-B's per-run cost is ~all the LLM spend (~9–13k tokens/article to stage each body); route-A eliminates it.**
+**Status: prototype (route-B), updated 2026-06-22. Migration 099 APPLIED; FULL `--load` pipeline IMPLEMENTED (classify → portal-twin dedup-merge → chunk → embed → upload `.html` to the SharePoint tree → MSSQL `source='email'` → Qdrant), one command. First multi-vendor production load done 2026-06-22 (7-day desk-core, 8 vendors): 77 net-new rows loaded / 0 failed in 76s; gates skipped 17 portal-twins + 14 db-dedups + 4 hash-dups. Email corpus 112 rows (after retro-cleaning one teaser-pointer row caught by the new portal-pointer gate). Artifacts land in `ResearchData1/IMDR/` identical to portal. Still NOT wired into any orchestrator; route-A (Graph) producer + per-vendor subject parsers are the next builds. NB route-B's per-run cost is ~all the LLM spend (~9–13k tokens/article to stage each body); route-A eliminates it.**
 
 A *second acquisition channel* for sell-side research, alongside the
 per-vendor portal scrapers ([`scrapers/`](scrapers/)). Research that
@@ -212,8 +212,10 @@ Gates in order, cheapest/most-certain first:
    title. See below.
 3. `content_hash` already present → skip (in `write_report`).
 4. `(vendor_id, publish_date, LOWER(title))` exact match → skip.
-5. Adapter-level (`decide_dedup`): pure notification wrapper (no substantive
-   body) → skip; PDF whose hash exists → retry body-only.
+5. Adapter-level (`decide_dedup` on the `build_email_document` outcome): pure
+   notification wrapper (no substantive body) → skip; **`skip(portal_pointer)`**
+   (short body + report-download link — teaser cover-note) → skip; PDF whose
+   hash exists → retry body-only.
 
 ### Portal-twin fuzzy merge
 
@@ -275,7 +277,7 @@ has_filter=1`. (The read-only DB MCP returns NULL for `object_definition`/
 | File | Purpose |
 |---|---|
 | [`ingest/crawler_outlook.py`](../../../playground/research/ingest/crawler_outlook.py) | staging reader → `OutlookReportRef`; folder→vendor map; `EMAIL_VENDOR_HOLD`; `_derive_source_type`; `email_noise_reason` (incl. `chartpack` drop); `decide_dedup` |
-| [`ingest/email_doc.py`](../../../playground/research/ingest/email_doc.py) | HTML sanitizer (CAUTION + Westpac anti-phishing banner strip; `_TRAILING_CUTS` incl. ANZ/BofA disclaimer footers) + synthetic-Document builder |
+| [`ingest/email_doc.py`](../../../playground/research/ingest/email_doc.py) | HTML sanitizer (CAUTION + Westpac anti-phishing banner strip; `_TRAILING_CUTS` incl. ANZ/BofA/DB disclaimer footers) + synthetic-Document builder + `is_portal_pointer` (teaser-cover-note → `skip(portal_pointer)`) |
 | [`ingest/classifiers/email_common.py`](../../../playground/research/ingest/classifiers/email_common.py) | keyword classifier (word-boundary scored) |
 | [`ingest/classifiers/cba.py`](../../../playground/research/ingest/classifiers/cba.py) | CBA classifier (AU/MACRO default) |
 | [`ingest/engine.py`](../../../playground/research/ingest/engine.py) | shared ODBC Driver 18 engine factory (used by `ingest_one.py` + `ingest_outlook.py`) |
@@ -283,12 +285,12 @@ has_filter=1`. (The read-only DB MCP returns NULL for `object_definition`/
 | [`ingest/dedup_merge.py`](../../../playground/research/ingest/dedup_merge.py) | `find_portal_twin()` — fuzzy email→portal title match (Jaccard) so desk re-forwards of portal notes are skipped |
 | [`ingest/email_pipeline.py`](../../../playground/research/ingest/email_pipeline.py) | `ingest_email_one()` — full per-message pipeline (portal-twin gate → chunk → embed → upload → DB → Qdrant); the ~10x-simpler analogue of `pipeline.ingest_one` |
 | [`ingest_outlook.py`](../../../playground/research/ingest_outlook.py) | dry-run + full `--load` CLI (`--no-embed`, `--limit`, `--keep-portal-twins`); the `ingest_today.py` analogue |
-| [`tests/unit/research/test_outlook_adapter.py`](../../../tests/unit/research/test_outlook_adapter.py) + [`test_dedup_merge.py`](../../../tests/unit/research/test_dedup_merge.py) | adapter sanitizer/synthesize/folder-map/source_type/decide_dedup + `chartpack` noise drop (26) + dedup-merge jaccard/tokens (7) |
+| [`tests/unit/research/test_outlook_adapter.py`](../../../tests/unit/research/test_outlook_adapter.py) + [`test_dedup_merge.py`](../../../tests/unit/research/test_dedup_merge.py) | adapter sanitizer/synthesize/folder-map/source_type/decide_dedup (incl. `chartpack` + `skip(portal_pointer)`) (27) + dedup-merge jaccard/tokens (7) |
 | [`tests/unit/research/test_email_common_classifier.py`](../../../tests/unit/research/test_email_common_classifier.py) | keyword classifier: per-class scoring, commodities-specificity guard, no-stem word-boundary, country/region scan, theme/author tags (15) |
-| [`tests/unit/research/test_email_doc.py`](../../../tests/unit/research/test_email_doc.py) | adapter edges: earliest-cut boilerplate, ANZ/BofA disclaimer + Westpac banner strips, `DESK_DISCLAIMER_RE`, `best_body_text`, `build_email_document` synthetic/skip/pdf_missing/link-only-skip, inline-attachment skip (15) |
+| [`tests/unit/research/test_email_doc.py`](../../../tests/unit/research/test_email_doc.py) | adapter edges: earliest-cut boilerplate, ANZ/BofA/DB disclaimer + Westpac banner strips, `DESK_DISCLAIMER_RE`, `best_body_text`, `build_email_document` synthetic/skip/pdf_missing/link-only-skip, **portal-pointer gate** (`is_portal_pointer`), inline-attachment skip (19) |
 | [`tests/unit/research/test_email_pipeline.py`](../../../tests/unit/research/test_email_pipeline.py) | `ingest_email_one` dedup short-circuits: imi-idempotency + portal-twin skip, fake Engine + monkeypatched twin (3) |
 
-**66 email unit tests total** (adapter 26 · dedup-merge 7 · classifier 15 · email-doc 15 · pipeline 3).
+**71 email unit tests total** (adapter 27 · dedup-merge 7 · classifier 15 · email-doc 19 · pipeline 3).
 
 ## Running
 
@@ -383,7 +385,7 @@ Focus / FinanceAM / Spot Views keep content, drop the tail). +3 regression tests
 in `test_email_doc.py`. Lesson: tune the body-stage gates from real bodies, not
 subjects.
 
-**Dropping the two genuinely-thin pointers (2026-06-22):**
+**Dropping the genuinely-thin pointers (2026-06-22 / 23):**
 * **ANZ `What's Priced In`** — body is link-only ("Open this report" + sign-off).
   After the footer fix it sanitizes to ~131 chars → already `wrapper-skip`s, no
   rule needed.
@@ -392,6 +394,20 @@ subjects.
   explicit `chartpack` noise rule (`\bchart\s?packs?\b` in `email_noise_reason`)
   — the substance is in auth-gated chart PDFs we can't fetch, consistent with the
   portal pipeline's chart-pack de-prioritisation.
+* **Teaser cover-note + report link** (2026-06-23) — e.g. DB `[/] … What a 'deal'
+  means for Asia`: a 2-3 sentence cover note + a `research.db.com/TinyUrl` link to
+  the real 13-page report. The title doesn't token-match the report (so the
+  fuzzy portal-twin matcher misses it) and the body cleared the wrapper-skip
+  (inflated by an uncut DB confidentiality footer). Fixed by (a) cutting the DB
+  footer (`This e-mail may contain confidential` / `Privacy of communications`)
+  so the teaser shrinks to its true ~657 chars, and (b) a **portal-pointer gate**
+  in `build_email_document`: a sanitized body `< POINTER_MAX_CHARS` (700) that
+  contains a report-download link (`/TinyUrl/`, `opentoken`,
+  `SingletrackCMS__DownloadDocument`, `neo.ubs.com/r/`, `streetcontxt`) → returns
+  `skip(portal_pointer)`. Keys on body STRUCTURE, not subject — so it catches
+  differing-title cover-notes while leaving long desk notes alone (verified: 1
+  flagged across 146 staged bodies, 0 false positives). One such row (11613) had
+  already loaded on 2026-06-22 → retro-cleaned (corpus 113 → 112).
 * Also strip the **Westpac anti-phishing banner** ("Westpac will never send you a
   link…View online") in the sanitizer — it prepends ~270 chars to *every* Westpac
   email (incl. substantive FinanceAM). +2 regression tests (`test_email_doc`,
@@ -401,8 +417,8 @@ subjects.
 
 * ✅ 16-folder map (CBA/CACIB held), lenient noise gate, source_type
   (body-disclaimer → vendor-default → sender), email→Document adapter, CBA +
-  keyword classifiers, dry-run + minimal `--load`, 66 unit tests
-  (adapter 26, dedup-merge 7, keyword-classifier 15, email-doc 15,
+  keyword classifiers, dry-run + minimal `--load`, 71 unit tests
+  (adapter 27, dedup-merge 7, keyword-classifier 15, email-doc 19,
   pipeline dedup-branches 3).
 * ✅ migration 099 applied + verified; `internet_message_id` dedup gate live.
 * ✅ bank-by-bank link/artifact smoke + dedup smoke vs live corpus.
