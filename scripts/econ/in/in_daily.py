@@ -63,6 +63,7 @@ PIPELINES: list[list[str]] = [
     # Track A — daily indicator snapshot
     [sys.executable, "-m", "scripts.econ.in.imd.imd_rainfall"],
     [sys.executable, "-m", "scripts.econ.in.ogd.ogd_food_nowcast"],
+    [sys.executable, "-m", "scripts.econ.in.ogd.ogd_food_mom"],
     # Track B — harvest PDFs first, then ingest only recent date-folders
     [sys.executable, "-m", "scripts.econ.in.govt.daily_pull"],
     [sys.executable, "-m", "scripts.econ.in.govt.ingest_filings", "--since-days", "2"],
@@ -107,7 +108,7 @@ def _track_a_snapshot(run_started_at: datetime.datetime) -> dict:
                     JOIN   dbo.dim_frequency fq ON fq.id = i.frequency_id
                     JOIN   dbo.dim_country c ON c.id = i.country_id
                     WHERE  c.country_code = 'IN'
-                      AND  fq.frequency_code IN ('DAILY', 'WEEKLY')
+                      AND  fq.frequency_code IN ('DAILY', 'WEEKLY', 'MONTHLY')
                       AND  f.ingested_at >= :t0
                     GROUP BY v.display_name
                     ORDER BY n_obs DESC
