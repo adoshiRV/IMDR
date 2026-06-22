@@ -1,12 +1,19 @@
 # India Fresh-Food Inflation Nowcaster — Design Spec
 
-Last updated: 2026-06-22
+Last updated: 2026-06-23
 
-> **Status: DESIGN / PRE-BUILD.** No code has been written for this
-> feature yet. This spec governs the build. The foundational config artifact
-> (`src/imdr/domains/econ/india_food_basket.py`) is already built and tested.
-> The data source pipeline (`econ.fact_india_mandi` / OGD Agmarknet) is
-> pre-prod — see [india_mandi_prices.md](../econ/india/india_mandi_prices.md).
+> **Status: P1 + P3 LIVE (2026-06-23); P2 / P4 / P5 pending.** The weekly-median
+> price feed (**P1**, `scripts/econ/in/ogd/ogd_food_nowcast.py`, commit `7f5a2c9`)
+> and the CPI-weighted **MoM composite nowcast** (**P3**, `scripts/econ/in/ogd/ogd_food_mom.py`,
+> commit `367d45a`) are built, tested, loaded, and wired into
+> `scripts/econ/in/in_daily.py` (fire daily, MERGE-idempotent).
+> **First read (June-vs-May): perishable composite +7.9% MoM** (spice +16.8 /
+> fruit +5.5 / veg +5.4; tomato +11.3, onion +7.8, potato +7.4).
+> Foundational config `src/imdr/domains/econ/india_food_basket.py` built + tested.
+> Aggregates land in `econ.fact_indicator`; the granular `econ.fact_india_mandi`
+> star schema (OGD Agmarknet — see [india_mandi_prices.md](../econ/india/india_mandi_prices.md))
+> was applied but is now **PARKED + emptied**. Note P3 was built ahead of P2, so the
+> MoM composite currently has **no seasonal-vs-normal adjustment yet** (that lands in P2).
 
 ---
 
@@ -500,9 +507,9 @@ Configurable alert triggers stored alongside the indicator series:
 
 | Phase | Deliverables | Gates / dependencies |
 |---|---|---|
-| **P1 — Weekly fetch + medians** | Commodity-filtered OGD daily fetch (FOCUS set only); weekly aggregation to national median + WoW/MoM/YoY; load into `econ.fact_indicator`; wire into `in_daily.py` (gated on user OK). | Migration 104 applied (or fetch runs without star schema — aggregates only); `india_food_basket.py` config (done). |
+| **P1 — Weekly fetch + medians** ✅ **LIVE (commit `7f5a2c9`)** | Trailing-window OGD daily fetch (full-day pull + client-side FOCUS filter — fewer API calls than per-commodity); weekly national **median** per commodity (n_markets≥5); ~100 `INDIA.FOODNOWCAST.*.MEDIAN_WK.NATL.IN` indicators in `econ.fact_indicator`; wired into `scripts/econ/in/in_daily.py` (fires daily, MERGE-idempotent). | DONE. |
 | **P2 — 5-year backfill + seasonal norms** | Targeted backfill 2021 → today for FOCUS commodities; compute `seasonal_norm(commodity, ISO_week)`; compute `vs_seasonal_norm_pct`; store alongside weekly medians. | P1 complete; confirm backfill cost (expected: ~8M FOCUS rows / 5 years). |
-| **P3 — CPI-weighted composite MoM nowcast** | `INDIA.FOODNOWCAST.PERISHABLE.MOM_NOWCAST.IN` composite series with MTD confidence label; backtest vs FOOD_BEV and WPI Food Articles (§12); document lead-time findings. | P2 complete (needs seasonal norms for credible nowcast); FOOD_BEV sub-index in DB (already live via `mospi_cpi.py`). |
+| **P3 — CPI-weighted composite MoM nowcast** ✅ **LIVE (commit `367d45a`, built ahead of P2)** | `INDIA.FOODNOWCAST.PERISHABLE.MOM_NOWCAST.NATL.IN` headline + veg/fruit/spice sub-composites + per-commodity `MOM_PCT` (median-of-constituents, Tier A/B in composite); MTD accrual; wired into `in_daily.py` after P1. First read **+7.9% MoM**. | DONE. **Still TODO:** seasonal-vs-norm adjustment (P2), and the backtest vs FOOD_BEV / WPI Food Articles + lead-time write-up (§12). |
 | **P4 — Regional layer + brief + alerts** | By-state weekly medians for the 6 deficit zones (§9); Fresh-Food Pulse brief template (Lois integration); threshold alert wiring. | P3 complete; confirm state-code mapping from Agmarknet state names to `dbo.dim_country` or a new state-dim table. |
 | **P5 — Arrivals via UPAg** | Build UPAg "Mandi Arrival Quantity" Dash path; populate `arrivals_tonnes` in `econ.fact_india_mandi` (or a parallel `fact_india_mandi_arrivals` table); add price×arrivals composite signal; update brief to show arrivals diagnostics. | P4 complete; UPAg arrivals path discovery (not yet probed). |
 
