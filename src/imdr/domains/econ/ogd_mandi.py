@@ -53,6 +53,8 @@ _REPO_ROOT = Path(__file__).resolve().parents[4]
 _RETRIES = 4
 _RETRY_SLEEP_S = 2.0
 _THROTTLE_S = 0.25
+_INTER_PAGE_SLEEP_S = 0.3   # additional delay between pages to reduce 429s
+_RETRY_AFTER_CAP_S = 30.0   # cap on Retry-After header honour
 _MAX_PAGES_PER_DAY = 100
 _RETRYABLE_HTTP_STATUSES = frozenset({429, 502, 503, 504})
 
@@ -122,8 +124,21 @@ def _get_page(
     for attempt in range(1, _RETRIES + 1):
         try:
             if attempt > 1:
-                # Sleep is LINEAR (_RETRY_SLEEP_S * attempt), not exponential.
-                time.sleep(_RETRY_SLEEP_S * attempt)
+                # Linear backoff by default; honour Retry-After header if present.
+                retry_after_raw = (
+                    last_err.response.headers.get("Retry-After")
+                    if isinstance(last_err, requests.exceptions.HTTPError)
+                    and last_err.response is not None
+                    else None
+                )
+                if retry_after_raw is not None:
+                    try:
+                        sleep_s = min(float(retry_after_raw), _RETRY_AFTER_CAP_S)
+                    except ValueError:
+                        sleep_s = _RETRY_SLEEP_S * attempt
+                else:
+                    sleep_s = _RETRY_SLEEP_S * attempt
+                time.sleep(sleep_s)
             resp = session.get(_BASE_URL, params=params, timeout=timeout)
             if resp.status_code not in _RETRYABLE_HTTP_STATUSES:
                 resp.raise_for_status()
@@ -278,6 +293,9 @@ def iter_pages_for_date(
         if len(records) < _PAGE_SIZE:
             break
         offset += _PAGE_SIZE
+        # Extra inter-page delay after the first page to reduce 429 pressure.
+        # This fires only between consecutive full pages (short/empty stops above).
+        time.sleep(_INTER_PAGE_SLEEP_S)
 
 
 def fetch_date(

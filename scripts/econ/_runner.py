@@ -152,6 +152,7 @@ def run_main(
     description: str = "",
     *,
     country_code: str,
+    allow_empty: bool = False,
 ) -> int:
     """Entry point for a prod econ fetcher.
 
@@ -162,6 +163,11 @@ def run_main(
     ``country_code`` is keyword-only and MANDATORY -- the 2-letter ISO code
     (e.g. ``"KR"``) used to anchor the on-disk artefact path under
     ``data/econ/{cc}/{vendor}/{topic}/``. See ``_normalise_country_code``.
+
+    ``allow_empty`` -- when True, an empty observations list is treated as
+    rc=0 (success) rather than rc=1.  Use for fetchers where an empty
+    trailing window is normal (e.g. data-lag weekends, rate-limited days)
+    and should NOT mark the daily orchestrator as FAILED.
     """
     # Validate eagerly so a misconfigured fetcher fails before it hits the
     # network rather than after producing a half-written parquet tree.
@@ -189,7 +195,7 @@ def run_main(
     _summary(indicators, observations)
     if not observations:
         print("No observations -- nothing to write.")
-        return 1
+        return 0 if allow_empty else 1
 
     if args.no_parquet:
         print("\n--no-parquet set; skipping write and load.")

@@ -251,7 +251,13 @@ The following must happen in order before this pipeline goes to production:
   India, Cluster 4 / Input Costs cell
 - [`india_prod_pipeline.md`](india_prod_pipeline.md) — Track A prod ops
   reference (existing prod fetchers)
+- [`../../research/india_food_nowcast_spec.md`](../../research/india_food_nowcast_spec.md)
+  — **Fresh-food inflation nowcaster design spec** — what the aggregated
+  mandi data is built towards: CPI-weighted perishables MoM nowcast,
+  seasonal norms, composite indicator scheme, phased build plan.
 - `src/imdr/domains/econ/ogd_mandi.py` — library
+- `src/imdr/domains/econ/india_food_basket.py` — commodity basket config
+  (FOCUS / EXCLUDE / STRIP; nowcast feeds from this)
 - `playground/econ/in/ogd/ogd_mandi.py` — fetcher (not yet promoted)
 - `tests/unit/test_econ/test_ogd_mandi.py` — 44 unit tests
 - `migrations/104_india_mandi_prices.sql` — schema migration (DRAFT, not applied)

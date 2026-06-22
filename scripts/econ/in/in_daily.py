@@ -2,9 +2,11 @@
 
 Runs every fetcher / sub-orchestrator that produces IN data at daily cadence:
 
-  Track A — daily data series:
-    - scripts.econ.in.imd.imd_rainfall   (IMD All-India rainfall, Jun–Sep monsoon window;
-                                          MERGE on PK so off-season runs are harmless)
+  Track A — daily + weekly data series:
+    - scripts.econ.in.imd.imd_rainfall       (IMD All-India rainfall, Jun–Sep monsoon window;
+                                              MERGE on PK so off-season runs are harmless)
+    - scripts.econ.in.ogd.ogd_food_nowcast   (OGD Agmarknet FOCUS commodities; trailing-10-day
+                                              window → weekly national medians; P1 nowcast)
 
   Track B — govt/CB filings:
     - scripts.econ.in.govt.daily_pull    (harvest PDFs → data/econ/in/govt/{vendor}/…)
@@ -60,6 +62,7 @@ UTC = datetime.timezone.utc
 PIPELINES: list[list[str]] = [
     # Track A — daily indicator snapshot
     [sys.executable, "-m", "scripts.econ.in.imd.imd_rainfall"],
+    [sys.executable, "-m", "scripts.econ.in.ogd.ogd_food_nowcast"],
     # Track B — harvest PDFs first, then ingest only recent date-folders
     [sys.executable, "-m", "scripts.econ.in.govt.daily_pull"],
     [sys.executable, "-m", "scripts.econ.in.govt.ingest_filings", "--since-days", "2"],
@@ -83,7 +86,11 @@ def _engine():
 
 
 def _track_a_snapshot(run_started_at: datetime.datetime) -> dict:
-    """Pull stats on IN DAILY indicators ingested at/after run_started_at."""
+    """Pull stats on IN DAILY + WEEKLY indicators ingested DURING THIS RUN.
+
+    Scoped to rows whose ingested_at >= run_started_at — reports what this
+    run wrote, not the full historical IN weekly/daily series.
+    """
     eng = _engine()
     try:
         with eng.connect() as conn:
@@ -100,7 +107,7 @@ def _track_a_snapshot(run_started_at: datetime.datetime) -> dict:
                     JOIN   dbo.dim_frequency fq ON fq.id = i.frequency_id
                     JOIN   dbo.dim_country c ON c.id = i.country_id
                     WHERE  c.country_code = 'IN'
-                      AND  fq.frequency_code = 'DAILY'
+                      AND  fq.frequency_code IN ('DAILY', 'WEEKLY')
                       AND  f.ingested_at >= :t0
                     GROUP BY v.display_name
                     ORDER BY n_obs DESC
@@ -351,7 +358,7 @@ def _render_email(
 
 <!-- TRACK A -->
 <table width='100%' cellpadding='0' cellspacing='0' style='margin-top:20px;'>
-  <tr><td style='padding:0 24px;'><span style='font-size:16px;font-weight:bold;color:#0d2137;'>TRACK A &mdash; DAILY INDICATORS</span>
+  <tr><td style='padding:0 24px;'><span style='font-size:16px;font-weight:bold;color:#0d2137;'>TRACK A &mdash; DAILY + WEEKLY INDICATORS</span>
   <span style='font-size:12px;color:#666;margin-left:8px;'>obs ingested this run, grouped by vendor</span></td></tr>
 </table>
 <table width='96%' cellpadding='5' cellspacing='0' style='margin:8px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;font-size:13px;'>

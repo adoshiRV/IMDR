@@ -29,6 +29,7 @@ India is the weakest API landscape in Asia. Real-economy series (CPI, IIP, GDP) 
 | [india_govt_doc_sources.md](india_govt_doc_sources.md) | Policy/fiscal document source inventory — full agency + tier inventory; all probed sources. |
 | [in_nri_rates_sourcing.md](in_nri_rates_sourcing.md) | NRI / FCNR(B) / NRE / NRO deposit rate sourcing notes. |
 | **[india_mandi_prices.md](india_mandi_prices.md)** | **PRE-PROD** — OGD Agmarknet daily mandi-price pipeline (data.gov.in resource 35985678…; dedicated star schema; migration 104 drafted, not applied). |
+| **[../../research/india_food_nowcast_spec.md](../../research/india_food_nowcast_spec.md)** | **DESIGN SPEC** — Fresh-food inflation nowcaster: CPI-weighted mandi-median composite for Vegetables + Fruits + Spices (≈11.4% of CPI); MoM nowcast, seasonal norms, regional layer, phased build plan. |
 | [`_playground/rbi.md`](_playground/rbi.md) | RBI DBIE Playwright probes (XHR capture, payload inspection, SPA click-through). |
 | [`_playground/rbi_explore.md`](_playground/rbi_explore.md) | Captured screenshots + HTML snapshots from probe runs. |
 

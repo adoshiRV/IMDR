@@ -126,15 +126,16 @@ def post_callback(
     return r.json().get("response", {}) or {}
 
 
-_SLUG_MAXLEN = 32
+_SLUG_MAXLEN = 40
 
 
 def slug(s: str, *, maxlen: int = _SLUG_MAXLEN) -> str:
     """Stable code-safe slug for an ``imdr_code`` stem.
 
-    All-uppercase, alphanumeric + underscore, capped at ``maxlen`` chars.
-    Consistent across all UPAg fetchers so the same crop in two reports
-    produces the same slug — prevents accidental code splits.
+    All-uppercase, alphanumeric + underscore, capped at ``maxlen`` chars
+    (default 40 — sized to fit the longest India food-basket commodity name).
+    Consistent across all UPAg + food-nowcast fetchers so the same crop in
+    two reports produces the same slug — prevents accidental code splits.
     """
     out = re.sub(r"[^A-Za-z0-9]+", "_", s).strip("_").upper()
     return out[:maxlen] or "X"
