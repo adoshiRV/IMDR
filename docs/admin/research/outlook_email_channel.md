@@ -1,6 +1,6 @@
 # Outlook email — research acquisition channel
 
-**Status: prototype (route-B), updated 2026-06-22. Migration 099 APPLIED; FULL `--load` pipeline IMPLEMENTED (classify → portal-twin dedup-merge → chunk → embed → upload `.html` to the SharePoint tree → MSSQL `source='email'` → Qdrant), one command. First multi-vendor production load done 2026-06-22 (7-day desk-core, 8 vendors): 77 net-new rows loaded / 0 failed in 76s; gates skipped 17 portal-twins + 14 db-dedups + 4 hash-dups. Email corpus 112 rows (after retro-cleaning one teaser-pointer row caught by the new portal-pointer gate). Artifacts land in `ResearchData1/IMDR/` identical to portal. Still NOT wired into any orchestrator; route-A (Graph) producer + per-vendor subject parsers are the next builds. NB route-B's per-run cost is ~all the LLM spend (~9–13k tokens/article to stage each body); route-A eliminates it.**
+**Status: prototype (route-B), updated 2026-06-22. Migration 099 APPLIED; FULL `--load` pipeline IMPLEMENTED (classify → portal-twin dedup-merge → chunk → embed → upload `.html` to the SharePoint tree → MSSQL `source='email'` → Qdrant), one command. First multi-vendor production load done 2026-06-22 (7-day desk-core, 8 vendors): 77 net-new rows loaded / 0 failed in 76s; gates skipped 17 portal-twins + 14 db-dedups + 4 hash-dups. Email corpus 112 rows (after retro-cleaning one teaser-pointer row caught by the new portal-pointer gate). Artifacts land in `ResearchData1/IMDR/` identical to portal. Still NOT wired into any orchestrator. **Headline next build = the producer cost overhaul → local Outlook MAPI/COM (route C), `docs/admin/development/outlook_local_mapi_producer.md`**: route-B's per-run cost is ~all the LLM spend (~9–13k tokens/article to stage each body, ~1M/week); a local MAPI producer captures bodies off the Outlook `.ost` at ~0 tokens, no app-reg, + real PDF bytes. Per-vendor subject parsers are the other pending build.**
 
 A *second acquisition channel* for sell-side research, alongside the
 per-vendor portal scrapers ([`scrapers/`](scrapers/)). Research that
@@ -79,7 +79,7 @@ user instruction 2026-06-18 ("do those two later"). Onboarding each needs a
 >   (`MailboxNotEnabledForRESTAPI`) — do NOT rely on search; enumerate folders
 >   by ID instead. Folder-name lookup is also unreliable for nested folders.
 
-## Access model — route B now, route A later
+## Access model — route B now, local MAPI/COM (route C) next
 
 The Microsoft 365 MCP is a **Claude-side** tool; the unattended Python
 pipeline can't use it. So:
@@ -87,23 +87,36 @@ pipeline can't use it. So:
 * **Route B (current):** Claude pulls emails via the M365 MCP and writes
   one JSON per message into `playground/research/outlook/staging/{vendor}/`.
   The Python crawler reads **only** that staging dir.
-* **Route A (future, unattended):** an Azure AD app registration
-  (`Mail.Read` on `research@rvcapital.com`, `msal`) populates the same
-  staging shape on a cron. The crawler is identical either way. → needs
-  `imdr-security` for the app reg.
+* **Route A (Graph, headless option):** an Azure AD app registration
+  (`Mail.Read`, `msal`) populates the same staging shape on a cron. Needs
+  `imdr-security` for the app reg. Kept as the option **only** for a host with
+  no Outlook profile.
+* **Route C (local MAPI/COM — the chosen producer overhaul) →**
+  [`../development/outlook_local_mapi_producer.md`](../development/outlook_local_mapi_producer.md).
 
-> **PDF-byte limitation (confirmed 2026-06-18):** the M365 MCP `read_resource`
-> returns an attachment's **extracted text only — never raw bytes**. So
-> route B **cannot** capture a byte-accurate PDF; the 3 vendors that attach
-> real PDFs (CBA, Nomura ~35%, DB desk-PM) need **route A** (`Graph
-> /attachments/{id}/$value`) for the bytes. Body-only desk notes are
-> unaffected — the body *is* the artifact.
+> **Why the producer is being overhauled (cost):** route-B routes every email
+> body through the LLM **twice** (MCP read into context → re-emit via Write) →
+> **~9–13k tokens/article, ~1M/week, recurring** (measured 2026-06-22). The
+> `--load` half is pure Python and ~free; **all** the cost is capture. The mail
+> is already **local** (Outlook `.ost`), so the fix is a local Python **MAPI/COM**
+> producer that reads `HTMLBody` straight off disk: **~0 tokens, no app
+> registration, and it captures real PDF attachment bytes** (`SaveAsFile`) — same
+> staging contract, pipeline unchanged. Full plan + phases + parity-cutover in the
+> dev doc above.
+
+> **PDF-byte limitation under route B (confirmed 2026-06-18):** the M365 MCP
+> `read_resource` returns an attachment's **extracted text only — never raw
+> bytes**. So route B **cannot** capture a byte-accurate PDF; the 3 vendors that
+> attach real PDFs (CBA, Nomura ~35%, DB desk-PM) degrade to
+> `synthetic_body(pdf_missing)`. **Route C (local MAPI/COM) closes this** — COM
+> exposes the attachment bytes locally — as does route A (`Graph /$value`). Body-
+> only desk notes are unaffected — the body *is* the artifact.
 
 ## Delivery archetypes → extraction
 
 | Archetype | Example senders | Real PDF? | Stored as |
 |---|---|---|---|
-| Attached-PDF research | `*.cba.com.au`, SCB `Eric.Robertsen` (SMS), `maki.hanawa@db.com` | ✅ attachment (route A only) | the PDF; body → `context` |
+| Attached-PDF research | `*.cba.com.au`, SCB `Eric.Robertsen` (SMS), `maki.hanawa@db.com` | ✅ attachment (route A/C only — not B) | the PDF; body → `context` |
 | Clean HTML note | `research@anz.com` (summary + portal docRef link) | ❌ | body text |
 | Desk/sales commentary | `walter.wong@db.com`, `zeke.koh@citi.com`, `John.Szto@sc.com`, `remo.winkelmolen@nomura.com`, `jamshed.d.sidhva@bofa.com`, `ms.jpy.rates.daily@` | ❌ | body text |
 | Portal digest / marketing | `*.alerts.publishing.gs.com`, `resweb@morganstanley.com`, `ubs_research@ubs.com`, Barc marketing | ❌ (inline charts only) | dedup vs portal; keep body only if unique |
@@ -445,5 +458,8 @@ subjects.
   research). BofA ~31 of the 77 (desk pings); high-signal slice ~46.
 * ⏳ per-vendor subject parsers (classification accuracy on net-new rows).
 * ⏳ core-headline extraction (recall boost: catch differing-masthead twins).
-* ⏳ route-A Graph API (unattended producer; `.eml` artifact + real PDF bytes).
+* ⏳ **producer cost overhaul → local MAPI/COM (route C)** — the headline next
+  build: ~0-token capture, no app-reg, + real PDF attachment bytes. Full plan:
+  [`../development/outlook_local_mapi_producer.md`](../development/outlook_local_mapi_producer.md).
+  (Route-A Graph kept only as the headless/no-Outlook option.)
 * ⏳ `dim_vendor` rows for `cba` + `cacib`; orchestrator wiring (user-gated).
