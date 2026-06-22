@@ -179,3 +179,153 @@ supersedes it for the **interactive/local** case (no admin, captures PDFs, free)
 Graph remains the right choice **only** if the ingest must ever run on a host
 *without* an Outlook profile (true headless server/cron). Keep route A documented as
 the headless option; build route C now.
+
+---
+
+## 10. Current layout reference (what exists today)
+
+> The whole email channel is **prototype code under `playground/research/`, which is
+> gitignored** (`.gitignore:43 playground/*`) — it lives on disk only, NOT in version
+> control. The **tracked** parts are the unit tests (`tests/unit/research/`) and the
+> docs. The new producer is a drop-in: it only needs to write §10.3's contract; it
+> touches none of the pipeline below.
+
+### 10.1 Pipeline code map — `playground/research/ingest/` (gitignored)
+| file | key symbols / role |
+|---|---|
+| `crawler_outlook.py` | `discover_reports(staging_dir, *, since, until, vendors)` → `list[OutlookReportRef]`; `OutlookReportRef` (dataclass); `FOLDER_TO_VENDOR`; `EMAIL_VENDOR_HOLD`; `_VENDOR_DEFAULT_SOURCE_TYPE`; `_derive_source_type(rec, archetype, vendor=)`; `email_noise_reason(subject)`; `decide_dedup(ref, doc_path, hash, *, seen, known)`; `_ref_from_record` (staging JSON → ref); `_DESK_SUBJECT_RE`, `_RESEARCH_SENDER_MARKERS` |
+| `email_doc.py` | `sanitize_email_html` (strips `_CAUTION_BANNER`, `_WESTPAC_BANNER`, then earliest of `_TRAILING_CUTS`); `build_email_document(ref, *, staging_dir=None)` → `(Document|None, path, body_text)` where path ∈ `pdf` / `synthetic_body` / `skip` / `skip(portal_pointer)` / `synthetic_body(pdf_missing)`; `is_portal_pointer`; `best_body_text`; `_first_pdf_attachment`; `synthesize_document`; `MIN_BODY_CHARS=200`; `POINTER_MAX_CHARS=700`; `DESK_DISCLAIMER_RE`; `EMAIL_PARSER_VERSION="email-html-v1"` |
+| `classifiers/email_common.py` | `classify_email(ref, *, vendor_code)` → `ClassifyResult` (keyword asset-class scoring + country/region scan + theme/author tags) |
+| `classifiers/cba.py` | thin CBA classifier (AU/MACRO default) |
+| `email_pipeline.py` | `async ingest_email_one(*, ref, classify_result, doc, body_text, engine, api_keys, do_embed, embed_model, qdrant_writer, store_pdf_text, skip_portal_twins)` → `EmailIngestResult`. Flow: imi-in-DB precheck → `find_portal_twin` → `chunk_doc` → `embed_chunks` → `upload_bytes` (SharePoint) → `write_report` → Qdrant upsert |
+| `dedup_merge.py` | `find_portal_twin(engine, *, vendor_code, publish_date, title)`; `jaccard`; `title_tokens`; `THRESHOLD=0.70`; `PortalTwin` |
+| `db.py` | `write_report(conn, meta, doc, chunks, embeddings, tag_ids, model_id, store_pdf_text, source, source_type, internet_message_id)`; `resolve_tag_ids`; `ensure_model_id`. imi dedup gate ahead of content_hash |
+| `engine.py` | `research_engine(settings)` — shared SQLAlchemy engine (ODBC Driver 18) |
+| `paths.py` | `build_sharepoint_path(*, vendor_code, publish_date, uuid, title="", ext="pdf")` → IMDR-relative path |
+| `upload.py` | `upload_bytes(*, data, relative_path)` — writes into the OneDrive-synced IMDR root; `upload_pdf` delegates |
+| `qdrant_writer.py` | `QdrantWriter.from_env()`; `.collection_for(model_name, dimensions)`; `.upsert_chunks(...)`; client attr is **`_client`** (delete via `_client.delete(collection, FilterSelector(...))`); `ChunkPoint` |
+| `chunk.py` / `embed.py` | `chunk_doc(doc)`; `embed_chunks(chunks, model_name, api_keys)`; `get_spec(model)`; `DEFAULT_MODEL_NAME="gemini-embedding-2"` |
+| `models.py` | `Document`, `ReportMeta`, `ClassifyResult`, `Tag` |
+| `ingest_outlook.py` (CLI, repo-root of `playground/research/`) | dry-run (default) + `--load`; flags `--staging-dir --vendors --since --until --load --no-embed --embed-model --limit --keep-portal-twins`; `DEFAULT_STAGING = outlook/staging` |
+
+### 10.2 Staging dir — `playground/research/outlook/staging/`
+`{vendor}/{slug}.json` per message; real attachments go in `{vendor}/attachments/`.
+Exploratory helpers also here (gitignored): `_week_estimate.py`, `_smoke_dedup_analysis.py`,
+and per-vendor MCP-staged JSON from the 2026-06-22 backfill. **The MAPI producer
+writes into this same tree** (the planned per-folder high-water-mark → `outlook/.hwm.json`).
+
+### 10.3 Staging JSON contract (the producer's output target — keep byte-identical)
+```jsonc
+{
+  "internet_message_id": "<...@...>",   // PRIMARY dedup key → dim_report.internet_message_id
+  "graph_id": "AAMk... | <MAPI EntryID>",
+  "folder": "DB",                        // Outlook display name (see map below)
+  "vendor_code": "db",
+  "subject": "...",
+  "sender": { "name": "...", "address": "..." },   // address must be SMTP, not EX
+  "to":  [ { "name": "...", "address": "..." } ],  // ARRAY OF OBJECTS (not strings)
+  "cc":  [ ... ],
+  "received": "2026-06-19T05:04:11Z",    // ISO-8601 UTC Z
+  "body_content_type": "html",
+  "body_html": "...",                    // full verbatim HTML
+  "attachments": [
+    { "name": "x.pdf", "content_type": "application/pdf",
+      "size": 2296681, "is_inline": false, "file": "attachments/<sha8>.pdf" }
+  ]
+}
+```
+`_ref_from_record` skips any file missing `internet_message_id` / `subject` / `received`.
+
+### 10.4 Folder→vendor map (exact display-name keys — gotchas)
+`FOLDER_TO_VENDOR` = `GS→goldman, MS→ms, CBA→cba, DB→db, SCB→stanc, STANC→stanc,
+JPM→jpm, Nom→nomura, ANZ→anz, UBS→ubs, Citi→citi, HSBC→hsbc, Barc→barclays,
+BOFA→bofa, Westpac→westpac, CACIB→cacib`. **Watch the abbreviations** —
+`Nom` (not Nomura), `Barc` (not Barclays), `BOFA` (caps), `Citi`/`Westpac` (mixed).
+**`SCB` and `STANC` are two folders → one vendor `stanc`** (SCB=desk, STANC=formal
+research; source_type resolved per message). `EMAIL_VENDOR_HOLD = {cba, cacib}` — the
+producer should skip these unless explicitly named (they have no `dim_vendor` row /
+portal crawler). `_VENDOR_DEFAULT_SOURCE_TYPE = {bofa:desk_commentary, cba:research,
+anz:research, westpac:research, cacib:research}`. The 16 folders sit under
+`Research/` in the shared mailbox; the MAPI producer navigates by these **names**.
+
+### 10.5 The `--load` decision flow (what consumes staging — DO NOT change)
+`discover_reports` → per ref: `_classify` (portal classifier if it yields a class,
+else `classify_email`) → `email_noise_reason(title)` (drop) → `build_email_document`
+(skip variants) → `decide_dedup` (in-run seen imi/hash) → `ingest_email_one`
+(imi-in-DB → portal-twin → chunk/embed/upload/write/qdrant). Per-run counters:
+`ingestable / dropped / skipped / loaded / db_dedup / portal_dup / failed`.
+
+### 10.6 Body-stage gates (in `build_email_document`/sanitizer — recently hardened)
+- **Sanitizer cuts**: CAUTION banner; Westpac anti-phishing banner; `_TRAILING_CUTS`
+  trailing legal blocks incl. ANZ (`IMPORTANT NOTICE: This communication is issued by`,
+  `By continuing to use our services`), BofA (`This marketing material was prepared by`,
+  `…privileged`), DB (`This e-mail may contain confidential`, `Privacy of communications`).
+- **`skip` (wrapper)**: sanitized body `< MIN_BODY_CHARS (200)`.
+- **`skip(portal_pointer)`**: sanitized body `< POINTER_MAX_CHARS (700)` AND raw body
+  has a report-download link (`/TinyUrl/|opentoken|SingletrackCMS__DownloadDocument|
+  neo.ubs.com/r/|streetcontxt`).
+- **`chartpack`** noise rule (`\bchart\s?packs?\b`) in `email_noise_reason`.
+
+### 10.7 `source_type` derivation (authority order) + noise gate
+`_derive_source_type`: 1) explicit staging value → 2) body "NOT RESEARCH" disclaimer
+→ 3) per-vendor folder default (`_VENDOR_DEFAULT_SOURCE_TYPE`) → 4) archetype → 5)
+sender heuristic (research aliases / `research.distribution@sc.com` → research;
+person@desk-domain or `[/]`-prefixed → desk) → 6) default research. `email_noise_reason`
+labels: summary_alert, ratings_tp, novelty(World Cup), single_name_ideas,
+webcast, most_read_digest, training, survey(Extel), media(Video/Podcast), calendar,
+data_blast, framework_promo, **chartpack**, login_code/otp/portal_token/
+account_verification/password_reset/credentials/portal_admin/marketing.
+
+### 10.8 Dedup gates (cheapest-first)
+1. `internet_message_id` already in `research.dim_report` (migration-099 filtered-unique
+   idx `ix_research_dim_report_imi`) → skip. 2. `find_portal_twin` (Jaccard ≥0.70, ≥3
+   shared tokens, same vendor, ±3 days, vs `source='portal'`) → skip. 3. `content_hash`
+   present → skip. 4. `(vendor_id, publish_date, LOWER(title))` → skip.
+   **`content_hash` = SHA-256 of the stable SANITIZED body** (not raw bytes / not the
+   stored artifact) → producer-agnostic → §5 parity cutover is safe.
+
+### 10.9 DB schema (`research` schema, MSSQL `IMDR`)
+- `research.dim_report` (id, vendor_id→`dbo.dim_vendor`, title, publish_date, authors,
+  **pdf_path NOT NULL**, source `varchar(16)` def 'portal', source_type `varchar(20)`
+  def 'research', internet_message_id `varchar(255)` null + filtered-unique idx,
+  content_hash binary(32), pdf_text, asset_class, region, country_id, context,
+  parser_version). Migration **099** (applied) added source/source_type/imi.
+- Dependents (delete children-first on cleanup): `research.fact_chunk` (report_id),
+  `research.fact_chunk_embedding` (chunk_id), `research.map_report_tag` (report_id),
+  `research.map_report_market` (report_id), plus `research.dim_tag`,
+  `research.dim_embedding_model`.
+- `dbo.dim_vendor` vendor_code→id: goldman=9, ms=12, db=18, citi=46, nomura=11,
+  stanc=20, hsbc=13, anz=10, ubs=45, barclays=2, bofa=42, westpac=17. **cba/cacib
+  have NO row** (held).
+- **Read-only access** via the `imdr-db` MCP (`mcp__imdr-db__query`, SELECT only;
+  rejects `;`/comments). Writes/deletes go via `research_engine` with a `source='email'`
+  safety guard.
+
+### 10.10 Artifact storage
+`upload_bytes(data, relative_path=build_sharepoint_path(vendor_code, publish_date,
+uuid=imi8, title, ext))` where `imi8 = sha256(internet_message_id)[:8]`. Path =
+`{YYYY}/{MM}/{DD}/{vendor}/{slug}_{imi8}.{ext}` under the OneDrive-synced IMDR library
+(observed local root: `C:\Users\adoshi\OneDrive - RV Capital Management Private
+Ltd\Trade Knowledge Core - IMDR\`). `ext`: body-only → `html` (route B today); route
+A → `eml`; **attachment PDF → `pdf`** (what route C enables). Upload happens BEFORE the
+DB write so `pdf_path` always points at an existing file.
+
+### 10.11 Embedding / Qdrant
+Default model `gemini-embedding-2` (3072-dim); Qdrant collection
+`research_gemini_embedding_2_3072d`; remote at `http://127.0.0.1:6333`. `--no-embed`
+writes the DB row only (no embed/Qdrant). Keys (Voyage/Gemini) from `Settings`.
+
+### 10.12 Environment
+Run with the imdr conda env: `C:/Users/adoshi/.conda/envs/imdr/python.exe` (has pyodbc
++ ODBC Driver 18 + tiktoken + qdrant + voyage/gemini). The base interpreter lacks
+tiktoken (dry-run still works — embed/engine imports are lazy). **No `pytest-asyncio`**
+— async tests drive with `asyncio.run`. `pywin32` (for COM) must be added to the env.
+
+### 10.13 Tests (tracked) + current corpus state
+`tests/unit/research/`: `test_outlook_adapter.py` (27), `test_dedup_merge.py` (7),
+`test_email_common_classifier.py` (15), `test_email_doc.py` (19),
+`test_email_pipeline.py` (3) = **71** (these import the playground code via a
+`sys.path.insert`). Email corpus in `dim_report` ≈ **112 rows** (mostly
+desk_commentary + 9 research) after the 2026-06-22 desk-core load and the
+portal-pointer cleanup. The MAPI producer's new unit tests (field mapping, EX→SMTP,
+Restrict-string, attachment) belong here too, with mocked COM objects.
