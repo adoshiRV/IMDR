@@ -177,12 +177,22 @@ def test_email_noise_drops_admin_and_media():
     assert email_noise_reason("Three Actionable Ideas: X - OW | Y - UW") == "single_name_ideas"
 
 
+def test_email_noise_drops_chartpacks():
+    # Chart-pack pointers are link-only (substance in unreachable chart PDFs).
+    assert email_noise_reason("AUD Rates Morning Chartpacks - 19 June 2026") == "chartpack"
+    assert email_noise_reason("Equity Chart Pack") == "chartpack"
+
+
 def test_email_noise_keeps_real_research():
     # No single-name-equity filtering on the email path — real notes survive.
     assert email_noise_reason("[/] DB Asia: Indonesia - BI surprise hike") is None
     assert email_noise_reason("Citi Macro - SRBI...the new golden child in Asia?") is None
     assert email_noise_reason("CBA Economics: RBA in June - no change expected") is None
     assert email_noise_reason("India: engineering BoP stability, not cure") is None
+    # Substantive daily series must NOT be caught by the chartpack rule
+    # (verified from real bodies 2026-06-22 — these carry full market text).
+    assert email_noise_reason("Australian Morning Focus") is None
+    assert email_noise_reason("FinanceAM") is None
 
 
 def test_email_noise_drops_login_and_otp():

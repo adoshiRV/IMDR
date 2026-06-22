@@ -1,6 +1,6 @@
 # Outlook email — research acquisition channel
 
-**Status: prototype (route-B), updated 2026-06-19. Migration 099 APPLIED; FULL `--load` pipeline IMPLEMENTED (classify → portal-twin dedup-merge → chunk → embed → upload `.html` to the SharePoint tree → MSSQL `source='email'` → Qdrant), one command. Validated by a 2-week Citi+DB backfill smoke: 41 loaded, fuzzy merge skipped 9 portal-dup re-forwards with 0 false positives, clean 36-row corpus. Artifacts land in `ResearchData1/IMDR/` identical to portal. NOT wired into any orchestrator; route-A (Graph) producer + per-vendor subject parsers are the next builds.**
+**Status: prototype (route-B), updated 2026-06-22. Migration 099 APPLIED; FULL `--load` pipeline IMPLEMENTED (classify → portal-twin dedup-merge → chunk → embed → upload `.html` to the SharePoint tree → MSSQL `source='email'` → Qdrant), one command. First multi-vendor production load done 2026-06-22 (7-day desk-core, 8 vendors): 77 net-new rows loaded / 0 failed in 76s; gates skipped 17 portal-twins + 14 db-dedups + 4 hash-dups. Email corpus now 113 rows (104 desk_commentary + 9 research). Artifacts land in `ResearchData1/IMDR/` identical to portal. Still NOT wired into any orchestrator; route-A (Graph) producer + per-vendor subject parsers are the next builds. NB route-B's per-run cost is ~all the LLM spend (~9–13k tokens/article to stage each body); route-A eliminates it.**
 
 A *second acquisition channel* for sell-side research, alongside the
 per-vendor portal scrapers ([`scrapers/`](scrapers/)). Research that
@@ -63,11 +63,21 @@ email is their only channel. They are in `crawler_outlook.EMAIL_VENDOR_HOLD`
 user instruction 2026-06-18 ("do those two later"). Onboarding each needs a
 `dim_vendor` row first.
 
-> Folder-name lookup in the M365 search tool is unreliable for nested
-> folders — read folders by **ID** via `read_resource mail:///folders/{id}`.
-> The shared-mailbox REST search (`mailboxOwnerEmail`) currently 404s
-> (`MailboxNotEnabledForRESTAPI`); the folders are reachable in the
-> delegate's own mailbox instead.
+> **M365 MCP access recipe (re-confirmed 2026-06-22 — read carefully, the
+> `owner` rules are inconsistent across resource types):**
+> * **List folders:** `read_resource mail:///folders/?owner=research@rvcapital.com`
+>   returns the full tree (mailbox + the 16 `Research/` child folders) with IDs.
+> * **List a folder's messages:** `read_resource mail:///folders/{id}?owner=…`
+>   returns up to ~45 messages **newest-first** (no date filter, no paging) —
+>   so a high-volume folder like GS (>45 msgs/3 days) won't reach a week back
+>   in one call.
+> * **Read one message:** `read_resource mail:///messages/{id}` **WITHOUT**
+>   `?owner` (adding `?owner=` here 404s `NOT_FOUND`). Returns the full
+>   `body.content` (HTML) **and `internetMessageId`** — the stable staging
+>   dedup key, available without any extra call.
+> * **Search (`outlook_email_search` with `mailboxOwnerEmail`) 404s**
+>   (`MailboxNotEnabledForRESTAPI`) — do NOT rely on search; enumerate folders
+>   by ID instead. Folder-name lookup is also unreliable for nested folders.
 
 ## Access model — route B now, route A later
 
@@ -147,7 +157,10 @@ digest drop-list. Patterns (each a labelled regex): summary-alert,
 ratings/TP, World-Cup novelty, single-name "actionable ideas", webcast/
 webinar/timetable, "Most Read"/"What Your Peers" digests, training, Extel
 surveys, `Video:`/`Podcast:`/`Video Views`, economic/auction calendars, thin
-data blasts, "thematics framework", **login/OTP/verification** (login codes,
+data blasts, "thematics framework", **chart-packs** (`\bchart\s?packs?\b` —
+Westpac "AUD Rates Morning Chartpacks"; link-only, substance in unreachable
+chart PDFs; does NOT catch "Charts that Matter", which carries real captions),
+**login/OTP/verification** (login codes,
 `portal token`, account-verification, password-reset), **credentials** (JPM
 `jpmm.notification` username/password mail), **marketing** ("WEBSITE – SIGN
 UP"), **top-weekly-reads digests**. Deliberately OTP-specific — bare `token`
@@ -226,6 +239,21 @@ false match (a Citi `ASW Run … 2026` once matched a mojibake portal title
 Future recall boost: core-headline extraction (after the masthead separator)
 to catch the differing-masthead cases.
 
+> **⏳ OPEN — revisit (logged 2026-06-22):** the gate filters
+> `v.vendor_code = :vc AND r.source = 'portal'`, so for a vendor with **no
+> portal crawler** (`cba`, `cacib`) there are zero portal rows to match and
+> the portal-twin merge is a **silent no-op** — those vendors fall back to
+> the `internet_message_id` + `content_hash` + `(vendor, date, title)` gates
+> only. That is *probably* correct (email is their sole channel, so every
+> item is genuinely net-new and there's nothing to twin against), but it has
+> **not been confirmed** and warrants a deliberate decision before cba/cacib
+> are un-held: is imi+hash dedup sufficient for an email-only vendor, or do
+> we want an intra-email near-dup merge (same desk re-sending the same note)?
+> Also unverified: the gate's recall on the **other live-portal vendors**
+> (GS/MS/JPM/…) — the mechanism is vendor-agnostic but precision/recall was
+> only smoke-validated on DB + Citi (the entire 36-row corpus). See the
+> 2026-06-22 cross-vendor dry-run smoke note below.
+
 ## Schema — migration 099 (APPLIED 2026-06-18)
 
 [`migrations/099_research_dim_report_email_channel.sql`](../../../migrations/099_research_dim_report_email_channel.sql)
@@ -246,8 +274,8 @@ has_filter=1`. (The read-only DB MCP returns NULL for `object_definition`/
 
 | File | Purpose |
 |---|---|
-| [`ingest/crawler_outlook.py`](../../../playground/research/ingest/crawler_outlook.py) | staging reader → `OutlookReportRef`; folder→vendor map; `EMAIL_VENDOR_HOLD`; `_derive_source_type`; `email_noise_reason`; `decide_dedup` |
-| [`ingest/email_doc.py`](../../../playground/research/ingest/email_doc.py) | HTML sanitizer + synthetic-Document builder |
+| [`ingest/crawler_outlook.py`](../../../playground/research/ingest/crawler_outlook.py) | staging reader → `OutlookReportRef`; folder→vendor map; `EMAIL_VENDOR_HOLD`; `_derive_source_type`; `email_noise_reason` (incl. `chartpack` drop); `decide_dedup` |
+| [`ingest/email_doc.py`](../../../playground/research/ingest/email_doc.py) | HTML sanitizer (CAUTION + Westpac anti-phishing banner strip; `_TRAILING_CUTS` incl. ANZ/BofA disclaimer footers) + synthetic-Document builder |
 | [`ingest/classifiers/email_common.py`](../../../playground/research/ingest/classifiers/email_common.py) | keyword classifier (word-boundary scored) |
 | [`ingest/classifiers/cba.py`](../../../playground/research/ingest/classifiers/cba.py) | CBA classifier (AU/MACRO default) |
 | [`ingest/engine.py`](../../../playground/research/ingest/engine.py) | shared ODBC Driver 18 engine factory (used by `ingest_one.py` + `ingest_outlook.py`) |
@@ -255,10 +283,12 @@ has_filter=1`. (The read-only DB MCP returns NULL for `object_definition`/
 | [`ingest/dedup_merge.py`](../../../playground/research/ingest/dedup_merge.py) | `find_portal_twin()` — fuzzy email→portal title match (Jaccard) so desk re-forwards of portal notes are skipped |
 | [`ingest/email_pipeline.py`](../../../playground/research/ingest/email_pipeline.py) | `ingest_email_one()` — full per-message pipeline (portal-twin gate → chunk → embed → upload → DB → Qdrant); the ~10x-simpler analogue of `pipeline.ingest_one` |
 | [`ingest_outlook.py`](../../../playground/research/ingest_outlook.py) | dry-run + full `--load` CLI (`--no-embed`, `--limit`, `--keep-portal-twins`); the `ingest_today.py` analogue |
-| [`tests/unit/research/test_outlook_adapter.py`](../../../tests/unit/research/test_outlook_adapter.py) + [`test_dedup_merge.py`](../../../tests/unit/research/test_dedup_merge.py) | adapter sanitizer/synthesize/folder-map/source_type/decide_dedup (25) + dedup-merge jaccard/tokens (7) |
+| [`tests/unit/research/test_outlook_adapter.py`](../../../tests/unit/research/test_outlook_adapter.py) + [`test_dedup_merge.py`](../../../tests/unit/research/test_dedup_merge.py) | adapter sanitizer/synthesize/folder-map/source_type/decide_dedup + `chartpack` noise drop (26) + dedup-merge jaccard/tokens (7) |
 | [`tests/unit/research/test_email_common_classifier.py`](../../../tests/unit/research/test_email_common_classifier.py) | keyword classifier: per-class scoring, commodities-specificity guard, no-stem word-boundary, country/region scan, theme/author tags (15) |
-| [`tests/unit/research/test_email_doc.py`](../../../tests/unit/research/test_email_doc.py) | adapter edges: earliest-cut boilerplate, `DESK_DISCLAIMER_RE`, `best_body_text` summary fallback, `build_email_document` synthetic/skip/pdf_missing, inline-attachment skip (11) |
+| [`tests/unit/research/test_email_doc.py`](../../../tests/unit/research/test_email_doc.py) | adapter edges: earliest-cut boilerplate, ANZ/BofA disclaimer + Westpac banner strips, `DESK_DISCLAIMER_RE`, `best_body_text`, `build_email_document` synthetic/skip/pdf_missing/link-only-skip, inline-attachment skip (15) |
 | [`tests/unit/research/test_email_pipeline.py`](../../../tests/unit/research/test_email_pipeline.py) | `ingest_email_one` dedup short-circuits: imi-idempotency + portal-twin skip, fake Engine + monkeypatched twin (3) |
+
+**66 email unit tests total** (adapter 26 · dedup-merge 7 · classifier 15 · email-doc 15 · pipeline 3).
 
 ## Running
 
@@ -292,12 +322,87 @@ preserved.
 > the live variant (route A / Graph) is the unattended producer. CBA/CACIB
 > remain held (no `dim_vendor` row).
 
+### Cross-vendor dry-run smoke (2026-06-22, read-only)
+
+`playground/research/outlook/_smoke_dedup_analysis.py` simulates the
+`ingest_email_one` decision for **every** staged message against the live
+corpus **without writing** (noise gate → build doc → imi-in-DB check →
+`find_portal_twin` → in-run hash). Purpose: prove the gate behaves on the
+vendors **beyond db/citi**, which the backfill never bulk-loaded. Result over
+57 staged msgs / 15 vendors:
+
+* **Portal-twin gate generalises — fired correctly for 7 distinct vendors**,
+  not just db/citi: 13 twins caught, **all true positives, 0 false positives**.
+  db Fed Notes/FX Blog/Chart Alert/MPM/CCS (1.00), goldman `US Daily: June FOMC
+  Recap` → portal `June FOMC Recap` (0.92), hsbc `Bank of Japan :` (1.00, punct
+  only), westpac/anz verbatim forwards (1.00), db Indonesia differing-masthead
+  (`DB Asia:` vs portal `Asia Chart Alert:`) **caught at 0.83** — better recall
+  than the documented worst case.
+* **Closest call: stanc `The Morning Standard – BoJ – If not now, when?` →
+  portal `BoJ – If not now, when?` at 0.71** — barely clears the 0.70 threshold.
+  Little margin here; a slightly different masthead would miss it.
+* **cba/cacib confirmed no-op:** `portal_rows = 0` → every staged item is
+  INGEST (no twin possible). Empirically confirms the OPEN note above —
+  email-only vendors get imi+hash dedup only.
+* **Net-new INGEST items expose the classification gap on rows that DON'T have
+  a portal twin to inherit a class from:** barclays `What if the Fed's next
+  move is a hike?` → **CREDIT** (should be MACRO/RATES). NB the stanc BoJ note
+  *was* mis-classed FX but it's a PORTAL-DUP, so it's skipped and the issue is
+  moot — confirming portal-overlap items dodge the classifier weakness while
+  **net-new items do not**. This is the strongest argument for the pending
+  per-vendor subject parsers.
+
+### Don't subject-drop the recurring dailies — read the bodies (2026-06-22)
+
+A first pass proposed adding the high-volume recurring series (ANZ `Morning
+Focus` / `What's Priced In`, Westpac `FinanceAM` / `Chartpacks`, BofA `Arvin
+The: …Spot Views`) to the noise gate as "thin boilerplate". **Reading the actual
+bodies overturned that** — most are substantive:
+
+* ANZ **Morning Focus** — ~600 words (Highlights, FX/Rates commentary, Fed
+  outlook). The body IS the note. KEEP.
+* Westpac **FinanceAM** — full Overnight Market Wrap: levels, US/AU/NZ rate
+  pricing, 1-day + 1-3mo AUD/NZD/swap views. KEEP.
+* BofA **Arvin The: Spot Views** — real desk commentary (Warsh read, options-desk
+  USDJPY regime call); self-labels "Sales/Trading Commentary; Not a Research
+  Product" → correctly `desk_commentary`. KEEP.
+* ANZ **What's Priced In**, Westpac **Chartpacks** — genuinely thin: link/chart
+  pointers whose value is in unreachable auth-gated PDFs.
+
+**The real fix was the sanitizer, not the noise gate.** ANZ + BofA legal
+disclaimer footers were NOT in `email_doc._TRAILING_CUTS` (Westpac's "Things you
+should know" *was*), so the disclaimer leaked into the body — which (a) inflated
+link-only pointers past `MIN_BODY_CHARS`, defeating the wrapper-skip, and (b)
+polluted substantive notes' stored text + embeddings. Added trailing-cuts for
+`IMPORTANT NOTICE: This communication is issued by` / `By continuing to use our
+services` / generic `This communication is (intended|confidential|not intended
+for distribution)` / BofA `This marketing material was prepared by` / `This
+message may contain information that is privileged`. Verified on the real bodies
+(ANZ "What's Priced In" now sanitizes 637→131 chars → wrapper-skips; Morning
+Focus / FinanceAM / Spot Views keep content, drop the tail). +3 regression tests
+in `test_email_doc.py`. Lesson: tune the body-stage gates from real bodies, not
+subjects.
+
+**Dropping the two genuinely-thin pointers (2026-06-22):**
+* **ANZ `What's Priced In`** — body is link-only ("Open this report" + sign-off).
+  After the footer fix it sanitizes to ~131 chars → already `wrapper-skip`s, no
+  rule needed.
+* **Westpac `Chartpacks`** — carries enough bullet text (chart-pack PDF links +
+  one-line annotations) to dodge the wrapper-skip (681 chars), so it gets an
+  explicit `chartpack` noise rule (`\bchart\s?packs?\b` in `email_noise_reason`)
+  — the substance is in auth-gated chart PDFs we can't fetch, consistent with the
+  portal pipeline's chart-pack de-prioritisation.
+* Also strip the **Westpac anti-phishing banner** ("Westpac will never send you a
+  link…View online") in the sanitizer — it prepends ~270 chars to *every* Westpac
+  email (incl. substantive FinanceAM). +2 regression tests (`test_email_doc`,
+  `test_outlook_adapter`). 66 email unit tests total.
+
 ## Status — built vs pending
 
 * ✅ 16-folder map (CBA/CACIB held), lenient noise gate, source_type
   (body-disclaimer → vendor-default → sender), email→Document adapter, CBA +
-  keyword classifiers, dry-run + minimal `--load`, 61 unit tests
-  (adapter 25, dedup-merge 7, keyword-classifier 15, email-doc edges 11,
+  keyword classifiers, dry-run + minimal `--load`, 66 unit tests
+  (adapter 26, dedup-merge 7, keyword-classifier 15, email-doc 15,
   pipeline dedup-branches 3).
 * ✅ migration 099 applied + verified; `internet_message_id` dedup gate live.
 * ✅ bank-by-bank link/artifact smoke + dedup smoke vs live corpus.
@@ -311,6 +416,17 @@ preserved.
   skipped, 0 false positives.
 * ✅ **2-week backfill smoke** (Citi + DB) — bulk-stage → load → merge,
   clean 36-row corpus.
+* ✅ **review-stage hardening (2026-06-22)** — unit-test backfill (66 total);
+  full 14-folder week estimate; **body-grounded sanitizer fixes** (ANZ/BofA
+  disclaimer `_TRAILING_CUTS` + Westpac anti-phishing banner strip) so link-only
+  pointers wrapper-skip + substantive dailies (Morning Focus/FinanceAM/Spot
+  Views) are kept; `chartpack` noise rule for link-only chart packs.
+* ✅ **first multi-vendor production load (2026-06-22)** — 7-day desk-core
+  (db/citi/jpm/stanc[SCB+STANC]/ms/hsbc/bofa/nomura, 2026-06-15→22): route-B
+  staged 108 in-window via parallel MCP agents (verbatim bodies), then `--load`
+  wrote **77 net-new / 0 failed in 76s** (17 portal-twins + 14 db-dedups + 4
+  hash-dups gated out). Email corpus 36 → **113 rows** (104 desk_commentary + 9
+  research). BofA ~31 of the 77 (desk pings); high-signal slice ~46.
 * ⏳ per-vendor subject parsers (classification accuracy on net-new rows).
 * ⏳ core-headline extraction (recall boost: catch differing-masthead twins).
 * ⏳ route-A Graph API (unattended producer; `.eml` artifact + real PDF bytes).

@@ -24,6 +24,18 @@ from ingest import email_doc as ed  # noqa: E402
 
 
 # ─── trailing-boilerplate cutter ─────────────────────────────────────────
+def test_strips_westpac_phishing_banner():
+    # Westpac prepends an anti-phishing banner to every email; strip it so it
+    # doesn't pollute embeddings or inflate link-only pointers (2026-06-22).
+    html = ("<p>Westpac will never send you a link directly to our sign in page. "
+            "Always type westpac.com.au into your browser. More Info - visit "
+            "westpac.com.au/hoaxemails View online</p>"
+            "<p>Overnight Market Wrap. AUD rose to 0.7012; AU 3yr swap opens 4.45%.</p>")
+    out = ed.sanitize_email_html(html)
+    assert "never send you a link" not in out and "hoaxemails" not in out
+    assert "Overnight Market Wrap" in out
+
+
 def test_cuts_at_earliest_of_multiple_markers():
     # Two legal-tail markers present; everything from the FIRST is dropped.
     html = (
@@ -41,6 +53,44 @@ def test_cuts_confidentiality_and_unsubscribe_tails():
     assert "confidential" not in ed.sanitize_email_html(html)
     html2 = "<p>Keep this.</p><p>You have received this email because you are subscribed.</p>"
     assert ed.sanitize_email_html(html2) == "Keep this."
+
+
+# ─── vendor disclaimer footers (grounded in real bodies, 2026-06-22) ─────
+def test_cuts_anz_research_footer():
+    # ANZ Research's footer was NOT previously cut, leaking the legal block
+    # into the body (defeating wrapper-skip on link-only pointers).
+    html = ("<p>Fed outlook: the reaction function has hardened.</p>"
+            "<p>Regards, ANZ Research</p>"
+            "<p>By continuing to use our services you acknowledge and accept our Terms</p>"
+            "<p>IMPORTANT NOTICE: This communication is issued by ANZ Bank New Zealand Limited. "
+            "This communication is intended only for the addressee.</p>")
+    out = ed.sanitize_email_html(html)
+    assert "Fed outlook" in out
+    assert "IMPORTANT NOTICE" not in out and "issued by ANZ" not in out
+
+
+def test_cuts_bofa_sales_trading_disclaimer():
+    html = ("<p>Short EURUSD on the Warsh read; USDJPY options desk sees regime change.</p>"
+            "<p>This marketing material was prepared by marketing personnel of Bank of America Securities.</p>"
+            "<p>This message may contain information that is privileged, confidential.</p>")
+    out = ed.sanitize_email_html(html)
+    assert "Warsh" in out
+    assert "marketing material" not in out and "privileged" not in out
+
+
+def test_anz_link_only_pointer_wrapper_skips():
+    # "What's Priced In" is a link-only pointer: once the ANZ footer is cut,
+    # the residual body is < MIN_BODY_CHARS, so build_email_document skips it
+    # instead of ingesting the disclaimer as content.
+    from types import SimpleNamespace
+    ref = SimpleNamespace(
+        body_html=("<p>Monetary Policy Expectations</p><p>Open this report</p>"
+                   "<p>Regards, David Croy</p>"
+                   "<p>By continuing to use our services you acknowledge and accept our Terms</p>"
+                   "<p>IMPORTANT NOTICE: This communication is issued by ANZ Bank New Zealand Limited.</p>"),
+        body_text_summary="", attachments=())
+    doc, path, _ = ed.build_email_document(ref)
+    assert path == "skip" and doc is None
 
 
 # ─── desk "not research" disclaimer detector ─────────────────────────────
