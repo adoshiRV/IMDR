@@ -1,6 +1,6 @@
 # India (IN) — coverage plan (RBI DBIE / RBI CIMS / MOSPI / DGCIS / MoF / BIS)
 
-Last updated: 2026-06-19
+Last updated: 2026-06-22 (OGD Agmarknet mandi-price pipeline added — pre-prod)
 
 > **PROD-LIVE 2026-06-19** — Track A Phase G complete. 15 fetchers promoted to
 > `scripts/econ/in/{vendor}/`; wired into `imdr_daily.py` / `imdr_monthly.py`.
@@ -155,8 +155,8 @@ Estimated end-to-end build: ~2-3hr for the Plotly Dash callback decoder (Playwri
 **Coverage UPAg unlocks** (one fetcher per report on the pattern above):
 - A26 DAC sowing — **✅ AIAPY done** (60-year area/production/yield); `pcas` weekly snapshot deferred
 - A31 MSP — ✅ done
-- A33 Agmarknet — `imc-*` reports filter shape decoded, fetcher build deferred
-- Cluster 4 (agriculture) — **broadly covered** via MSP (input prices) + AIAPY (output area/production/yield)
+- A33 Agmarknet — `imc-*` reports filter shape decoded, fetcher build deferred. **Also**: a comprehensive daily per-mandi price pipeline via **data.gov.in OGD REST API** (resource `35985678-0d79-46b4-9ed6-6f13308a1d24`, "Variety-wise Daily Market Prices Data of Commodity") is **built + reviewed as of 2026-06-22 (PRE-PROD)**. Dedicated star schema (`econ.fact_india_mandi` + 2 dims; migration 104 DRAFT, not applied); library at `src/imdr/domains/econ/ogd_mandi.py`; fetcher at `playground/econ/in/ogd/ogd_mandi.py`; 44 unit tests passing; smoke 21,555 rows for 2026-06-19. Gated on migration apply + `--load` validation + playground→scripts promotion + orchestrator wiring. Full doc: [`india_mandi_prices.md`](india_mandi_prices.md).
+- Cluster 4 (agriculture) — **broadly covered** via MSP (input prices) + AIAPY (output area/production/yield). **Comprehensive daily per-mandi price layer now built (pre-prod)** via OGD Agmarknet — see entry above.
 
 ### Tier 6 — promotion-side gating (no new data — sign-offs only)
 

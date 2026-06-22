@@ -75,6 +75,7 @@ class Settings(BaseSettings):
     voyage_key: str = ""
     gemini_key: str = ""
     econ_fred_key: str = ""  # FRED (St. Louis Fed) — free key at https://fred.stlouisfed.org/docs/api/api_key.html
+    data_gov_in_api_key: str = ""  # data.gov.in OGD API key — register at https://data.gov.in/user/register
 
     # BidFX
     bidfx_username: str = ""

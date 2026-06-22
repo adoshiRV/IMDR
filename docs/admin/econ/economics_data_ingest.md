@@ -58,6 +58,7 @@ Queued for exploration:
 | **RBI CIMS family** | 10 portals (BoP / FLAIR / SMS / FED / CISBI / FIRMS / etc.) | Migration successor to DBIE. No firm deprecation date. |
 | **KOSIS OpenAPI** | `kosis.kr/openapi/Param/statisticsParameterData.do` | **IN PRODUCTION** (2026-06-05). 20 prod fetchers under `scripts/econ/kr/kosis/`; wired into `imdr_monthly.py`. (`playground/econ/kosis/fetch_bop.py` was the first playground fetcher — superseded.) Key in `IMDR_KOSIS_API_KEY`. TLS 1.2 pin + 40k-row cap handled by `src/imdr/domains/econ/kosis_http.py`. Ops: [korea/korea_prod_pipeline.md](korea/korea_prod_pipeline.md). |
 | **BOK ECOS direct API** | `ecos.bok.or.kr` | Still blocked (Korean mobile + citizenship required). Use KOSIS mirror instead — KOSIS carries ECOS 1:1 with `tblId = DT_{STAT_CODE}`. |
+| **data.gov.in OGD (Agmarknet)** | `data.gov.in` REST API | **PRE-PROD** (2026-06-22). Key in `IMDR_DATA_GOV_IN_API_KEY` (settings field `data_gov_in_api_key`); ONE personal key per account, platform-wide (not per-resource). Never commit value. Library: `src/imdr/domains/econ/ogd_mandi.py`; fetcher: `playground/econ/in/ogd/ogd_mandi.py`; dedicated schema migration 104 (DRAFT, not applied). Ops: [india/india_mandi_prices.md](india/india_mandi_prices.md). |
 
 Tooling built or improved this session:
 

@@ -1,6 +1,6 @@
 # India — Econ Documentation
 
-Last updated: 2026-06-22
+Last updated: 2026-06-22 (OGD mandi prices pre-prod entry added)
 
 IN macroeconomic data. **Status: prod-live — Track A Phase G complete 2026-06-19; Track B Phase J complete 2026-06-22.** 15 prod fetchers (Track A) + 16-stream govt-doc harvester (Track B) promoted to `scripts/econ/in/`; orchestrators wired into `imdr_daily.py` and `imdr_monthly.py`. (The quarterly orchestrator was folded into monthly 2026-06-19 — see Loading status below.)
 
@@ -28,6 +28,7 @@ India is the weakest API landscape in Asia. Real-economy series (CPI, IIP, GDP) 
 | [in_coverage_plan.md](in_coverage_plan.md) | Full scoping doc: wiring-map × vendor matrix, per-cell candidate datasets, A→O phase plan. |
 | [india_govt_doc_sources.md](india_govt_doc_sources.md) | Policy/fiscal document source inventory — full agency + tier inventory; all probed sources. |
 | [in_nri_rates_sourcing.md](in_nri_rates_sourcing.md) | NRI / FCNR(B) / NRE / NRO deposit rate sourcing notes. |
+| **[india_mandi_prices.md](india_mandi_prices.md)** | **PRE-PROD** — OGD Agmarknet daily mandi-price pipeline (data.gov.in resource 35985678…; dedicated star schema; migration 104 drafted, not applied). |
 | [`_playground/rbi.md`](_playground/rbi.md) | RBI DBIE Playwright probes (XHR capture, payload inspection, SPA click-through). |
 | [`_playground/rbi_explore.md`](_playground/rbi_explore.md) | Captured screenshots + HTML snapshots from probe runs. |
 
@@ -43,6 +44,8 @@ India is the weakest API landscape in Asia. Real-economy series (CPI, IIP, GDP) 
 Both wired 2026-06-19. The three quarterly/annual fetchers (`mospi_nas_gdp`, `upag_msp`, `upag_aiapy`) were originally in a separate `in_quarterly.py` but were folded into `in_monthly.py` on 2026-06-19; fetchers are idempotent (MERGE on PK) so running quarterly/annual data monthly is harmless. `scripts/imdr_quarterly.py` has no India entry. Code passed the §G.6 code-review gate (zero playground imports, no sys.path hacks, `country_code="IN"` everywhere).
 
 **FCNR/NRI thread is LIVE**: RBI Bulletin T34 NRI Deposits (FCNR(B)/NR(E)RA/NRO × outstanding+flow, 8 indicators) is in `econ.fact_indicator`.
+
+**OGD Agmarknet mandi prices — PRE-PROD (built 2026-06-22; migration 104 drafted, NOT applied; fetcher in playground, NOT wired)**: comprehensive daily per-mandi price series (~22,000 records/day; ~80M rows history; INR/quintal) via data.gov.in REST API resource `35985678-0d79-46b4-9ed6-6f13308a1d24`. Stored in a dedicated star schema (`econ.fact_india_mandi` + two dims) — NOT `econ.fact_indicator` (cardinality 50k–300k pseudo-indicator IDs would pollute the macro table). Env var: `IMDR_DATA_GOV_IN_API_KEY`. 44 unit tests passing. Gated on: (1) DBA applies migration 104; (2) `--load` validation; (3) promote `playground/econ/in/ogd/` → `scripts/econ/in/ogd/`; (4) wire into `in_daily.py`. See [`india_mandi_prices.md`](india_mandi_prices.md) for the full pipeline doc.
 
 **Migration 103** (`migrations/103_seed_upag_vendor.sql`) seeded the `upag` vendor in `dbo.dim_vendor`. Migration 089 had omitted it — that was the blocker that prevented all three UPAg fetchers (IMC / MSP / AIAPY) from loading. All three are now loaded.
 

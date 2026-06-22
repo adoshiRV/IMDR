@@ -9,7 +9,7 @@ This file is the **coverage target** for `econ.dim_indicator`. Every cluster bel
 - **Onboarding playbook**: [onboarding_new_country.md](onboarding_new_country.md) — 5-step workflow with vendor cascade, build order, identity checks, quality bar, ❌→⚠→✅ promotion rules.
 - **Indicator catalogue**: [country_econ_blueprint.md](country_econ_blueprint.md) — country-agnostic master list of series per cluster.
 - **Schema + build log**: [economics_data_ingest.md](economics_data_ingest.md) — pipeline + per-vendor build state.
-- **Date**: 2026-06-19 (IN Track A Phase G: 15 fetchers wired, §6 IN rows updated, §7.12 prod-live note added; prior 2026-06-10 ID + AU)
+- **Date**: 2026-06-22 (§7.12 IN Cluster 4: OGD Agmarknet mandi-price pre-prod note added; prior 2026-06-19 IN Track A Phase G)
 
 ---
 
@@ -250,6 +250,8 @@ Updated 2026-06-03 after FRED load v2 (162 indicators total, 133 US-specific).
 
 US score: **4 ✅ / 11 ⚠️ / 1 ❌** (was 4/8/4 before v2 expansion). Only Terms-of-Trade and Capital-Account remain ❌.
 
+> **Tier-1 source-agency discovery COMPLETE + DATA LOADED 2026-06-22 (playground-resident, NOT promoted/orchestrated — §7.1 markers NOT flipped yet, as ✅ requires a *registered prod* fetcher).** Migration 105 registered vendors bls/bea/census/treasury_us; **82 indicators / 30,563 obs loaded** into `econ.fact_indicator` (BEA 36 back to 1947, BLS 29, EIA 3, Treasury 4, Census 10) via the user-supervised one-shot loader. FRED is a mirror; the source agencies now have working playground fetchers, all producing loader-valid parquet. Built: **BLS** (CPI · PPI · Employment Situation · ECI/JOLTS/productivity · import/export prices → cells 1.4·2.1·2.2·2.3·2.4·**3.1**), **BEA** (GDP/NIPA · Personal Income/PCE · ITA current+financial account · IIP → 1.1·1.3·1.4·2.4·**3.2**·**3.3**), **Census** (MARTS retail · FT-900 trade · New Residential Construction → 1.1·1.3), **Treasury** (MTS fiscal · Debt-to-Penny → 1.2·4.2), **EIA** (WTI/Brent/Henry Hub spot → 2.1). Identity checks pass: BoP CA decomposition diff=0, export/import ToT=1.12, fiscal receipts−outlays=deficit diff=0. The two ❌ (3.1 Terms-of-Trade, 3.3 Capital Account) are now covered in discovery (BLS import/export ratio; BEA ITA financial account + IIP). Cells flip to ✅ on prod promotion per [econ_to_prod.md](econ_to_prod.md). Plan: [united_states/us_coverage_plan.md](united_states/us_coverage_plan.md). Track B (FOMC docs) discovery also complete — [united_states/us_govt_doc_sources.md](united_states/us_govt_doc_sources.md).
+
 ### 7.2 Eurozone (EU)
 
 | Engine | A | B | C | D |
@@ -370,7 +372,7 @@ Scoping plan landed 2026-06-10: [`india/in_coverage_plan.md`](india/in_coverage_
 | **External** | ⚠️ Terms of Trade *(derivable from DGCIS + Bulletin T32)* | ✅ Current Acc *(Bulletin T40 BoP: Merchandise / Invisibles / Services / Software-Services / etc. — Credit+Debit+Net × 2 quarters)* | ✅ Capital Acc *(RBI DBIE FX reserves weekly 2015→ + Bulletin T33 dual-unit)* | ✅ FX/REER *(BIS NEER+REER 1994→ + Bulletin T37 + FRED DEXINUS)* |
 | **Policy** | ❌ Demand Trans *(needs A7 DBIE Sectoral Deployment)* | ⚠️ Balance Sheets *(BIS DSR + Credit-to-GDP Q 1951→ + Bulletin T2 RBI BS; A7 BSR + NBFC pending)* | ⚠️ Fin Conditions *(RBI DBIE WACR daily + Bulletin T27 Call Money daily + FRED OECD Call Money 1990→)* | ✅ Policy Reaction *(RBI DBIE Repo + SDF + Reverse Repo + CRR + SLR + BIS CBPOL + Bulletin T6 Money Stock + T11 Reserve Money)* |
 
-**Cluster 4 (agriculture)** — full coverage via **UPAg**: A26 ✅ AIAPY (324 × 15,030 obs, **1966-67 → 2025-26 = 60 FYs**); A31 ✅ MSP (28 × 353); A33 ✅ IMC mandi prices (16 × 128, Agmarknet wholesale). Closes Cluster 4 input-price + output-volume + market-price axes that were previously corp-firewall blocked at agricoop.gov.in / cacp.dacnet.nic.in / agmarknet.gov.in.
+**Cluster 4 (agriculture)** — full coverage via **UPAg**: A26 ✅ AIAPY (324 × 15,030 obs, **1966-67 → 2025-26 = 60 FYs**); A31 ✅ MSP (28 × 353); A33 ✅ IMC mandi prices (16 × 128, Agmarknet wholesale). Closes Cluster 4 input-price + output-volume + market-price axes that were previously corp-firewall blocked at agricoop.gov.in / cacp.dacnet.nic.in / agmarknet.gov.in. **Plus (PRE-PROD, 2026-06-22)**: comprehensive daily per-mandi price source via data.gov.in OGD Agmarknet REST API (~22k records/day; dedicated `econ.fact_india_mandi` star schema; migration 104 drafted, NOT applied; `playground/econ/in/ogd/ogd_mandi.py` not yet wired) — see [`india/india_mandi_prices.md`](india/india_mandi_prices.md).
 
 IN cell coverage (prod-live 2026-06-19): **8 ✅ + 6 ⚠ + 2 ❌** (was 1 ✅ / 4 ⚠ / 11 ❌ pre-session). **The BoP T40 path via RBI Bulletin eliminates the A5-A7 SAP-BO iframe requirement for the BoP cell**. Remaining ❌ cells: 2.3 Domestic Costs (wages — Labour Bureau corp-firewall blocked) · 4.1 Demand Transmission (needs A7 DBIE Sectoral Deployment, or alt path TBD).
 
