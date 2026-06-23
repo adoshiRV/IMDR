@@ -75,6 +75,10 @@ class Settings(BaseSettings):
     voyage_key: str = ""
     gemini_key: str = ""
     econ_fred_key: str = ""  # FRED (St. Louis Fed) — free key at https://fred.stlouisfed.org/docs/api/api_key.html
+    econ_bls_key: str = ""   # BLS v2 — free key at https://data.bls.gov/registrationEngine/
+    econ_bea_key: str = ""   # BEA — free key at https://apps.bea.gov/API/signup/
+    econ_census_key: str = ""  # U.S. Census Bureau — free key at https://api.census.gov/data/key_signup.html
+    econ_eia_key: str = ""   # EIA — free key at https://www.eia.gov/opendata/register.php  (Treasury Fiscal Data is keyless)
     data_gov_in_api_key: str = ""  # data.gov.in OGD API key — register at https://data.gov.in/user/register
 
     # BidFX

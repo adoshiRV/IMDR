@@ -59,6 +59,7 @@ PIPELINES: list[dict] = [
     {"cmd": [sys.executable, "-m", "scripts.econ.kr.kr_daily"], "estimated_tags": 0},
     {"cmd": [sys.executable, "-m", "scripts.econ.au.au_daily"], "estimated_tags": 0},
     {"cmd": [sys.executable, "-m", "scripts.econ.in.in_daily"], "estimated_tags": 0},
+    {"cmd": [sys.executable, "-m", "scripts.econ.us.us_daily"], "estimated_tags": 0},
     {"cmd": ["python", "-m", "scripts.prediction.polymarket.streaming", "cleanup"], "estimated_tags": 0},
     # {"cmd": ["python", "-m", "scripts.prediction.polymarket.teams_post", "--slot", "AM"], "estimated_tags": 0},
     {"cmd": ["python", "-m", "scripts.run_vendor_feed", "barclays_skew"], "estimated_tags": 0},

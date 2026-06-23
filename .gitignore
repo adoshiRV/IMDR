@@ -51,3 +51,8 @@ playground/**/profile_*/
 # RBI Bulletin headed-Chrome profile + xlsx download cache (never commit — contains cookies)
 playground/econ/in/rbi/_profile/
 playground/econ/in/rbi/_downloads/
+
+# US Track-B govt probe debug artifacts + runtime snapshots (not a document store;
+# raw/ HTML listings embed third-party CDN telemetry tokens — never commit).
+scripts/econ/us/govt/raw/
+scripts/econ/us/govt/data/
