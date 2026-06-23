@@ -65,6 +65,10 @@ PIPELINES: list[dict] = [
     {"cmd": ["python", "-m", "scripts.run_vendor_feed", "barclays_skew"], "estimated_tags": 0},
     {"cmd": ["python", "-m", "scripts.run_vendor_feed", "bbg_fx_daily"], "estimated_tags": 0},
     {"cmd": ["python", "-m", "scripts.run_vendor_feed", "bbg_rates_daily"], "estimated_tags": 0},
+    # Economic-calendar refresh — daily Bloomberg BQL pull into calendar.cb_events
+    # (BBG vendor lane). Sibling of te_calendar_refresh; idempotent MERGE, so
+    # daily re-runs just fill in actuals/revisions. Reads the STIRT SQLite share.
+    {"cmd": [sys.executable, "-m", "scripts.calendar.bql_calendar_refresh"], "estimated_tags": 0},
 ]
 
 # ============================================================================
