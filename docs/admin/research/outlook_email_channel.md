@@ -1,6 +1,6 @@
 # Outlook email — research acquisition channel
 
-**Status: prototype (route-B), updated 2026-06-22. Migration 099 APPLIED; FULL `--load` pipeline IMPLEMENTED (classify → portal-twin dedup-merge → chunk → embed → upload `.html` to the SharePoint tree → MSSQL `source='email'` → Qdrant), one command. First multi-vendor production load done 2026-06-22 (7-day desk-core, 8 vendors): 77 net-new rows loaded / 0 failed in 76s; gates skipped 17 portal-twins + 14 db-dedups + 4 hash-dups. Email corpus 112 rows (after retro-cleaning one teaser-pointer row caught by the new portal-pointer gate). Artifacts land in `ResearchData1/IMDR/` identical to portal. Still NOT wired into any orchestrator. **Headline next build = the producer cost overhaul → local Outlook MAPI/COM (route C), `docs/admin/development/outlook_local_mapi_producer.md`**: route-B's per-run cost is ~all the LLM spend (~9–13k tokens/article to stage each body, ~1M/week); a local MAPI producer captures bodies off the Outlook `.ost` at ~0 tokens, no app-reg, + real PDF bytes. Per-vendor subject parsers are the other pending build.**
+**Status: prototype (route-B), updated 2026-06-22. Migration 099 APPLIED; FULL `--load` pipeline IMPLEMENTED (classify → portal-twin dedup-merge → chunk → embed → upload `.html` to the SharePoint tree → MSSQL `source='email'` → Qdrant), one command. First multi-vendor production load done 2026-06-22 (7-day desk-core, 8 vendors): 77 net-new rows loaded / 0 failed in 76s; gates skipped 17 portal-twins + 14 db-dedups + 4 hash-dups. Email corpus 110 rows (after retro-cleaning a teaser-pointer row + 2 email-to-email dups, 2026-06-23). Artifacts land in `ResearchData1/IMDR/` identical to portal. Still NOT wired into any orchestrator. **Producer cost overhaul = BUILT (route C, local Outlook MAPI/COM, P0–P3 done 2026-06-23, `docs/admin/development/outlook_local_mapi_producer.md`)**: `outlook_mapi_pull.py` captures bodies + real PDF bytes off the local Outlook profile at ~0 tokens, no app-reg (route-B cost was ~all the LLM spend, ~9–13k tokens/article, ~1M/week). Cutover is imi-gated (content_hash can't match — route-B truncated bodies, MAPI is higher-fidelity); remaining before switch = a `--no-embed` load smoke + retire route-B (user-gated). Per-vendor subject parsers are the other pending build.**
 
 A *second acquisition channel* for sell-side research, alongside the
 per-vendor portal scrapers ([`scrapers/`](scrapers/)). Research that
@@ -302,8 +302,9 @@ has_filter=1`. (The read-only DB MCP returns NULL for `object_definition`/
 | [`tests/unit/research/test_email_common_classifier.py`](../../../tests/unit/research/test_email_common_classifier.py) | keyword classifier: per-class scoring, commodities-specificity guard, no-stem word-boundary, country/region scan, theme/author tags (15) |
 | [`tests/unit/research/test_email_doc.py`](../../../tests/unit/research/test_email_doc.py) | adapter edges: earliest-cut boilerplate, ANZ/BofA/DB disclaimer + Westpac banner strips, `DESK_DISCLAIMER_RE`, `best_body_text`, `build_email_document` synthetic/skip/pdf_missing/link-only-skip, **portal-pointer gate** (`is_portal_pointer`), inline-attachment skip (19) |
 | [`tests/unit/research/test_email_pipeline.py`](../../../tests/unit/research/test_email_pipeline.py) | `ingest_email_one` dedup short-circuits: imi-idempotency + portal-twin skip, fake Engine + monkeypatched twin (3) |
+| [`tests/unit/research/test_outlook_mapi_pull.py`](../../../tests/unit/research/test_outlook_mapi_pull.py) | route-C producer: slug/imi8, content-type, real-PDF discriminator (ignores inline flag), EX→SMTP, ReceivedTime UTC fix, `build_record` field-map + PDF SaveAsFile, mocked COM (8) |
 
-**71 email unit tests total** (adapter 27 · dedup-merge 7 · classifier 15 · email-doc 19 · pipeline 3).
+**94 email unit tests total** (adapter 29 · dedup-merge 18 · classifier 15 · email-doc 21 · pipeline 3 · mapi-pull 8).
 
 ## Running
 
@@ -458,8 +459,44 @@ subjects.
   research). BofA ~31 of the 77 (desk pings); high-signal slice ~46.
 * ⏳ per-vendor subject parsers (classification accuracy on net-new rows).
 * ⏳ core-headline extraction (recall boost: catch differing-masthead twins).
-* ⏳ **producer cost overhaul → local MAPI/COM (route C)** — the headline next
-  build: ~0-token capture, no app-reg, + real PDF attachment bytes. Full plan:
+* ✅ **producer cost overhaul → local MAPI/COM (route C) — BUILT P0–P3, P4 measured
+  (2026-06-23).** `playground/research/outlook/outlook_mapi_pull.py` (pywin32 COM)
+  captures bodies + **real PDF attachment bytes** off the local Outlook profile at
+  **~0 LLM tokens**, no app-reg. Reads via the own-mailbox store
+  (`adoshi@rvcapital.com/Research/<vendor>`, NOT `GetSharedDefaultFolder`); per-folder
+  HWM; crawler consumes its JSON unchanged. **Parity finding: content_hash can't
+  match because route-B's relay truncated bodies — MAPI is higher-fidelity; cutover
+  is safe via the `internet_message_id` gate, not hash parity.** 2 small `email_doc`
+  fixes (inline-PDF-with-`file` pickup + vendor-relative `file` resolution) let
+  DB-PM load as `pdf`. Full plan + phase log:
   [`../development/outlook_local_mapi_producer.md`](../development/outlook_local_mapi_producer.md).
-  (Route-A Graph kept only as the headless/no-Outlook option.)
+  Remaining (user-gated, touches prod corpus): `--no-embed` load smoke → default-producer
+  switch → retire route-B. (Route-A Graph kept only as the headless/no-Outlook option.)
+* ✅ **route-C 1-week smoke + gate hardening (2026-06-23).** Staged a clean full week
+  (261 msgs, 14 active folders) via the MAPI producer; simulated the DB dedup gates
+  READ-ONLY (`_smoke_netnew_sim.py`) → of 215 dry-run "ingestable", only **~33 are
+  truly net-new** (116 portal-dups + 43 imi-dups + 32 noise + 13 skip caught). Three
+  fixes shipped from what the smoke + a cross-check vs route-B's 89 loaded rows found:
+  (1) **portal-twin masthead/short-core recall** — GS prefixes a series masthead to
+  the verbatim portal title (`Asia-Pacific Inflation Monitor: Oil Past the Peak`),
+  diluting Jaccard < 0.70 → ~15 GS dupes would have leaked; added token-containment +
+  exact-substring paths to `dedup_merge.find_portal_twin` (GS portal-dups 89→112,
+  MISSED→0). (2) **`event_invite`** noise rule — RSVPs + analyst/voice-call invites
+  (ANZ `Invitation:`, JPM `Invitation |`, `Call with … to Discuss`, `Voice Call |`),
+  all of which route-B loaded. (3) **`mail_recall`** — Outlook `Recall: <subject>`
+  notices. Validated: every ANZ portal-pointer skip is already in the DB from the
+  portal crawler (0 content lost).
+* ✅ **email↔email twin dedup (2026-06-23).** New `dedup_merge.find_email_twin`
+  collapses the SAME note arriving by a second email path (SCB desk forward +
+  formal research of one SMS note — diff masthead + body, so `content_hash` and the
+  portal-twin gate both miss them). Wired into `ingest_email_one` after the
+  portal-twin gate (`dedup_reason=email_twin(score)`), keeps the first-loaded copy.
+  **Same-publish-date ONLY** so recurring daily editions survive (`[/] DB JPY PM
+  Summary` is a fresh note each day). Symmetric `_pair_score` strips colon- AND
+  spaced-dash mastheads from both titles. **Serial guard** (`_serials`): titles
+  carrying different issue numbers (`Spot Views #1489` vs `#1490`, `issue 6` vs
+  `issue 5`) are never twins — also applied to the portal-twin path (caught a bofa
+  false-positive in the corpus scan). 94 email unit tests. **2 existing dups cleaned**
+  (dropped 11548 SMS-research keeping the richer 11547 desk; dropped 11574 stanc
+  `Recall:` noise row keeping real note 11577) → email corpus 112→**110**, 0 orphans.
 * ⏳ `dim_vendor` rows for `cba` + `cacib`; orchestrator wiring (user-gated).

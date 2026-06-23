@@ -222,3 +222,42 @@ def test_first_pdf_attachment_none_when_only_inline():
         {"name": "chart.png", "content_type": "image/png", "is_inline": True},
     ))
     assert ed._first_pdf_attachment(ref) is None
+
+
+def test_first_pdf_attachment_picks_inline_pdf_with_saved_file():
+    # Route C: DB attaches the real report PDF with a content-id (is_inline=True),
+    # but the producer SAVED its bytes (`file` set) — it IS the report, not an
+    # inline image, so it must be picked despite the inline flag.
+    ref = SimpleNamespace(attachments=(
+        {"name": "logo.png", "content_type": "image/png", "is_inline": True},
+        {"name": "r.pdf", "content_type": "application/pdf", "is_inline": True,
+         "file": "attachments/abc12345.pdf"},
+    ))
+    att = ed._first_pdf_attachment(ref)
+    assert att is not None and att["name"] == "r.pdf"
+
+
+def test_build_email_document_resolves_pdf_relative_to_vendor_dir(tmp_path):
+    # `file` is vendor-relative ("attachments/x.pdf"); resolution must use the
+    # JSON's own dir (via ref._staging_file), NOT staging_root/file.
+    import importlib
+    parse = importlib.import_module("ingest.parse")
+    vendor_dir = tmp_path / "db"
+    (vendor_dir / "attachments").mkdir(parents=True)
+    pdf_file = vendor_dir / "attachments" / "abc12345.pdf"
+    pdf_file.write_bytes(b"%PDF-1.4 fake")
+    captured = {}
+    orig = parse.parse_pdf
+    parse.parse_pdf = lambda data: captured.setdefault("data", data) or ed.synthesize_document("x" * 300)
+    try:
+        ref = SimpleNamespace(
+            body_html="<p>" + ("macro " * 60) + "</p>", body_text_summary="",
+            attachments=({"name": "r.pdf", "content_type": "application/pdf",
+                          "is_inline": True, "file": "attachments/abc12345.pdf"},),
+            _staging_file=str(vendor_dir / "db_note.json"),
+        )
+        doc, path, _ = ed.build_email_document(ref, staging_dir=tmp_path)
+        assert path == "pdf"
+        assert captured["data"] == b"%PDF-1.4 fake"  # read the vendor-dir file
+    finally:
+        parse.parse_pdf = orig

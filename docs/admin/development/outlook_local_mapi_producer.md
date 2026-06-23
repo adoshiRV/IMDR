@@ -1,8 +1,12 @@
 # Outlook email ingest — local MAPI/COM producer (cost overhaul)
 
-**Status: PLANNED (2026-06-23).** Design + rationale below; not yet built. File a
-Linear project ("Build local Outlook MAPI producer for the email channel",
-label `research`) per [README](README.md) before starting.
+**Status: BUILT — P0–P3 done, P4 measured (2026-06-23).** The producer
+(`playground/research/outlook/outlook_mapi_pull.py`) works end-to-end: dry-run +
+real staging across the folder→vendor map, real PDF capture, per-folder HWM, and
+the crawler consumes its JSON unchanged. Parity measured (see §5/P4): cutover is
+imi-gated, not hash-gated. **Remaining before cutover (needs user OK — touches the
+prod corpus): a `--no-embed` live load smoke, then default-producer switch +
+retire route-B.** (Linear filing skipped per user.)
 
 **Goal:** replace the route-B (Claude + M365 MCP) email *producer* with a local
 Python Outlook **MAPI/COM** producer so a 7-day (or daily) ingest costs **~0 LLM
@@ -69,20 +73,29 @@ channel graduates to prod). Pure `pywin32` COM; **no change to
 same `staging/{vendor}/{slug}.json` contract.
 
 ### 4.2 COM access pattern
+**P0-confirmed (2026-06-23):** the vendor folders live under the user's **own
+mailbox store** (`adoshi@rvcapital.com/Research/<vendor>`), NOT a separate shared
+store. `GetSharedDefaultFolder("research@rvcapital.com", …)` raises *"the server
+mailbox cannot be opened because this address book entry is not a mail user"* —
+the `research@` mail is delivered into the user's own store and filed under
+`Research/`. So navigate the store by display name:
 ```python
 import win32com.client
 ns = win32com.client.Dispatch("Outlook.Application").GetNamespace("MAPI")
-rcpt = ns.CreateRecipient("research@rvcapital.com"); rcpt.Resolve()
-research = ns.GetSharedDefaultFolder(rcpt, 6).Parent.Folders["Research"]  # parent of Inbox
+store = next(f for f in ns.Folders if f.Name == "adoshi@rvcapital.com")
+research = store.Folders["Research"]
 for vfolder in research.Folders:                 # GS, MS, DB, Citi, SCB, STANC, ...
     items = vfolder.Items
     items.Sort("[ReceivedTime]", True)
-    items = items.Restrict("[ReceivedTime] >= '06/15/2026' AND [ReceivedTime] < '06/23/2026'")
+    items = items.Restrict("[ReceivedTime] >= '06/15/2026'")  # locale short-date
     for m in items:
+        if m.Class != 43:        # olMail — skip meeting/report items
+            continue
         ...  # build staging JSON
 ```
-`Restrict` date strings are **locale-sensitive** — format as the host's short-date
-(`m/d/yyyy`); detect/format defensively.
+`Restrict` date strings are **locale-sensitive** — `%m/%d/%Y` worked on this host;
+format as the host's short-date defensively. Make `--mailbox` default to the own-
+mailbox store name, not `research@`. (Spike: `playground/research/outlook/_p0_com_spike.py`.)
 
 ### 4.3 Field mapping → staging contract
 | staging key | COM source |
@@ -94,17 +107,26 @@ for vfolder in research.Folders:                 # GS, MS, DB, Citi, SCB, STANC,
 | `subject` | `m.Subject` |
 | `sender` | `{name: m.SenderName, address: m.SenderEmailAddress}` (resolve EX→SMTP via `PropertyAccessor` PR_SMTP_ADDRESS when `SenderEmailType=='EX'`) |
 | `to` / `cc` | iterate `m.Recipients` → `{name: r.Name, address: r.Address}` (resolve EX→SMTP); split on `r.Type` (1=To, 2=Cc) |
-| `received` | `m.ReceivedTime` → ISO-8601 Z (it's a pywintypes datetime; convert to UTC) |
+| `received` | **⚠ see P0 finding** — `m.ReceivedTime` returns host-**local** wall-clock but pywin32 mislabels its tzinfo as `+00:00`; trusting it records times `host_offset` late (8h on this UTC+8 box). Fix: `rt.replace(tzinfo=host_local_tz).astimezone(timezone.utc)` (verified == `PR_MESSAGE_DELIVERY_TIME 0x0E060040`, the true-UTC cross-check). Then `.strftime('%Y-%m-%dT%H:%M:%SZ')`. |
 | `body_content_type` | `"html"` |
 | `body_html` | `m.HTMLBody` (full verbatim HTML — **must be byte/sanitiser-equivalent to the MCP `body.content`**, see §5 parity) |
 | `attachments` | iterate `m.Attachments` → `{name, content_type, size, is_inline}`; for real (non-inline) PDFs **`att.SaveAsFile(staging/<vendor>/attachments/<sha8>.pdf)`** and set `file` to that relative path |
 
 ### 4.4 Attachments → real PDF artifacts
-COM exposes attachment bytes locally. For `att.Type` real-file PDFs, `SaveAsFile`
-into `attachments/`; the existing `email_doc.build_email_document` already prefers a
-staged PDF (`parse_pdf`) over the synthetic body — so CBA/Nomura/DB-PM become
-first-class `.pdf` rows with **no pipeline change**. (Inline images: record
-metadata, don't save — same as today.)
+COM exposes attachment bytes locally. For `att.Type == 1` (olByValue) real-file
+PDFs, `SaveAsFile` into `attachments/`; the existing
+`email_doc.build_email_document` already prefers a staged PDF (`parse_pdf`) over the
+synthetic body — so CBA/Nomura/DB-PM become first-class `.pdf` rows with **no
+pipeline change**.
+
+**⚠ P0 finding (2026-06-23):** do NOT gate PDF-saving on the inline flag. DB's PM
+Summary attaches the **real PDF with a content-id set** (`PR_ATTACH_CONTENT_ID`
+non-empty → my naïve "inline" probe returned `True` for a 97 KB `.pdf`). The right
+discriminator is **`Type == 1` AND filename ends `.pdf` AND size > a few KB**, not
+the CID/inline flag. Inline *images* (`image001.gif`, `image_*.png` — the GS chart
+PNGs) are also `Type == 1` with a CID, so the `.pdf`-extension + size test is what
+separates a real report attachment from rendered chart images. The staging
+contract still records `is_inline` as metadata for all of them.
 
 ### 4.5 Incremental high-water-mark
 Persist per-folder last-ingested `ReceivedTime` (e.g. `outlook/.hwm.json`). Default
@@ -123,30 +145,70 @@ safety net, so the HWM is a fetch optimisation, not a correctness dependency.
   recipient split, ISO received), `Restrict` date-string builder (locale), slug
   scheme, attachment metadata + save-path logic. Mock the COM objects (duck-typed
   `SimpleNamespace`) — no live Outlook in unit tests.
-- **Parity check (the cutover-critical one):** stage the same messages via MAPI and
-  via the existing MCP path; assert the **sanitised body + `content_hash` match**.
-  `content_hash` derives from the stable sanitised source (not raw bytes), so if
-  `HTMLBody` sanitises to the same text as `body.content`, **cutover creates zero
-  false-duplicates** (re-runs imi/hash-dedup cleanly). If `HTMLBody` differs
-  materially (e.g. Outlook re-encodes), document the delta and confirm the sanitiser
-  normalises it.
+- **Parity check (`_p4_parity_check.py`, RUN 2026-06-23):** staged the same DB
+  messages via both producers and compared sanitised-body `content_hash`.
+  **Result: 0/4 match — and that's expected/benign.** The route-B (Claude relay)
+  bodies were **truncated** (re-emit was lossy); the MAPI `HTMLBody` is the full
+  verbatim body (PM Summary 5680c vs MCP 2566c, *same text* + the missing tail).
+  So:
+    - **content_hash parity is NOT the cutover gate** (it can't hold — MAPI is more
+      complete). The cutover-safety basis is the **`internet_message_id` gate**
+      (dedup gate #1): every loaded email row has a distinct populated imi, so a
+      MAPI re-run of already-loaded mail skips on imi regardless of hash. Verified:
+      2 of the 4 overlaps already in `dim_report` → would skip.
+    - MAPI bodies are a **fidelity win** over route-B (no relay truncation).
+  Genuine "Outlook re-encodes" deltas (if any beyond truncation) wash out in the
+  sanitiser's `_collapse_ws`; none seen.
 - **Integration:** MAPI-staged → `ingest_outlook.py --dry-run` parity vs the
   06-15→22 desk-core; then a `--no-embed` load smoke on 1–2 vendors.
 
 ## 6. Build phases (checklist)
 
-- [ ] **P0 spike** — confirm COM reaches `Research/*` subfolders of the shared
-  mailbox, reads `HTMLBody` + PR_INTERNET_MESSAGE_ID + recipients + attachments for
-  one folder/one day. (De-risks the whole thing in ~30 min.)
-- [ ] **P1 producer** — `outlook_mapi_pull.py` writing the staging contract for a
-  `--since/--until` window across the folder→vendor map (reuse `FOLDER_TO_VENDOR`,
-  honour `EMAIL_VENDOR_HOLD`). Dry-run parity vs MCP-staged JSON.
-- [ ] **P2 attachments** — `SaveAsFile` real PDFs; verify CBA/Nomura/DB-PM now load
-  as `.pdf` (route-A PDF gap closed).
-- [ ] **P3 incremental** — per-folder HWM; idempotent reruns (imi-dedup confirms).
-- [ ] **P4 parity + cutover** — content_hash parity test green; make MAPI the
-  default producer in the runbook; retire the route-B MCP-agent staging procedure;
-  update docs.
+- [x] **P0 spike** — DONE 2026-06-23 (`_p0_com_spike.py`). COM reaches all **16**
+  `Research/*` folders (matches `FOLDER_TO_VENDOR` exactly; GS=5088 items, DB=470,
+  SCB=815; Barc/STANC/BOFA/CACIB/Westpac currently empty) via the **own-mailbox
+  store** (see §4.2 correction). Read every contract field for DB/GS: `Subject`,
+  `ReceivedTime` (tz-aware), `PR_INTERNET_MESSAGE_ID` (clean `<…@…>`), `SenderName`
+  + SMTP (external vendors already `SenderEmailType=='SMTP'` → EX-resolution mostly
+  moot for vendor folders), `Recipients` To/Cc split, full `HTMLBody` (17k–135k
+  chars), and `Attachments` (name/type/size/inline). Two findings folded in: §4.2
+  (store nav, not `GetSharedDefaultFolder`) + §4.4 (real PDFs flagged inline →
+  discriminate by `.pdf`+size) + the `received` row in §4.3 (**`ReceivedTime` is
+  host-local mislabeled `+00:00` — reinterpret as host-local → UTC; verified ==
+  `PR_MESSAGE_DELIVERY_TIME`**). All open P0 items resolved.
+- [x] **P1 producer** — DONE 2026-06-23. `outlook_mapi_pull.py` writes the staging
+  contract for a `--since/--until` window across the folder→vendor map (imports
+  `FOLDER_TO_VENDOR`/`EMAIL_VENDOR_HOLD` from `crawler_outlook`; per-message
+  `build_record`). Dry-run across all 14 active folders = 23 staged (CBA/CACIB
+  held); a real `--vendors db` run wrote 7 contract-valid JSON files that
+  `discover_reports` + `ingest_outlook.py --dry-run` consume identically (7
+  ingestable, correct `desk_commentary`/asset-class/country). CLI: `--mailbox
+  --folders-root --staging-dir --since --until --vendors --no-attachments
+  --dry-run --limit`.
+- [x] **P2 attachments** — DONE 2026-06-23. `SaveAsFile` (absolute native path —
+  it rejects relative/forward-slash) saved the 3 DB PM-Summary PDFs as real
+  `%PDF-1.4` bytes (~96 KB). Two small fixes in `email_doc.py` made them load as
+  `pdf` not `synthetic_body(pdf_missing)`: (a) `_first_pdf_attachment` now accepts
+  a saved-`file` PDF even when inline-flagged (DB's CID case); (b)
+  `build_email_document` resolves the vendor-relative `file` against the JSON's own
+  dir (`ref._staging_file`'s parent), fixing a latent path bug that route-B never
+  hit (it never staged bytes). DB-PM now → `pdf`; body-only notes stay
+  `synthetic_body`. (Nomura/CBA not exercised — no in-window mail; same code path.)
+- [x] **P3 incremental** — DONE 2026-06-23. Per-folder HWM at `outlook/.hwm.json`
+  (`{"DB": "2026-06-22"}` after the run); default `since = --since or HWM[folder]
+  or 7d-ago`. imi-dedup is the correctness net, HWM is the fetch optimisation.
+- [~] **P4 parity + cutover** — parity MEASURED 2026-06-23 (`_p4_parity_check.py`):
+  **content_hash does NOT match** on the 4 overlapping DB messages — but because
+  route-B (Claude relay) **truncated** bodies (PM Summary 2566c MCP vs **5680c**
+  MAPI; same text, MAPI has the full tail), not because MAPI is wrong. **So the
+  cutover-safety basis is the `internet_message_id` gate, not hash parity** — all
+  112 loaded email rows have distinct populated imis, and 2 of the 4 overlaps are
+  already in `dim_report` (→ skipped on re-load via gate #1). MAPI bodies are
+  strictly **higher-fidelity** (route-B was lossy). ⇒ §5 revised: parity is an
+  imi-gate guarantee + a "MAPI ≥ MCP completeness" quality win, NOT a hash equality.
+  Remaining for cutover: a `--no-embed` live load smoke on 1–2 vendors, then make
+  MAPI the default producer + retire the route-B staging procedure (**needs user OK
+  — touches the prod corpus**).
 - [ ] **P5 (optional)** — `pypff`/`libpff` headless `.ost` reader fallback for
   Outlook-closed/cron operation.
 
@@ -167,11 +229,12 @@ safety net, so the HWM is a fetch optimisation, not a correctness dependency.
   mail — assert no `Move`/`Delete`/`Save` COM calls, mirroring the BBG read-only rule.)
 
 ## 8. Success criteria
-- A 7-day desk-core ingest runs at **~0 LLM tokens** (producer is pure Python COM).
-- **No Azure app registration** required.
-- CBA/Nomura/DB-PM attach **real `.pdf`** artifacts (not `pdf_missing`).
-- Reruns are incremental (HWM) and idempotent (imi-dedup).
-- content_hash parity with the prior producer → clean cutover, zero false-dups.
+- A 7-day desk-core ingest runs at **~0 LLM tokens** (producer is pure Python COM). ✅ (P1)
+- **No Azure app registration** required. ✅ (P0 — own-profile COM)
+- CBA/Nomura/DB-PM attach **real `.pdf`** artifacts (not `pdf_missing`). ✅ DB-PM (P2)
+- Reruns are incremental (HWM) and idempotent (imi-dedup). ✅ (P3)
+- ~~content_hash parity~~ → **clean cutover via the imi gate** (parity can't hold:
+  MAPI bodies are more complete than route-B's truncated relay — a fidelity win). ✅ (P4)
 
 ## 9. Relationship to route A (Graph)
 Route A (Graph + app-reg) was the previously-planned "unattended producer." Route C
@@ -323,9 +386,12 @@ tiktoken (dry-run still works — embed/engine imports are lazy). **No `pytest-a
 
 ### 10.13 Tests (tracked) + current corpus state
 `tests/unit/research/`: `test_outlook_adapter.py` (27), `test_dedup_merge.py` (7),
-`test_email_common_classifier.py` (15), `test_email_doc.py` (19),
-`test_email_pipeline.py` (3) = **71** (these import the playground code via a
-`sys.path.insert`). Email corpus in `dim_report` ≈ **112 rows** (mostly
-desk_commentary + 9 research) after the 2026-06-22 desk-core load and the
-portal-pointer cleanup. The MAPI producer's new unit tests (field mapping, EX→SMTP,
-Restrict-string, attachment) belong here too, with mocked COM objects.
+`test_email_common_classifier.py` (15), `test_email_doc.py` (21),
+`test_email_pipeline.py` (3), `test_outlook_mapi_pull.py` (8, NEW — slug/imi8,
+content-type, real-PDF discriminator, EX→SMTP, ReceivedTime UTC fix, `build_record`
+with mocked COM) = part of **94 email unit tests** (also dedup-merge 18 incl. the
+masthead/serial/email-twin paths). Email corpus in `dim_report` = **110 rows**
+(after the 2026-06-22 desk-core load, the portal-pointer cleanup, and the
+2026-06-23 email-to-email dup cleanup) — the route-C build itself wrote nothing
+(dry-runs / staging only). Spike + smoke helpers: `_p0_com_spike.py`,
+`_p4_parity_check.py`, `_smoke_netnew_sim.py`, `_cleanup_email_dups.py`.

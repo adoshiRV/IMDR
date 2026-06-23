@@ -14,8 +14,14 @@ _RESEARCH_ROOT = Path(__file__).resolve().parents[3] / "playground" / "research"
 if str(_RESEARCH_ROOT) not in sys.path:
     sys.path.insert(0, str(_RESEARCH_ROOT))
 
+from datetime import date  # noqa: E402
+from types import SimpleNamespace  # noqa: E402
+
 from ingest.dedup_merge import (  # noqa: E402
     THRESHOLD,
+    _pair_score,
+    find_email_twin,
+    find_portal_twin,
     jaccard,
     title_tokens,
 )
@@ -23,6 +29,26 @@ from ingest.dedup_merge import (  # noqa: E402
 
 def _score(email: str, portal: str) -> float:
     return jaccard(title_tokens(email), title_tokens(portal))
+
+
+class _FakeEngine:
+    """Minimal stand-in: `find_portal_twin` only does `engine.connect()` →
+    `conn.execute(...).all()`. Returns (id, title) rows for the portal set."""
+    def __init__(self, portal_titles):
+        self._rows = [(i + 1, t) for i, t in enumerate(portal_titles)]
+
+    def connect(self):
+        rows = self._rows
+        class _Conn:
+            def __enter__(self_): return self_
+            def __exit__(self_, *a): return False
+            def execute(self_, *a, **k): return SimpleNamespace(all=lambda: rows)
+        return _Conn()
+
+
+def _twin(email_title, portal_titles):
+    return find_portal_twin(_FakeEngine(portal_titles), vendor_code="goldman",
+                            publish_date=date(2026, 6, 22), title=email_title)
 
 
 # ─── tokenization ─────────────────────────────────────────────────────────
@@ -101,3 +127,133 @@ def test_net_new_desk_notes_below_threshold():
     ]
     for email, portal in cases:
         assert _score(email, portal) < THRESHOLD, (email, _score(email, portal))
+
+
+# ─── find_portal_twin: masthead + short-core recall (2026-06-23 smoke) ─────
+def test_masthead_prefixed_email_matches_portal_core():
+    # GS prepends a series masthead to the verbatim portal title. The plain
+    # Jaccard scores below threshold (masthead dilutes overlap), but the new
+    # containment / masthead-strip paths catch it.
+    cases = [
+        ("Asia-Pacific Inflation Monitor: Oil Past the Peak", "Oil Past the Peak"),
+        ("China Matters: All About Tech", "All About Tech"),
+        ("Canada Economics Comment: May CPI Preview", "May CPI Preview"),
+        ("CEEMEA Economics Analyst: Turkiye Growth Slowdown Needs to Be Sustained",
+         "Turkiye Growth Slowdown Needs to Be Sustained"),
+    ]
+    for email, portal in cases:
+        # plain Jaccard would miss it...
+        assert _score(email, portal) < THRESHOLD, email
+        # ...but find_portal_twin now catches it.
+        twin = _twin(email, [portal])
+        assert twin is not None and twin.portal_title == portal, email
+
+
+def test_short_core_exact_substring_matches():
+    # Below the 3-token floor, but the portal title appears verbatim → twin.
+    assert _twin("Global Rates Trader: Dealing With Inflation",
+                 ["Dealing With Inflation"]) is not None
+    assert _twin("Macro Roadmap", ["Macro Roadmap"]) is not None
+
+
+def test_twin_still_rejects_net_new_desk_note():
+    # Net-new desk note must NOT match an unrelated portal note (no shared
+    # core, no containment, no substring) — precision preserved.
+    assert _twin("[/] DB JPY Market PM Summary",
+                 ["Japan Economic Notes: Overview of next two weeks",
+                  "Oil Past the Peak"]) is None
+
+
+def test_twin_containment_needs_three_shared_tokens():
+    # A 2-token portal title fully "inside" the email must NOT trigger
+    # containment (guards the year/mojibake degenerate-match class).
+    assert _twin("Global FX: Dollar View", ["Dollar View"]) is None
+
+
+# ─── email↔email twin (collapse same note arriving by two paths) ───────────
+class _FakeEmailEngine:
+    """Returns (id, title, imi) email rows, honouring the `publish_date = :pd`
+    filter so the same-day window guard is exercised."""
+    def __init__(self, rows):  # rows: (id, title, imi, date)
+        self._rows = rows
+
+    def connect(self):
+        rows = self._rows
+        class _Conn:
+            def __enter__(self_): return self_
+            def __exit__(self_, *a): return False
+            def execute(self_, _sql, params):
+                same_day = [(i, t, m) for (i, t, m, d) in rows if d == params["pd"]]
+                same_day.sort(key=lambda r: r[0])
+                return SimpleNamespace(all=lambda: same_day)
+        return _Conn()
+
+
+def _etwin(title, rows, pd=date(2026, 6, 21), imi="self"):
+    return find_email_twin(_FakeEmailEngine(rows), vendor_code="stanc",
+                           publish_date=pd, title=title, internet_message_id=imi)
+
+
+def test_pair_score_matches_dual_masthead_core():
+    # The real SMS case: desk forward vs formal research, shared dash-masthead
+    # core "SMS – Balancing act". Different mastheads → both carry a prefix.
+    assert _pair_score(
+        "SCB Global Macro Strategy - SMS – Balancing act (with weekly podcast)",
+        "Sunday Macro Strategy – SMS – Balancing act") >= THRESHOLD
+
+
+def test_email_twin_collapses_same_day_dual_send():
+    # The formal-research email finds the earlier-loaded desk forward (same
+    # day) and is skipped.
+    rows = [(11547, "SCB Global Macro Strategy - SMS – Balancing act (with weekly podcast)",
+             "<desk@x>", date(2026, 6, 21))]
+    twin = _etwin("Sunday Macro Strategy – SMS – Balancing act", rows, imi="<research@x>")
+    assert twin is not None and twin.report_id == 11547
+
+
+def test_email_twin_preserves_daily_series_across_days():
+    # SAME title, DIFFERENT day = a fresh daily edition → NOT a twin (the
+    # publish_date=0 window is the guard). Monday's PM Summary must not collapse
+    # Tuesday's.
+    rows = [(100, "[/] DB JPY Market PM Summary", "<mon@x>", date(2026, 6, 22))]
+    twin = _etwin("[/] DB JPY Market PM Summary", rows,
+                  pd=date(2026, 6, 23), imi="<tue@x>")
+    assert twin is None
+
+
+def test_email_twin_keeps_distinct_same_day_notes():
+    # Two genuinely different same-day SCB notes must NOT collapse.
+    rows = [(200, "SCB (China Research) - PBoC to add overnight reverse repo",
+             "<a@x>", date(2026, 6, 21))]
+    twin = _etwin("SCB (China Research) - Net FX settlement edged down in May",
+                  rows, imi="<b@x>")
+    assert twin is None
+
+
+def test_email_twin_preserves_numbered_series_editions():
+    # Serial guard: "Asia G10 Spot Views #1490" and "#1489" are DIFFERENT
+    # editions even same-day — title_tokens drops the issue number, so without
+    # the guard they'd score 1.0 and wrongly collapse.
+    assert _pair_score("Arvin The : Asia G10 Spot Views #1490",
+                       "Arvin The : Asia G10 Spot Views #1489") == 0.0
+    rows = [(11569, "Arvin The : Asia G10 Spot Views #1490", "<a@x>", date(2026, 6, 18))]
+    assert _etwin("Arvin The : Asia G10 Spot Views #1489", rows,
+                  pd=date(2026, 6, 18), imi="<b@x>") is None
+    # ...but the SAME issue number (true resend) still collapses:
+    assert _pair_score("Arvin The : Asia G10 Spot Views #1490",
+                       "Arvin The : Asia G10 Spot Views #1490") >= THRESHOLD
+
+
+def test_serial_guard_blocks_portal_twin_of_other_edition():
+    # "Global oil market tracker: issue 6" must not twin portal "...: issue 5".
+    assert find_portal_twin(
+        _FakeEngine(["Global oil market tracker: issue 5"]),
+        vendor_code="anz", publish_date=date(2026, 6, 22),
+        title="Global oil market tracker: issue 6") is None
+
+
+def test_email_twin_excludes_self_imi():
+    rows = [(300, "Sunday Macro Strategy – SMS – Balancing act", "<self@x>",
+             date(2026, 6, 21))]
+    twin = _etwin("Sunday Macro Strategy – SMS – Balancing act", rows, imi="<self@x>")
+    assert twin is None

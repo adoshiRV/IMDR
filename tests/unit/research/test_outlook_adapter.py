@@ -193,6 +193,34 @@ def test_email_noise_drops_chartpacks():
     assert email_noise_reason("Equity Chart Pack") == "chartpack"
 
 
+def test_email_noise_drops_event_invites():
+    # Event RSVPs, not research (2026-06-23 smoke: ANZ "Invitation: …" leaked
+    # net-new; JPM "Invitation | …" must also drop).
+    assert email_noise_reason("Invitation: Middle East conflict update") == "event_invite"
+    assert email_noise_reason(
+        "Invitation | 2H Rates Outlook with Jay Barry | Wednesday, June 24") == "event_invite"
+    assert email_noise_reason("You're invited: Asia FX roundtable") == "event_invite"
+    assert email_noise_reason("RBA Preview: register now for our call") == "event_invite"
+    # analyst dial-in invites (route-B loaded all of these):
+    assert email_noise_reason(
+        "JPM | Call with Natasha Kaneva to Discuss US & Iran Peace Agreement") == "event_invite"
+    assert email_noise_reason(
+        "JPM Voice Call | Latest on China ODI Rules - House View") == "event_invite"
+    # but a genuine note whose title merely contains "invite"-ish words elsewhere
+    # is NOT a leading-Invitation RSVP, and a substantive "call" note survives:
+    assert email_noise_reason("China: PBoC's invitation to ease") is None
+    assert email_noise_reason("Our rate call: cuts pushed to 2027") is None
+
+
+def test_email_noise_drops_outlook_recall_notices():
+    # Outlook "Recall: <subject>" messages are recall requests, not content
+    # (route-B loaded a stanc one, 2026-06-17).
+    assert email_noise_reason(
+        "Recall: SCB (China Research) - PBoC to add overnight reverse repo") == "mail_recall"
+    # "recall" mid-title (e.g. a product recall note) is NOT an Outlook recall:
+    assert email_noise_reason("Autos: Toyota recall widens to 2m vehicles") is None
+
+
 def test_email_noise_keeps_real_research():
     # No single-name-equity filtering on the email path — real notes survive.
     assert email_noise_reason("[/] DB Asia: Indonesia - BI surprise hike") is None
