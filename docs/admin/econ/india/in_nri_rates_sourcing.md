@@ -70,10 +70,16 @@ DBIE is the only **longer-history** path (FCNR monthly 1997→ via reportId 417;
 WALR/WADTDR monthly) — the Bulletin gives only a handful of recent periods per
 release and builds history by monthly append.
 
-## 4. DBIE reportId 417 — build status (2026-06-23)
+## 4. DBIE reportId 417 — build status (PROMOTED + LOADED + WIRED 2026-06-24)
 
-`playground/econ/in/rbi/rbi_dbie_nri_deposits.py` — smoke-tested `--no-load`,
-NOT promoted to `scripts/` and NOT wired into any orchestrator.
+`scripts/econ/in/rbi/rbi_dbie_nri_deposits.py` — promoted from playground,
+loaded to `econ.fact_indicator` (792 obs), and wired into
+`scripts/econ/in/in_monthly.py` (PIPELINES, just before `rbi_bulletin` — both
+need headed Chrome). Codes `INDIA.DBIE.NRI_DEPOSITS.{NRI_TOTAL|FCNRB|NRERA|NRO}.{OUTSTANDING|FLOW}.IN`
+(parallel prefix to the T34 `INDIA.RBI_BULLETIN.NRI_DEPOSITS.*` series — no
+clobber). 29 parser unit tests at
+`tests/unit/test_econ/test_rbi_dbie_nri_deposits_parser.py`. Requires a
+display-equipped host (SAP-BO refuses headless).
 
 Access path: DBIE Home → search "NRI Deposits" → click monthly leaf. The
 "50 Macroeconomic Indicators" panel (`#/dbie/indicators`) does NOT carry this
