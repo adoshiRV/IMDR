@@ -69,3 +69,19 @@ Bulletin Current Statistics. Two distinct concepts, two different sources:
 DBIE is the only **longer-history** path (FCNR monthly 1997→ via reportId 417;
 WALR/WADTDR monthly) — the Bulletin gives only a handful of recent periods per
 release and builds history by monthly append.
+
+## 4. DBIE reportId 417 — build status (2026-06-23)
+
+`playground/econ/in/rbi/rbi_dbie_nri_deposits.py` — smoke-tested `--no-load`,
+NOT promoted to `scripts/` and NOT wired into any orchestrator.
+
+Access path: DBIE Home → search "NRI Deposits" → click monthly leaf. The
+"50 Macroeconomic Indicators" panel (`#/dbie/indicators`) does NOT carry this
+report; it is under `Publication > Time-Series Publications > External Sector`.
+
+Smoke results: 8 indicators (NRI_TOTAL/FCNRB/NRERA/NRO × OUTSTANDING/FLOW),
+99 obs per series, date range 2018-02-01 → 2026-04-01, unit usd_mn.
+FCNR(B) Outstanding Mar-2026 = 33,755.91 vs T34 anchor 33,756 — diff: -0.09
+(PASS). SAP-BO currently renders ~99 months; full 1997 history requires
+SAP-BO pagination (page navigation controls or export button — not yet built).
+Parquet written under `data/econ/in/rbi/dbie_nri_deposits/`.
