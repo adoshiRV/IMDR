@@ -76,6 +76,23 @@ official data · CB communication · policy/fiscal event · sell-side interpreta
 Flag anything not loaded or <99% grounded inline. Where two sources disagree,
 show both and flag unreconciled — never silently pick one.
 
+## Voice — finished product, no process narration
+
+The report is a finished deliverable, not a work log. **Strip every "I am doing
+X" / first-person process line** — no "I read the note", "I ran Qdrant", "my
+first draft said", "worked around the cp1252 bug", "I flagged", "corrected from
+the earlier framing". The reader wants the *result*, not the method.
+
+- State findings and flags impersonally: "Unreconciled: TE index vs BoJ DI" — not
+  "I flagged the mismatch". "Not loaded: JP component depth" — not "I couldn't
+  pull JP depth".
+- Never narrate the queries, tools, or corpus mechanics anywhere in the report.
+- Tooling notes, method caveats, and self-corrections belong in your **closing
+  chat message to the operator** (or omitted) — never in the digest body or its
+  grounding ledger.
+- The grounding ledger names *sources and layers*, not actions ("Surprises →
+  `cb_events` (BQL→TE)"), never "I pulled…".
+
 ## Hard rules
 
 1. **Do not judge trade ideas.** Never rate them good/bad or say whether a trade

@@ -295,7 +295,10 @@ def render(md_path: Path, out_path: Path) -> None:
                  "Macro Research Digest")
     edition = meta.get("edition", "").capitalize()
     date = meta.get("date", "")
-    bits = [b for b in ("Rates / FX desk", date, (edition + " · DRAFT" if edition else "")) if b]
+    is_draft = (str(meta.get("draft", "")).lower() in ("true", "yes", "1")
+                or meta.get("status", "").lower() == "draft")
+    ed_bit = (edition + (" · DRAFT" if is_draft else "")) if edition else ("DRAFT" if is_draft else "")
+    bits = [b for b in ("Rates / FX desk", date, ed_bit) if b]
     masthead(doc, usable, re.sub(r"[*`]", "", title), "  ·  ".join(bits))
 
     tbl_buf: list[list[str]] = []
