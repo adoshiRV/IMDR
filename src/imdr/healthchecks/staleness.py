@@ -428,7 +428,9 @@ DEFAULT_SPECS: list[StalenessSpec] = [
         dim_table="[equities].[dim_index]",
         dim_join_col="id",
         dim_label_cols=("ticker", "display_name"),
-        max_stale_days=3,
+        # Daily weekday-only EOD feed — same treatment as rates curves.
+        max_stale_days=2,
+        business_days=True,
     ),
     StalenessSpec(
         domain="Equity VIX",
@@ -438,7 +440,8 @@ DEFAULT_SPECS: list[StalenessSpec] = [
         key_column="ticker",
         dim_table=None,
         dim_label_cols=(),
-        max_stale_days=3,
+        max_stale_days=2,
+        business_days=True,
     ),
 ]
 

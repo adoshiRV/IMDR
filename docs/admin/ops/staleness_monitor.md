@@ -96,8 +96,8 @@ If any staleness is found, a consolidated HTML email is sent via Outlook.
 | Commodities Spot     | commodities.spot          | commodity_id    | commodities.dim_commodity    | —                    | 3 days    |
 | Commodities Impl Vol | commodities.vol           | commodity_id    | commodities.dim_commodity    | —                    | 3 days    |
 | Commodities EIA      | commodities.eia           | eia_series_id   | commodities.dim_eia_series   | —                    | 10 days   |
-| Equity Indices       | equity.index              | index_id        | equities.dim_index           | —                    | 3 days    |
-| Equity VIX           | equity.vix                | ticker          | (none, string key)           | —                    | 3 days    |
+| Equity Indices       | equity.index              | index_id        | equities.dim_index           | —                    | 2 business days |
+| Equity VIX           | equity.vix                | ticker          | (none, string key)           | —                    | 2 business days |
 
 A spec opts into a breakdown by listing it in `breakdowns=(VENDOR_BREAKDOWN, FREQUENCY_BREAKDOWN)`.
 The two predefined constants live in `staleness.py` and reference
@@ -213,12 +213,14 @@ Covering:
    weekdays, so a calendar buffer either over-alerts across a weekend or
    has to be loosened to a point where it misses a genuine 2-day stall. The
    `business_days=True` flag (added 2026-07-09) counts Mon–Fri only — used
-   by the **Rates Curves** spec at a 2-business-day threshold so a per-curve
-   stall (e.g. AUD 3s6s lagging its siblings) is caught without firing on
-   same-day publish lag. Holidays are not modelled: weekend-awareness
-   removes the dominant false-positive source and a real stall still clears
-   the threshold within a trading day or two. Other market-data specs remain
-   calendar-day for now — flip them per feed if weekend noise appears.
+   by the **Rates Curves**, **Equity Indices**, and **Equity VIX** specs at a
+   2-business-day threshold so a per-key stall (e.g. AUD 3s6s lagging its
+   siblings, or the daily Citi equity batch being starved/skipped) is caught
+   without firing on same-day publish lag. Holidays are not modelled:
+   weekend-awareness removes the dominant false-positive source and a real
+   stall still clears the threshold within a trading day or two. The
+   remaining market-data specs (rates vol/skew/bench, FX) stay calendar-day
+   for now — flip them per feed if weekend noise appears.
 
 3. **AnalyticalReader, not ORM**: Raw SQL via `AnalyticalReader` is faster for
    aggregate queries and avoids importing all domain ORM models.

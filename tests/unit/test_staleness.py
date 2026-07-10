@@ -597,11 +597,12 @@ class TestDefaultSpecs:
         eia = [s for s in DEFAULT_SPECS if s.pipeline_name == "commodities.eia"][0]
         assert eia.max_stale_days == 10
 
-    def test_rates_curves_business_day_mode(self) -> None:
-        """Rates curves are a weekday-only feed: business-day age, 2-day floor."""
-        spec = next(s for s in DEFAULT_SPECS if s.pipeline_name == "rates.historical")
-        assert spec.business_days is True
-        assert spec.max_stale_days == 2
+    def test_weekday_market_feeds_business_day_mode(self) -> None:
+        """Daily weekday-only market feeds use business-day age, 2-day floor."""
+        for pipeline in ("rates.historical", "equity.index", "equity.vix"):
+            spec = next(s for s in DEFAULT_SPECS if s.pipeline_name == pipeline)
+            assert spec.business_days is True, f"{pipeline} should be business-day"
+            assert spec.max_stale_days == 2, f"{pipeline} threshold should be 2"
 
     def test_calendar_specs_stay_calendar(self) -> None:
         """Calendar-cadence feeds must not silently switch to business days."""
