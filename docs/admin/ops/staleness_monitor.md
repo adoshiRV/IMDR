@@ -70,7 +70,10 @@ ORDER BY latest_date ASC
 
 - One row per `(key)` when no breakdowns are configured.
 - One row per `(key, vendor)`, `(key, frequency)`, or `(key, vendor, frequency)` when breakdowns are configured.
-- Any row whose `latest_date < reference_date - max_stale_days` is flagged stale.
+- A row is flagged stale when its age exceeds `max_stale_days`. Age is
+  counted in **calendar days** by default, or **business days** (Mon–Fri)
+  when the spec sets `business_days=True` — so a Friday observation read on
+  Monday is 1 day behind, not 3. See `_days_behind()` in `staleness.py`.
 
 Results are aggregated into a `StalenessReport` with per-domain summaries.
 For each enabled breakdown, the monitor also produces a `BreakdownRollup`
@@ -84,7 +87,7 @@ If any staleness is found, a consolidated HTML email is sent via Outlook.
 
 | Domain               | Pipeline                  | Key Column      | Dim Table                    | Breakdowns           | Threshold |
 |----------------------|---------------------------|-----------------|------------------------------|----------------------|-----------|
-| Rates Curves         | rates.historical          | curve_id        | rates.dim_curve              | vendor + frequency   | 3 days    |
+| Rates Curves         | rates.historical          | curve_id        | rates.dim_curve              | vendor + frequency   | 2 business days |
 | Rates Swaption Vol   | rates.vol                 | surface_id      | rates.dim_vol_surface        | —                    | 3 days    |
 | Rates Swaption Skew  | rates.skew_barclays_daily | surface_id      | rates.dim_skew_surface       | vendor               | 3 days    |
 | Rates Benchmark      | rates.bench_rates         | cb_id           | rates.dim_central_bank       | vendor               | 3 days    |
@@ -183,12 +186,14 @@ iterate the breakdown list — no changes required there.
 python -m pytest tests/unit/test_staleness.py -v
 ```
 
-46 tests covering:
+Covering:
 - Data model classes (`StalenessSpec`, `BreakdownDim`, `DomainSummary`,
   `BreakdownRollup`, `StalenessReport`)
 - SQL builder (`_build_query`) — no-dim, with-dim, with-filter, single
   breakdown, multiple breakdowns
 - Monitor logic (all fresh, some stale, all stale, empty tables, boundary conditions)
+- **Business-day age** (`_days_behind`, `business_days=True` specs) — weekend
+  observations aren't flagged, genuine multi-day stalls are
 - **Breakdown aggregation** — vendor splits stale per vendor, two
   breakdowns yield independent rollups, no breakdowns means empty rollups
 - Error handling (DB failures are caught, don't crash the monitor)
@@ -202,9 +207,18 @@ python -m pytest tests/unit/test_staleness.py -v
 1. **Per-key, not per-table**: Table-level freshness (already done by `FreshnessCheck`)
    misses the case where most keys are fresh but a few silently dropped.
 
-2. **Calendar days, not business days**: Business-day awareness would require
-   per-market calendar lookups for each key. Calendar days with a 3-day buffer
-   naturally accommodate weekends. The EIA spec uses 10 days for its weekly cadence.
+2. **Calendar days by default, business days opt-in**: Calendar-day ages
+   with a buffer are the right gauge for calendar-cadence feeds (weekly EIA
+   at 10 days, monthly econ). Daily *market-data* feeds only publish on
+   weekdays, so a calendar buffer either over-alerts across a weekend or
+   has to be loosened to a point where it misses a genuine 2-day stall. The
+   `business_days=True` flag (added 2026-07-09) counts Mon–Fri only — used
+   by the **Rates Curves** spec at a 2-business-day threshold so a per-curve
+   stall (e.g. AUD 3s6s lagging its siblings) is caught without firing on
+   same-day publish lag. Holidays are not modelled: weekend-awareness
+   removes the dominant false-positive source and a real stall still clears
+   the threshold within a trading day or two. Other market-data specs remain
+   calendar-day for now — flip them per feed if weekend noise appears.
 
 3. **AnalyticalReader, not ORM**: Raw SQL via `AnalyticalReader` is faster for
    aggregate queries and avoids importing all domain ORM models.

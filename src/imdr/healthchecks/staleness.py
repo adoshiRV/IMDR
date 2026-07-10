@@ -127,8 +127,16 @@ class StalenessSpec:
                         frequency, …). When non-empty, the query groups by
                         ``(key, *breakdown_fks)`` and the resulting
                         DomainSummary carries one rollup per breakdown.
-        max_stale_days: How many calendar days behind the reference date
-                        before a key is flagged stale.
+        max_stale_days: How many days behind the reference date before a
+                        key is flagged stale. Counted in *business days*
+                        when ``business_days`` is set, else calendar days.
+        business_days:  When True, the age of a key is measured in
+                        business days (Mon–Fri), so a Friday observation
+                        checked on Monday reads as 1 day behind, not 3.
+                        Use for daily market-data feeds that only publish
+                        on weekdays; leave False for calendar-cadence
+                        feeds (weekly EIA, monthly econ) where a fixed
+                        calendar window is the right gauge.
     """
 
     domain: str
@@ -142,6 +150,7 @@ class StalenessSpec:
     dim_filter: str | None = None
     breakdowns: tuple[BreakdownDim, ...] = ()
     max_stale_days: int = 3
+    business_days: bool = False
 
     @property
     def has_dim(self) -> bool:
@@ -309,7 +318,12 @@ DEFAULT_SPECS: list[StalenessSpec] = [
         dim_label_cols=("ccy", "curve"),
         dim_filter="curve_status <> 'ceased'",
         breakdowns=(VENDOR_BREAKDOWN, FREQUENCY_BREAKDOWN),
-        max_stale_days=3,
+        # Daily weekday-only feed (Citi EOD). Business-day mode so a
+        # Friday obs read on Monday isn't 3 "stale" calendar days, and a
+        # 2-day threshold flags a genuine per-curve stall (e.g. AUD 3s6s
+        # lagging its siblings) without firing on same-day publish lag.
+        max_stale_days=2,
+        business_days=True,
     ),
     StalenessSpec(
         domain="Rates Swaption Vol",
@@ -427,6 +441,33 @@ DEFAULT_SPECS: list[StalenessSpec] = [
         max_stale_days=3,
     ),
 ]
+
+
+# ── Age arithmetic ────────────────────────────────────────────────────
+
+
+def _days_behind(latest: date, reference: date, business_days: bool = False) -> int:
+    """Age of an observation relative to the reference date.
+
+    Calendar mode is a plain day subtraction. Business-day mode counts
+    only Mon–Fri, so a Friday observation checked on the following Monday
+    is 1 business day behind (not 3) — the right gauge for daily market
+    feeds that never publish over a weekend. Holidays are not modelled;
+    weekend-awareness removes the dominant source of false staleness and
+    a genuine multi-day stall still clears the threshold within a day or
+    two of trading.
+    """
+    if latest >= reference:
+        return 0
+    if not business_days:
+        return (reference - latest).days
+    days = 0
+    d = latest
+    while d < reference:
+        d += timedelta(days=1)
+        if d.weekday() < 5:  # Mon–Fri
+            days += 1
+    return days
 
 
 # ── SQL builder ───────────────────────────────────────────────────────
@@ -574,8 +615,14 @@ class StalenessMonitor:
         )
 
     def _check_spec(self, spec: StalenessSpec) -> DomainSummary:
-        """Run staleness check for a single domain spec."""
-        cutoff = self._reference_date - timedelta(days=spec.max_stale_days)
+        """Run staleness check for a single domain spec.
+
+        A key is stale when its age (calendar or business days, per the
+        spec) exceeds ``max_stale_days``. Expressing the test as
+        ``days_behind > max_stale_days`` is exactly equivalent to the
+        old ``latest_date < reference - max_stale_days`` cutoff in
+        calendar mode, and generalises cleanly to business-day mode.
+        """
         df = self._reader.read_sql(_build_query(spec))
 
         if df.empty:
@@ -590,9 +637,12 @@ class StalenessMonitor:
 
         # Legacy ODBC driver may return DATE as string — coerce to date
         df["latest_date"] = pd.to_datetime(df["latest_date"]).dt.date
+        df["days_behind"] = df["latest_date"].map(
+            lambda d: _days_behind(d, self._reference_date, spec.business_days)
+        )
 
         total_keys = len(df)
-        stale_mask = df["latest_date"] < cutoff
+        stale_mask = df["days_behind"] > spec.max_stale_days
         stale_df = df[stale_mask]
         stale_keys_count = len(stale_df)
         latest_date = pd.Timestamp(df["latest_date"].max()).date()
@@ -605,7 +655,7 @@ class StalenessMonitor:
             fresh_keys=total_keys - stale_keys_count,
             latest_date=latest_date,
             stale_items=self._build_stale_items(stale_df, spec),
-            by_breakdown=self._build_breakdowns(df, spec, cutoff),
+            by_breakdown=self._build_breakdowns(df, spec),
         )
 
     def _build_stale_items(
@@ -615,7 +665,11 @@ class StalenessMonitor:
         items: list[StaleKey] = []
         for _, row in stale_df.iterrows():
             latest = pd.Timestamp(row["latest_date"]).date()
-            days_behind = (self._reference_date - latest).days
+            days_behind = (
+                int(row["days_behind"])
+                if "days_behind" in row.index
+                else _days_behind(latest, self._reference_date, spec.business_days)
+            )
             label = row.get("label", str(row["key_id"]))
             breakdowns = {
                 b.name: (str(row[b.code_alias]), str(row[b.name_alias]))
@@ -638,7 +692,7 @@ class StalenessMonitor:
         return items
 
     def _build_breakdowns(
-        self, df: pd.DataFrame, spec: StalenessSpec, cutoff: date
+        self, df: pd.DataFrame, spec: StalenessSpec
     ) -> dict[str, list[BreakdownRollup]]:
         """Aggregate per-breakdown stale/fresh counts for a domain.
 
@@ -656,7 +710,7 @@ class StalenessMonitor:
                 continue
             rollups: list[BreakdownRollup] = []
             for (code, name), group in df.groupby([b.code_alias, b.name_alias]):
-                stale_n = int((group["latest_date"] < cutoff).sum())
+                stale_n = int((group["days_behind"] > spec.max_stale_days).sum())
                 rollups.append(
                     BreakdownRollup(
                         dim_name=b.name,

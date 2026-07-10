@@ -17,15 +17,17 @@ from __future__ import annotations
 import argparse
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
+import pandas as pd
 import structlog
 
 from imdr.config.settings import get_settings
 from imdr.connectors.citi_helpers import TagQuotaExceeded
 from imdr.connectors.mssql import MSSQLConnector
 from imdr.domains.rates.pipeline import RatesHistoricalPipeline
+from imdr.healthchecks.staleness import _days_behind
 from imdr.market_calendar.calendar import last_business_day, last_trading_day
 from imdr.market_calendar.countries import default_calendar
 from imdr.market_calendar.holidays import holiday_hits_for_timestamp
@@ -47,6 +49,44 @@ def _basis_swap_curves(universe) -> list:
         if c.providers.get("citi", {}).get("instrument") == "basis_swaps"
         and c.status != "ceased"
     ]
+
+
+def _behind_curves(pipeline, cohort, target_date: date, holiday_hits) -> list[dict]:
+    """Curves with data in the window but missing the target trading day.
+
+    Age is measured in business days, so a curve that just hasn't published
+    the latest day yet (the common Citi lag) shows as 1 behind and a genuine
+    multi-day stall shows a larger count. Curves whose market was on holiday
+    on the target day are skipped — no data is expected there. A curve with
+    zero rows across the whole window is already reported via ``missing``, so
+    it is excluded here to avoid double-counting.
+    """
+    raw = pipeline._raw_df
+    if raw is None or raw.empty:
+        return []
+    holiday_ccys = {h.currency for h in holiday_hits}
+    latest_by_key = (
+        raw.assign(_d=pd.to_datetime(raw["ts"]).dt.date)
+        .groupby(["ccy", "curve"])["_d"].max()
+    )
+    behind: list[dict] = []
+    for c in cohort:
+        if c.ccy in holiday_ccys:
+            continue
+        key = (c.ccy, c.curve)
+        if key not in latest_by_key.index:
+            continue
+        latest = latest_by_key.loc[key]
+        days = _days_behind(latest, target_date, business_days=True)
+        if days > 0:
+            behind.append({
+                "ccy": c.ccy,
+                "curve": c.curve,
+                "latest": latest.isoformat(),
+                "days_behind": days,
+            })
+    behind.sort(key=lambda b: b["days_behind"], reverse=True)
+    return behind
 
 
 def _start_of_window(target: datetime, n_trading_days: int, market: str = "US") -> datetime:
@@ -96,6 +136,12 @@ def _send_email(settings, universe, pipeline, target: datetime, cohort,
         for m in missing
     ]
 
+    # Latest-day coverage: a curve that returned rows in the window but is
+    # missing the target trading day is "behind". The window-level `missing`
+    # check can't see this (it only flags a total feed drop), so surface it
+    # explicitly — otherwise a one-day Citi lag reads as a clean chit.
+    behind_curves = _behind_curves(pipeline, cohort, target.date(), holiday_hits)
+
     formatter = RatesIngestFormatter()
     subject = formatter.format_subject(
         pipeline_name=pipeline_name,
@@ -103,6 +149,7 @@ def _send_email(settings, universe, pipeline, target: datetime, cohort,
         rows_loaded=rows_loaded,
         has_errors=has_errors,
         mode="Basis Daily",
+        n_behind=len(behind_curves),
     )
     body = formatter.format_body(
         pipeline_name=pipeline_name,
@@ -114,6 +161,7 @@ def _send_email(settings, universe, pipeline, target: datetime, cohort,
         n_curves=len(cohort),
         curves=curve_data,
         missing_curves=missing_curves,
+        behind_curves=behind_curves,
         holiday_hits=[
             {"currency": h.currency, "country_code": h.country_code, "name": h.name}
             for h in holiday_hits

@@ -200,7 +200,34 @@
 </table>
 {% else %}
 <table width="96%" cellpadding="0" cellspacing="0" style="margin:8px auto 0 auto;">
+  {% if n_behind %}
+  <tr><td style="padding:8px;color:#e67e22;">All {{ n_curves }} curves produced observations in the window, but {{ n_behind }} is behind the target day (see below).</td></tr>
+  {% else %}
   <tr><td style="padding:8px;color:#27ae60;">All {{ n_curves }} curves produced observations.</td></tr>
+  {% endif %}
+</table>
+{% endif %}
+
+<!-- Curves Behind (latest-day coverage gap; only emitted when populated) -->
+{% if behind_curves %}
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;">
+  <tr><td style="padding:0 24px;"><span style="font-size:16px;font-weight:bold;color:#0d2137;">CURVES BEHIND ({{ n_behind }})</span></td></tr>
+</table>
+<table width="96%" cellpadding="5" cellspacing="0" style="margin:8px auto 0 auto;border-collapse:collapse;border:1px solid #ddd;font-size:13px;">
+  <tr style="background:#e67e22;color:#fff;">
+    <th style="border:1px solid #ca6f1e;padding:6px;text-align:left;">CCY</th>
+    <th style="border:1px solid #ca6f1e;padding:6px;text-align:left;">Curve</th>
+    <th style="border:1px solid #ca6f1e;padding:6px;text-align:left;">Latest</th>
+    <th style="border:1px solid #ca6f1e;padding:6px;text-align:right;">Days Behind</th>
+  </tr>
+  {% for b in behind_curves %}
+  <tr style="background:#fdf2e9;">
+    <td style="border:1px solid #ddd;padding:5px;font-weight:bold;">{{ b.ccy }}</td>
+    <td style="border:1px solid #ddd;padding:5px;">{{ b.curve }}</td>
+    <td style="border:1px solid #ddd;padding:5px;">{{ b.latest }}</td>
+    <td style="border:1px solid #ddd;padding:5px;text-align:right;">{{ b.days_behind }}</td>
+  </tr>
+  {% endfor %}
 </table>
 {% endif %}
 

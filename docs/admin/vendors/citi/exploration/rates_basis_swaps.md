@@ -162,6 +162,20 @@ Rows land in `[rates].[fact_observation]` keyed by
   filters `providers.citi.instrument == 'basis_swaps' and status != 'ceased'`,
   fetches quote `basis` only, 5-trading-day lookback. Email subject:
   `[IMDR] Rates Basis Daily Ingest {OK|ERROR} | YYYY-MM-DD | N obs`.
+- **Latest-day coverage (added 2026-07-09)**: `AUD 3S6S_BASIS` publishes at
+  Citi ~1 business day later than its sibling basis curves, so on the day-of
+  run its newest trading day is often absent — it then backfills on the next
+  run via the 5-day window. The runner's window-level coverage check
+  (`missing` = zero rows across the whole window) is blind to this partial
+  gap, so it also emits a **behind** list (`_behind_curves()`): active curves
+  that returned rows but are missing the target trading day, measured in
+  business days and skipping holiday markets. When non-empty the subject
+  gains a `| N behind` suffix and the body shows a **CURVES BEHIND** section —
+  so a one-day lag no longer reads as a clean chit. The signal is additive:
+  the shared `RatesIngestFormatter`/`rates_ingest.html` only render it when a
+  runner populates `behind_curves`, so bench/historical emails are unchanged.
+  The cross-run safety net is the staleness monitor's `rates.historical` spec
+  (business-day mode, 2-day threshold — see `docs/admin/ops/staleness_monitor.md`).
 - **Historical backfill**: [scripts/rates/citi/rates_basis_swaps_citi_historical.py](../../../../../scripts/rates/citi/rates_basis_swaps_citi_historical.py).
   Built for the original 4-curve 3s6s set — does not yet cover the
   3 funding-stress curves added 2026-06-05; historical backfill of

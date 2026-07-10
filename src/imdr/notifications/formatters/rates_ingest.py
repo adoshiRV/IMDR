@@ -77,13 +77,19 @@ class RatesIngestFormatter:
         has_errors: bool = False,
         is_historical: bool = False,
         mode: str | None = None,
+        n_behind: int = 0,
         **kwargs: Any,
     ) -> str:
         if mode is None:
             mode = "Historical" if is_historical else "Daily"
         status = "ERROR" if has_errors else "OK"
         date_str = run_date.strftime("%Y-%m-%d") if run_date else "N/A"
-        return f"[IMDR] Rates {mode} Ingest {status} | {date_str} | {rows_loaded} obs"
+        subject = f"[IMDR] Rates {mode} Ingest {status} | {date_str} | {rows_loaded} obs"
+        # A curve that returned rows but is missing the target trading day
+        # is not an error, but the run is not a clean chit either — say so.
+        if n_behind and not has_errors:
+            subject += f" | {n_behind} behind"
+        return subject
 
     def format_body(
         self,
@@ -96,6 +102,7 @@ class RatesIngestFormatter:
         n_curves: int = 0,
         curves: list[dict[str, Any]] | None = None,
         missing_curves: list[dict[str, str]] | None = None,
+        behind_curves: list[dict[str, Any]] | None = None,
         holiday_hits: list[dict[str, str]] | None = None,
         freshness: dict[str, Any] | None = None,
         health_passed: bool | None = None,
@@ -112,6 +119,7 @@ class RatesIngestFormatter:
         quotes = quotes or []
         curves = curves or []
         missing_curves = missing_curves or []
+        behind_curves = behind_curves or []
         holiday_hits = holiday_hits or []
         quality_flags = quality_flags or []
         health_details = health_details or []
@@ -158,6 +166,8 @@ class RatesIngestFormatter:
             "rows_loaded": rows_loaded,
             "n_curves": n_curves,
             "n_missing": len(missing_curves),
+            "behind_curves": behind_curves,
+            "n_behind": len(behind_curves),
             "n_holidays": len(holiday_hits),
             "n_quality_flags": len(quality_flags),
             "health_passed": health_passed,

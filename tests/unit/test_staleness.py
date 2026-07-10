@@ -19,6 +19,7 @@ from imdr.healthchecks.staleness import (
     StalenessSpec,
     VENDOR_BREAKDOWN,
     _build_query,
+    _days_behind,
 )
 from imdr.notifications.formatters.staleness_alert import StalenessAlertFormatter
 
@@ -394,6 +395,63 @@ class TestStalenessMonitor:
         assert report.summaries[0].stale_items[0].days_behind == 4
 
 
+# ── Business-day age tests ──────────────────────────────────────────
+
+
+class TestDaysBehind:
+    def test_calendar_mode_is_plain_subtraction(self) -> None:
+        # 2026-04-13 is a Monday, 2026-04-10 a Friday.
+        assert _days_behind(date(2026, 4, 10), date(2026, 4, 13)) == 3
+
+    def test_same_day_is_zero(self) -> None:
+        assert _days_behind(date(2026, 4, 13), date(2026, 4, 13)) == 0
+
+    def test_future_latest_is_zero(self) -> None:
+        assert _days_behind(date(2026, 4, 14), date(2026, 4, 13)) == 0
+
+    def test_business_mode_ignores_weekend(self) -> None:
+        # Friday obs checked Monday = 1 business day behind, not 3.
+        assert _days_behind(date(2026, 4, 10), date(2026, 4, 13), business_days=True) == 1
+
+    def test_business_mode_thursday_to_monday(self) -> None:
+        # Thu -> Mon: Fri + Mon = 2 business days.
+        assert _days_behind(date(2026, 4, 9), date(2026, 4, 13), business_days=True) == 2
+
+    def test_business_mode_midweek(self) -> None:
+        # Wed -> Fri (same week): Thu + Fri = 2 business days.
+        assert _days_behind(date(2026, 4, 8), date(2026, 4, 10), business_days=True) == 2
+
+
+class TestBusinessDayStaleness:
+    def test_friday_obs_on_monday_not_stale(self) -> None:
+        """A weekday-only feed read on Monday must not flag Friday data."""
+        reader = MagicMock()
+        monday = date(2026, 4, 13)
+        df = _make_reader_df([(1,)], [date(2026, 4, 10)])  # Friday
+        reader.read_sql.return_value = df
+
+        spec = _make_spec(max_stale_days=2, business_days=True)
+        monitor = StalenessMonitor(reader, specs=[spec], reference_date=monday)
+        report = monitor.run()
+
+        assert report.has_stale is False
+
+    def test_genuine_stall_flags_in_business_mode(self) -> None:
+        """Three business days behind clears a 2-business-day threshold."""
+        reader = MagicMock()
+        monday = date(2026, 4, 13)
+        df = _make_reader_df([(1,)], [date(2026, 4, 8)])  # prior Wednesday
+        reader.read_sql.return_value = df
+
+        spec = _make_spec(max_stale_days=2, business_days=True)
+        monitor = StalenessMonitor(reader, specs=[spec], reference_date=monday)
+        report = monitor.run()
+
+        assert report.has_stale is True
+        # Wed -> Mon = Thu, Fri, Mon = 3 business days.
+        assert report.summaries[0].stale_items[0].days_behind == 3
+
+
 # ── Breakdown-aware tests ───────────────────────────────────────────
 
 
@@ -538,6 +596,18 @@ class TestDefaultSpecs:
     def test_eia_has_longer_threshold(self) -> None:
         eia = [s for s in DEFAULT_SPECS if s.pipeline_name == "commodities.eia"][0]
         assert eia.max_stale_days == 10
+
+    def test_rates_curves_business_day_mode(self) -> None:
+        """Rates curves are a weekday-only feed: business-day age, 2-day floor."""
+        spec = next(s for s in DEFAULT_SPECS if s.pipeline_name == "rates.historical")
+        assert spec.business_days is True
+        assert spec.max_stale_days == 2
+
+    def test_calendar_specs_stay_calendar(self) -> None:
+        """Calendar-cadence feeds must not silently switch to business days."""
+        for pipeline in ("commodities.eia", "commodities.spot"):
+            spec = next(s for s in DEFAULT_SPECS if s.pipeline_name == pipeline)
+            assert spec.business_days is False
 
     def test_dual_vendor_specs_have_vendor_breakdown(self) -> None:
         """rates.historical and fx.citi_rate ingest from multiple vendors."""
