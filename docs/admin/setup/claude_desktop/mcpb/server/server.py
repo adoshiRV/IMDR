@@ -1,4 +1,4 @@
-"""IMDR MCP Server — read-only database access for Claude Desktop / Claude Code.
+r"""IMDR MCP Server — read-only database access for Claude Desktop / Claude Code.
 
 Exposes three tools:
   - list_tables:    browse available tables
@@ -195,7 +195,7 @@ _HIDDEN_TABLES: frozenset[tuple[str, str]] = frozenset({
 
 # Windows logins exempt from the hide — keyed off os.getlogin(), since
 # that's all the MCP server can see. adoshi@rvcapital.com → "adoshi".
-_ADMIN_USERS: frozenset[str] = frozenset({"adoshi"})
+_ADMIN_USERS: frozenset[str] = frozenset({"adoshi", "tolsen"})
 
 
 def _is_admin_user() -> bool:

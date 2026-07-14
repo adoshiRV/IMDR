@@ -1,0 +1,4 @@
+# Loose build artifact — reproduce with build_server_exe.ps1.
+# The distributable copy lives inside the versioned imdr-db.mcpb.
+server/server.exe
+server/__pycache__/
