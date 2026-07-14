@@ -64,6 +64,11 @@ PIPELINES: list[list[str]] = [
     [sys.executable, "-m", "scripts.econ.au.rba.rba_fx"],
     [sys.executable, "-m", "scripts.econ.au.rba.rba_zerocoupon"],
     [sys.executable, "-m", "scripts.econ.au.cotality.cotality_hvi"],
+    # SQM Research — weekly asking rents + monthly vacancy (single combined
+    # fetch); AU has no dedicated weekly orchestrator, so this polls daily
+    # like cotality_hvi above — idempotent MERGE means re-running mid-week
+    # is harmless and the weekly rent update is caught within a day.
+    [sys.executable, "-m", "scripts.econ.au.sqm.sqm_research"],
     # Track B — govt filings ingest (Phase J)
     [sys.executable, "-m", "scripts.econ.au.govt.ingest_filings", "--ingest"],
 ]

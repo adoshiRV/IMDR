@@ -81,6 +81,11 @@ PIPELINES: list[list[str]] = [
     [sys.executable, "-m", "scripts.econ.au.rba.rba_icp"],
     [sys.executable, "-m", "scripts.econ.au.rba.rba_credit_balsheet"],
     [sys.executable, "-m", "scripts.econ.au.rba.rba_reer"],
+    # Housing & labour market — monthly
+    [sys.executable, "-m", "scripts.econ.au.cotality.cotality_hvi_monthly"],
+    [sys.executable, "-m", "scripts.econ.au.seek.seek_jobads"],
+    [sys.executable, "-m", "scripts.econ.au.anz.anz_indeed_jobads"],
+    [sys.executable, "-m", "scripts.econ.au.apra.apra_madis"],
     # AOFM — XLSX parsers (operator pre-refreshes via Edge; staleness banner
     # surfaces in email if the XLSXs are older than _AOFM_STALENESS_DAYS)
     [sys.executable, "-m", "scripts.econ.au.aofm.aofm_foreign_holdings"],

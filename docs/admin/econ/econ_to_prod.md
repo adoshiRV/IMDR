@@ -234,12 +234,13 @@ Set in `.env` (loaded by `pydantic-settings` via `imdr.config.settings.get_setti
 
 - **Korea** — `docs/admin/econ/korea/korea_prod_pipeline.md`, `scripts/econ/kr/kr_monthly.py`, `scripts/econ/kr/kosis/`
 - **Indonesia** — `docs/admin/econ/indonesia/indonesia_prod_pipeline.md`, `scripts/econ/id/id_monthly.py`, `scripts/econ/{bps,bi,bis}/`
+- **Australia** — no dedicated `australia_prod_pipeline.md` (see `docs/admin/econ/australia/australia_indicator_inventory.md` instead); `scripts/econ/au/au_monthly.py` + `scripts/econ/au/au_daily.py`; vendor trees under `scripts/econ/au/{abs,rba,aofm,cotality,sqm,apra,seek,anz}/`. **758 indicators / 523,708 obs DB-live as of 2026-07-14** (2026-07-14 pass added Cotality monthly, SQM Research + APRA MADIS + SEEK + ANZ-Indeed, and extended ABS labour age/state breakdowns; migrations 109 + 110 applied). Built and wired into the country orchestrators; **not yet registered in `scripts/imdr_monthly.py`/`scripts/imdr_daily.py:PIPELINES`** — same gated Step-4 sign-off as every other country.
 
 ---
 
 ## Track B — Phase J (Govt/CB documents → prod)
 
-> Track B promotion is one-country live as of 2026-06-10 — **Korea is the reference implementation**: migrations 086 + 087 applied; `src/imdr/research/filings.py` is impl complete; `scripts/econ/kr/govt/ingest_filings.py` + `scripts/econ/kr/kr_daily.py` are wired into `scripts/imdr_daily.py:PIPELINES`; 41 filings landed in `research.dim_report` (ids 5448-5478), 55+ chunks in Qdrant, 22 PDFs on SharePoint at `{YYYY}/{MM}/{DD}/econ/kr/{vendor}/`. Australia is one-off (RBA/Treasury/APRA fetchers landed 2026-06-10, no prod wiring yet). The shape below mirrors Phase G but discriminates by the storage layer: Track B writes to `research.dim_report` + Qdrant + SharePoint, **not** `econ.fact_indicator`.
+> Track B promotion is one-country live as of 2026-06-10 — **Korea is the reference implementation**: migrations 086 + 087 applied; `src/imdr/research/filings.py` is impl complete; `scripts/econ/kr/govt/ingest_filings.py` + `scripts/econ/kr/kr_daily.py` are wired into `scripts/imdr_daily.py:PIPELINES`; 41 filings landed in `research.dim_report` (ids 5448-5478), 55+ chunks in Qdrant, 22 PDFs on SharePoint at `{YYYY}/{MM}/{DD}/econ/kr/{vendor}/`. **Australia's Track B is also PROD-BUILT (2026-06-11)** — `scripts/econ/au/govt/` + `scripts/econ/au/au_daily.py`, 8 official fetchers, migration 092 applied, 9 reports/201 chunks live (see `docs/admin/econ/australia/australia_govt_prod_pipeline.md`); like Korea, still pending `scripts/imdr_daily.py:PIPELINES` registration. The shape below mirrors Phase G but discriminates by the storage layer: Track B writes to `research.dim_report` + Qdrant + SharePoint, **not** `econ.fact_indicator`.
 
 ### J.1 Hard rule — zero playground imports in prod
 
@@ -360,7 +361,7 @@ Canonical prod-live wording:
   - 41 reports / 55+ Qdrant chunks / 22 PDFs at canonical SP layout
   - Execution tracker: [`docs/admin/development/kr_govt_filings.md`](../development/kr_govt_filings.md)
   - Inventory + URL recipes: [`korea/govt_doc_sources.md`](korea/govt_doc_sources.md)
-- **Australia** — 6 fetchers built in `playground/econ/au/govt/` (RBA × 4 via Playwright + Treasury + APRA via plain httpx). No execution tracker yet; no migrations drafted yet. Phase J **not yet entered.** Replicate the Korea pattern when promoting.
+- **Australia — Phase J PROD-BUILT 2026-06-11** (correcting a stale "not yet entered" note found here 2026-07-14 — see `docs/admin/econ/australia/australia_govt_prod_pipeline.md` for the current state). 8 official fetchers at `scripts/econ/au/govt/` (RBA ×5 via Playwright Akamai-bypass + Treasury + APRA + ABS via plain httpx/headless render). Migration 092 applied (apra/treasury_au/nab vendor seed). 9 reports / 201 chunks live in `research.dim_report` as of the 2026-06-11 smoke. Execution tracker: `docs/admin/development/au_govt_filings.md`. Final scheduler gate (`scripts/imdr_daily.py:PIPELINES` registration) still pending explicit user OK — same as every other country's Step 4.
 
 ---
 

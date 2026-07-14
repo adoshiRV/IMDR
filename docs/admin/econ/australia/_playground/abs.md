@@ -1,8 +1,8 @@
-# ABS — `playground/econ/abs/`
+# ABS — `playground/econ/abs/` (production: `scripts/econ/au/abs/`)
 
-Last updated: 2026-06-10
+Last updated: 2026-07-14
 
-**Status:** DB-LIVE — 16 fetchers, **174 indicators / 15,616 obs** loaded (verified against `econ.fact_indicator` 2026-06-10). Australian Bureau of Statistics SDMX API (public, unauthenticated). 1,223 dataflows enumerated.
+**Status:** DB-LIVE. Australian Bureau of Statistics SDMX API (public, unauthenticated). 1,223 dataflows enumerated. Counts below are as narrated on 2026-06-10; the labour rows are corrected for the 2026-07-14 age/state buildout. **DB-verified total ABS indicator count as of 2026-07-14 is 324** (this doc's per-fetcher counts below do not all sum to that — the `CPI` dataflow independently grew 22→86 between 2026-06-22 and 2026-06-25, COICOP group/sub-group breakdowns, which is not narrated anywhere in this file; see [`../australia_indicator_inventory.md`](../australia_indicator_inventory.md) verification note).
 
 IIP loaded 2026-06-10 (+33 indicators / +4,951 obs; quarterly 1988 Q3 → 2026 Q1). Last gap closed for the AU 4×4 wiring map's stock side.
 
@@ -13,7 +13,7 @@ IIP loaded 2026-06-10 (+33 indicators / +4,951 obs; quarterly 1988 Q3 → 2026 Q
 | `_abs_common.py` | Shared SDMX helpers (HTTP client, dimension-key builder, parquet writer). |
 | `fetch_cpi.py` | ABS `CPI` dataflow — headline (INDEX=10001, Q NSA) + Trimmed Mean (999902, M) + Weighted Median (999903, M). 16 indicators. |
 | `fetch_gdp.py` | ABS `ANA_AGG` dataflow — Chain-volume GDP, SA (DATA_ITEM=GPM). 7 indicators. |
-| `fetch_labour.py` | ABS `LF` dataflow — Unemployment rate (M13), Participation rate (M12), Employed persons (M3), SA. 6 indicators. |
+| `abs_labour.py` (prod name; was `fetch_labour.py`) | ABS `LF` dataflow — Unemployment rate (M13), Participation rate (M12), Employed persons (M3), Unemployed (M6), Labour Force (M9), Employment-pop ratio (M16), SA, national. 6 headline indicators. **Extended 2026-07-14** with age breakdown (sibling `LF_AGES` dataflow, 7 bands × 3 measures = 21) + state breakdown (`LF`'s own REGION dim, 8 states × 3 measures = 24) — **51 indicators total**. See [`../australia_indicator_inventory.md`](../australia_indicator_inventory.md) for the full breakdown. |
 | `fetch_wpi.py` | ABS `WPI` dataflow — Wage Price Index (INDEX=OHRPEB, INDUSTRY=TOT). NSA only — SA not published. 6 indicators. |
 | `fetch_ppi_fd.py` | ABS `PPI_FD` dataflow — Producer Prices Final Demand (TSEST=TOTXE, not TOTIE). 3 indicators. |
 | `fetch_retail.py` | ABS Retail Trade dataflow — monthly retail sales. 10 indicators. |
@@ -24,7 +24,7 @@ IIP loaded 2026-06-10 (+33 indicators / +4,951 obs; quarterly 1988 Q3 → 2026 Q
 | `fetch_job_vacancies.py` | ABS Job Vacancies (`JV`) dataflow. 3 indicators. |
 | `fetch_capex.py` | ABS `CAPEX` — private new capital expenditure (M1 actual, by asset class). 4 indicators (cell 1.4 macro core / 1.1 private investment). |
 | `fetch_lending.py` | ABS `LEND_HOUSING` + `LEND_BUSINESS` + `LEND_PERSONAL` — new lending commitments. 11 indicators (2 business + 4 housing + 5 personal). Cell 4.1 Demand Transmission supplement. |
-| `fetch_lf_under.py` | ABS `LF_UNDER` — sibling LF dataflow for underemployment / underutilisation (M21/M23/M24). 3 indicators (cell 1.4 labour slack). |
+| `abs_lf_under.py` (prod name; was `fetch_lf_under.py`) | ABS `LF_UNDER` — sibling LF dataflow for underemployment / underutilisation (M18/M21/M23/M24). **Extended 2026-07-14** with native AGE + REGION dims (no sibling dataflow needed, unlike `LF`) — 2 headline rate measures × 7 age bands + 8 states = 30 breakdown series + 3 headline (M18 hours-worked 404s, silently skipped) = **33 indicators total** (cell 1.4 labour slack). |
 | `fetch_rppi.py` | ABS `RPPI` — residential property price index, weighted 8-capital + per-city (Sydney/Melbourne/Brisbane/…/Canberra) × Index/QoQ/YoY. 17 indicators (cells 4.2 housing wealth / 1.1 private demand). |
 | `fetch_iip.py` | **NEW 2026-06-10** — ABS `IIP` International Investment Position. 33 indicators across headline (Net IIP, FA/FL totals, External Debt), Direct + Portfolio Investment (FA/FL × equity/debt), Other Investment (FA/FL), Financial Derivatives (FA/FL), Reserve Asset sub-decomp (gold, SDRs, debt securities short/long, currency & deposits, other). Quarterly stock since 1988 Q3. Cell 3.3 stock-side. **Sign convention:** Foreign Assets are recorded as negative in MEASURE=6 (BoP debit convention preserved into stocks); analytics layer must `abs()` for reader-facing display. |
 | `discovery/probe_codelist.py` | Probe ABS codelists via `?references=all` — used to find real INDEX/MEASURE codes. |
@@ -49,8 +49,8 @@ API-based. `httpx` client + SDMX XML parsing (`xml.etree`). No auth, no rate lim
 | `CPI` | `1.10001.10.50.Q` | 1948 Q3 → present | 16 |
 | `ANA_AGG` | `M1.GPM.20.AUS.Q` | 1959 Q3 → present | 7 |
 | `ANA_EXP` | `VCH.GPM.SSS.20.AUS.Q` | 1959 Q3 → present | 10 |
-| `LF` | `M13.3.1599.20.AUS.M` | 1978-02 → present | 6 |
-| `LF_UNDER` | `M21.3.1599.20.AUS.M` | 1978-02 → present | 3 |
+| `LF` (+ `LF_AGES` sibling) | `M13.3.1599.20.AUS.M` | 1978-02 → present | 51 (was 6; +45 age/state 2026-07-14) |
+| `LF_UNDER` | `M21.3.1599.20.AUS.M` | 1978-02 → present | 33 (was 3; +30 age/state 2026-07-14) |
 | `WPI` | `1.OHRPEB.7.TOT.10.AUS.Q` | ~1997 Q3 → present | 6 |
 | `PPI_FD` | `1.TOT.TOT.TOTXE.Q` (TOTXE not TOTIE) | ~2000s → present | 3 |
 | `RT` (Retail Trade) | `M1.20.20.AUS.M` | ~1982 → present | 10 |
@@ -83,3 +83,4 @@ The IIP add (2026-06-10) closes the cell-3.3 stock-side gap. The earlier `BOP_FA
 ## Related
 
 - [`rba.md`](rba.md) — sibling AU vendor (monetary side)
+- [`../australia_indicator_inventory.md`](../australia_indicator_inventory.md) — DB-verified total counts + verification notes (CPI/ASX drift)
