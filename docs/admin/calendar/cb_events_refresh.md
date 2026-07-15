@@ -1,5 +1,7 @@
 # CB Events Monthly Refresh
 
+Last updated: 2026-07-16
+
 ## Overview
 
 The CB events refresh pipeline combines Bloomberg Excel imports with automated web scraping of official central bank websites. It validates both sources against each other and upserts to `calendar.cb_events` with provenance tracking.
@@ -44,6 +46,31 @@ events = upcoming_cb_events(session, country_code="SG", confirmed_only=True)
 # business key ("US", "EU", "SG", etc.).
 ```
 
+### Soft dates — do not state as hard (2026-07-16)
+
+Rows with `source='estimated'` (or `source IS NULL`) **and** no `event_datetime`
+**and** no `survey`/`forecast`/`actual` are seeded **placeholders carrying a
+guessed date**, not a feed-backed event. They exist so downstream code has
+*something* to join against before a real scrape/BQL row lands, not because
+the date is known.
+
+Any consumer of `cb_events` — Spider digests, query helpers, ad-hoc SQL —
+**must not print or state one of these dates as a confirmed scheduled event**.
+Either:
+- filter with `confirmed_only=True` (excludes `is_estimated`/`source='estimated'`), or
+- cross-check the row against the real feed (TE/BQL, see
+  [`tradingeconomics_calendar.md`](tradingeconomics_calendar.md)) or the bank's
+  actual announced cadence before quoting a date.
+
+**Incident:** a Spider daily digest (2026-07-14/15 editions) stated the MAS
+Monetary Policy Statement as a 14-Jul event, grounded on a `cb_events` row.
+Root cause: the MAS mid-month (14th) estimated fallback below — a batch of 4
+MAS MPS placeholder rows (Jan/Apr/Jul/Oct 14, 2026), seeded 2026-03-24 with
+`source='estimated'`/`NULL`, carried a **wrong** 14th date. The real MAS MPS
+window lands later in the month; for July 2026 the TE feed carries the
+correct **31-Jul** date. The digest took the estimated 14-Jul placeholder at
+face value instead of cross-checking the TE-sourced row.
+
 ## Scrapers
 
 Module: `src/imdr/market_calendar/cb_scrapers.py`
@@ -54,9 +81,21 @@ Module: `src/imdr/market_calendar/cb_scrapers.py`
 | **RBI** (IN) | Web scrape | hellobanker.in | High | Scrapes FY schedule; fallback to bimonthly estimates |
 | **CBC** (TW) | Web scrape | cbc.gov.tw | High | Scrapes official provisional schedule page |
 | **BSP** (PH) | Web scrape | bsp.gov.ph | High | Scrapes "MB Meeting No." patterns from schedule page |
-| **MAS** (SG) | Estimated | N/A | Low | No pre-announced dates; uses mid-month estimates (14th) |
+| **MAS** (SG) | Estimated | N/A | Low | No pre-announced dates; uses mid-month estimates (14th) — **deprecation candidate, see below** |
 
 All scrapers have fallback logic — if the web scrape fails, they generate estimated dates and mark `is_estimated=1`.
+
+**MAS mid-month (14th) fallback — flag for deprecation (2026-07-16).** Now
+that the TE feed reliably carries the real MAS Monetary Policy Statement date
+(see [`tradingeconomics_calendar.md`](tradingeconomics_calendar.md)), the
+14th-of-the-month estimate is no longer filling a gap — it actively
+**conflicts** with real data (see incident above). Recommendation: deprecate
+this fallback in favour of the TE-sourced date. Deleting the existing
+placeholder rows is **not durable on its own** — a future failed web scrape
+will re-trigger the same fallback logic and re-seed new 14th-dated rows. The
+soft-dates rule above (never state an estimated row as hard) is the real,
+durable protection until the fallback is actually removed from
+`cb_scrapers.py`.
 
 ## Validation Report
 
@@ -104,6 +143,36 @@ for r in results:
 2. Add the function call to `scrape_all()`
 3. Test with `--scrape-only --dry-run`
 
+## Cleanup: removing placeholder rows
+
+`playground/econ/cleanup_estimated_cb_events.py` is a guarded, backup-first,
+dry-run-by-default one-off that deletes seeded placeholder rows matching:
+
+```sql
+((source = 'estimated' AND is_estimated = 1) OR source IS NULL)
+AND event_datetime IS NULL AND actual IS NULL
+AND survey IS NULL AND forecast IS NULL
+```
+
+Usage:
+```bash
+python playground/econ/cleanup_estimated_cb_events.py            # dry-run (default) — lists matches, writes backup, deletes nothing
+python playground/econ/cleanup_estimated_cb_events.py --apply     # deletes inside a transaction, verifies count is zero
+```
+
+Every run backs up the matched rows to
+`playground/econ/cleanup_estimated_cb_events.backup*.json` before any delete,
+so the operation is reversible. The 2026-07-16 run removed the 4 MAS MPS
+placeholders described in the incident above and left all real TE/BQL feed
+rows untouched (the WHERE clause never matches a row that has a real
+`event_datetime`, `survey`, `forecast`, or `actual`).
+
+Because the underlying MAS mid-month fallback is still live (not yet
+deprecated — see above), a future failed scrape can re-seed matching rows.
+This script may need to be re-run periodically until the fallback is removed
+from `cb_scrapers.py`; the soft-dates consumer rule is what keeps a stray
+re-seeded row from being misread as a hard date in the meantime.
+
 ## Files
 
 | File | Role |
@@ -114,3 +183,4 @@ for r in results:
 | `src/imdr/market_calendar/cb_events.py` | Query helpers |
 | `scripts/calendar/refresh_cb_events.py` | Monthly refresh orchestrator |
 | `scripts/calendar/import_cb_events.py` | Bloomberg-only import (standalone) |
+| `playground/econ/cleanup_estimated_cb_events.py` | One-off: delete seeded `estimated`/`NULL`-source placeholder rows (dry-run default, `--apply` to delete, JSON backup each run) |
