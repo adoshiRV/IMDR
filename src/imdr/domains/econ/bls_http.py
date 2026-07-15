@@ -26,7 +26,12 @@ class BlsClient:
         self._key = get_settings().econ_bls_key.strip()
         if not self._key:
             raise RuntimeError("IMDR_ECON_BLS_KEY not set")
-        self._client = httpx.Client(timeout=timeout)
+        # Connection-level retries so a single reset doesn't kill every series
+        # in a POST chunk (matches fred_http's HTTPClient(retries=3)).
+        self._client = httpx.Client(
+            timeout=timeout,
+            transport=httpx.HTTPTransport(retries=3),
+        )
 
     def __enter__(self) -> "BlsClient":
         return self

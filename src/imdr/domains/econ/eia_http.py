@@ -22,6 +22,21 @@ _BASE = "https://api.eia.gov/v2"
 _PAGE_SIZE = 5000  # EIA max per request
 
 
+def _eia_start(frequency: str, iso_date: str) -> str:
+    """Format an ISO ``YYYY-MM-DD`` to EIA v2's ``start`` at the frequency's
+    granularity (daily/weekly = full date, monthly = ``YYYY-MM``, annual =
+    ``YYYY``). A mismatched granularity is rejected by the API, so this keeps
+    the server-side filter valid across routes."""
+    f = (frequency or "").lower()
+    if f.startswith(("d", "w")):      # daily / weekly
+        return iso_date
+    if f.startswith("m"):             # monthly
+        return iso_date[:7]
+    if f.startswith(("a", "q")):      # annual / quarterly
+        return iso_date[:4]
+    return iso_date
+
+
 class EiaClient:
     """Minimal EIA v2 GET client with auto-pagination."""
 
@@ -29,7 +44,11 @@ class EiaClient:
         self._key = get_settings().econ_eia_key.strip()
         if not self._key:
             raise RuntimeError("IMDR_ECON_EIA_KEY not set")
-        self._client = httpx.Client(timeout=timeout)
+        # Connection-level retries (parity with fred_http's HTTPClient).
+        self._client = httpx.Client(
+            timeout=timeout,
+            transport=httpx.HTTPTransport(retries=3),
+        )
 
     def __enter__(self) -> "EiaClient":
         return self
@@ -75,6 +94,10 @@ class EiaClient:
                 ("length", _PAGE_SIZE),
                 ("offset", offset),
             ]
+            # Server-side start filter so we don't repaginate the full history
+            # every run; the client-side filter below stays as a backstop.
+            if start_period:
+                params.append(("start", _eia_start(frequency, start_period)))
             if facets:
                 for fid, fval in facets.items():
                     values = fval if isinstance(fval, list) else [fval]

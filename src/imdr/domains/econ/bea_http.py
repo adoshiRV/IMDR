@@ -27,7 +27,11 @@ class BeaClient:
         if not key:
             raise RuntimeError("IMDR_ECON_BEA_KEY not set")
         self._key = key
-        self._client = httpx.Client(timeout=timeout)
+        # Connection-level retries (parity with fred_http's HTTPClient).
+        self._client = httpx.Client(
+            timeout=timeout,
+            transport=httpx.HTTPTransport(retries=3),
+        )
 
     def __enter__(self) -> "BeaClient":
         return self

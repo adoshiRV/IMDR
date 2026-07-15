@@ -15,6 +15,8 @@ from __future__ import annotations
 import time
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 _BASE = "https://api.fiscaldata.treasury.gov/services/api/fiscal_service"
 _DEFAULT_PAGE_SIZE = 10_000
@@ -28,6 +30,15 @@ class TreasuryClient:
         self._timeout = timeout
         self._session = requests.Session()
         self._session.headers.update({"Accept": "application/json"})
+        # Retry transient drops/5xx (the Treasury server is the reason this
+        # client uses requests rather than httpx — see module docstring).
+        retry = Retry(
+            total=3,
+            backoff_factor=0.5,
+            status_forcelist=(429, 500, 502, 503, 504),
+            allowed_methods=frozenset({"GET"}),
+        )
+        self._session.mount("https://", HTTPAdapter(max_retries=retry))
 
     def __enter__(self) -> "TreasuryClient":
         return self

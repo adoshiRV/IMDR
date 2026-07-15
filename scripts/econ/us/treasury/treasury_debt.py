@@ -24,7 +24,7 @@ from scripts.econ._runner import run_main
 UTC = datetime.timezone.utc
 
 _ENDPOINT = "v2/accounting/od/debt_to_penny"
-_FIELDS = "record_date,tot_pub_debt_out_amt,debt_held_public_amt,intragov_hold_amt"
+_FIELDS = "record_date,tot_pub_debt_out_amt"
 
 
 def _indicators() -> list[IndicatorRow]:

@@ -48,7 +48,11 @@ class CensusClient:
             raise RuntimeError(
                 "Census API key is empty. Set IMDR_ECON_CENSUS_KEY in .env."
             )
-        self._client = httpx.Client(timeout=timeout)
+        # Connection-level retries (parity with fred_http's HTTPClient).
+        self._client = httpx.Client(
+            timeout=timeout,
+            transport=httpx.HTTPTransport(retries=3),
+        )
 
     def __enter__(self) -> "CensusClient":
         return self

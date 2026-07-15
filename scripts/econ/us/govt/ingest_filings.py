@@ -139,6 +139,21 @@ def _cutoff_date(recent_years: int) -> datetime.date:
     return today.replace(year=today.year - recent_years)
 
 
+def _compute_rc(
+    total_ok: int, total_skip: int, total_fail: int, n_discover_failures: int
+) -> int:
+    """Exit code for the ingest run.
+
+    rc=1 in two cases: (a) any stream failed DISCOVERY outright — a probe
+    break / site redesign is a real outage the unattended scheduler must see,
+    even if a surviving stream had an already-ingested item; or (b) an
+    item-level true outage — failures occurred with zero progress. A run that
+    made progress (ingested) or found everything already ingested (all-skips)
+    stays rc=0 even if a known-discontinued PDF 404s (those retry next run)."""
+    item_outage = total_ok == 0 and total_skip == 0 and total_fail > 0
+    return 1 if (n_discover_failures > 0 or item_outage) else 0
+
+
 def _api_keys_from_settings() -> dict[str, str]:
     s = get_settings()
     return {
@@ -291,6 +306,7 @@ def main() -> int:
     http_sess = make_session()
 
     all_stats: list[IngestStats] = []
+    discover_failures: list[str] = []  # streams whose probe never returned items
 
     for stream_id, discover_fn, discover_kwargs, vendor_hint in selected:
         print(f"\n=== {stream_id} ===")
@@ -298,9 +314,11 @@ def main() -> int:
             res = discover_fn(**discover_kwargs)
         except Exception as exc:
             print(f"  DISCOVER FAILED: {exc}")
+            discover_failures.append(stream_id)
             continue
         if not res.ok:
             print(f"  DISCOVER ERROR: {res.error}")
+            discover_failures.append(stream_id)
             continue
 
         items_in_window = [
@@ -410,20 +428,18 @@ def main() -> int:
     print(f"  {total_ok} ingested, {total_skip} skipped (already in DB), "
           f"{total_fail} failed (of {total_in} total)")
     print(f"  {total_chunks:,} chunks  /  {total_emb:,} embeddings")
+    if discover_failures:
+        print(f"  !! {len(discover_failures)} of {len(selected)} stream(s) "
+              f"FAILED DISCOVERY (no items): {', '.join(discover_failures)}")
     print(f"\n  per-stream:")
     for s in all_stats:
         print(f"    {s.stream:30s}  {s.ingested:>3d} ingested, "
               f"{s.already_existed:>3d} skip, {s.failed:>3d} fail   "
               f"chunks={s.chunks_total:>4d} emb={s.embeddings_total:>4d}")
+    for sid in discover_failures:
+        print(f"    {sid:30s}  DISCOVERY FAILED")
 
-    # rc=1 only on a TRUE outage: failures occurred AND nothing succeeded or was
-    # even already-present. A healthy daily run is one that made progress
-    # (ingested) OR found everything already ingested (all-skips) — either way
-    # rc=0, even if a known-discontinued FOMC implementation-note PDF 404s. This
-    # stops the rolling 7-day window from flagging the orchestrator FAILED on
-    # every cron tick over one permanent 404. (Failed items aren't marked done,
-    # so they retry; content-hash dedup skips the ones that landed.)
-    return 1 if (total_ok == 0 and total_skip == 0 and total_fail > 0) else 0
+    return _compute_rc(total_ok, total_skip, total_fail, len(discover_failures))
 
 
 if __name__ == "__main__":
