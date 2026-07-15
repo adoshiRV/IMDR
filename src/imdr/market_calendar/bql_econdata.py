@@ -32,6 +32,12 @@ Design (mirrors te_scraper)
 ---------------------------
 - Idempotent MERGE keyed on ``(vendor_id, event_date, country_id, event_name)``
   with ``ticker`` always NULL (BQL carries no instrument tickers).
+- ``event_name`` is normalized (casefold + accent-stripped, see
+  ``imdr.market_calendar.event_name``) at read/dedup time, so an accent/case
+  variant of an already-stored event always MATCHes on MERGE instead of
+  colliding with the DB's accent/case-insensitive unique index on INSERT.
+- Each row's upsert runs in its own SAVEPOINT — one bad row logs and is
+  skipped (``UpsertResult.errored``) instead of aborting the whole run.
 - Forward-event guard: NULL ``actual``/``revised`` for events that have not yet
   released (an upcoming row should never carry an outcome).
 - BQL ``relevancy`` ordinal → BBG's 0-100 ``relevance`` scale, with a
@@ -47,7 +53,10 @@ from pathlib import Path
 
 import structlog
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
+
+from imdr.market_calendar.event_name import normalize_event_name
 
 log = structlog.get_logger(__name__)
 
@@ -228,7 +237,13 @@ def read_bql_events(
     for r in rows:
         rd = dict(r)
         event_date = _parse_date(rd.get("date"))
-        name = (_clean(rd.get("name"), 500) or _clean(rd.get("display_name"), 500))
+        name_raw = (_clean(rd.get("name"), 500) or _clean(rd.get("display_name"), 500))
+        # Normalized (casefold + accent-stripped, see imdr.market_calendar.
+        # event_name) so two spellings of the same event collapse to one
+        # dedup key here AND one stored value downstream — mirrors te_scraper,
+        # closing the same accent/case collision against the shared unique
+        # index on calendar.cb_events.
+        name = normalize_event_name(name_raw) if name_raw else None
         cc = _map_country_code(rd.get("country_code"))
         if event_date is None or not name:
             continue
@@ -291,6 +306,7 @@ class UpsertResult:
     updated_actual: int
     updated_other: int
     unchanged: int
+    errored: int = 0
 
 
 # BQL has no tickers, so every row routes through the event_name unique index
@@ -417,7 +433,23 @@ def upsert_events(
                 res.unchanged += 1
             continue
 
-        out = session.execute(_UPSERT_SQL, params).first()
+        # Isolate this row in a SAVEPOINT: one bad row must not roll back —
+        # or abort the process on — every other row already upserted in
+        # this run. Mirrors te_scraper.upsert_events.
+        try:
+            with session.begin_nested():
+                out = session.execute(_UPSERT_SQL, params).first()
+        except SQLAlchemyError as exc:
+            log.error(
+                "bql.upsert_row_failed",
+                event_name=e.event_name,
+                event_date=params["event_date"],
+                country_id=country_id,
+                error=str(exc),
+            )
+            res.errored += 1
+            continue
+
         if out is None:
             res.unchanged += 1
             continue

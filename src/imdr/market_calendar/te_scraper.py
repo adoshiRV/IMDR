@@ -20,6 +20,13 @@ Design
   of the two filtered unique indexes applies: by `ticker` when TE gives a
   real data-symbol, else by `event_name` (TE's `data-event` slug). Generic
   'CALENDAR' placeholders are NULLed and always keyed by event_name.
+- `event_name` is normalized (casefold + accent-stripped, see
+  `imdr.market_calendar.event_name`) before it reaches the MERGE, so an
+  accent/case variant of an already-stored event (e.g. TE's slug vs its
+  rendered-text fallback) always MATCHes the existing row instead of
+  colliding with the DB's accent/case-insensitive unique index on INSERT.
+- Each row's upsert runs in its own SAVEPOINT — one bad row logs and is
+  skipped (`UpsertResult.errored`) instead of aborting the whole run.
 - TE 1-3 importance is normalised to BBG's 0-100 scale so the `relevance`
   column stays homogeneous (1->33.33, 2->66.67, 3->100.0).
 
@@ -45,7 +52,10 @@ import requests
 import structlog
 from bs4 import BeautifulSoup
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
+
+from imdr.market_calendar.event_name import normalize_event_name
 
 log = structlog.get_logger(__name__)
 
@@ -378,6 +388,7 @@ class UpsertResult:
     updated_other: int
     unchanged: int
     actual_changes: list[ActualChange] = field(default_factory=list)
+    errored: int = 0
 
 
 # Split previous "-35% *" into (clean_value, revised_marker)
@@ -577,8 +588,13 @@ def upsert_events(
             actual_to_store = e.actual
             revised_to_store = revised_marker
 
-        # event_name: prefer stable TE slug, fall back to rendered text
-        event_name = (e.event_slug or e.event_text or "").strip()[:500]
+        # event_name: prefer stable TE slug, fall back to rendered text.
+        # Normalized (casefold + accent-stripped) so that TE's slug/rendered-
+        # text fallback never produces two different byte strings for the
+        # same event (see imdr.market_calendar.event_name) — the DB's unique
+        # index is accent/case-insensitive, so an un-normalized mismatch here
+        # sends the MERGE into the INSERT branch and collides on the index.
+        event_name = normalize_event_name((e.event_slug or e.event_text or "").strip())[:500]
         if not event_name:
             continue
 
@@ -640,7 +656,26 @@ def upsert_events(
                 res.unchanged += 1
             continue
 
-        out = session.execute(_UPSERT_SQL, params).first()
+        # Isolate this row in a SAVEPOINT: one bad row (e.g. a lingering
+        # collation-mismatch collision, or any other constraint violation)
+        # must not roll back — or abort the process on — every other row
+        # already upserted in this run. See migration 096 / the 2026-07
+        # TE-run-abort incident.
+        try:
+            with session.begin_nested():
+                out = session.execute(_UPSERT_SQL, params).first()
+        except SQLAlchemyError as exc:
+            log.error(
+                "te.upsert_row_failed",
+                event_name=event_name,
+                event_date=event_date_str,
+                country_id=country_id,
+                ticker=params["ticker"],
+                error=str(exc),
+            )
+            res.errored += 1
+            continue
+
         if out is None:
             res.unchanged += 1
         else:

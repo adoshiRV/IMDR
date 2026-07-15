@@ -93,6 +93,7 @@ def main() -> int:
     print(f"  updated (actual changed): {result.updated_actual}")
     print(f"  updated (other fields):   {result.updated_other}")
     print(f"  unchanged:                {result.unchanged}")
+    print(f"  errored (row skipped):    {result.errored}")
     print()
 
     log.info(
@@ -105,6 +106,7 @@ def main() -> int:
         updated_actual=result.updated_actual,
         updated_other=result.updated_other,
         unchanged=result.unchanged,
+        errored=result.errored,
     )
     return 0
 

@@ -6,10 +6,12 @@ the real ``bql_events`` table — no SQL Server / IMDR DB connection needed.
 from __future__ import annotations
 
 import sqlite3
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
+from sqlalchemy.exc import SQLAlchemyError
 
 from datetime import date
 
@@ -84,7 +86,11 @@ def test_read_basic_mapping(tmp_path):
     assert len(events) == 1
     e = events[0]
     assert e.country_code == "UK"
-    assert e.event_name == "CPI Core YoY"
+    # event_name is normalized (casefold + accent-stripped) at read time —
+    # see imdr.market_calendar.event_name — so the MERGE match key and the
+    # stored value can never disagree with the DB's accent/case-insensitive
+    # unique index.
+    assert e.event_name == "cpi core yoy"
     assert e.event_datetime == datetime(2026, 6, 2, 9, 30, tzinfo=timezone.utc)
     assert e.category == "Macro economic data"
     assert (e.survey, e.actual, e.prior_value) == ("2.3", "2.4", "2.2")
@@ -144,7 +150,7 @@ def test_window_filters_by_event_date_keeping_all_snapshots(tmp_path):
     ])
     events = read_bql_events(db, d1=date(2026, 6, 17), d2=date(2026, 7, 15))
     assert len(events) == 1
-    assert events[0].event_name == "In Window"
+    assert events[0].event_name == "in window"
     assert events[0].actual == "1.2"  # freshest snapshot within the window
 
 
@@ -154,6 +160,25 @@ def test_rows_without_date_or_name_dropped(tmp_path):
         _row(date="2026-06-02", time="09:30", country_code="US", name=""),
     ])
     assert read_bql_events(db) == []
+
+
+def test_accented_and_plain_spelling_dedupe_to_one_event(tmp_path):
+    """Regression: two snapshots of the same event whose `name` differs only
+    by diacritics/case (e.g. an ECB speaker's name rendered with vs without
+    accents on different daily pulls) must collapse to ONE deduped event —
+    same normalized key ``read_bql_events`` uses for the dedup dict AND for
+    the event_name later passed into the MERGE. See
+    imdr.market_calendar.event_name.normalize_event_name.
+    """
+    db = _make_db(tmp_path, [
+        _row(date="2026-07-10", time="09:00", country_code="EU", name="ECB Vujčić Speech",
+             tier="tier3", tier_rank="3", relevancy="Low", ingested_at="2026-07-09T10:00:00"),
+        _row(date="2026-07-10", time="09:00", country_code="EU", name="ecb vujcic speech",
+             tier="tier3", tier_rank="3", relevancy="Low", ingested_at="2026-07-10T10:00:00"),
+    ])
+    events = read_bql_events(db)
+    assert len(events) == 1
+    assert events[0].event_name == "ecb vujcic speech"
 
 
 # --- upsert (forward-event guard), with a fake session -----------------------
@@ -167,11 +192,16 @@ class _FakeResult:
 
 
 class _FakeSession:
-    """Minimal stand-in: resolves vendor/country lookups, records MERGE params."""
+    """Minimal stand-in: resolves vendor/country lookups, records MERGE params.
 
-    def __init__(self):
+    ``fail_event_names`` lets a test force the MERGE to raise for a specific
+    row, exercising the per-row SAVEPOINT isolation in ``upsert_events``.
+    """
+
+    def __init__(self, fail_event_names: set[str] | None = None):
         self.merged: list[dict] = []
         self.committed = False
+        self._fail_event_names = fail_event_names or set()
 
     def execute(self, stmt, params=None):
         sql = str(stmt)
@@ -180,6 +210,8 @@ class _FakeSession:
         if "dim_country" in sql:
             return _FakeResult()  # .all() path handled below
         # MERGE
+        if params is not None and params.get("event_name") in self._fail_event_names:
+            raise SQLAlchemyError(f"simulated failure for {params['event_name']!r}")
         self.merged.append(params)
         return _FakeResult(("INSERT", None, params.get("actual")))
 
@@ -188,6 +220,10 @@ class _FakeSession:
 
     def all(self):  # not used
         return []
+
+    @contextmanager
+    def begin_nested(self):
+        yield
 
 
 def _country_lookup(monkeypatch):
@@ -237,3 +273,31 @@ def test_unknown_country_skipped(monkeypatch):
     res = upsert_events(sess, events, now_utc=datetime(2026, 6, 10, tzinfo=timezone.utc))
     assert res.skipped_unknown_country == 1
     assert sess.merged == []
+
+
+def test_one_failing_row_does_not_abort_the_batch(monkeypatch):
+    """A single row's MERGE raising must not raise out of upsert_events —
+    it's isolated in its own SAVEPOINT, counted in `errored`, and the run
+    still commits everything else."""
+    _country_lookup(monkeypatch)
+    sess = _FakeSession(fail_event_names={"Bad Event"})
+    events = [
+        BqlEvent(
+            event_date=datetime(2026, 6, 5).date(),
+            event_datetime=datetime(2026, 6, 5, 9, 0, tzinfo=timezone.utc),
+            country_code="US", event_name="Bad Event", category="macro",
+            survey=None, actual="1.0", prior_value=None, revised=None,
+            relevance=None, frequency=None,
+        ),
+        BqlEvent(
+            event_date=datetime(2026, 6, 5).date(),
+            event_datetime=datetime(2026, 6, 5, 9, 0, tzinfo=timezone.utc),
+            country_code="US", event_name="Good Event", category="macro",
+            survey=None, actual="2.0", prior_value=None, revised=None,
+            relevance=None, frequency=None,
+        ),
+    ]
+    res = upsert_events(sess, events, now_utc=datetime(2026, 6, 10, tzinfo=timezone.utc))
+    assert res.errored == 1
+    assert [p["event_name"] for p in sess.merged] == ["Good Event"]
+    assert sess.committed is True

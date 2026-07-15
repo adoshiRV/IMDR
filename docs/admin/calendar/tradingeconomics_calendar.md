@@ -1,6 +1,6 @@
 # TradingEconomics Calendar — daily refresh + 15-min macro alerter
 
-**Last updated:** 2026-06-15
+**Last updated:** 2026-07-16
 
 Single web scraper feeding `calendar.cb_events` from
 [tradingeconomics.com/calendar](https://tradingeconomics.com/calendar), with
@@ -177,6 +177,11 @@ ticker-matched row whose TE display-name changed gets refreshed.
 The MERGE OUTPUTs `$action`, `inserted.id`, `deleted.actual`,
 `inserted.actual` so callers detect per-row changes without a re-query.
 
+`event_name` is normalized (see
+[Accent/case collation collision](#accentcase-collation-collision-fixed-2026-07-16)
+below) before it ever reaches the MATCH/ON clause or the `UPDATE`/`INSERT`
+value list.
+
 #### Placeholder-symbol handling (primary path)
 
 TE attaches `*CALENDAR` data-symbols — `CALENDAR`, `ESP CALENDAR`,
@@ -198,6 +203,46 @@ that triggered the duplicate-key crash would have been caught here.
 a backstop for non-placeholder real symbols that TE might happen to re-use
 across distinct same-day same-country events.
 
+#### Accent/case collation collision (fixed 2026-07-16)
+
+The `event_name`-keyed unique index (below) is accent- and
+case-**insensitive** at the SQL Server collation level, but the feed's
+MERGE match key was accent-**sensitive** Python string comparison. An
+incoming event name differing from an already-stored row only by
+diacritics/case — e.g. TE event 420801, incoming `"ecb vujčić speech"` vs the
+stored `"ecb vujcic speech"` — failed to MATCH the existing row, fell through
+to the `NOT MATCHED` (INSERT) branch, and the index rejected the insert as a
+duplicate (`pyodbc.IntegrityError` 2601). That aborted the whole run —
+recurred 3 straight days before being caught.
+
+Fix: `src/imdr/market_calendar/event_name.py::normalize_event_name()`
+(NFKD-decompose → strip combining marks → casefold) is now applied in
+**both** `te_scraper.py` and `bql_econdata.py` — the two feeds are parallel
+mirrored writers to `cb_events`, there is no single shared upsert — as
+**both the MERGE match key and the stored value**. Any accent/case variant
+of the same event collapses to one canonical byte-identical string before it
+reaches the MERGE, so it always matches the existing row and UPDATEs instead
+of colliding on INSERT.
+
+Side effect: stored `event_name` is now lowercased. TE's `data-event` slug
+was already lowercase, so no visible change there; BQL's title-case names
+(e.g. `"MAS Monetary Policy Statement"`) now store lowercase too — the
+calendar is casing-consistent across vendors as a result. A display layer
+can title-case on render if desired.
+
+**Resilience.** Each row's MERGE now runs inside its own `SAVEPOINT`
+(`session.begin_nested()`). A single failing row is logged
+(`te.upsert_row_failed` / `bql.upsert_row_failed`) and counted in a new
+`errored` field on `UpsertResult`, instead of the exception propagating and
+aborting the batch. Both refresh CLIs print `errored` alongside
+inserted/updated/unchanged.
+
+**Tests:** `tests/unit/test_event_name.py` (new) plus accent-collision and
+per-row-isolation additions to `tests/unit/test_te_scraper.py` and
+`tests/unit/test_bql_econdata.py` — 37 pass. Verified live:
+`imdr_econ_calendar` (TE+BQL) now runs clean end-to-end (`errored=0`), no
+manual row-delete required.
+
 ### Vendor-scoped unique indexes (migration 096)
 
 Before this scraper, the unique indexes on `calendar.cb_events` had no
@@ -210,6 +255,11 @@ UX_cb_events_vendor_date_country_ticker  (vendor_id, event_date, country_id, tic
 ```
 
 Each vendor now has its own dedupe namespace.
+
+`UX_cb_events_vendor_date_country_event` is accent- and case-**insensitive**
+(the default SQL Server collation) — see
+[Accent/case collation collision](#accentcase-collation-collision-fixed-2026-07-16)
+above for the feed-side mismatch this caused and its fix.
 
 ---
 
@@ -431,6 +481,7 @@ GROUP BY v.vendor_code;
 | File | Role |
 |------|------|
 | `src/imdr/market_calendar/te_scraper.py` | Library — fetch, parse, upsert, `ActualChange` dataclass |
+| `src/imdr/market_calendar/event_name.py` | Shared `normalize_event_name()` — accent/case-canonical MERGE key + stored value, used by both `te_scraper.py` and `bql_econdata.py` |
 | `scripts/calendar/te_calendar_refresh.py` | Daily refresh CLI |
 | `scripts/calendar/te_release_alert.py` | 15-min alerter CLI |
 | `src/imdr/notifications/formatters/te_release_alert.py` | Subject + HTML formatter (RV palette) |
