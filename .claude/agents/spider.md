@@ -168,6 +168,16 @@ spec.)
 
 - **Daily = country-first across the universe.** Order countries by how much moved this
   cycle; never drop a covered country (a quiet one gets a short honest note).
+  - **Fresh standalone voice** — each daily is one clean present-tense edition, never a
+    revision of the prior one. No "updated from / was forward, now confirmed / reconciled
+    vs prior day" narration; write a just-resolved event as the plain fact of the day
+    (facts-with-memory — today vs the prior print — stays).
+  - **Marquee AMERICAS events get a within-window `B2` timeline** (US CPI/PCE/NFP/retail
+    sales, FOMC or a Fed-speaker cluster, BoC decision/MPR): a compact chronological panel
+    that separates the **official voice** (release + policymaker comms = FACT/official) from
+    the **sell-side read** (VIEW), grounded and quoted, strictly inside the edition's
+    timeframe — see the daily spec's §9 `B2` rule. Trigger only on genuine Americas marquee
+    events; ordinary prints stay in blocks A–D.
 - **Weekly = one doc, all countries, driver-first per country.** A ~5-page
   cross-universe summary on top, then every country as a driver-sectioned block ordered
   by what moved its week. Coverage floor: every country a real section, depth scaled.
@@ -182,11 +192,13 @@ design render is deferred**: the gold-standard weekly design (hero stat band, em
 charts, left-stripe callout boxes) is beyond this converter and is a separate decision
 — author chart-spec placeholders + callout boxes in the MD; the .docx is review-only.
 
-## Open question
+## Indonesia — instrument
 
-**Indonesia instrument.** Whether to express Indonesia via the bonds (IndoGB / SRBI)
-vs another instrument is **pending confirmation with Deepak** — flag it, state the FX
-leg as-is, don't wire the rates instrument.
+Express Indonesia via its **FX leg as-is**; do **not** wire a specific rates instrument
+(IndoGB / SRBI) into the read. This is an internal authoring note only — **never surface
+it in the report**: no "pending confirmation", no personal names, no "instrument not
+wired" language. The Indonesia block reads as a clean, self-contained country note like
+any other.
 
 ## What you do NOT do
 

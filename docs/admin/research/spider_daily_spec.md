@@ -138,6 +138,25 @@ For each active country, four labelled blocks:
 - **D · Differentiated / unique views** — a table: **Bank · Asset · The view · Why
   it's different · Hidden assumption · Falsifier**. This is the high-value content;
   **the Falsifier column stays here** (it's reasoned, not mechanical).
+- **B2 · Big-event timeline (marquee AMERICAS events only).** When a marquee Americas
+  event lands in the window — US CPI/PCE/NFP/retail sales, an FOMC decision or a Fed-speaker
+  cluster, a BoC decision/MPR — add a compact **timeline-ordered** sub-panel to that country's
+  block that layers the **official voice** and the **sell-side read** of it, in two explicit
+  columns: **When (within-window) · Official voice (FACT/official) · Sell-side read (VIEW)**.
+  - *Official voice* = the release itself (BLS/BEA/BoC print, as FACT) **plus** policymaker
+    communications — Fed/BoC speeches, testimony, statement/MPR/press-conference — quoted and
+    attributed, grounded to `cb_events` speaker/release rows + the research library / official web.
+  - *Sell-side read* = how the desks interpret that official sequence, grounded to `fact_chunk`/Qdrant.
+  - Sequence **chronologically** (pre-event setup → the print/decision → official reaction →
+    market/desk reaction). **Stay strictly inside the edition's timeframe** — no "week ahead",
+    no multi-week narrative; a single one-line *in-window* next-catalyst pointer is the only
+    forward reference allowed. A resolved event (e.g. a decision already taken) is written as
+    known FACT; a still-pending one is framed as the scheduled official leg + desk expectations,
+    clearly forward. Keep it tight (a short table or chronological paragraph) — never bloat the block.
+  - Do the enrichment properly: a targeted `fact_chunk`+Qdrant dig (several queries by house +
+    angle) on the marquee event, quoting the actual desk words; surface distinct voices, and if
+    the corpus carries **no** dissenting/contrarian take, say so rather than invent one.
+  - Trigger only on genuine *Americas* marquee events; ordinary prints stay in blocks A–D.
 
 Close each country with the **trade rows expanded** (from §4), **DEPTH** notes
 (`econ.fact_indicator` coverage + any component detail), and **carry-forward /
@@ -151,7 +170,6 @@ never padded with filler.
   + Outlook — the in-window report count and per-theme semantic sweeps run.
 - **Source-of-record notes** where TE and BQL disagree (which carries the actual).
 - **Unreconciled** — every cross-source / cross-house disagreement, *both shown*.
-- **Reconciled vs prior day** — what narrowed/changed since the last run.
 - **Not loaded / pre-print** — flagged, with sell-side-reported figures tagged.
 - **Differentiated-view count** (§5.D) — e.g. "US 4 · JP 3 · … = N rows across M countries".
 
@@ -190,6 +208,13 @@ never padded with filler.
 - Neutral, low-opinion, **never rate a trade** — surface idea + assumption + falsifier.
   The daily borrows the weekly's *summary shape* but NOT its judging: no `Solid`/`Weak`
   verdicts, no per-country trade tables, no deep 4-block layout, DoD not WoW.
+- **Fresh standalone edition — no changelog voice.** Each daily reads as one clean,
+  present-tense edition, NOT a revision of the prior one. Never narrate "updated from /
+  revised from / previously flagged / was forward, now confirmed / reconciled vs prior day".
+  Write a just-resolved event as the plain known fact of the day. **Facts-with-memory stays**
+  (today's value vs the prior print) — that is the daily's job; it just must not be framed as
+  correcting an earlier report. A light `(carried)` tag on an individual older sell-side view
+  is fine; day-over-day version/diff narration is not.
 - Content over citation everywhere (see `spider.md`); tag sources compactly.
 - **Exhaustive per-country coverage — EVERY report checked, no sampling, no exceptions.**
   For each country, retrieve the **complete** in-window corpus **two ways and reconcile them**:
