@@ -52,8 +52,10 @@ class TestPipelineMembership:
             "scripts.econ.kr.kosis.kosis_reb_housing",
         }
 
-    def test_kr_monthly_contains_all_19_non_weekly_kosis_fetchers(self) -> None:
+    def test_kr_monthly_contains_all_non_weekly_fetchers(self) -> None:
         expected = {
+            # BOK Base Rate via BIS CBPOL (added after this test was written).
+            "scripts.econ.kr.bis.bis_korea",
             "scripts.econ.kr.kosis.kosis_balance_sheets",
             "scripts.econ.kr.kosis.kosis_bank_rates",
             "scripts.econ.kr.kosis.kosis_bop",

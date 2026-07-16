@@ -101,7 +101,7 @@ class TestBuildIndicator:
         self, series_key: str, expected_imdr: str, expected_cat: str
     ) -> None:
         from playground.econ.hkma.fetch import _build_indicator
-        ind = _build_indicator(series_key)
+        ind = _build_indicator(series_key, "DAILY")
         assert ind.imdr_code == expected_imdr
         assert ind.category == expected_cat
         assert ind.frequency == "DAILY"
@@ -111,25 +111,25 @@ class TestBuildIndicator:
 
     def test_agg_bal_bbg_ticker(self) -> None:
         from playground.econ.hkma.fetch import _build_indicator
-        ind = _build_indicator("agg_bal")
+        ind = _build_indicator("agg_bal", "DAILY")
         assert ind.bbg_ticker == "HKMAAGGB Index"
 
     def test_mon_base_bbg_ticker_present(self) -> None:
         from playground.econ.hkma.fetch import _build_indicator
-        ind = _build_indicator("mon_base")
+        ind = _build_indicator("mon_base", "DAILY")
         # Ticker is a best-effort guess per design.md; just verify it's populated.
         assert ind.bbg_ticker is not None
 
     def test_ci_out_no_bbg_ticker(self) -> None:
         from playground.econ.hkma.fetch import _build_indicator
-        ind = _build_indicator("ci_out")
+        ind = _build_indicator("ci_out", "DAILY")
         assert ind.bbg_ticker is None
 
     def test_indicator_row_validates_category(self) -> None:
         from playground.econ.hkma.fetch import _build_indicator
         from playground.econ.schema_prototype import VALID_CATEGORIES
         for key in ("agg_bal", "mon_base", "ci_out", "efbn_out"):
-            ind = _build_indicator(key)
+            ind = _build_indicator(key, "DAILY")
             assert ind.category in VALID_CATEGORIES
 
 
@@ -294,7 +294,7 @@ class TestRunFetchSeriesFilter:
             inds, _ = run_fetch(["ci_out"], since=None, until=None)
 
         assert mock_fetch.call_count == 1
-        assert mock_fetch.call_args[0][0] == "daily-figures-monetary-base"
+        assert mock_fetch.call_args[0][0].endswith("daily-figures-monetary-base")
         assert any(i.imdr_code == "HKMA.CI_OUT" for i in inds)
 
     def test_efbn_out_uses_monbase_endpoint(self) -> None:
@@ -322,7 +322,11 @@ class TestRunFetchSeriesFilter:
         assert "HKMA.MON_BASE" in imdr_codes
         assert "HKMA.CI_OUT" in imdr_codes
 
-    def test_all_series_makes_two_api_calls(self) -> None:
+    def test_original_four_series_make_two_api_calls(self) -> None:
+        # The four v1 daily series come from exactly two endpoints (interbank +
+        # monetary-base); requesting them explicitly must hit each endpoint once.
+        # (run_fetch(None) now spans the v2-expanded endpoint set, so scope the
+        # 2-call invariant to the original four.)
         from playground.econ.hkma.fetch import run_fetch
 
         interbank = [_make_interbank_record("2026-01-01")]
@@ -335,7 +339,9 @@ class TestRunFetchSeriesFilter:
             return interbank if "interbank" in slug else monbase
 
         with patch("playground.econ.hkma.fetch.fetch_all_records", side_effect=side_effect):
-            inds, _ = run_fetch(None, since=None, until=None)
+            inds, _ = run_fetch(
+                ["agg_bal", "mon_base", "ci_out", "efbn_out"], since=None, until=None
+            )
 
         assert call_count == 2
         assert len(inds) == 4
