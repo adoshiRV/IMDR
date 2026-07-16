@@ -137,7 +137,9 @@ def test_barclays_equity_conf_event_drops(title: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# GAP 2 — CREDIT: single-name issuer notes that must DROP
+# GAP 2 — CREDIT: single-name issuer notes now KEEP (2026-07-16, Fold 1a —
+# recall-first; issuer-level credit is wanted). Retitled from the old
+# "must DROP" test. See docs/admin/development/credit_bofa.md.
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("title", [
@@ -164,17 +166,15 @@ def test_barclays_equity_conf_event_drops(title: str) -> None:
     # Named companies without sector framing
     "Tyson, JBS and Pilgrim's Pride: Headlines Weighing More than Fundamentals",
 ])
-def test_barclays_credit_single_name_drops(title: str) -> None:
-    """Barclays CREDIT single-name issuer notes must be dropped."""
+def test_barclays_credit_single_name_now_keeps(title: str) -> None:
+    """Barclays CREDIT single-name issuer notes are now KEPT (Fold 1a,
+    2026-07-16 keep-by-default — was DROP under the retired keep-allowlist)."""
     drop, reason = is_single_name_equity(
         vendor_code="barclays",
         result=_result(ASSET_CLASS_CREDIT),
         title=title,
     )
-    assert drop, f"Expected DROP for {title!r} but got keep (reason={reason!r})"
-    assert reason == "credit-vendor-default-drop:barclays", (
-        f"Expected 'credit-vendor-default-drop:barclays' for {title!r}, got {reason!r}"
-    )
+    assert not drop, f"Expected KEEP for {title!r} but got drop (reason={reason!r})"
 
 
 # ---------------------------------------------------------------------------
@@ -255,6 +255,28 @@ def test_barclays_credit_keeps(title: str) -> None:
         title=title,
     )
     assert not drop, f"Expected KEEP for {title!r} but got drop (reason={reason!r})"
+
+
+# ---------------------------------------------------------------------------
+# CREDIT: pure non-research admin/logistics still DROPS (Fold 1a)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("title", [
+    "US HY Research: HY Healthcare Earnings Calendar 2Q26",
+    "Aviation Debt: REGISTRATION OPEN - 16th Annual Aviation Forum",
+    "REITs: Join Our Expert Call - Multifamily Outlook",
+    "European Credit: Save the Date - 2026 Credit Conference",
+])
+def test_barclays_credit_admin_drops(title: str) -> None:
+    """Calendars / event-registration pings still drop as credit-admin-drop."""
+    drop, reason = is_single_name_equity(
+        vendor_code="barclays",
+        result=_result(ASSET_CLASS_CREDIT),
+        title=title,
+    )
+    assert drop and reason == "credit-admin-drop", (
+        f"Expected credit-admin-drop for {title!r}, got drop={drop} reason={reason!r}"
+    )
 
 
 # ---------------------------------------------------------------------------

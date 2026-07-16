@@ -18,8 +18,19 @@ frontmatter round-trip needed).
 > desk/sales commentary, body-only). That path is independent of this
 > portal scraper and runs through the lenient email pipeline
 > (`source='email'`, `vendor_code='bofa'`) — see
-> [`../outlook_email_channel.md`](../outlook_email_channel.md). While this
-> portal scraper stays PROD-HOLD, the email folder is the live BofA source.
+> [`../outlook_email_channel.md`](../outlook_email_channel.md).
+>
+> **⚠ Status correction (2026-07-16).** The email channel is NOT currently
+> a live BofA source: the separate `ingest_outlook.py` job stalled on
+> **2026-06-29** (last email-sourced row across ALL vendors), so nothing
+> has ingested via email for ~2.5 weeks. Separately, even when it ran the
+> BofA email folder carried **desk/sales commentary only** (FX / macro /
+> rates — Patrick Law USDCNH, Arvin The G10 Spot Views, FX Vol Updates,
+> Hartnett Flow Show); it delivered **zero CREDIT**. The only BofA CREDIT
+> that ever landed (8 rows) came via the **portal** (now not wired into
+> the orchestrator). Net: neither channel currently delivers BofA credit.
+> Email-channel revival is tracked separately; see
+> [`../outlook_email_channel.md`](../outlook_email_channel.md).
 
 ## PROD-HOLD — how to re-enable when ready
 
