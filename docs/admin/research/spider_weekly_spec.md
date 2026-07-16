@@ -20,7 +20,7 @@ neutral. This doc is only the weekly's *structure*.
 
 ## The three defining choices
 
-1. **One doc, all 13 countries.** Not one file per country. The universe is covered in
+1. **One doc, all 14 countries** (incl. South Korea). Not one file per country. The universe is covered in
    a single weekly, so a PM reads the global picture and then drills into any country.
    Coverage floor: **every country gets a real section**; depth scales with what moved
    (a live-regime country runs deep; a quiet one collapses to an honest short read —

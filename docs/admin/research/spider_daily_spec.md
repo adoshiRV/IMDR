@@ -87,8 +87,21 @@ what would resolve it; do NOT rate it (the daily does not judge).
 
 #### 7 · Calendar (FACT — pure, no view)
 Releases + CB events with rate relevance, today + imminent. Columns:
-**Date · Country · Event · Consensus (survey/forecast) · Prior · Actual**. Show
-`actual` **only where the row carries one**, and mark `®` where a prior was revised.
+**Date · Time (local) · Country · Event · Consensus (survey/forecast) · Prior · Actual**.
+- **Time + chronological order.** Take the release time from `cb_events.event_datetime`
+  (a timezone-aware `DATETIMEOFFSET`) and **order the table chronologically by absolute
+  release time** (`event_datetime` ascending), so the reader sees the day's sequence as it
+  will actually unfold — not grouped by country. Display the time in the **event's own local
+  market time with a tz label** (e.g. `10:00 KST`, `07:00 BST`, `08:30 ET`) — the literal
+  "actual time of release". Where a row's `event_datetime` is a midnight/`00:00` placeholder
+  (time unknown — common on estimated or date-only rows), show `— (time TBC)` and sort those
+  to the end of their date rather than falsely ordering them at midnight.
+- Show `actual` **only where the row carries one**, and mark `®` where a prior was revised.
+- **Keep cells terse — the table must fit A4 width (7 columns).** The `Actual` column is
+  the value(s) + at most a one-word tag (`PRINTED` / `SOFT` / `MISS` / `HELD`); do **NOT**
+  put report-id grounding lists (`(60972/60979)`) in the calendar — those live in the country
+  reads and the §10 ledger. Same for `Consensus`/`Prior`: values only, no prose. If a row's
+  actual + tag still overflows, shorten the `Event` label, not by clipping `Actual`.
 This is how the daily carries the surprise scorecard — the actual/®-revised columns
 *are* the "what printed", folded into the calendar; no separate surprise table.
 
