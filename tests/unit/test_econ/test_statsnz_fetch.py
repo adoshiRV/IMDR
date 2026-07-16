@@ -1,136 +1,117 @@
 """Tests for playground/econ/statsnz/fetch.py parse layer.
 
-No network calls. Tests _parse_infoshare_response for both quarterly
-(YYYYQN) and monthly (YYYY-MM) period formats.
+No network calls. Stats NZ moved from a JSON Infoshare response to the
+Infoshare-format CSV (Series_Reference / Period `YYYY.MM` = quarter-end month /
+Data_Value / Status Code / Type / Description); these cover the current
+`parse_infoshare_csv` + `_period_to_date` + `_safe_imdr_code` layer.
 
 Covered:
-- YYYYQN period format parsed to quarter start date.
-- YYYY-MM period format parsed to first of month.
-- Numeric values extracted correctly.
-- None / empty values handled without raising.
-- imdr_code assigned to all rows.
-- Series definitions for HEADLINE / HEADLINE_YOY / FOOD all have valid indicator metadata.
+- Period `YYYY.MM` parsed to the quarter-END date.
+- December period maps to 31 Dec.
+- Numeric values extracted; NA / empty handled without raising.
+- is_preliminary derived from Status Code (FINAL vs not).
+- One IndicatorRow per distinct Description; imdr_code carries the prefix.
+- Rows with an unparseable period are skipped, not fatal.
 """
 
 from __future__ import annotations
 
 import datetime
 
-import pytest
+from playground.econ.statsnz.fetch import (
+    parse_infoshare_csv,
+    _period_to_date,
+    _safe_imdr_code,
+)
+
+_HEADER = "Series_Reference,Period,Data_Value,Status Code,Type,Group,Description"
 
 
-class TestParseInfoshareResponse:
-    def _make_response(self, periods: list[str], values: list) -> dict:
-        return {
-            "series": [{
-                "seriesCode": "CPIQ.TEST",
-                "observations": [
-                    {"period": p, "value": v}
-                    for p, v in zip(periods, values)
-                ],
-            }]
-        }
-
-    def test_quarterly_yyyyqn_parsed_to_quarter_start(self) -> None:
-        from playground.econ.statsnz.fetch import _parse_infoshare_response
-
-        data = self._make_response(["2024Q1", "2024Q2"], [1054.0, 1060.0])
-        df = _parse_infoshare_response(data, "STATSNZ.CPI.HEADLINE.NZ")
-
-        assert len(df) == 2
-        assert df["obs_date"].iloc[0] == datetime.date(2024, 1, 1)
-        assert df["obs_date"].iloc[1] == datetime.date(2024, 4, 1)
-
-    def test_monthly_yyyy_mm_parsed_to_first_of_month(self) -> None:
-        from playground.econ.statsnz.fetch import _parse_infoshare_response
-
-        data = self._make_response(["2024-01", "2024-02"], [1100.0, 1102.0])
-        df = _parse_infoshare_response(data, "STATSNZ.SPI.FOOD.NZ")
-
-        assert len(df) == 2
-        assert df["obs_date"].iloc[0] == datetime.date(2024, 1, 1)
-        assert df["obs_date"].iloc[1] == datetime.date(2024, 2, 1)
-
-    def test_imdr_code_assigned_to_all_rows(self) -> None:
-        from playground.econ.statsnz.fetch import _parse_infoshare_response
-
-        data = self._make_response(["2024Q1", "2024Q2"], [1054.0, 1060.0])
-        df = _parse_infoshare_response(data, "STATSNZ.CPI.HEADLINE.NZ")
-        assert (df["imdr_code"] == "STATSNZ.CPI.HEADLINE.NZ").all()
-
-    def test_none_value_handled(self) -> None:
-        import pandas as pd
-        from playground.econ.statsnz.fetch import _parse_infoshare_response
-
-        data = self._make_response(["2024Q1"], [None])
-        df = _parse_infoshare_response(data, "STATSNZ.CPI.HEADLINE.NZ")
-        assert len(df) == 1
-        assert pd.isna(df["value"].iloc[0])
-
-    def test_empty_observations_returns_empty_dataframe(self) -> None:
-        from playground.econ.statsnz.fetch import _parse_infoshare_response
-
-        data = {"series": [{"seriesCode": "CPIQ.TEST", "observations": []}]}
-        df = _parse_infoshare_response(data, "STATSNZ.CPI.HEADLINE.NZ")
-        assert len(df) == 0
-        assert set(df.columns) == {"obs_date", "imdr_code", "value"}
-
-    def test_q4_maps_to_october(self) -> None:
-        from playground.econ.statsnz.fetch import _parse_infoshare_response
-
-        data = self._make_response(["2023Q4"], [1050.0])
-        df = _parse_infoshare_response(data, "STATSNZ.CPI.HEADLINE.NZ")
-        assert df["obs_date"].iloc[0] == datetime.date(2023, 10, 1)
-
-    def test_bad_period_string_skipped(self) -> None:
-        from playground.econ.statsnz.fetch import _parse_infoshare_response
-
-        data = {
-            "series": [{
-                "observations": [
-                    {"period": "INVALID", "value": 1.0},
-                    {"period": "2024Q1", "value": 1054.0},
-                ]
-            }]
-        }
-        df = _parse_infoshare_response(data, "STATSNZ.CPI.HEADLINE.NZ")
-        assert len(df) == 1
-        assert df["obs_date"].iloc[0] == datetime.date(2024, 1, 1)
+def _csv(*rows: str) -> str:
+    return "\n".join([_HEADER, *rows]) + "\n"
 
 
-class TestStatsnzSeriesDefinitions:
-    def test_all_series_produce_valid_indicator_rows(self) -> None:
-        from playground.econ.schema_prototype import IndicatorRow, VALID_CATEGORIES, VALID_FREQUENCIES
-        from playground.econ.statsnz.fetch import _SERIES
+class TestPeriodToDate:
+    def test_march_quarter_maps_to_month_end(self) -> None:
+        assert _period_to_date("2024.03") == datetime.date(2024, 3, 31)
 
-        for key, sdef in _SERIES.items():
-            row = IndicatorRow(
-                imdr_code=sdef["imdr_code"],
-                vendor_name="STATSNZ",
-                source_code=sdef["series_code"],
-                description=sdef["description"],
-                unit=sdef["unit"],
-                frequency=sdef["frequency"],
-                country_iso="NZ",
-                category=sdef["category"],
-                is_seasonally_adjusted=sdef["is_sa"],
-            )
-            assert row.frequency in VALID_FREQUENCIES, f"{key} has invalid frequency"
-            assert row.category in VALID_CATEGORIES, f"{key} has invalid category"
+    def test_december_quarter_maps_to_year_end(self) -> None:
+        assert _period_to_date("2024.12") == datetime.date(2024, 12, 31)
 
-    def test_headline_series_is_quarterly(self) -> None:
-        from playground.econ.statsnz.fetch import _SERIES
+    def test_june_quarter_maps_to_june_30(self) -> None:
+        assert _period_to_date("2026.06") == datetime.date(2026, 6, 30)
 
-        assert _SERIES["HEADLINE"]["frequency"] == "QUARTERLY"
 
-    def test_food_series_is_monthly(self) -> None:
-        from playground.econ.statsnz.fetch import _SERIES
+class TestSafeImdrCode:
+    def test_prefix_and_country_wrap_the_slug(self) -> None:
+        code = _safe_imdr_code("CPI", "All groups", "NZ")
+        assert code.startswith("STATSNZ.CPI.")
+        assert code.endswith(".NZ")
 
-        assert _SERIES["FOOD"]["frequency"] == "MONTHLY"
+    def test_non_alphanumeric_collapsed_to_single_underscore(self) -> None:
+        code = _safe_imdr_code("CPI", "Food & non-alcoholic beverages", "NZ")
+        slug = code[len("STATSNZ.CPI.") : -len(".NZ")]
+        assert "__" not in slug
 
-    def test_all_series_have_nz_country(self) -> None:
-        from playground.econ.statsnz.fetch import _SERIES
 
-        for key, sdef in _SERIES.items():
-            row_country = "NZ"  # hardcoded in run_fetch
-            assert row_country == "NZ", f"{key} should be NZ"
+class TestParseInfoshareCsv:
+    def test_indicator_and_observation_built(self) -> None:
+        text = _csv("CPIQ.SE9A,2024.03,1054.0,FINAL,Index,CPI,All groups")
+        indicators, obs = parse_infoshare_csv(text)
+        assert len(indicators) == 1
+        assert len(obs) == 1
+        assert indicators[0].source_code == "CPIQ.SE9A"
+        assert indicators[0].vendor_name == "STATSNZ"
+        assert obs[0].obs_date == datetime.date(2024, 3, 31)
+        assert obs[0].value == 1054.0
+
+    def test_na_and_empty_values_become_none(self) -> None:
+        text = _csv(
+            "CPIQ.A,2024.03,NA,FINAL,Index,CPI,All groups",
+            "CPIQ.B,2024.03,,FINAL,Index,CPI,Food",
+        )
+        _, obs = parse_infoshare_csv(text)
+        assert [o.value for o in obs] == [None, None]
+
+    def test_status_code_drives_is_preliminary(self) -> None:
+        text = _csv(
+            "CPIQ.A,2024.03,1.0,FINAL,Index,CPI,All groups",
+            "CPIQ.B,2024.03,2.0,PROVISIONAL,Index,CPI,Food",
+        )
+        _, obs = parse_infoshare_csv(text)
+        by_val = {o.value: o.is_preliminary for o in obs}
+        assert by_val[1.0] is False
+        assert by_val[2.0] is True
+
+    def test_one_indicator_per_description(self) -> None:
+        # Two periods of the same series -> one indicator, two observations.
+        text = _csv(
+            "CPIQ.A,2024.03,1054.0,FINAL,Index,CPI,All groups",
+            "CPIQ.A,2023.12,1050.0,FINAL,Index,CPI,All groups",
+        )
+        indicators, obs = parse_infoshare_csv(text)
+        assert len(indicators) == 1
+        assert len(obs) == 2
+
+    def test_bad_period_row_skipped(self) -> None:
+        text = _csv(
+            "CPIQ.A,not-a-period,1.0,FINAL,Index,CPI,All groups",
+            "CPIQ.B,2024.03,2.0,FINAL,Index,CPI,Food",
+        )
+        _, obs = parse_infoshare_csv(text)
+        assert len(obs) == 1
+        assert obs[0].value == 2.0
+
+    def test_blank_series_reference_skipped(self) -> None:
+        text = _csv(",2024.03,1.0,FINAL,Index,CPI,All groups")
+        indicators, obs = parse_infoshare_csv(text)
+        assert indicators == []
+        assert obs == []
+
+    def test_imdr_prefix_and_category_are_honoured(self) -> None:
+        text = _csv("PPIQ.X,2024.03,500.0,FINAL,Index,PPI,Outputs")
+        indicators, _ = parse_infoshare_csv(
+            text, imdr_prefix="PPI", country="NZ", category="other"
+        )
+        assert indicators[0].imdr_code.startswith("STATSNZ.PPI.")
+        assert indicators[0].category == "other"

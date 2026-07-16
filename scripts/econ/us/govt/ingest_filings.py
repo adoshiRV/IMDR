@@ -139,6 +139,25 @@ def _cutoff_date(recent_years: int) -> datetime.date:
     return today.replace(year=today.year - recent_years)
 
 
+def _scale_kwargs(kwargs: dict, years: int) -> dict:
+    """Scale a probe's count-capping kwargs to the requested backfill window.
+
+    Several probes fetch their full archive then truncate to a small default
+    cap (``limit``/``quarters``/``meetings``) sized for the daily cron. On a
+    multi-year backfill that cap silently under-fills. The probes return items
+    newest-first and the caller applies the precise publish-date cutoff after,
+    so a generous cap is safe (over-fetch is dedup-cheap). ``years <= 1`` (the
+    daily fast-path) is left untouched so daily behaviour is unchanged."""
+    if years <= 1:
+        return kwargs
+    per_year = {"limit": 240, "quarters": 4, "meetings": 8}  # ~busiest stream
+    scaled = dict(kwargs)
+    for key, rate in per_year.items():
+        if key in scaled:
+            scaled[key] = max(scaled[key], rate * years)
+    return scaled
+
+
 def _compute_rc(
     total_ok: int, total_skip: int, total_fail: int, n_discover_failures: int
 ) -> int:
@@ -231,9 +250,18 @@ def main() -> int:
     if args.since_days is not None:
         cutoff = datetime.date.today() - datetime.timedelta(days=args.since_days)
         window_desc = f"last {args.since_days} days (cutoff {cutoff})"
+        window_years = max(1, -(-args.since_days // 365))  # ceil division
     else:
         cutoff = _cutoff_date(args.recent_years)
         window_desc = f"last {args.recent_years} years (cutoff {cutoff})"
+        window_years = max(1, args.recent_years)
+
+    # Scale count-capping probe kwargs to the window so a multi-year backfill
+    # isn't silently truncated to the daily-sized default cap.
+    selected = [
+        (sid, fn, _scale_kwargs(kw, window_years), vh)
+        for sid, fn, kw, vh in selected
+    ]
 
     print("US govt filings ingest")
     print(f"  streams:      {', '.join(s[0] for s in selected)}")

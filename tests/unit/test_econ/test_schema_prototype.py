@@ -38,7 +38,7 @@ def _valid_indicator(**overrides) -> IndicatorRow:
         imdr_code="FRED.CPI.HEADLINE_SA.US",
         vendor_name="FRED",
         source_code="CPIAUCSL",
-        description="CPI All Urban Consumers",
+        display_name="CPI All Urban Consumers",
         unit="index",
         frequency="MONTHLY",
         country_iso="US",
@@ -159,7 +159,7 @@ class TestIndicatorsToRecords:
 
     def test_expected_keys_present(self) -> None:
         expected = {
-            "imdr_code", "vendor_name", "source_code", "description",
+            "imdr_code", "vendor_name", "source_code", "display_name",
             "unit", "frequency", "country_iso", "category",
             "is_seasonally_adjusted", "is_active", "bbg_ticker",
         }

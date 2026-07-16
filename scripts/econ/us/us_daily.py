@@ -34,9 +34,7 @@ import argparse
 import datetime
 import html as _html
 import io
-import subprocess
 import sys
-import time
 import traceback
 
 # Force UTF-8 stdout — em-dashes / bullet chars come through subprocess output.
@@ -44,14 +42,17 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="repla
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 import structlog
-from sqlalchemy import create_engine, text
 
 from imdr.config.settings import get_settings
 from imdr.notifications.email import send_outlook_email
 from imdr.utils.logging import configure_logging
+from scripts.econ._daily_snapshots import (
+    filings_snapshot,
+    run_pipelines,
+    track_a_snapshot,
+)
 
 log = structlog.get_logger(__name__)
-UTC = datetime.timezone.utc
 
 
 # ============================================================================
@@ -69,113 +70,6 @@ PIPELINES: list[list[str]] = [
 ]
 
 # ============================================================================
-
-
-def _engine():
-    """Engine for post-run snapshots. ODBC Driver 18 because research.dim_report
-    writes use BINARY + NVARCHAR(MAX) (per filings.py)."""
-    s = get_settings()
-    url = (
-        f"mssql+pyodbc://@{s.mssql_host}:{s.mssql_port}/{s.mssql_database}"
-        "?driver=ODBC+Driver+18+for+SQL+Server"
-        "&Trusted_Connection=yes&Encrypt=yes&TrustServerCertificate=yes"
-        "&LoginTimeout=60"
-    )
-    return create_engine(url, pool_pre_ping=True, fast_executemany=True)
-
-
-def _track_a_snapshot(run_started_at: datetime.datetime) -> dict:
-    """Stats on US DAILY indicators ingested DURING THIS RUN (ingested_at >= t0)."""
-    eng = _engine()
-    try:
-        with eng.connect() as conn:
-            by_vendor = conn.execute(
-                text(
-                    """
-                    SELECT v.display_name                  AS vendor_name,
-                           COUNT(DISTINCT i.id)            AS n_indicators,
-                           COUNT(f.indicator_id)           AS n_obs,
-                           MAX(f.obs_date)                 AS latest_obs
-                    FROM   econ.fact_indicator f
-                    JOIN   econ.dim_indicator i ON i.id = f.indicator_id
-                    JOIN   dbo.dim_vendor v ON v.id = i.vendor_id
-                    JOIN   dbo.dim_frequency fq ON fq.id = i.frequency_id
-                    JOIN   dbo.dim_country c ON c.id = i.country_id
-                    WHERE  c.country_code = 'US'
-                      AND  fq.frequency_code IN ('DAILY', 'WEEKLY')
-                      AND  f.ingested_at >= :t0
-                    GROUP BY v.display_name
-                    ORDER BY n_obs DESC
-                    """
-                ),
-                {"t0": run_started_at},
-            ).all()
-    finally:
-        eng.dispose()
-    total_obs = sum(r.n_obs for r in by_vendor)
-    return {
-        "by_vendor": [
-            {"vendor_name": vn, "n_indicators": int(ni), "n_obs": int(no), "latest_obs": str(lo)}
-            for vn, ni, no, lo in by_vendor
-        ],
-        "total_obs": int(total_obs),
-    }
-
-
-def _filings_snapshot(run_started_at: datetime.datetime) -> dict:
-    """Stats on US official filings ingested at/after run_started_at."""
-    eng = _engine()
-    try:
-        with eng.connect() as conn:
-            by_vendor = conn.execute(
-                text(
-                    """
-                    SELECT v.vendor_code, v.vendor_category, v.display_name,
-                           COUNT(DISTINCT r.id) AS n_reports,
-                           COUNT(c.id)           AS n_chunks
-                    FROM research.dim_report r
-                    JOIN dbo.dim_vendor v   ON v.id = r.vendor_id
-                    LEFT JOIN research.fact_chunk c ON c.report_id = r.id
-                    WHERE v.vendor_category LIKE 'official_%'
-                      AND r.country_id = (SELECT id FROM dbo.dim_country WHERE country_code = 'US')
-                      AND r.created_at >= :t0
-                    GROUP BY v.vendor_code, v.vendor_category, v.display_name
-                    ORDER BY n_reports DESC, v.vendor_code
-                    """
-                ),
-                {"t0": run_started_at},
-            ).all()
-            recent = conn.execute(
-                text(
-                    """
-                    SELECT TOP 5 v.vendor_code, r.publish_date, r.title
-                    FROM research.dim_report r
-                    JOIN dbo.dim_vendor v   ON v.id = r.vendor_id
-                    WHERE v.vendor_category LIKE 'official_%'
-                      AND r.country_id = (SELECT id FROM dbo.dim_country WHERE country_code = 'US')
-                      AND r.created_at >= :t0
-                    ORDER BY r.created_at DESC
-                    """
-                ),
-                {"t0": run_started_at},
-            ).all()
-    finally:
-        eng.dispose()
-    total_reports = sum(r.n_reports for r in by_vendor)
-    total_chunks = sum(r.n_chunks for r in by_vendor)
-    return {
-        "by_vendor": [
-            {"vendor_code": v, "vendor_category": vc, "display_name": dn,
-             "n_reports": int(nr), "n_chunks": int(nc)}
-            for v, vc, dn, nr, nc in by_vendor
-        ],
-        "total_reports": int(total_reports),
-        "total_chunks": int(total_chunks),
-        "recent": [
-            {"vendor_code": v, "publish_date": str(d), "title": t}
-            for v, d, t in recent
-        ],
-    }
 
 
 def _render_email(
@@ -404,33 +298,18 @@ def main(argv: list[str] | None = None) -> int:
     settings = get_settings()
     configure_logging(settings)
 
-    run_started_at = datetime.datetime.now(UTC)
-    t0 = time.perf_counter()
-
-    pipeline_results: list[dict] = []
-    failed: list[str] = []
-    for cmd in PIPELINES:
-        # Display name = the `-m` module token (not the last arg, which for the
-        # Track B pipeline is the bare "7" of `--since-days 7`).
-        name = cmd[cmd.index("-m") + 1] if "-m" in cmd else cmd[-1]
-        p_start = time.perf_counter()
-        rc = subprocess.call(cmd)
-        elapsed = time.perf_counter() - p_start
-        pipeline_results.append({"name": name, "rc": rc, "elapsed_s": elapsed})
-        if rc != 0:
-            print(f"FAIL  {name}  rc={rc}  ({elapsed:.1f}s)")
-            failed.append(name)
-        else:
-            print(f"OK    {name}  ({elapsed:.1f}s)")
-
-    duration_s = time.perf_counter() - t0
-    run_completed_at = datetime.datetime.now(UTC)
+    run = run_pipelines(PIPELINES)
+    pipeline_results = run["results"]
+    failed = run["failed"]
+    duration_s = run["duration_s"]
+    run_started_at = run["started_at"]
+    run_completed_at = run["completed_at"]
 
     snap: dict = {"by_vendor": [], "total_reports": 0, "total_chunks": 0, "recent": []}
     track_a: dict = {"by_vendor": [], "total_obs": 0}
 
     try:
-        snap = _filings_snapshot(run_started_at)
+        snap = filings_snapshot(run_started_at, "US")
         log.info("us_daily_filings_snapshot",
                  new_reports=snap["total_reports"], new_chunks=snap["total_chunks"],
                  vendors_with_activity=len(snap["by_vendor"]))
@@ -439,7 +318,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\n!! filings snapshot failed:\n{traceback.format_exc()}")
 
     try:
-        track_a = _track_a_snapshot(run_started_at)
+        track_a = track_a_snapshot(run_started_at, "US", ["DAILY", "WEEKLY"])
         log.info("us_daily_track_a_snapshot",
                  new_obs=track_a["total_obs"], vendors_with_activity=len(track_a["by_vendor"]))
     except Exception:
