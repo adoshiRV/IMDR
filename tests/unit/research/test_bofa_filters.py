@@ -1,8 +1,10 @@
 """Tests for BofA discovery filters.
 
 Pins:
-1. credit_hub_drop_reason — DROP for single-name issuers, pure-sector
-   wraps, and data packs; KEEP for strategy/macro/sovereign series.
+1. credit_hub_drop_reason — KEEP-by-default as of 2026-07-17 (Fold 2a
+   recall-first): single-name issuers + sector credit are now KEPT (were
+   DROP); macro/strategy/sovereign still KEEP; pure data-packs gated
+   elsewhere (should_exclude / _noise), not here.
 2. should_exclude — date-only thin titles, conference announcements,
    shared noise families (event-admin "in 1hr", chart-pack substrings).
 3. _noise.EVENT_ADMIN_PREFIXES — "in 1hr" / "in 1 hr" abbreviations
@@ -27,64 +29,55 @@ from ingest.filters._noise import classify_noise  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
-# credit_hub_drop_reason — DROP cases
-# Single-name issuers
+# credit_hub_drop_reason — KEEP-by-default (2026-07-17, Fold 2a recall-first).
+# Single-name issuers AND sector credit are now WANTED, so this function no
+# longer drops them (was the old "credit-hub-nonmacro" default-drop). Pure
+# number-dump data-packs, if undesired, are gated elsewhere — should_exclude
+# (date-only title) / the _noise filter — NOT here.
+# See docs/admin/development/credit_bofa.md Fold 2a.
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("hub,series,title", [
-    # Single-name issuers from the manifest
     ("credit_high_grade",           "Campbell's",         "In a pretzel; FY27 deleveraging path"),
     ("credit_high_yield",           "VF Corporation",     "4Q was in-line ex-tariff benefits"),
     ("credit_strategy_americas",    "Victoria's Secret",  "Trading levels indicate the Secret is out"),
     ("credit_high_grade",           "Nuts & Bolts",       "FedEx Freight Spin Complete"),
     ("credit_high_yield",           "Samsung C&T",        "Model"),
 ])
-def test_credit_hub_drops_single_name_issuer(hub: str, series: str, title: str) -> None:
-    reason = credit_hub_drop_reason(hub=hub, series=series, title=title)
-    assert reason is not None, f"Expected DROP for {series!r} / {title!r}, got None"
-    assert reason.startswith("credit-hub-nonmacro:"), (
-        f"Expected 'credit-hub-nonmacro:...' for {series!r}, got {reason!r}"
-    )
+def test_credit_hub_keeps_single_name_issuer(hub: str, series: str, title: str) -> None:
+    """Single-name issuer credit is now KEPT (recall-first)."""
+    assert credit_hub_drop_reason(hub=hub, series=series, title=title) is None
 
 
-# Pure-sector / industry-wrap drops
 @pytest.mark.parametrize("hub,series,title", [
     ("credit_strategy_americas",    "High Yield Energy",                 "Energy Weekly"),
     ("credit_strategy_americas",    "Weekly Relative Value Update",      "Food and Beverage – 6/12/26"),
     ("credit_strategy_americas",    "Weekly Relative Value Update",      "Consumer Products – 6/12/26"),
-    ("credit_strategy_americas",    "Weekly Relative Value Update",      "Retail, Restaurant and Supermarket – 6/12/26"),
     ("credit_strategy_americas",    "Retail, Apparel and Consumer Products", "May data shows no signs of consumer spending"),
     ("credit_strategy_americas",    "Retailing",                         "The Monthly Checkout"),
-    ("credit_strategy_americas",    "Packaged Food Reference Card",      "1Q26 Packaged Food Reference Card"),
     ("credit_em_corporate",         "LatAm Petrochemicals",              "Monthly Petrochemical Monitor: PE and PVC"),
     ("credit_high_grade",           "Investment Grade Utilities",        "Utilities and Power Weekly"),
     ("credit_high_yield",           "HY Homebuilders, Building Materials", "Weekly Update"),
-    ("credit_high_grade",           "Consumer & Retail",                 "Chasing valuations"),
-    ("credit_high_grade",           "Health Care Policy Update",         "Health Care Policy Weekly Update and Outlook"),
     ("credit_high_grade",           "BofA IG Healthcare Weekly",         "Vital Signs"),
     ("credit_strategy_americas",    "High Grade Energy Weekly",          "Week ending June 12, 2026"),
 ])
-def test_credit_hub_drops_pure_sector(hub: str, series: str, title: str) -> None:
-    reason = credit_hub_drop_reason(hub=hub, series=series, title=title)
-    assert reason is not None, f"Expected DROP for series={series!r}, title={title!r}"
-    assert reason.startswith("credit-hub-nonmacro:"), (
-        f"Expected 'credit-hub-nonmacro:...' for series={series!r}, got {reason!r}"
-    )
+def test_credit_hub_keeps_sector(hub: str, series: str, title: str) -> None:
+    """Sector-credit wraps are now KEPT (recall-first)."""
+    assert credit_hub_drop_reason(hub=hub, series=series, title=title) is None
 
 
-# Data-pack drops (credit_securitized)
 @pytest.mark.parametrize("hub,series,title", [
     ("credit_securitized",  "Hybrid Arm Package",           "12 June 2026"),
     ("credit_securitized",  "PassThrough Package",          "12 June 2026"),
     ("credit_securitized",  "Freddie Mac S-curve Prepayment", "08 June 2026"),
     ("credit_securitized",  "Agency MBS Alert",             "Servicer Tracker - 2026 June"),
 ])
-def test_credit_hub_drops_data_pack(hub: str, series: str, title: str) -> None:
-    reason = credit_hub_drop_reason(hub=hub, series=series, title=title)
-    assert reason is not None, f"Expected DROP for {series!r} / {title!r}"
-    assert reason.startswith("credit-hub-nonmacro:"), (
-        f"Got {reason!r}"
-    )
+def test_credit_hub_no_longer_gates_data_packs(hub: str, series: str, title: str) -> None:
+    """credit_hub_drop_reason no longer drops securitized data-packs; pure
+    number-dump suppression (if any) is handled by should_exclude
+    (date-only title) / _noise, not this function. (Recall-first: accepted
+    residual MBS data-pack noise — see credit_bofa.md.)"""
+    assert credit_hub_drop_reason(hub=hub, series=series, title=title) is None
 
 
 # ---------------------------------------------------------------------------

@@ -1,12 +1,18 @@
 # BofA Securities — Research scraper
 
-**Status: PROD-HOLD (2026-06-04; Phase 8 COMPLETE 2026-06-15)** — code
-is fully built, Phase-8 tightened, and validated against a 1-week smoke
-(2026-06-08 → 2026-06-15). Hub crawler: 42 reports kept (≈6/day).
-Firehose (Advanced Search, 16 disciplines): 98 reports/week kept (≈14/day
-— 2.3x hub crawler). **Deliberately NOT wired into the orchestrator.**
-MFA now observed on login (2026-06-15) — MFA handler is a prerequisite
-before production runs. See "PROD-HOLD" section and "Login" section below.
+**Status: LIVE 2026-07-17 (firehose).** Code fully built + Phase-8
+tightened. **Wired into the orchestrator** (`ingest_today.py`) via
+`crawler_bofa_firehose`, `auth_realm="rv-pingfed"` (serialised with
+Barclays to avoid concurrent PingFederate logins). Firehose ≈14/day.
+**MFA solved** — the email security-token challenge is auto-cleared by
+`login_bofa.py`: it reads the 8-digit token from Outlook `Research\BOFA`
+(`bofamarkets@bofa.com`, "BofA Mercury Portal Token") and submits it, and
+also handles a **trusted-session direct landing** (no token). Credit hubs
+are **keep-by-default** (single-name issuer + sector credit are wanted —
+see [`../../development/credit_bofa.md`](../../development/credit_bofa.md)).
+Orchestrator smoke (`EMBED=false LIMIT=2`) inserted ids 19325-6. Embed +
+Qdrant + `smoke_bofa_retrieval.py` complete on the next scheduled `--embed`
+cycle. See "Login" section below.
 
 Pattern: **HTML scraping** (Liferay server-rendered portal), NOT a JSON
 listing API. Closest analogue in our stack: HSBC. Document delivery via
@@ -20,57 +26,53 @@ frontmatter round-trip needed).
 > (`source='email'`, `vendor_code='bofa'`) — see
 > [`../outlook_email_channel.md`](../outlook_email_channel.md).
 >
-> **⚠ Status correction (2026-07-16).** The email channel is NOT currently
-> a live BofA source: the separate `ingest_outlook.py` job stalled on
-> **2026-06-29** (last email-sourced row across ALL vendors), so nothing
-> has ingested via email for ~2.5 weeks. Separately, even when it ran the
-> BofA email folder carried **desk/sales commentary only** (FX / macro /
-> rates — Patrick Law USDCNH, Arvin The G10 Spot Views, FX Vol Updates,
-> Hartnett Flow Show); it delivered **zero CREDIT**. The only BofA CREDIT
-> that ever landed (8 rows) came via the **portal** (now not wired into
-> the orchestrator). Net: neither channel currently delivers BofA credit.
-> Email-channel revival is tracked separately; see
-> [`../outlook_email_channel.md`](../outlook_email_channel.md).
+> **⚠ Channel note (updated 2026-07-17).** The **portal** is now LIVE in
+> the orchestrator and delivers BofA credit (firehose). The separate
+> **email** channel (`ingest_outlook.py`) remains **stalled since
+> 2026-06-29** — and even when running it carried desk/sales commentary
+> only (FX / macro / rates — Patrick Law USDCNH, Arvin The G10 Spot Views,
+> FX Vol, Hartnett Flow Show), **zero CREDIT**. So the portal is the BofA
+> credit source; email-channel revival is tracked separately (Fold 2b in
+> [`../../development/credit_bofa.md`](../../development/credit_bofa.md)),
+> see [`../outlook_email_channel.md`](../outlook_email_channel.md).
 
-## PROD-HOLD — how to re-enable when ready
+## Orchestrator wiring — LIVE (2026-07-17)
 
-BofA is held out of the orchestrator. The crawler / fetcher / classifier
-code all exist and work; the orchestrator registrations were wired on
-2026-06-04 and then reverted to PROD-HOLD the same day. They are
-currently commented out in all three entry points (verified 2026-06-16).
+BofA is wired into the orchestrator (firehose). Prerequisites + the
+four-file registration, all now satisfied:
 
-**Prerequisites before re-enabling:**
+**Prerequisites — done:**
 
-1. **MFA handler** — `login_bofa.py` must be extended with the
-   Barclays-style Outlook MFA-poll. MFA was triggered on 2026-06-15 after
-   repeated logins during the firehose smoke. The login will stall silently
-   without this. See "Login" section below.
-2. **Firehose integration decision** — decide whether to replace the hub
-   crawler with `crawler_bofa_firehose.py`, augment (run both, dedup by
-   `report_id`), or keep the hub-only path. Both paths are additive; dedup
-   works because both produce `ReportRef.uuid = report_id`.
-3. **Phase 6c embed smoke** — full-day `IMDR_RESEARCH_EMBED=true` run
-   has not been completed yet.
+1. ✅ **MFA handler** — `login_bofa.py` reads the emailed security token
+   from Outlook `Research\BOFA` (`_read_portal_token` via win32com) and
+   submits it; `_resolve_post_submit` also handles a trusted-session
+   direct landing. E2E live test passed (`is_authenticated=True`,
+   `Home - BofA Markets`).
+2. ✅ **Firehose integration decision** — **firehose only**
+   (`crawler_bofa_firehose.py`); hub crawler retired from the prod path.
+3. ⏳ **Phase 6c embed smoke** — `EMBED=false LIMIT=2` orchestrator smoke
+   passed (ids 19325-6). The full `--embed` run + `smoke_bofa_retrieval.py`
+   land on the next scheduled cycle (orchestrator runs EMBED=ON).
 
-**Four-file registration (once prerequisites are met):**
+**Four-file registration — state:**
 
-1. **`playground/research/ingest_today.py`** — uncomment the
-   `from ingest.crawler_bofa import discover_reports as bofa_discover`
-   line AND the `"bofa": VendorSpec(code="bofa", discover=bofa_discover)`
-   entry in `_load_vendor_registry()`.
-2. **`playground/research/ingest/classifiers/__init__.py`** — add
-   `"bofa"` to `_VENDOR_CODES` AND uncomment the `if vendor_code ==
-   "bofa": from . import bofa; return bofa.classify` block in
-   `get_classifier()`.
-3. **`playground/research/ingest/pipeline.py`** — restore the
-   `_fetch_pdf_dispatch` URL-host router that sends
-   `research1.ml.com` / `rsch.baml.com` URLs through `fetch_bofa`.
-4. Test via `IMDR_RESEARCH_EMBED=false IMDR_RESEARCH_LIMIT=2
-   python ingest_today.py --vendors bofa`.
+1. ✅ **`ingest_today.py`** — `from ingest.crawler_bofa_firehose import
+   discover_reports as bofa_discover` + `"bofa": VendorSpec(code="bofa",
+   discover=bofa_discover, auth_realm="rv-pingfed")` in
+   `_load_vendor_registry()`.
+2. ✅ **`classifiers/__init__.py`** — `"bofa"` in `_VENDOR_CODES` +
+   dispatcher branch (active since 2026-06-22).
+3. ✅ **`pipeline.py`** — `_is_bofa_url` → `fetch_bofa_pdf` dispatch
+   (active; `research1.ml.com` / `rsch.baml.com` SAML fetch).
+4. ✅ Smoke `EMBED=false LIMIT=2 python ingest_today.py --vendors bofa` —
+   inserted 2, failed 0.
 
-Until that's done, `--vendors bofa` will fail with "unknown vendor"
-and the default "all vendors" run won't include it. The 2 reports
-already in `research.dim_report` (ids 3134, 3135) remain.
+**Operational note:** the orchestrator logs into BofA once per cycle
+(every 3h), each triggering one "Mercury Portal Token" email (auto-read).
+That's ~8 logins/day; if BofA fraud-flags the cadence, reduce BofA's run
+frequency (the `feedback_bofa_mfa_slow_relogin` caution is about *rapid*
+re-login, not spaced cycles). The 2 legacy manual-smoke reports
+(`dim_report` ids 3134, 3135) remain.
 
 ## Portal
 
@@ -443,8 +445,8 @@ login at the start of each run. Default date window: "Last 1 Week".
 Tests: `tests/unit/research/test_bofa_firehose.py` (31 tests).
 Smoke harness: `playground/research/_smoke_bofa_firehose.py`.
 
-**Status**: built + tested. NOT wired into the orchestrator (BofA still
-PROD-HOLD). Integration decision pending: replace vs augment hub crawler.
+**Status**: **LIVE 2026-07-17** — the firehose IS the prod path for BofA
+(firehose-only decision; hub crawler retired from the orchestrator).
 
 **Central-bank coverage**: no dedicated CB facet. CB content reached via
 Discipline=Economics + Region + Core Reports series (e.g. Economic
@@ -639,14 +641,21 @@ Implementation: `playground/research/ingest/login_bofa.py`
 * OneTrust cookie banner is dismissed first (`#accept-recommended-btn-handler`
   or `#onetrust-accept-btn-handler`).
 
-**MFA blocker (2026-06-15):** after many back-to-back automated logins
-during the firehose smoke run, an MFA challenge appeared on the
-`arjdoshi01` session. `login_bofa.py` has NO MFA path — the login will
-stall silently when MFA is presented. This is a **prerequisite for any
-repeated or production run**. The fix is to extend `login_bofa.py` with
-the same Outlook-email-poll pattern used in `login_barclays.py`: poll
-`research@rvcapital.com → BOFA` folder via Graph API for the OTP, fill
-the MFA form, confirm.
+**MFA — SOLVED (2026-07-17).** The second factor is an **email security
+token** ("Restricted Access Authentication" / "Additional Verification"):
+an 8-digit token emailed from `bofamarkets@bofa.com`, subject **"BofA
+Mercury Portal Token"**, body "Your token is: NNNNNNNN", valid 5 minutes,
+filed by Outlook rules in the **`Research\BOFA`** folder. `login_bofa.py`
+handles it end-to-end:
+* `_resolve_post_submit(page)` — after Log In, resolves BOTH outcomes:
+  a trusted-session **direct landing on Mercury home (no token)** OR the
+  token page (tolerant of render lag).
+* `_read_portal_token()` — polls `Research\BOFA` via **local Outlook
+  (`win32com`)** for the freshest token (`_TOKEN_RE`, <4 min old); the
+  shared `Win32OutlookClient` reads only the Inbox, so this navigates to
+  the subfolder itself. (Not Graph — local MAPI.)
+* `_submit_token()` — fills the `Token` field + clicks Submit.
+E2E verified: `is_authenticated=True`, `Home - BofA Markets`.
 
 **Operational caution**: do NOT rapid re-login against `markets.ml.com`.
 Each login is a PingFederate SAML round-trip that the portal monitors for
@@ -683,10 +692,10 @@ TBD — confirm against 24h of clean ingest after Phase 6 smoke.
 - [x] Phase 3.5 — 2-hub smoke (economics_overview + credit_em_corporate, 2026-06-04): 27 parsed → 4 dropped (single-name corp) → 22 kept → 100% URL resolution.
 - [x] Phase 3.6 — Deep probes A+B+C+D (2026-06-04): confirmed per-tile has no hidden structured signals (no `data-*` attrs), discovered audio/email sibling ResourceUrls. Advanced Search firehose characterised (see "Advanced Search firehose" section above — verified working 2026-06-15).
 - [x] Phase 4 — Filter + classifier wired + registered in `classifiers/__init__.py` + `canonical.VENDOR_DISPLAY`.
-- [~] Phase 5 — Orchestrator wired 2026-06-04, then **reverted to PROD-HOLD the same day**. All four registrations are currently commented out in `ingest_today.py`, `pipeline.py`, and `classifiers/__init__.py` (verified 2026-06-16). See "PROD-HOLD" section above for the re-enable procedure.
+- [x] Phase 5 — Orchestrator **wired LIVE 2026-07-17** (firehose; `auth_realm=rv-pingfed`). Registrations active in `ingest_today.py` + `classifiers/__init__.py` + `pipeline.py`. Smoke inserted ids 19325-6. See "Orchestrator wiring" section above.
 - [x] Phase 6 — Migration `076_seed_bofa_dim_vendor.sql` applied 2026-06-04. First DB-write smoke: 2 reports inserted (ids 3134/3135), 22 chunks, 9 tag rows.
 - [ ] Phase 6c — Full-day embed-on smoke + retrieval check.
-- [ ] Phase 7 — **PROD-HOLD** (2026-06-04, reconfirmed 2026-06-16): prerequisites before re-enabling: (a) MFA handler in `login_bofa.py`, (b) firehose integration decision (replace/augment hub crawler), (c) Phase 6c embed smoke. See "PROD-HOLD" section above.
+- [x] Phase 7 — **LIVE 2026-07-17**: (a) MFA handler DONE (email token), (b) firehose-only decision DONE, (c) Phase 6c embed smoke completes on the next scheduled `--embed` cycle + `smoke_bofa_retrieval.py`. `vendors.yml` → `production`; `index.md` → LIVE.
 - [x] Phase 8 — **COMPLETE (2026-06-15)**. Hard-taxonomy/volume audit +
   tightening done and validated against a 1-week smoke
   (2026-06-08 → 2026-06-15). See "Phase 8 tightening" section below.
@@ -907,6 +916,8 @@ Drop funnel (240 parsed total, 64 outside date window, 134 actively dropped):
 | no_url (resolver failure) | 2 |
 
 ## Last verified
+
+2026-07-17 — **LIVE.** MFA solved (email security token auto-read from Outlook `Research\BOFA` by `login_bofa.py`; handles token + trusted-session-no-token). Credit hubs keep-by-default (single-name issuer + sector credit; `crawler_bofa._drop_reason` + `filters/bofa.credit_hub_drop_reason` relaxed). Single live download test: real `%PDF-1.5` fetched via SAML. Wired into orchestrator (firehose, `auth_realm=rv-pingfed`); `EMBED=false LIMIT=2` smoke inserted ids 19325-6 (0 failed). `smoke_bofa_retrieval.py` added; `vendors.yml`→production; `index.md`→LIVE. Full detail: [`../../development/credit_bofa.md`](../../development/credit_bofa.md).
 
 2026-06-19 — Fetch Case 3 (HTML viewer / re-mint) implemented and verified live: `_fetch_via_viewer` + `_extract_reminted_pdf_url` + `_looks_like_viewer` added to `fetch_bofa.py`; 10 new pure-function tests in `tests/unit/research/test_bofa_fetch.py`; full research suite 694/694 pass. Forwarded / foreign-recipient `rsch.baml.com` links (e.g. `e=jamshed.d.sidhva@bofa.com`) confirmed fetchable via viewer re-mint (doc 12985511, 7-page, 1.27 MB). Earlier "HTML-only / not recoverable" characterisation corrected.
 

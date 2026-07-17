@@ -69,6 +69,28 @@ def test_macro_desk_is_not_dropped(title: str) -> None:
     )
 
 
+# ---------------------------------------------------------------------------
+# KEEP: credit-desk series (2026-07-16, Fold 1c) — isResearch=N but wanted
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("title", [
+    "J.P. Morgan Emerging Markets Credit Rundown",
+    "JPM EMEA Macro Credit Weekly Commentary #26: (6th - 10th July)",
+    "JPM NA Macro Credit Weekly Commentary #26: (6th - 10th July)",
+    "JPM Macro Credit Perspectives Call - ST - July 9 2026",
+    "JPM Performing Credit (IG/HY) - Recap Week of 7/6",
+    "JPMorgan iTraxx Index Vol Commentary",
+    "EMEA SOVEREIGN REPO - IF FUNDING SNEEZES, CARRY CATCHES A COLD",
+])
+def test_credit_desk_is_not_dropped(title: str) -> None:
+    """Named JPM credit-desk series must pass _unfetchable_reason despite
+    isResearch=N (Fold 1c MACRO_DESK_KEEP extension)."""
+    ref = _ref(title, is_research="N")
+    assert _unfetchable_reason(ref) is None, (
+        f"Expected credit-desk {title!r} to be kept, but got dropped"
+    )
+
+
 @pytest.mark.parametrize("title", [
     "JPM International Market Intelligence | Morning Briefing",
     "JPM US Market Intelligence | Morning Briefing",
