@@ -10,9 +10,11 @@ Barclays to avoid concurrent PingFederate logins). Firehose ≈14/day.
 also handles a **trusted-session direct landing** (no token). Credit hubs
 are **keep-by-default** (single-name issuer + sector credit are wanted —
 see [`../../development/credit_bofa.md`](../../development/credit_bofa.md)).
-Orchestrator smoke (`EMBED=false LIMIT=2`) inserted ids 19325-6. Embed +
-Qdrant + `smoke_bofa_retrieval.py` complete on the next scheduled `--embed`
-cycle. See "Login" section below.
+**Verified live 2026-07-17**: the scheduled `--embed` cycle logged
+in unattended ("login OK"), inserted 64 / 0 failed (66 discovered,
+`filter_removed=0`), across MACRO/RATES/FX/CREDIT/STRATEGY/COMMODITIES;
+`smoke_bofa_retrieval.py` 3/3 PASS (BofA chunks searchable in Qdrant).
+PDFs land under `{publish_date}/bofa/`. See "Login" section below.
 
 Pattern: **HTML scraping** (Liferay server-rendered portal), NOT a JSON
 listing API. Closest analogue in our stack: HSBC. Document delivery via
@@ -50,9 +52,9 @@ four-file registration, all now satisfied:
    `Home - BofA Markets`).
 2. ✅ **Firehose integration decision** — **firehose only**
    (`crawler_bofa_firehose.py`); hub crawler retired from the prod path.
-3. ⏳ **Phase 6c embed smoke** — `EMBED=false LIMIT=2` orchestrator smoke
-   passed (ids 19325-6). The full `--embed` run + `smoke_bofa_retrieval.py`
-   land on the next scheduled cycle (orchestrator runs EMBED=ON).
+3. ✅ **Phase 6c embed smoke** — scheduled `--embed` cycle (2026-07-17)
+   ran unattended: inserted 64 / 0 failed (66 discovered, `filter_removed=0`);
+   `smoke_bofa_retrieval.py` **3/3 PASS** (BofA chunks searchable in Qdrant).
 
 **Four-file registration — state:**
 
@@ -695,7 +697,7 @@ TBD — confirm against 24h of clean ingest after Phase 6 smoke.
 - [x] Phase 5 — Orchestrator **wired LIVE 2026-07-17** (firehose; `auth_realm=rv-pingfed`). Registrations active in `ingest_today.py` + `classifiers/__init__.py` + `pipeline.py`. Smoke inserted ids 19325-6. See "Orchestrator wiring" section above.
 - [x] Phase 6 — Migration `076_seed_bofa_dim_vendor.sql` applied 2026-06-04. First DB-write smoke: 2 reports inserted (ids 3134/3135), 22 chunks, 9 tag rows.
 - [ ] Phase 6c — Full-day embed-on smoke + retrieval check.
-- [x] Phase 7 — **LIVE 2026-07-17**: (a) MFA handler DONE (email token), (b) firehose-only decision DONE, (c) Phase 6c embed smoke completes on the next scheduled `--embed` cycle + `smoke_bofa_retrieval.py`. `vendors.yml` → `production`; `index.md` → LIVE.
+- [x] Phase 7 — **LIVE 2026-07-17**: (a) MFA handler DONE (email token), (b) firehose-only decision DONE, (c) Phase 6c embed smoke DONE (scheduled cycle: 64 ins/0 fail; `smoke_bofa_retrieval.py` 3/3 PASS). `vendors.yml` → `production`; `index.md` → LIVE.
 - [x] Phase 8 — **COMPLETE (2026-06-15)**. Hard-taxonomy/volume audit +
   tightening done and validated against a 1-week smoke
   (2026-06-08 → 2026-06-15). See "Phase 8 tightening" section below.
@@ -780,10 +782,10 @@ observations, not blockers.
    and smoke-tested (98 kept/week, 2.3x hub crawler). Decide: replace hub
    crawler, augment (both paths, dedup by `report_id`), or hub-only. The
    two paths are additive. See "Advanced Search firehose" section.
-3. **Phase 6c embed smoke** — full-day `IMDR_RESEARCH_EMBED=true` run +
-   retrieval check. Not yet completed.
-4. **Orchestrator wiring + DB-load smoke** — four-file registration (see
-   "PROD-HOLD" section). Run after items 1-3.
+3. **Phase 6c embed smoke** — ✅ DONE 2026-07-17: scheduled `--embed`
+   cycle inserted 64 / 0 failed; `smoke_bofa_retrieval.py` 3/3 PASS.
+4. **Orchestrator wiring + DB-load smoke** — ✅ DONE: firehose registered
+   in `ingest_today.py` (`auth_realm=rv-pingfed`); smoke inserted ids 19325-6.
 
 **Open minor tuning items** (not blockers for prod wiring):
 
