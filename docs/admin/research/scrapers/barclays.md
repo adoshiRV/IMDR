@@ -638,3 +638,7 @@ Test pins: [`test_noise_filter.py`](../../../../playground/research/test_noise_f
 [`_smoke_noise_filter.py`](../../../../playground/research/_smoke_noise_filter.py),
 [`_smoke_conf_event.py`](../../../../playground/research/_smoke_conf_event.py).
 
+
+## Credit coverage (2026-07-17)
+
+Credit single-name inclusion ([dev-doc](../../development/credit_bofa.md)): retired the `_BARCLAYS_CREDIT_KEEP` allowlist default-drop in `ingest/relevance.py`. Barclays CREDIT is now **keep-by-default** — single-name issuer notes (ZIGGO, Schaeffler, Baker Hughes, HCA, Indika, …) and sector credit are kept; only non-research admin/calendar noise drops (`_CREDIT_ADMIN_DROP`). Test flipped: `tests/unit/research/test_barclays_relevance.py` (single-name credit → KEEP).

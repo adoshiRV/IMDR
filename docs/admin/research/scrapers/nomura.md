@@ -428,3 +428,7 @@ These series are digit-heavy enough that the prose-density gate fires
 independently; the `_CHART_ONLY_TITLE_PREFIXES` list is defence-in-depth
 for any image-only variants that slip the density check.
 
+
+## Credit coverage (2026-07-17)
+
+Credit-coverage audit ([dev-doc](../../development/credit_bofa.md)) found Nomura's **CLO / Securitized Products / ABS** stream mis-classified as RATES: those FI docs have empty `assetClasses[]`, so `classifiers/nomura.py _split_fi` hit its RATES default. Fix: `_split_fi` now consults the title via the shared `canonical.looks_like_credit` (CLO/CDO/ABS/CMBS/RMBS/MBS/securitized/covered-bond/HY/HG/IG/CDS/CDX/iTraxx/JACI/JULI/EMBI/CEMBI/leveraged-loan) and routes to CREDIT before defaulting to RATES. Genuine rates FI (JGB swaption, Bund ASW) unchanged. Test: `tests/unit/research/test_nomura_classifier.py`.

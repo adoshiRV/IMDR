@@ -551,3 +551,7 @@ Test pins: [`test_noise_filter.py`](../../../../playground/research/test_noise_f
 [`_smoke_noise_filter.py`](../../../../playground/research/_smoke_noise_filter.py),
 [`_smoke_conf_event.py`](../../../../playground/research/_smoke_conf_event.py).
 
+
+## Credit coverage (2026-07-17)
+
+Credit-coverage audit ([dev-doc](../../development/credit_bofa.md)): covered-bond / structured-credit notes filed under the Rates desk (`businessAreaCode=B.RATES`) were tagged RATES (e.g. "Global Rates Comment: Covered Bonds …"). `classifiers/ubs.py` now upgrades a `B.RATES`/unclassified note to CREDIT when the title names a credit product, via the shared `canonical.looks_like_credit`. Only upgrades RATES/"" → CREDIT (never EQUITY/FX/MACRO). Test: `tests/unit/research/test_credit_title_override.py`. **Open:** UBS IG/HY credit strategy may sit in an un-scraped Neo hub — discovery-scope probe deferred.

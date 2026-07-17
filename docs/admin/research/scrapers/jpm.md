@@ -1008,3 +1008,9 @@ Test pins: [`test_noise_filter.py`](../../../../playground/research/test_noise_f
 [`_smoke_noise_filter.py`](../../../../playground/research/_smoke_noise_filter.py),
 [`_smoke_conf_event.py`](../../../../playground/research/_smoke_conf_event.py).
 
+
+## Credit coverage (2026-07-17)
+
+Part of the credit single-name inclusion effort ([dev-doc](../../development/credit_bofa.md)):
+- **Relevance keep-by-default** — retired the `_JPM_CREDIT_KEEP` allowlist and the `n_tickers==1` / industry single-name drops in `ingest/relevance.py`. JPM CREDIT is now kept by default; only non-research admin/calendar noise drops (`_CREDIT_ADMIN_DROP`: earnings/eco calendars, event registrations). Single-name issuer credit (banks, issuers) **and** sector credit (Transportation Credit, Tech & Telecom, etc.) are now kept.
+- **Discovery bypass (1c)** — `filters/jpm.py MACRO_DESK_KEEP` extended with credit-desk series (`macro credit` / `performing credit` / `credit rundown` / `itraxx` / `sovereign repo`) so they bypass the `isResearch=N` drop (recovers EM Credit Rundown, EMEA/NA Macro Credit Weekly, iTraxx Vol Commentary, EMEA Sovereign Repo). Tests: `tests/unit/research/test_jpm_credit_relevance.py`, `test_jpm_unfetchable.py`.

@@ -668,3 +668,7 @@ Test pins: [`test_noise_filter.py`](../../../../playground/research/test_noise_f
 [`_smoke_noise_filter.py`](../../../../playground/research/_smoke_noise_filter.py),
 [`_smoke_conf_event.py`](../../../../playground/research/_smoke_conf_event.py).
 
+
+## Credit coverage (2026-07-17)
+
+Credit single-name inclusion ([dev-doc](../../development/credit_bofa.md)): retired the `_DB_CREDIT_KEEP` allowlist default-drop in `ingest/relevance.py`. DB CREDIT is now **keep-by-default** — single-name issuer notes (Antolin, Stonegate, Ubisoft, Goodyear, Modulaire, …) and sector credit kept; only non-research admin/calendar noise drops (`_CREDIT_ADMIN_DROP`).

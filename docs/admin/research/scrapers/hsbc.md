@@ -408,3 +408,7 @@ Test pins: [`test_noise_filter.py`](../../../../playground/research/test_noise_f
 [`_smoke_noise_filter.py`](../../../../playground/research/_smoke_noise_filter.py),
 [`_smoke_conf_event.py`](../../../../playground/research/_smoke_conf_event.py).
 
+
+## Credit coverage (2026-07-17)
+
+Credit-coverage audit ([dev-doc](../../development/credit_bofa.md)): covered-bond / structured-credit notes filed under a Rates product were tagged RATES (e.g. "Covered Bond Insight"). `classifiers/hsbc.py` now upgrades a Rates-product/unclassified note to CREDIT when the title names a credit product, via the shared `canonical.looks_like_credit`. Only upgrades RATES/"" → CREDIT. Test: `tests/unit/research/test_credit_title_override.py`.
