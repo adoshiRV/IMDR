@@ -20,7 +20,7 @@ neutral. This doc is only the weekly's *structure*.
 
 ## The three defining choices
 
-1. **One doc, all 14 countries** (incl. South Korea). Not one file per country. The universe is covered in
+1. **One doc, the full Asia + G10 roster** (~18 markets — see `spider.md` coverage universe). Not one file per country. The universe is covered in
    a single weekly, so a PM reads the global picture and then drills into any country.
    Coverage floor: **every country gets a real section**; depth scales with what moved
    (a live-regime country runs deep; a quiet one collapses to an honest short read —
@@ -218,15 +218,18 @@ separate and each item tagged. Weekly emphases:
 ## Render & output — HTML → A4 → PDF
 - MD → `data/research_summary/weekly/{YYYY}/{MM}/{DD}/spider-weekly-digest.md`
   (one whole-universe file; do NOT collide with Perry's `weekly_country_read_*`).
-- **Render path (the deliverable is a PDF):**
-  1. `python playground/research/_build_spider_html.py <the MD>` → a self-contained,
-     A4-print styled HTML (RVC design system: cream sheet, Newsreader/Public Sans, hero
-     tiles, §-numbered sections, left-stripe callout boxes, verdict pills, inline-SVG
-     charts). The renderer parses the MD *conventions* below.
-  2. `python playground/research/_html_to_pdf.py <the HTML> [pdf] --title "…"` →
-     the A4 PDF via Chromium (print backgrounds, running footer + `Page X / Y`).
-  Both are throwaway playground tooling — do not promote. (`_build_spider_docx.py` still
-  exists for a quick plain .docx, but the PDF is the real output.)
+- **Render path (the deliverable is a PDF) — owned by Picasso.** Spider writes and
+  locks the MD; hand it to Picasso (`/picasso <md>`) to render. See
+  [`picasso_spec.md`](picasso_spec.md). The two-stage pipeline (run under the `imdr`
+  env, Py3.11):
+  1. `_build_spider_html.py <the MD>` → a self-contained, A4-print styled HTML (RVC
+     design system: white sheet, Newsreader/Public Sans, hero tiles, §-numbered
+     sections, left-stripe callout boxes, verdict pills, inline-SVG charts). The
+     renderer parses the MD *conventions* below.
+  2. `_html_to_pdf.py <the HTML> [pdf] --title "…"` → the A4 PDF via Chromium (print
+     backgrounds, running footer + `Page X / Y`).
+  (`_build_spider_docx.py` still exists for a quick review-only .docx, but the PDF is
+  the real output.)
 - **MD conventions the renderer keys on** (author the MD to these):
   - `# KICKER` (line 1) = running header; the next `# Title` + a following `### deck` =
     masthead; a `**date · Compiled …**` line + a `**Sources** — …` line = the sub-line.
@@ -251,6 +254,12 @@ separate and each item tagged. Weekly emphases:
   ahead) runs through both tiers, at the same rigour. It is **additive — nothing already
   in the structure is removed to make room for it.**
 - Coverage floor: every country a real section; depth scales, none dropped.
+- **Calendars are chronological.** The Tier-3 total macro calendar, the Tier-1 §8
+  "This week" and §9 "The week ahead" grids, and every per-country "This week & next
+  week" board MUST be sorted ascending by date (out-of-window / soft rows last; range
+  cells sort on their start date). Before locking, run
+  `python scripts/research/check_calendar_sort.py <the MD>` and fix any flag. See
+  `spider.md` hard rule 5 (applies to daily & weekly; auto-run as a PostToolUse hook).
 - **No-bullshit language.** Write plainly and directly. State what happened, what's
   priced, what the assumption is, and where it breaks — in the fewest honest words. No
   filler, no hedging-for-cover, no throat-clearing, no consultant-speak ("navigating
