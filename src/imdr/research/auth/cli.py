@@ -713,7 +713,26 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _force_utf8_stdio() -> None:
+    """Make stdout/stderr tolerate non-cp1252 report titles on Windows.
+
+    Report titles routinely carry thin spaces / em dashes / smart quotes.
+    Piped or console stdout defaults to cp1252 on Windows, so a bare
+    ``print(title)`` raises ``UnicodeEncodeError`` and false-BLOCKs an
+    otherwise-healthy vendor mid-crawl (the crawlers' ``[SKIP]``/``[DROP]``
+    lines). Reconfiguring once at entry, with ``errors="replace"``, lets
+    every downstream print degrade a stray glyph to ``?`` instead of
+    crashing. No-op on streams that don't support reconfigure.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
+
+
 def main(argv: list[str] | None = None) -> int:
+    _force_utf8_stdio()
     args = _build_parser().parse_args(argv)
     if args.command == "check":
         return asyncio.run(_cmd_check(args))

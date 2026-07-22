@@ -72,6 +72,7 @@ def test_ubs_spec_shape():
     ("anz", "imdr.research.auth.loginflows.anz"),
     ("nomura", "imdr.research.auth.loginflows.nomura"),
     ("stanc", "imdr.research.auth.loginflows.stanc"),
+    ("db", "imdr.research.auth.loginflows.db"),
 ])
 def test_upgraded_vendors_are_programmatic(vendor, expected_module):
     spec = get_spec(vendor)
@@ -107,6 +108,10 @@ def test_fetch_in_session_only_for_session_bound_vendors():
     ("bnp", "Markets360", "https://markets360.bnpparibas.com/home", True),
 
     ("db", "Sign in", "https://login.db.com/", False),
+    # Real logged-out landing: same host, path /research/Register, no
+    # literal "login" — must be False (regression: 2026-07-22 it passed
+    # as LIVE and the login poller exited before sign-in).
+    ("db", "Register", "https://research.db.com/research/Register", False),
     ("db", "DB Research", "https://research.db.com/research/Research/Latest", True),
 
     ("goldman", "Sign in to Marquee", "https://login.marquee.gs.com/", False),

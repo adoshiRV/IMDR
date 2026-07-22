@@ -98,7 +98,15 @@ def _live_bnp(title: str, url: str) -> bool:
 
 
 def _live_db(title: str, url: str) -> bool:
-    return "research.db.com" in url and "login" not in url.lower()
+    # Logged-out lands on /research/Register (note: no literal "login" in
+    # the URL, so a bare "login" exclusion false-passes it as LIVE and the
+    # login poller exits before the human can sign in — seen 2026-07-22).
+    # Authenticated content stays under research.db.com/research/…; the
+    # sign-in/register funnel is the only thing to exclude.
+    u = url.lower()
+    return "research.db.com" in u and not any(
+        s in u for s in ("login", "register", "signin", "logon")
+    )
 
 
 def _live_goldman(title: str, url: str) -> bool:
@@ -199,9 +207,19 @@ VENDOR_AUTH_REGISTRY: dict[str, VendorAuthSpec] = {
     ),
     "db": VendorAuthSpec(
         code="db",
-        mode=AuthMode.PROFILE_ONLY,
+        mode=AuthMode.PROGRAMMATIC,
         healthcheck_url="https://research.db.com/research/Research/Latest",
         healthcheck_predicate=_live_db,
+        # headless=True (default) matches the other PROGRAMMATIC vendors;
+        # DB's session persists in the profile so the code flow is rare
+        # (refresh-only). Flip to False if the Register flow misbehaves
+        # headless during the live probe.
+        login_module="imdr.research.auth.loginflows.db",
+        notes="Email-verification-code login (no password) — the code "
+              "is read from the Outlook Inbox (DoNotReply@markit.esp.db.com). "
+              "Session persists in the profile; the email path only fires "
+              "on refresh, not every run. See "
+              "docs/admin/development/db_email_code_login.md.",
     ),
     "goldman": VendorAuthSpec(
         code="goldman",

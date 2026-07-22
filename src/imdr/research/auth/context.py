@@ -53,6 +53,10 @@ _CRED_FIELDS: dict[str, tuple[str, str, str]] = {
         "research_stanc_username", "research_stanc_password",
         "IMDR_RESEARCH_STANC",
     ),
+    # DB has no password — the "secret" is a code emailed on submit.
+    # An empty pass_field tells _run_programmatic_login to skip the
+    # password-presence check below.
+    "db": ("research_db_username", "", "IMDR_RESEARCH_DB"),
 }
 
 _EMAIL_ON_FAILURE_ENV = "IMDR_RESEARCH_AUTH_EMAIL_ON_AUTH_FAILURE"
@@ -139,11 +143,14 @@ async def _run_programmatic_login(ctx, spec: VendorAuthSpec) -> None:
         )
     user_field, pass_field, env_prefix = fields
     username = getattr(settings, user_field, "") or ""
-    password = getattr(settings, pass_field, "") or ""
-    if not username or not password:
+    # An empty pass_field (e.g. db) means the vendor has no password —
+    # the login secret is a one-time code, not a Settings field.
+    password = (getattr(settings, pass_field, "") or "") if pass_field else ""
+    if not username or (pass_field and not password):
         raise CredentialMissing(
             f"{spec.code.upper()} credentials missing — set "
-            f"{env_prefix}_USERNAME / _PASSWORD in .env",
+            f"{env_prefix}_USERNAME"
+            f"{' / _PASSWORD' if pass_field else ''} in .env",
             vendor=spec.code,
             env_var_prefix=env_prefix,
         )

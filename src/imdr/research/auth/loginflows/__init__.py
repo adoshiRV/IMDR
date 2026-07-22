@@ -16,9 +16,11 @@ Currently registered:
 * :mod:`.anz` — ANZ Research (best-guess selectors — verify via validate)
 * :mod:`.nomura` — Nomura NomuraNow (best-guess selectors)
 * :mod:`.stanc` — Standard Chartered Research (best-guess selectors)
+* :mod:`.db` — DB Research (email-verification-code, selectors confirmed
+  via live DOM probe)
 """
 from __future__ import annotations
 
-from . import anz, barclays, nomura, stanc, ubs
+from . import anz, barclays, db, nomura, stanc, ubs
 
-__all__ = ["anz", "barclays", "nomura", "stanc", "ubs"]
+__all__ = ["anz", "barclays", "db", "nomura", "stanc", "ubs"]
