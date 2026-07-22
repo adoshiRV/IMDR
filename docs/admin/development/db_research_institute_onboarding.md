@@ -64,7 +64,7 @@ double-underscore (`__`) separated.
 The operator was already authenticated when the Institute pages
 loaded — same SSO cookie blanket. If the production scraper inherits
 the `db` persistent profile, auth should work transparently; if not,
-a separate `playground/research/profiles/db_institute/` may be
+a separate `C:/IMDR_LOCAL/research_profiles/db_institute/` may be
 needed.
 
 ### Cadence (hypothesised)

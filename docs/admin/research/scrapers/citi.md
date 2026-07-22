@@ -28,7 +28,7 @@ the SPA-fronted portal.
 ## Profile
 
 ```
-playground/research/profiles/citi/
+C:/IMDR_LOCAL/research_profiles/citi/
 ```
 
 Created 2026-06-06 via interactive login through `explore_citi.py`. The

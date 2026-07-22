@@ -32,7 +32,7 @@ is out of scope for this `db` vendor and tracked at
 ## Profile
 
 ```
-playground/research/profiles/db/
+C:/IMDR_LOCAL/research_profiles/db/
 ```
 
 Persistent profile created 2026-06-01. SSO redirects transparently;

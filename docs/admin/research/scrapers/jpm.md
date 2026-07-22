@@ -21,7 +21,7 @@ migration 060.
 ## Profile
 
 ```
-playground/research/profiles/jpm/
+C:/IMDR_LOCAL/research_profiles/jpm/
 ```
 
 Persistent Chrome user-data dir created by `explore_jpm.py` on first

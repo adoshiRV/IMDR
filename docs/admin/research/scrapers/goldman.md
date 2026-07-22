@@ -112,7 +112,7 @@ Two paths depending on `ReportRef.render_mode`:
 ## Profile
 
 ```
-playground/research/profiles/goldman/
+C:/IMDR_LOCAL/research_profiles/goldman/
 ```
 
 First run: launch `explore_goldman.py`, sign in interactively. Subsequent

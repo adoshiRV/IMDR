@@ -75,7 +75,7 @@ Early-stop on oldest_in_page < ``since``.
 ## Profile
 
 ```
-playground/research/profiles/ms/
+C:/IMDR_LOCAL/research_profiles/ms/
 ```
 
 First-run setup is interactive: login → click "send verification email"

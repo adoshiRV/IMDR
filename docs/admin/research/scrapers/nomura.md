@@ -70,7 +70,7 @@ Per-hit fields used:
 ## Profile
 
 ```
-playground/research/profiles/nomura/
+C:/IMDR_LOCAL/research_profiles/nomura/
 ```
 
 ## URL patterns

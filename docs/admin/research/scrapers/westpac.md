@@ -31,7 +31,7 @@ where other vendors interleaved).
 ## Profile
 
 ```
-playground/research/profiles/westpac/
+C:/IMDR_LOCAL/research_profiles/westpac/
 ```
 
 Fresh persistent Chrome profile. The inherited `westpac-probe` folder

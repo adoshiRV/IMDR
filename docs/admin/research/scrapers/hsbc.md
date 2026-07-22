@@ -11,7 +11,7 @@ window after dedup across scopes.
 * Home: `https://www.research.hsbc.com/ibcom/in/reach/servlet/ReachHome`
 * All Reports: `https://www.research.hsbc.com/ibcom/in/reach/servlet/Reach`
 * Auth: SSO via `<HSBC_USERNAME>` (long-lived cookie in persistent profile)
-* Profile: `playground/research/profiles/hsbc/` (created 2026-05-08)
+* Profile: `C:/IMDR_LOCAL/research_profiles/hsbc/` (created 2026-05-08)
 
 ## Architecture (what we found, what's different from the other 4 vendors)
 

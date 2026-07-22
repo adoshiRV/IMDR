@@ -49,7 +49,7 @@ from scratch.
 ## Profile
 
 ```
-playground/research/profiles/bnp/
+C:/IMDR_LOCAL/research_profiles/bnp/
 ```
 
 Fresh profile — not in the inherited playwrights folder. First
@@ -640,7 +640,7 @@ Prereqs:
 
 * Apply migration `059_seed_bnp_dim_vendor.sql` (seeds the
   `dbo.dim_vendor` row).
-* The Chrome profile at `playground/research/profiles/bnp/` must hold
+* The Chrome profile at `C:/IMDR_LOCAL/research_profiles/bnp/` must hold
   an authenticated session — run `explore_bnp.py` once to log in.
   Sessions appear stable for at least a few days; if the listing API
   starts returning empty / login redirects, re-run `explore_bnp.py`

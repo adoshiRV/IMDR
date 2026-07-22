@@ -34,7 +34,7 @@ Onboarding started **2026-06-03**. Phase 1 + Phase 2 done; Phase 3
 ## Profile
 
 ```
-playground/research/profiles/socgen/
+C:/IMDR_LOCAL/research_profiles/socgen/
 ```
 
 Fresh persistent Chrome profile (created 2026-06-03). The inherited

@@ -61,7 +61,7 @@ Three saved sample PDFs: `sg_uec92139.pdf`, `sg_uec91967.pdf`,
 | Username | `.env: IMDR_RESEARCH_UBS_USERNAME` (`adoshi@rvcapital.com`) |
 | Password | `.env: IMDR_RESEARCH_UBS_PASSWORD` |
 | MFA | **None observed** 2026-06-05 on this user/device. Username + password suffices. `rememberMe1fa` checkbox ticked by `login_ubs.py`. |
-| Profile dir | `playground/research/profiles/ubs/` (isolated, used only by automation; NOT Deepak's recon profile) |
+| Profile dir | `C:/IMDR_LOCAL/research_profiles/ubs/` (isolated, used only by automation; NOT Deepak's recon profile) |
 | Headless | **`headless=False` REQUIRED** — UBS rejects `HeadlessChrome/N` UA; bounces every request to `/static/login.html`. Same BoFA precedent (`crawler_bofa.py:630-637`). |
 
 ## Auth + session model

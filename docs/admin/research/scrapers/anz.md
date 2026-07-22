@@ -53,7 +53,7 @@ Per-tile regex extraction:
 ## Profile
 
 ```
-playground/research/profiles/anz/
+C:/IMDR_LOCAL/research_profiles/anz/
 ```
 
 Fresh profile — ANZ wasn't in the inherited playwrights folder, so

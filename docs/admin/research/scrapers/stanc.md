@@ -22,7 +22,7 @@ with a deterministic PDF render URL.
 ## Profile
 
 ```
-playground/research/profiles/stanc/
+C:/IMDR_LOCAL/research_profiles/stanc/
 ```
 
 Fresh profile — no inherited Z:\…\playwrights\ Chrome profile observed.

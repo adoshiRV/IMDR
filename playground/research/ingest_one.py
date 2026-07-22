@@ -8,7 +8,7 @@ Prerequisites:
        research.fact_chunk + fact_chunk_embedding exist, voyage-3-large
        seeded into dim_embedding_model).
     2. dbo.dim_vendor has a row with vendor_code='goldman'.
-    3. The persistent profile playground/research/profiles/goldman/ has
+    3. The persistent profile C:/IMDR_LOCAL/research_profiles/goldman/ has
        been logged into Marquee at least once (run explore_goldman.py).
     4. .env contains IMDR_VOYAGE_KEY.
 
@@ -61,7 +61,12 @@ TARGET_SHAREPOINT_RELATIVE = build_sharepoint_path(
     uuid=TARGET_UUID,
     title=TARGET_META.title,
 )
-PROFILE_DIR = HERE / "profiles" / "goldman"
+# Profile on LOCAL disk (Settings.research_profile_root, default
+# C:\IMDR_LOCAL\research_profiles) — matches the auth module + ingest_today;
+# NOT the SMB share (Chrome page.goto stalls over \\rvsg-fs01…).
+from imdr.config.settings import get_settings as _get_settings  # noqa: E402
+
+PROFILE_DIR = _get_settings().research_profile_root / "goldman"
 LOCAL_PDF_DIR = HERE / "pdfs"
 
 

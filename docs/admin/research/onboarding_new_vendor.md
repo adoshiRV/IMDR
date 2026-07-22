@@ -70,7 +70,7 @@ understand the URL/DOM/API patterns. No crawler code yet.
    ```
 
    The persistent profile lives at
-   `playground/research/profiles/<vendor>/`. On first run it's empty —
+   `C:/IMDR_LOCAL/research_profiles/<vendor>/`. On first run it's empty —
    sign in interactively, complete any MFA. Subsequent runs reuse the
    cookies; no re-auth needed unless the vendor times the session out.
 

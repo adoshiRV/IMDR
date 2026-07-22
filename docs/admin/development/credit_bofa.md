@@ -44,7 +44,7 @@ Proof portal is live: `…/2026/07/16/barclays/` has 11 PDFs incl. credit (*Asia
 | BofA login | `playground/research/ingest/login_bofa.py` |
 | Outlook client | `src/imdr/vendors/sessions/outlook.py` (`Win32OutlookClient`) |
 | Portal PDF output (OneDrive→SharePoint) | `C:\Users\adoshi\OneDrive - RV Capital Management Private Ltd\Trade Knowledge Core - IMDR\{YYYY}\{MM}\{DD}\{vendor}\` |
-| Playwright profiles | `playground/research/profiles/{vendor}` |
+| Playwright profiles | `C:/IMDR_LOCAL/research_profiles/{vendor}` |
 | **PM credit corpus (READ-ONLY)** | `Z:\Business\Research\Credit` (country/issuer/theme; multi-vendor + `.msg`) |
 | Vendor scraper docs | `docs/admin/research/scrapers/{vendor}.md` |
 | Python / env | `C:/Users/adoshi/.conda/envs/imdr/python.exe`; `PYTHONDONTWRITEBYTECODE=1`; `.env` keys `IMDR_RESEARCH_{VENDOR}_USERNAME/PASSWORD` (JPM also `IMDR_RESEARCH_JPM_USERNAME` → `janus_user`) |

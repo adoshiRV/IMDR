@@ -92,7 +92,7 @@ re-login, not spaced cycles). The 2 legacy manual-smoke reports
 ## Profile
 
 ```
-playground/research/profiles/bofa/
+C:/IMDR_LOCAL/research_profiles/bofa/
 ```
 
 Fresh profile — no inherited Z:\…\playwrights\ Chrome profile observed.

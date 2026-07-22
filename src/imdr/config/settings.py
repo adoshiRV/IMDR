@@ -134,6 +134,18 @@ class Settings(BaseSettings):
     research_nomura_password: str = ""
     research_stanc_username: str = ""
     research_stanc_password: str = ""
+    # DB Research — email-verification-code login, no password (the
+    # "secret" is the emailed code; see loginflows/db.py).
+    research_db_username: str = ""
+
+    # Research-portal Playwright profiles (one persistent Chrome user_data_dir
+    # per vendor). MUST live on LOCAL disk: Chrome's profile I/O (many small
+    # SQLite + lock files, random access) stalls over the SMB share
+    # (\\rvsg-fs01…), which makes every page.goto time out and breaks all
+    # vendor logins (diagnosed 2026-07-21). Overridable via
+    # IMDR_RESEARCH_PROFILE_ROOT. Kept separate from browser_profile_root
+    # (the vendors-feed root) on purpose.
+    research_profile_root: Path = Path(r"C:\IMDR_LOCAL\research_profiles")
 
     # Vendors framework
     browser_profile_root: Path = _PROJECT_ROOT / "data" / "browser_profiles"
