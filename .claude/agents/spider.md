@@ -125,7 +125,9 @@ trade recommendation · pricing/positioning · synthesis.
    policy rates) → `calendar.cb_events`. Verify every date and "held/cut/hiked" tag
    against a real row — never carry a date from a note. BQL primary, TE fallback (labelled).
 2. **Depth** (component series, printed actuals) → `econ.fact_indicator`. Deep for
-   AU/US/HK/NZ/ID/IN/KR; thin/absent for JP/CA/MX/UK.
+   AU/US/HK/NZ/ID/IN/KR; thin/absent for JP/CA/MX/UK. Read **current** values from
+   `econ.vw_fact_indicator_latest` (latest vintage per obs) — the base table now keeps
+   revision vintages, so a raw `fact_indicator` read returns multiple rows for a revised obs.
 3. **Views / trades / quotes** → full `research.fact_chunk` **+ Qdrant semantic
    search** (`playground/research/retrieve.py`) **+ raw Outlook bodies**. A keyword
    scan alone misses globally/thematically-titled flagships — run a semantic query

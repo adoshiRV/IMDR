@@ -7,7 +7,13 @@ dim_indicator_category), and upserts into the two econ tables.
 
 Idempotent:
   - dim_indicator: MERGE on (vendor_id, source_code)
-  - fact_indicator: staging-table + MERGE on PK (indicator_id, obs_date, vintage)
+  - fact_indicator: revision-aware (docs §3.3). Per (indicator_id, obs_date):
+    a brand-new obs inserts at its staged vintage (normally 0); a re-load whose
+    value materially differs from the current latest vintage inserts a NEW row
+    at cur_max_vintage+1 (a captured revision); an unchanged value is skipped.
+    "Latest known value" = MAX(vintage) per (indicator_id, obs_date), exposed by
+    econ.vw_fact_indicator_latest (migration 117). A NULL never supersedes a
+    stored value. See classify_fact_action() for the exact predicate.
 
 Aborts loudly on:
   - missing FK resolution (e.g. parquet uses a unit / country / category
@@ -240,12 +246,12 @@ def _load_dim(
 
 
 # ---------------------------------------------------------------------------
-# Fact load (large N, staging-table MERGE)
+# Fact load (large N, staging-table + revision-aware INSERTs)
 # ---------------------------------------------------------------------------
 
 _STG_CREATE_SQL = """
-IF OBJECT_ID('tempdb..##stg_econ_fact') IS NOT NULL DROP TABLE ##stg_econ_fact;
-CREATE TABLE ##stg_econ_fact (
+IF OBJECT_ID('tempdb..#stg_econ_fact') IS NOT NULL DROP TABLE #stg_econ_fact;
+CREATE TABLE #stg_econ_fact (
     indicator_id   INT             NOT NULL,
     obs_date       DATE            NOT NULL,
     vintage        SMALLINT        NOT NULL,
@@ -256,22 +262,105 @@ CREATE TABLE ##stg_econ_fact (
 """
 
 _STG_INSERT_SQL = """
-INSERT INTO ##stg_econ_fact (indicator_id, obs_date, vintage, release_date, value, is_preliminary)
+INSERT INTO #stg_econ_fact (indicator_id, obs_date, vintage, release_date, value, is_preliminary)
 VALUES (?, ?, ?, ?, ?, ?)
 """
 
-_FACT_MERGE_SQL = """
-MERGE [econ].[fact_indicator] AS tgt
-USING ##stg_econ_fact AS src
-ON tgt.indicator_id = src.indicator_id
-   AND tgt.obs_date = src.obs_date
-   AND tgt.vintage  = src.vintage
-WHEN NOT MATCHED THEN INSERT (
-    indicator_id, obs_date, vintage, release_date, value, is_preliminary
-) VALUES (
-    src.indicator_id, src.obs_date, src.vintage, src.release_date, src.value, src.is_preliminary
-);
+# ---------------------------------------------------------------------------
+# Revision-aware fact load
+#
+# The schema (docs §3.3) is vintage-aware by design: vintage 0 is the first
+# print for an (indicator_id, obs_date); 1+ are successive revisions. The old
+# loader was append-only on the *exact* PK (indicator_id, obs_date, vintage),
+# so a re-load carrying a revised value for an already-present obs was silently
+# skipped -- IMDR never captured in-place revisions. This block implements the
+# documented intent:
+#   * brand-new obs                -> INSERT at its staged vintage (normally 0)
+#   * value materially changed     -> INSERT a NEW row at cur_max_vintage + 1
+#   * value unchanged (or NULL)    -> skip (never clobber a real value with NULL)
+# "Latest known value" is then MAX(vintage) per (indicator_id, obs_date) --
+# exposed canonically by econ.vw_fact_indicator_latest (migration 117).
+#
+# KNOWN LIMITATION: the revision predicate keys on VALUE only. A same-value
+# re-load that merely flips is_preliminary (advance -> final with an unchanged
+# print) is treated as unchanged, so a stale is_preliminary flag won't update.
+# No current consumer reads is_preliminary; revise the predicate (thread
+# is_preliminary through #cur_latest) if a preliminary-vs-final reader lands.
+# ---------------------------------------------------------------------------
+
+# 1) Collapse any intra-batch duplicates to one row per (indicator_id, obs_date)
+#    so the computed cur_vintage+1 can't collide within a single load.
+_FACT_DEDUP_SQL = """
+IF OBJECT_ID('tempdb..#stg_dedup') IS NOT NULL DROP TABLE #stg_dedup;
+SELECT indicator_id, obs_date, vintage, release_date, value, is_preliminary
+INTO #stg_dedup
+FROM (
+    SELECT indicator_id, obs_date, vintage, release_date, value, is_preliminary,
+           ROW_NUMBER() OVER (
+               PARTITION BY indicator_id, obs_date
+               ORDER BY release_date DESC, CASE WHEN value IS NULL THEN 0 ELSE 1 END DESC
+           ) AS rn
+    FROM #stg_econ_fact
+) q
+WHERE rn = 1;
 """
+
+# 2) Current latest (vintage, value) per staged pair. Restricted to the pairs
+#    actually being loaded, so it seeks ix_fact_indicator_latest rather than
+#    scanning the whole fact table.
+_FACT_CURLATEST_SQL = """
+IF OBJECT_ID('tempdb..#cur_latest') IS NOT NULL DROP TABLE #cur_latest;
+SELECT f.indicator_id, f.obs_date, f.vintage AS cur_vintage, f.value AS cur_value
+INTO #cur_latest
+FROM econ.fact_indicator f
+JOIN (
+    SELECT f2.indicator_id, f2.obs_date, MAX(f2.vintage) AS mv
+    FROM econ.fact_indicator f2
+    JOIN (SELECT DISTINCT indicator_id, obs_date FROM #stg_dedup) sp
+      ON sp.indicator_id = f2.indicator_id AND sp.obs_date = f2.obs_date
+    GROUP BY f2.indicator_id, f2.obs_date
+) m ON m.indicator_id = f.indicator_id AND m.obs_date = f.obs_date AND m.mv = f.vintage;
+"""
+
+# 3a) Brand-new observations -> insert at their staged vintage (normally 0).
+_FACT_INSERT_NEW_SQL = """
+INSERT INTO econ.fact_indicator (indicator_id, obs_date, vintage, release_date, value, is_preliminary)
+SELECT s.indicator_id, s.obs_date, s.vintage, s.release_date, s.value, s.is_preliminary
+FROM #stg_dedup s
+LEFT JOIN #cur_latest c ON c.indicator_id = s.indicator_id AND c.obs_date = s.obs_date
+WHERE c.indicator_id IS NULL;
+"""
+
+# 3b) Revisions -> value differs from the current latest vintage (or fills a
+#     prior NULL). New row at cur_vintage+1. A NULL incoming value never
+#     supersedes an existing value. Both sides are DECIMAL(28,10) so the
+#     equality test is exact (no float noise).
+_FACT_INSERT_REVISION_SQL = """
+INSERT INTO econ.fact_indicator (indicator_id, obs_date, vintage, release_date, value, is_preliminary)
+SELECT s.indicator_id, s.obs_date, c.cur_vintage + 1, s.release_date, s.value, s.is_preliminary
+FROM #stg_dedup s
+JOIN #cur_latest c ON c.indicator_id = s.indicator_id AND c.obs_date = s.obs_date
+WHERE s.value IS NOT NULL
+  AND (c.cur_value IS NULL OR s.value <> c.cur_value);
+"""
+
+
+def classify_fact_action(exists: bool, incoming_value, current_value) -> str:
+    """Pure-Python mirror of the SQL revision predicate (SQL is the runtime
+    source of truth; this is the testable contract).
+
+    - ``exists=False``                          -> ``"new"``      (insert at staged vintage)
+    - existing, ``incoming_value is None``       -> ``"skip"``     (never clobber with NULL)
+    - existing, current NULL or value changed    -> ``"revision"`` (insert at cur_vintage+1)
+    - existing, value unchanged                  -> ``"skip"``
+    """
+    if not exists:
+        return "new"
+    if incoming_value is None:
+        return "skip"
+    if current_value is None or incoming_value != current_value:
+        return "revision"
+    return "skip"
 
 
 def _load_fact(
@@ -279,9 +368,9 @@ def _load_fact(
     fact_df: pd.DataFrame,
     imdr_to_id: dict[str, int],
 ) -> dict[str, int]:
-    """Bulk-stage fact rows then MERGE into econ.fact_indicator.
+    """Bulk-stage fact rows then revision-aware load into econ.fact_indicator.
 
-    Returns counts dict: {staged, inserted}.
+    Returns counts dict: {staged, inserted_new, inserted_revision, skipped}.
     """
     # Resolve imdr_code -> indicator_id; drop any orphans loudly.
     unknown = sorted(set(fact_df["imdr_code"]) - set(imdr_to_id))
@@ -304,9 +393,10 @@ def _load_fact(
     df["value"] = df["value"].astype(object).where(df["value"].notna(), None)
     df["is_preliminary"] = df.get("is_preliminary", False).astype(bool)
 
-    # Pre-MERGE count for reporting.
     raw_conn = connector.engine.raw_connection()
-    inserted = 0
+    inserted_new = 0
+    inserted_revision = 0
+    staged_dedup = 0
     try:
         cursor = raw_conn.cursor()
         cursor.fast_executemany = True
@@ -323,31 +413,43 @@ def _load_fact(
         cursor.executemany(_STG_INSERT_SQL, rows)
         raw_conn.commit()
 
-        # Pre-MERGE: how many rows already exist (will be skipped)?
-        cursor.execute("""
-            SELECT COUNT(*) FROM ##stg_econ_fact s
-            WHERE EXISTS (
-                SELECT 1 FROM econ.fact_indicator f
-                WHERE f.indicator_id = s.indicator_id
-                  AND f.obs_date     = s.obs_date
-                  AND f.vintage      = s.vintage
-            )
-        """)
-        skipped = cursor.fetchone()[0]
-
-        # MERGE into target.
-        cursor.execute(_FACT_MERGE_SQL)
-        inserted = cursor.rowcount  # rows actually inserted (NOT MATCHED branch)
+        # Revision-aware load (see module-level SQL block for the contract):
+        #   dedup batch -> find current latest -> insert new -> insert revisions.
+        cursor.execute(_FACT_DEDUP_SQL)
+        cursor.execute(_FACT_CURLATEST_SQL)
         raw_conn.commit()
 
-        # Clean up staging.
-        cursor.execute("DROP TABLE ##stg_econ_fact")
+        cursor.execute("SELECT COUNT(*) FROM #stg_dedup")
+        staged_dedup = cursor.fetchone()[0]
+
+        cursor.execute(_FACT_INSERT_NEW_SQL)
+        inserted_new = cursor.rowcount        # brand-new obs
+        cursor.execute(_FACT_INSERT_REVISION_SQL)
+        inserted_revision = cursor.rowcount   # revisions -> new vintage
+        raw_conn.commit()
+
+        # Clean up temp tables.
+        cursor.execute("DROP TABLE IF EXISTS #cur_latest")
+        cursor.execute("DROP TABLE IF EXISTS #stg_dedup")
+        cursor.execute("DROP TABLE IF EXISTS #stg_econ_fact")
         raw_conn.commit()
         cursor.close()
     finally:
         raw_conn.close()
 
-    return {"staged": len(df), "inserted": inserted, "skipped": skipped}
+    # Unchanged obs (already at latest value) are neither new nor a revision.
+    skipped = staged_dedup - inserted_new - inserted_revision
+    # Intra-batch duplicate (indicator_id, obs_date) pairs collapsed by the
+    # dedup step. Normally 0 -- a non-zero count means a fetcher emitted dupes
+    # and is worth surfacing rather than silently absorbing.
+    duplicates_collapsed = len(df) - staged_dedup
+    return {
+        "staged": len(df),
+        "inserted_new": inserted_new,
+        "inserted_revision": inserted_revision,
+        "skipped": skipped,
+        "duplicates_collapsed": duplicates_collapsed,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -414,8 +516,11 @@ def main(argv: list[str] | None = None) -> int:
     # ---- Load fact ----
     t1 = time.time()
     stats = _load_fact(connector, fact_df, imdr_to_id)
-    print(f"fact MERGE done in {time.time()-t1:.1f}s -- "
-          f"staged={stats['staged']:,}  inserted={stats['inserted']:,}  skipped={stats['skipped']:,}")
+    dup = stats.get("duplicates_collapsed", 0)
+    dup_note = f"  dup_collapsed={dup:,}" if dup else ""
+    print(f"fact load done in {time.time()-t1:.1f}s -- "
+          f"staged={stats['staged']:,}  new={stats['inserted_new']:,}  "
+          f"revision={stats['inserted_revision']:,}  skipped={stats['skipped']:,}{dup_note}")
 
     print("\nVerify with:")
     print(f"  SELECT COUNT(*) FROM econ.dim_indicator   WHERE vendor_id = (SELECT id FROM dbo.dim_vendor WHERE vendor_code='{args.vendor}');")
