@@ -29,10 +29,15 @@ import contextlib
 import io
 import sys
 
+from sqlalchemy import text
+
+from imdr.config.settings import get_settings
+from imdr.connectors.mssql import MSSQLConnector
 from imdr.domains.econ.bbg_econdashboard import VENDOR_NAME, fetch_econdashboard
 from scripts.econ._runner import invoke_loader, write_parquet
 
 TOPIC = "econdashboard"
+BBG_VENDOR_ID = 4  # dbo.dim_vendor 'BBG'
 
 # The 14 markets the EconDashboards catalog covers.
 COUNTRIES = [
@@ -41,9 +46,24 @@ COUNTRIES = [
 ]
 
 
+def _load_existing_codes() -> dict[str, str]:
+    """Persisted {source_code -> imdr_code} for vendor BBG, so a code assigned on
+    a prior run is reused verbatim (imdr_codes, incl. collision suffixes, never
+    migrate to a different ticker as the upstream catalogue grows). Empty on the
+    first run."""
+    connector = MSSQLConnector(get_settings())
+    with connector.session() as session:
+        rows = session.execute(
+            text("SELECT source_code, imdr_code FROM econ.dim_indicator WHERE vendor_id = :v"),
+            {"v": BBG_VENDOR_ID},
+        ).all()
+    return {r[0]: r[1] for r in rows}
+
+
 def _ingest_country(cc: str, since: str | None, until: str | None,
-                    no_parquet: bool, no_load: bool) -> int:
-    indicators, observations = fetch_econdashboard(cc, since, until)
+                    no_parquet: bool, no_load: bool,
+                    existing_codes: dict[str, str]) -> int:
+    indicators, observations = fetch_econdashboard(cc, since, until, existing_codes=existing_codes)
     print(f"\n[{cc}] {len(indicators)} indicators, {len(observations)} observations")
     if not observations:
         print(f"[{cc}] no observations -- skipped.")
@@ -72,9 +92,12 @@ def main() -> int:
     args = p.parse_args()
 
     countries = [args.country.upper()] if args.country else COUNTRIES
+    # --no-parquet is counts-only and needs no DB; otherwise read persisted codes
+    # once so assignments stay stable across runs.
+    existing_codes = {} if args.no_parquet else _load_existing_codes()
     worst_rc = 0
     for cc in countries:
-        rc = _ingest_country(cc, args.since, args.until, args.no_parquet, args.no_load)
+        rc = _ingest_country(cc, args.since, args.until, args.no_parquet, args.no_load, existing_codes)
         if rc != 0:
             print(f"!! [{cc}] loader exited rc={rc}")
             worst_rc = rc

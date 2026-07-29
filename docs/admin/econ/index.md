@@ -16,6 +16,7 @@ Macro / country-economy data: the indicators sitting in `econ.dim_indicator` / `
 | [macro_economy_wiring_map.md](macro_economy_wiring_map.md) | 16-cell coverage tracker (4 engines × 4 clusters × N countries). The *what we cover, where the gaps are*. |
 | [country_econ_blueprint.md](country_econ_blueprint.md) | The exhaustive country-agnostic indicator catalogue (§1-4). The *what indicators exist per cell*. |
 | [economics_data_ingest.md](economics_data_ingest.md) | Schema + vendor-agnostic loader + per-vendor build log. The *how* and *what's done*. |
+| [bbg/index.md](bbg/index.md) | **BBG EconDashboards mirror** (vendor `BBG`, PROD-LIVE 2026-07-29) — cross-country Bloomberg macro cache absorbed into IMDR; 219 econ indicators × 14 markets, plus the rates/commodities landings. The **only** IMDR econ source for CN/MY/TH/SG/PH/TW and for PMI/Big-Mac/surprise/TWI/bilateral-trade. |
 
 ---
 
@@ -37,7 +38,7 @@ Each country has a folder with prod reference docs at the top + a `_playground/`
 | **Thailand (TH)** | Source catalogue only (BoT, NSO) | [thailand/](thailand/) | [§7.16](macro_economy_wiring_map.md#716-thailand-th) | — |
 | **Indonesia (ID)** | DB-LIVE — **308 indicators × 114,106 obs** (2026-06-10), all 16 wiring-map cells covered, 13 of 16 are full ✅. BPS (82, REST JSON) + BI (184 across SEKI tables + Survey publications + bank rates + SRBI auction yields + SBN position by holder) + BIS (6, SDMX) + DJPPR (36, daily SBN ownership). 28 prod fetchers; 2 registered in `imdr_daily.py` (BIS policy rate + SRBI). True tenor-by-investor SBN cross-tab is outstanding gap (requires Kemenkeu Buku Saku APBN); bank-type decomp now live via BI SEKI IV.4. | [indonesia/](indonesia/) | [§7.17](macro_economy_wiring_map.md#717-indonesia-id) | [indonesia_indicator_inventory.md](indonesia/indonesia_indicator_inventory.md) |
 
-Other countries appear in the wiring map (UK, CA, CH, DE, CN, SG, TW) via FRED OECD mirrors — they don't have their own folder yet. When one graduates from FRED-mirror to native-vendor, create a folder following the Korea reference shape.
+Other countries appear in the wiring map (UK, CA, CH, DE, CN, SG, TW) via FRED OECD mirrors — they don't have their own folder yet. When one graduates from FRED-mirror to native-vendor, create a folder following the Korea reference shape. **CN · MY · TH · SG · PH · TW** additionally now carry a Bloomberg macro slice via the [BBG EconDashboards mirror](bbg/index.md) (vendor `BBG`) — the only IMDR econ data for those six.
 
 ---
 

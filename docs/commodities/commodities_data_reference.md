@@ -19,8 +19,13 @@ Universe defined in [`src/imdr/universe/commodities.yml`](../../src/imdr/univers
 | XAU | Gold | precious_metal | COMMODITIES.SPOT.SPOT_GOLD |
 | XAG | Silver | precious_metal | COMMODITIES.SPOT.SPOT_SILVER |
 | CR_NYM_CL | WTI Crude | energy | COMMODITIES.SPOT.OIL_PRICE_NYMEX |
+| CR_IPE_BRENT | ICE Brent | energy | — (BBG mirror, not Citi) |
 
-Note: Platinum (XPT) and ICE Brent (CR_IPE_BRENT) are in dim_commodity but have no Citi SPOT tag and therefore have no rows in fact_spot.
+Note: Platinum (XPT) is in dim_commodity but has no Citi SPOT tag and therefore no rows in fact_spot.
+ICE Brent (CR_IPE_BRENT) also has no Citi tag (`spot_tag = NULL`), but as of 2026-07-29 it is populated
+from the **BBG EconDashboards mirror** (ticker `CO1 Comdty`, vendor `BBG`) — 61 month-end obs 2021→2026
+via `scripts/commodities/bbg_econdashboard_oil.py`. See [the BBG EconDashboards doc](../admin/econ/bbg/index.md).
+Note the 2026 prints are war-driven-volatile (see that doc's data-quality flag).
 
 - Date range: 2026-01-01 to 2026-05-12
 - Update cadence: DAILY

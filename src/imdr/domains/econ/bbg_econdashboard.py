@@ -55,7 +55,9 @@ ECON_EXCLUDED_CATEGORIES = frozenset({"swap_5y", "policy_rate", "oil_price"})
 # (beyond migration 118, which seeded myr_mn/thb_mn/php_mn/twd_bn).
 # --------------------------------------------------------------------------
 
-# dashboard category -> econ.dim_indicator_category.category_code
+# dashboard category -> econ.dim_indicator_category.category_code.
+# swap_5y / policy_rate / oil_price are intentionally absent -- they are routed
+# to other schemas via ECON_EXCLUDED_CATEGORIES and never reach these maps.
 CATEGORY_MAP: dict[str, str] = {
     "gdp_yoy": "gdp",
     "cpi_yoy": "cpi",
@@ -64,8 +66,6 @@ CATEGORY_MAP: dict[str, str] = {
     "current_account": "bop",
     "fiscal_balance": "other",    # no fiscal theme in dim_indicator_category
     "pmi": "sentiment",           # diffusion/survey index
-    "policy_rate": "rates",
-    "swap_5y": "rates",
     "exports": "bop",
     "imports": "bop",
     "neer": "fx",
@@ -86,8 +86,6 @@ CONCEPT_MAP: dict[str, str] = {
     "current_account": "BOP.CURRENT_ACCOUNT",
     "fiscal_balance": "FISCAL.BALANCE",
     "pmi": "PMI.HEADLINE",
-    "policy_rate": "RATES.POLICY",
-    "swap_5y": "RATES.SWAP_5Y",
     "exports": "TRADE.EXPORTS",
     "imports": "TRADE.IMPORTS",
     "neer": "FX.NEER",
@@ -119,8 +117,6 @@ UNIT_MAP: dict[str, str] = {
     "current_account": "pct_of_gdp",   # BBG quote = Percent / % RATIO / % of GDP
     "fiscal_balance": "pct_of_gdp",     # BBG quote = %
     "pmi": "index",                     # diffusion index (50 = neutral)
-    "policy_rate": "pct_pa",
-    "swap_5y": "pct_pa",                # levels in % p.a. (verified, not bp)
     "neer": "index_2020_100",           # BIS effective-exchange-rate index
     "reer": "index_2020_100",
     "twi": "index",                     # trade-weighted index (mixed base years)
@@ -150,8 +146,7 @@ FREQ_MAP: dict[str, str] = {
 FREQ_DEFAULT_BY_CAT: dict[str, str] = {
     "surprise": "DAILY",
     "twi": "DAILY",
-    "swap_5y": "DAILY",
-    "policy_rate": "DAILY",
+    "gdp_yoy": "QUARTERLY",   # GDP is quarterly -- must not fall back to MONTHLY
     "big_mac": "SEMIANNUAL",
     "neer": "MONTHLY",
     "reer": "MONTHLY",
@@ -184,8 +179,9 @@ def _resolve_unit(category: str, currency: str | None, quote_units: str | None) 
     """
     q = (quote_units or "").strip().lower()
     if category == "core_cpi_yoy":
-        # mostly YoY %, but a few markets carry a rebased index level instead
-        return "index" if "=100" in q or q.endswith("100") else "pct_yoy"
+        # mostly YoY %, but a few markets carry a rebased index level instead;
+        # detect an index by a base-year tag ("2010=100") or the literal word.
+        return "index" if ("=100" in q or q.endswith("100") or "index" in q) else "pct_yoy"
     if category in UNIT_MAP:
         return UNIT_MAP[category]
     if not currency or q in ("%", "percent"):
@@ -266,12 +262,20 @@ def fetch_econdashboard(
     since: str | None = None,
     until: str | None = None,
     sqlite_path: Path | None = None,
+    existing_codes: dict[str, str] | None = None,
 ) -> tuple[list[IndicatorRow], list[ObservationRow]]:
     """Return (indicators, observations) for one country from the SQLite.
 
     ``country_code`` is a 2-letter ISO code (e.g. ``"AU"``); matched against the
     SQLite ``series.country_code`` (upper-case). ``since`` / ``until`` bound
     ``obs_date`` (inclusive, YYYY-MM-DD).
+
+    ``existing_codes`` maps a raw Bloomberg ticker (``source_code``) to the
+    ``imdr_code`` already persisted for it in ``econ.dim_indicator``. Pass it
+    (the prod ingest reads it from the DB) so that a code -- including a
+    collision-disambiguation suffix like ``.AU.2`` -- assigned on a prior run is
+    REUSED verbatim and never migrates to a different ticker when the upstream
+    catalogue grows. Without it, assignment is stable only within a single run.
     """
     cc = country_code.strip().upper()
     path = Path(sqlite_path) if sqlite_path else DEFAULT_SQLITE
@@ -296,9 +300,8 @@ def fetch_econdashboard(
             (cc,),
         ).fetchall()
 
-        indicators: list[IndicatorRow] = []
-        ticker_to_code: dict[str, str] = {}
-        used_codes: set[str] = set()
+        # Eligible rows: skip excluded categories silently, unmapped ones loudly.
+        eligible: list[tuple[sqlite3.Row, str, str]] = []  # (row, category, base_code)
         for s in series:
             cat = s["category"]
             if cat in ECON_EXCLUDED_CATEGORIES:
@@ -313,18 +316,37 @@ def fetch_econdashboard(
                     file=sys.stderr,
                 )
                 continue
-            base = f"BBG.{_concept(cat, cc)}.{cc}"
+            eligible.append((s, cat, f"BBG.{_concept(cat, cc)}.{cc}"))
+
+        # Assign imdr_codes so a suffix, once persisted, NEVER moves. Pass 1
+        # reuses any code already in the DB for this ticker; pass 2 mints codes
+        # for genuinely-new tickers, disambiguating a rare (concept, cc)
+        # collision against codes already taken (persisted + freshly minted).
+        existing = existing_codes or {}
+        ticker_to_code: dict[str, str] = {}
+        used_codes: set[str] = set()
+        for s, _cat, _base in eligible:
+            tk = s["ticker"]
+            if tk in existing:
+                ticker_to_code[tk] = existing[tk]
+                used_codes.add(existing[tk])
+        for s, _cat, base in eligible:
+            tk = s["ticker"]
+            if tk in ticker_to_code:
+                continue
             code, n = base, 2
-            while code in used_codes:  # disambiguate rare (cc, category) collision
+            while code in used_codes:  # rare (concept, cc) collision
                 code, n = f"{base}.{n}", n + 1
             used_codes.add(code)
-            ticker_to_code[s["ticker"]] = code
+            ticker_to_code[tk] = code
 
+        indicators: list[IndicatorRow] = []
+        for s, cat, _base in eligible:
             transform = (s["seasonality_transform"] or "").upper()
             is_sa = "SA" in transform and "NSA" not in transform
             indicators.append(
                 IndicatorRow(
-                    imdr_code=code,
+                    imdr_code=ticker_to_code[s["ticker"]],
                     vendor_name=VENDOR_NAME,
                     source_code=s["ticker"],
                     bbg_ticker=s["ticker"],

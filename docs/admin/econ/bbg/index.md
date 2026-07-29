@@ -47,18 +47,25 @@ the Terminal/BQL connection; IMDR never pulls Bloomberg directly for this feed.
 
 | Path | Role |
 |---|---|
-| `src/imdr/domains/econ/bbg_econdashboard.py` | Country-agnostic library: SQLite read + category/unit/frequency/concept resolution → `IndicatorRow`/`ObservationRow`. |
-| `scripts/econ/bbg/econdashboard.py` | Prod ingest. Loops all 14 markets (the SQLite refreshes atomically for all markets, so there is no per-country cadence to fan out), writes country-first parquet under `data/econ/{cc}/bbg/econdashboard/{Y}/{M}/{D}/`, loads each via the canonical loader. |
-| `migrations/118_seed_dim_unit_bbg_trade_ccy.sql` | Seeds `myr_mn`/`thb_mn`/`php_mn`/`twd_bn` (trade currencies missing from `dim_unit`). Applied. |
+| `src/imdr/domains/econ/bbg_econdashboard.py` | Country-agnostic library: SQLite read + category/unit/frequency/concept resolution → `IndicatorRow`/`ObservationRow`; also `read_ticker_observations()`, the shared low-level SQLite reader the rates + commodities loaders reuse. |
+| `scripts/econ/bbg/econdashboard.py` | **econ** ingest. Loops all 14 markets (the SQLite refreshes atomically for all markets, so there is no per-country cadence to fan out), writes country-first parquet under `data/econ/{cc}/bbg/econdashboard/{Y}/{M}/{D}/`, loads each via the canonical loader. |
+| `scripts/rates/bbg_econdashboard_policy.py` | **rates** load: 9 APAC policy rates → `rates.fact_bench_rates` (reuses `CentralBankRepository`/`BenchRatesRepository`). |
+| `scripts/commodities/bbg_econdashboard_oil.py` | **commodities** load: Brent `CO1` → `commodities.fact_spot` (reuses `CmdtySpotRepository`). |
+| `scripts/migrations/load_econ_indicator_from_playground.py` | canonical econ loader — added `_VENDOR_ALIASES {"bbg":"BBG"}` (loader lower-cases `vendor_name`; the `BBG` dim_vendor row is upper-case). |
+| `migrations/118_seed_dim_unit_bbg_trade_ccy.sql` | Seeds `myr_mn`/`thb_mn`/`php_mn`/`twd_bn` (trade currencies missing from `dim_unit`). Applied. Gitignored (DBA channel). |
+| `migrations/119_seed_rates_dim_central_bank_apac.sql` | Seeds the 9 APAC central banks into `rates.dim_central_bank`. Applied. Gitignored (DBA channel). |
 
 ## Identity & mapping
 
 - **Code**: `BBG.{CONCEPT}.{CC}` — e.g. `BBG.PMI.HEADLINE.AU`, `BBG.FX.BIGMAC.JP`,
   `BBG.SENTIMENT.CESI.KR`, `BBG.TRADE.EXPORTS.TW`. `source_code`/`bbg_ticker` = the raw
   Bloomberg ticker (the loader's MERGE key).
-- **Categories**: the 17 dashboard categories map onto existing `econ.dim_indicator_category`
-  themes (PPI→`cpi`, fiscal→`other`, trade/CA→`bop`, NEER/REER/TWI/BigMac→`fx`,
-  PMI/surprise→`sentiment`). No new category rows.
+- **Categories**: the dashboard's econ categories map onto existing `econ.dim_indicator_category`
+  themes (CPI/core-CPI/PPI→`cpi`, GDP→`gdp`, fiscal→`other`, trade/CA→`bop`,
+  NEER/REER/TWI/BigMac→`fx`, PMI/surprise→`sentiment`). No new category rows. `swap_5y` +
+  `policy_rate` route to the `rates` schema and `oil_price` to `commodities` (see
+  `ECON_EXCLUDED_CATEGORIES`); any *other* unmapped category the source adds later is skipped
+  with a stderr WARN, never silently dropped.
 - **Units are metadata-driven, not guessed** — resolved from Bloomberg's own `currency` +
   `quote_units` fields in the SQLite. Trade series carry their true local currency at native
   scale (`aud_mn`, `idr_bn`, `inr_cr`, `jpy_bn`, `twd_bn`, `myr_mn`, …); bilateral CN/US trade
@@ -69,7 +76,7 @@ the Terminal/BQL connection; IMDR never pulls Bloomberg directly for this feed.
 
 ## Cross-check vendor — read before querying
 
-~40 of the 204 econ concepts **also exist from an official source** (e.g. `BBG.CPI.YOY.AU`
+~40 of the 219 econ concepts **also exist from an official source** (e.g. `BBG.CPI.YOY.AU`
 alongside `ABS.CPI.HEADLINE_M_YOY.AU`; `BBG.FX.NEER.ID` alongside `BIS.NEER.BROAD.ID`).
 This is intentional — BBG is a **parallel cross-check lane**, mirroring the existing
 FRED-OECD mirror pattern. **Nothing in the schema marks "primary" vs "cross-check"**,
@@ -89,6 +96,15 @@ The canonical loader is revision-aware: a brand-new obs inserts at vintage 0, a 
 inserts a new vintage (verified 2026-07-29), an unchanged value is skipped, and a NULL never
 clobbers a stored value. Re-runs are safe. `--no-load` / `--no-parquet` / `--country XX` /
 `--since` / `--until` are available.
+
+**`imdr_code` stability:** the ingest first reads the persisted `source_code → imdr_code` map for
+vendor BBG and passes it to `fetch_econdashboard(existing_codes=…)`, so a code — including a
+collision-disambiguation suffix like `BBG.CPI.CORE.YOY.AU.2` — assigned on a prior run is reused
+verbatim and never migrates to a different ticker as the upstream catalogue grows.
+
+**Tests:** `tests/unit/test_econ/test_bbg_econdashboard.py` (no-network) covers the unit/frequency/
+concept resolvers, the US-trade-contrib override, the excluded-category skips, and the code-stability
+contract above.
 
 ## Not wired to any scheduler
 
