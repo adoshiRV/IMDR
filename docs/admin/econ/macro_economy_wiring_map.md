@@ -9,6 +9,7 @@ This file is the **coverage target** for `econ.dim_indicator`. Every cluster bel
 - **Onboarding playbook**: [onboarding_new_country.md](onboarding_new_country.md) — 5-step workflow with vendor cascade, build order, identity checks, quality bar, ❌→⚠→✅ promotion rules.
 - **Indicator catalogue**: [country_econ_blueprint.md](country_econ_blueprint.md) — country-agnostic master list of series per cluster.
 - **Schema + build log**: [economics_data_ingest.md](economics_data_ingest.md) — pipeline + per-vendor build state.
+- **BBG cross-check lane**: [bbg/index.md](bbg/index.md) — Bloomberg EconDashboards mirror, PROD-LIVE 2026-07-29, 204 econ ind × 14 markets under vendor `BBG` (id 4). A **parallel cross-check vendor**: filter `vendor_id`/`BBG.*` to avoid double-counting; for CN/MY/TH/SG/PH/TW and for PMI/Big-Mac/Citi-surprise/TWI/bilateral-trade it is the **only** IMDR source. (5Y swaps + policy rates were split OUT to the `rates` schema — `rates.fact_observation` / `rates.fact_bench_rates`.)
 - **Date**: 2026-06-23 (§7.1 US completeness build-out: FRED-US scheduled fetchers + BIS REER + real PCE — 193 active indicators, 3.4 FX/REER flipped ✅, score 15✅/1⚠/0❌; prior same date: US Track A + Track B PROD-LIVE; prior 2026-06-22 §7.12 IN Cluster 4 Agmarknet pre-prod note)
 
 ---

@@ -69,6 +69,15 @@ _UNIT_ALIASES: dict[str, str] = {
 # codes natively.
 _COUNTRY_ALIASES: dict[str, str] = {}
 
+# Vendor alias -> canonical vendor_code in dbo.dim_vendor.
+# The resolver lower-cases the parquet's vendor_name; most vendor_codes are
+# stored lower-case (abs, fred, ...) so they round-trip, but a few were seeded
+# upper-case (e.g. 'BBG' the terminal vendor). Map the lower-cased form back to
+# the stored casing here.
+_VENDOR_ALIASES: dict[str, str] = {
+    "bbg": "BBG",
+}
+
 
 # ---------------------------------------------------------------------------
 # Parquet discovery
@@ -124,6 +133,7 @@ def _resolve_dim_row(
 ) -> dict | None:
     """Translate a parquet dim row to fully-resolved FK form. None on error."""
     vendor_code = row["vendor_name"].lower()
+    vendor_code = _VENDOR_ALIASES.get(vendor_code, vendor_code)
     unit_code = _UNIT_ALIASES.get(row["unit"], row["unit"])
     freq_code = row["frequency"]
     cat_code = row["category"]
