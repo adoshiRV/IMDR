@@ -20,7 +20,9 @@ neutral. This doc is only the weekly's *structure*.
 
 ## The three defining choices
 
-1. **One doc, the full Asia + G10 roster** (~17 markets — see `spider.md` coverage universe). Not one file per country. The universe is covered in
+1. **One doc, the full Asia + G10 roster** (~17 markets — see `spider.md` coverage
+   universe; **Vietnam is OUT of scope**, dropped 2026-07-27 — no VN section, matrix row,
+   or calendar line). Not one file per country. The universe is covered in
    a single weekly, so a PM reads the global picture and then drills into any country.
    Coverage floor: **every country gets a real section**; depth scales with what moved
    (a live-regime country runs deep; a quiet one collapses to an honest short read —
@@ -445,6 +447,28 @@ separate and each item tagged. Weekly emphases:
   cells sort on their start date). Before locking, run
   `python scripts/research/check_calendar_sort.py <the MD>` and fix any flag. See
   `spider.md` hard rule 5 (applies to daily & weekly; auto-run as a PostToolUse hook).
+- **Session scope — verify mark times before attributing any move.** Before locking, run
+  `python scripts/research/check_session_scope.py --prev <prior> --curr <reported> --event <UTC>`
+  for each attribution the week rests on. Curve marks in `rates.fact_observation` are
+  stamped anywhere from ~11:00 to 23:00 UTC depending on the market, so **a same-calendar-day
+  move is not a same-session move** — and a WoW delta inherits the error at both ends. Never
+  attribute a move to a release the curve was marked before; never present curves with
+  materially different mark times as a like-for-like reaction matrix without saying so. Act
+  on the checker's flags: `MISMATCH` = the two days' marks are too far apart for the
+  comparison to hold; `NO PAIRED MARK` = the market is unmarkable and belongs in the
+  unmarkable list, not the reaction table. The same discipline applies to FX (is the latest
+  row a real session or one carried tick?) and equities (Asian closes capture the *prior* US
+  session). See `spider.md` hard rule 0b.
+- **Staleness is MEASURED at every cut, never carried forward.** Before declaring any feed
+  stale — or dropping a section for want of data — run
+  `python scripts/research/check_feed_freshness.py --as-of <edition date>` (exit 0 = every
+  family within tolerance) and quote its dates. A staleness claim from a prior edition is
+  **not evidence**: re-measure it. Never write "still not loaded", "Nth consecutive edition",
+  or a session count this run did not produce. Judge against the source's **publication lag**,
+  not the cut date (FRED H.15 lands T+1, so the prior session's observation is current), and
+  never generalise a **weekly** series' cadence to a daily/weekly block
+  (`FRED.SENTIMENT.NFCI_CREDIT.US` is a Chicago Fed weekly, unrelated to credit OAS). See
+  `spider.md` hard rule 6.
 - **No-bullshit language.** Write plainly and directly. State what happened, what's
   priced, what the assumption is, and where it breaks — in the fewest honest words. No
   filler, no hedging-for-cover, no throat-clearing, no consultant-speak ("navigating

@@ -398,10 +398,10 @@ deep-dive, the id in the appendix. Cross-reference, don't restate.
 
 ---
 
-## MANDATORY PRE-LOCK CHECKS — run BOTH before saying the edition is done
+## MANDATORY PRE-LOCK CHECKS — run ALL THREE before saying the edition is done
 
-An edition is not finished until these two mechanical checks have been run and their
-output read. Neither is a gate you can wave through: they exist because each caught a
+An edition is not finished until these three mechanical checks have been run and their
+output read. None is a gate you can wave through: they exist because each caught a
 real defect that shipped.
 
 **1. Calendar sort** — `python scripts/research/check_calendar_sort.py <the MD>`
@@ -428,6 +428,25 @@ releases published at 14:00 UTC — but nine of sixteen curves, including India'
 (the largest move in the universe), were last marked at 11:00–11:10 UTC, hours before
 the data existed. The magnitudes were right; the causal story was impossible. A
 same-calendar-day move is not a same-session move.
+
+**3. Feed freshness** — `python scripts/research/check_feed_freshness.py --as-of <edition date>`
+**Run this BEFORE drafting too, not only at lock** — it is what licences (or refuses) every
+staleness claim in the edition. Exit 0 = every family within tolerance. Quote its dates.
+
+A staleness claim from a prior edition is **not evidence**: re-measure it every cut. Never
+write "still not loaded", "Nth consecutive edition", or a session count this run of the
+check did not produce. Two rules the checker encodes, which must also govern the prose:
+- **Judge against the source's publication lag, not the cut date.** FRED H.15 (cash
+  Treasuries, OAS, VIX) lands T+1, so an observation dated the previous session is
+  *current*. One session behind is normal and needs no caveat.
+- **Never generalise a weekly series' cadence to a daily block.**
+  `FRED.SENTIMENT.NFCI_CREDIT.US` reads as "credit" but is a Chicago Fed *weekly*
+  (Wednesday release for the prior Friday); it is unrelated to the daily credit-OAS block.
+
+*Why this rule exists:* the 25 and 26 Aug 2026 editions both reported FRED credit, VIX and
+cash Treasuries as unloaded past 19 Aug — the 26th calling it "seven sessions stale" — when
+the data was present through 24 Aug and had been ingested that morning. Two editions dropped
+a credit and volatility read that was sitting in the database. See `spider.md` hard rule 6.
 
 ---
 
