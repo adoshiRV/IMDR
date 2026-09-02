@@ -16,9 +16,10 @@ template.** The report's edge is the *disagreement* and the *news-vs-price* read
 lead. Data recap, per-country completeness, and sourcing machinery are support, not the
 headline.
 
-Shared fundamentals — persona, coverage universe (**Asia + G10, ~18 markets** — all of
-Asia-Pacific incl. China/Korea/Taiwan/Vietnam + the core G10/DM US·Eurozone·UK·Canada·
-Japan·Australia·NZ; the peripheral CH/NO/SE are out of scope), asset classes, grounding
+Shared fundamentals — persona, coverage universe (**Asia + G10, ~17 markets** — all of
+Asia-Pacific incl. China/Korea/Taiwan (Vietnam is OUT of scope — dropped 2026-07-27) + the
+core G10/DM US·Eurozone·UK·Canada·Japan·Australia·NZ; the peripheral CH/NO/SE are out of
+scope), asset classes, grounding
 layers, hard rules — live in `spider.md` and apply here. This doc is the daily's
 *structure*.
 
@@ -132,15 +133,41 @@ That is the *only* production metadata allowed on the reader-facing pages.
 Optional drill-down for the analyst. **Structure follows importance, not a fixed template.**
 
 **Charts sit here, before the deep-dive.** A "THE DAY IN CHARTS" band renders between the PM
-note and the first deep-dive block — the day's few grounded charts (not buried at the tail).
+note and the first deep-dive block — the day's grounded charts (not buried at the tail). Each is a
+single-unit `spiderchart` fenced JSON block (the builder renders it to inline SVG); **never mix
+units or day-vs-WoW within one chart** (no twin axis; a `%`-vs-`bp` or level-vs-delta mix buries
+the smaller series — split it). Choose editorial axis bounds — the builder gives a clean 0-based
+axis for all-positive charts and a zero baseline for charts with negatives. The standing chart set
+(surface what is grounded; label the as-of on any series that lags the cut):
+- **Rates / yields** — a front-to-belly move **across tenors including 5y** (`2y / 5y / 10y`, as a
+  grouped single-unit bp chart), for the key markets (US + the big movers); day or WoW move,
+  whichever is the cleaner grounded story. Grounded from the swap/OIS par curves.
+- **FX** — the day's currency moves (% vs USD, day or WoW), one consistent sign convention.
+- **Equities** — index moves (day or WoW %). If the equities tape is a session stale at the cut,
+  chart the **last grounded session and label the as-of date** — never fabricate a same-day move;
+  omit any series whose move looks distorted rather than assert it. **Label the x-axis with short
+  index codes/tickers, not full index names** (SPX/NDX/RTY/N225/TOPIX/TAIEX/TW-MSCI/SX5E/CAC/ASX/
+  NIFTY/SG-MSCI/HSI/HSCEI/HSTECH, ≤6 chars) — at ~12–15 bars the full names collide and overlap.
+  The caption spells out the full names + moves, so the short codes stay unambiguous to the reader.
+  (Rates/FX/commodities/credit labels are already short — no change.)
+- **Commodities** — oil plus whatever else is material (levels or move). If `commodities.fact_spot`
+  lags, label the as-of; a Monday/overnight move known only from sell-side stays **labelled VIEW**,
+  not asserted as a FACT-layer print.
+- **Credit** — spread **levels** (bp) *and* a **companion WoW-change (bp) chart** beside/below it
+  (levels and deltas are the same unit but wildly different magnitudes, so a grouped bar buries the
+  deltas — use two single-unit charts). Ground the WoW delta as `level − value ~5 sessions prior`
+  from the OAS series; do not eyeball, and drop any bucket whose delta can't be grounded.
+- A day's decisive **print decomposition** (e.g. CPI/durables components) where one exists.
 
 **No methodology narration — ever.** Do NOT explain the report's own construction to the reader:
 lines like "movers get a block; quiet markets get a monitor row… surfaced selectively, not
 dumped", "one row each for the non-movers, thin-coverage carries a flag", "split by status,
 multi-leg bundles split, regime views tagged macro-view-only" are internal build rules — the
 reader asks *"why are we saying this?"*. The sections simply **present their content**; the
-status sub-headers and the table columns already convey the structure. A single, genuinely-useful
-disclaimer is allowed (the trade map: *"what the houses are floating — not RV Capital's book"*).
+status sub-headers and the table columns already convey the structure. The **Street trade map
+carries no subtitle disclaimer** — the section header and the status sub-headers are enough. The
+single "not RV Capital's book" caveat lives once, on the Product-A priority-expressions line
+(*"what the Street is floating — not RV Capital's book"*), and nowhere else.
 
 ### Selective coverage — this SUPERSEDES the old "raised-floor / every country a full block" rule
 Keep generating the full clustered research (see Grounding & depth below) — it is the *input*.
@@ -182,7 +209,8 @@ For every *genuine* trade row: **current level · entry/target/stop · horizon �
 carry/roll · a specific measurable falsifier**. Multi-leg bundles are split into their legs; a
 regime view ("goldilocks summer") is `Macro view only` until an instrument is specified.
 Title it **"Street trade map"** (aggregated sell-side positioning) — never "where the book
-tilts", which reads as RV Capital's own positions.
+tilts", which reads as RV Capital's own positions — and, per above, **no subtitle line** under
+that title.
 
 ### Regional relative-value
 Where the cleaner expression is a *pair* (AU vs NZ rather than broad short-USD), say so — this
@@ -219,6 +247,57 @@ in the HTML, only.
 
 ---
 
+## MANDATORY — the per-country "what has happened" sweep (COVERAGE FIRST)
+
+**Coverage is the first obligation of the daily. A missed development is the worst
+possible defect — worse than a thin section, worse than a late edition, worse than a
+clumsy sentence.** Before any writing, run this sweep for **every market in the
+universe**, and be able to answer "what has happened here?" for each one. This is not
+optional and it is not satisfied by looking at the last session.
+
+**1. Never read a market from a single session.** A day-over-day change cannot see a
+multi-week move. For **every** market, compute and eyeball the **level plus DoD, WoW,
+MTD and drawdown-from-high** (with the date of the high) before deciding a market is
+quiet. A market can print −1% on the day and be −27% from its high — that has happened
+and it was missed (KOSPI 200, 19 Aug 2026: −1.47% DoD, −26.75% from its 22 June high,
+while every other index in the roster was within 9% of its own high). **A market at an
+extreme on ANY horizon is by definition not quiet and cannot go in the monitor table.**
+
+**2. Sweep every asset class, not just the one that moved.** Rates · FX · equities ·
+credit · commodities-exposure — plus the linkages between them. Equity index levels and
+moves are a first-class layer with the same standing as rates and FX; they are not
+colour. The same multi-horizon test applies to FX (move since the start of the quarter
+or from the recent extreme, not just DoD) and to rates (level and curve shape, not just
+the daily change).
+
+**3. Hunt cross-asset divergences explicitly.** Each run, ask per country: *are this
+market's asset classes telling the same story?* Equities down hard with the currency
+strong, rates selling off with the currency firm, credit calm against an equity slide —
+**a divergence between asset classes within one country is the highest-value observation
+the daily can carry**, and it is invisible if each layer is only checked on the day. When
+one is found, name the two candidate readings and state which observable would break the
+tie.
+
+**4. "No note in the corpus" is never the same as "nothing happened."** Sell-side flow
+is evidence *toward* the topics, not the definition of them. If the data shows a market
+at an extreme and no bank wrote about it in the window, that is itself the finding —
+report the move from the data and say the flow is silent. Conversely, do not conclude a
+market is quiet because a thematic search returned nothing; search the **data** first,
+then go looking for the flow that explains it (see the two-way retrieval rule below).
+
+**5. Missing data is a prompt to investigate, not a licence to drop a market.** A gap in
+a series (an exchange holiday, a feed miss) must be resolved — check whether the market
+was closed, and look at the surrounding sessions — never converted into "thin coverage"
+or a quiet-monitor row by default.
+
+**6. Non-market developments count.** Policy announcements, central-bank speak,
+political and fiscal events, regulatory and geopolitical developments, supply/logistics
+shocks (a closed strait, a sanctions change) — sweep for these per country too, not only
+for printed data. The question is "what has happened in this country", not "what
+released".
+
+---
+
 ## Grounding & depth (the INPUT that feeds Products A–C)
 
 The layered products are only as good as the underlying sweep. Keep it exhaustive — the depth
@@ -242,6 +321,13 @@ just gets *surfaced selectively*, not dumped.
   - **Dual-source rule:** `actual` ⟵ prefer `econ.fact_indicator` where IMDR holds it; `consensus`
     ⟵ `cb_events` (survey/forecast). Label which lane carried the actual when they differ or when
     one is missing.
+  - **`cb_events` BQL/TE lanes do not reconcile with each other (2026-07-27).** The same release
+    can be bucketed under a different `event_date` in each lane (BQL on the SGT local day, TE on
+    the true-UTC day — often the prior day for Asian-morning releases) **and** carry a different
+    `event_name` in each. A single-lane, single-date lookup can miss the other lane's row
+    entirely — this is what caused a Japan CPI print to be overlooked in a prior daily digest.
+    Check both vendor lanes for a country/date window before concluding "nothing released."
+    Detail: `docs/admin/calendar/bql_calendar.md` § Known limitation.
   - A fresh IMDR econ print must **reach the right product** — a hero tile / reaction line / the
     relevant deep-dive / the calendar `Actual` — and **never be dropped** because it wasn't in
     `cb_events`. If IMDR loaded it and the digest didn't surface it, that is a coverage FAILURE.
@@ -249,9 +335,16 @@ just gets *surfaced selectively*, not dumped.
     a prior month), say so and fall back to the official release / sell-side, labelled — but treat
     that as a gap to close, not the normal path.
 
-- **Exhaustive per-country corpus** — retrieve each country's in-window flow **two ways and
-  reconcile**: (1) structured SQL over `research.dim_report`/`fact_chunk` scoped to country +
-  window across all vendors; (2) targeted Qdrant per-country + per-theme sweeps. Deep-read every
+- **Exhaustive per-country corpus — BOTH halves are mandatory, and the structured half comes
+  first.** Retrieve each country's in-window flow **two ways and reconcile**: (1) structured SQL
+  over `research.dim_report`/`fact_chunk` scoped to country + window across all vendors,
+  producing a **complete inventory** of in-scope titles that is actually read through; (2)
+  targeted Qdrant per-country + per-theme sweeps. Qdrant alone is a *sample*, not coverage —
+  a top-K semantic search silently drops the globally-titled flagship and the note whose
+  subject you did not think to query. On 18 Aug 2026 the Qdrant-only run left ~171 in-scope
+  reports unexamined and missed a −27% equity drawdown that a positioning note in the corpus
+  described directly. Run the structured sweep, review every in-scope title, then use Qdrant
+  to go deep on what it surfaces. Deep-read every
   substantive note; only genuine noise (single-name/sector equity, quotesheets, MBS/muni CUSIP
   packs) is noted-not-read. Read full chunk text via the scratchpad reader (the MCP truncates).
 - **Hunt each country's flagship daily** as its spine (Citi *The Point*, GS *Views/Wraps*, JPM
@@ -279,6 +372,15 @@ just gets *surfaced selectively*, not dumped.
 - **Succinct, no-bullshit language.** Short declarative sentences, numbers over adjectives, cut
   filler and hedging. Shorten anything shortenable — but never drop a fact, number, citation, or
   flag to save words.
+- **No rhetorical padding — lead with the fact.** Ban the empty tension-restating wrapper:
+  "Not whether X but Y", "The question isn't … it's …", "it's not about X, it's about Y", "the real
+  story is …", "the tell/takeaway/upshot is …", "make no mistake". These add words, not information.
+  Open every line with the informative content — the number, the surprise, the named house view —
+  not a rhetorical setup, and let the fact carry the point. A genuine *causal attribution* that names
+  the driver and rejects an alternative ("oil, not local news, was the driver") is not padding —
+  it carries content and is kept; the ban is on framings that restate a tension without adding a
+  fact, number, or attribution. Headers are descriptive of the content, not clever ("a soft durables
+  headline, a firm capex core", not "a durables miss that isn't").
 - **No process narration in the report body.** Method/tooling caveats go to the appendix
   (machinery) and the closing operator message — never the reader pages.
 - **Indonesia** — express via the FX leg as-is; do not wire a specific rates instrument. Internal
@@ -293,6 +395,39 @@ core-PCE nowcast ~11×, the JP 20y auction ~12×, the NZ 2y ~8×, the China loan
 07/16). Under the layered model: each fact appears **once in its home** — the number in the hero
 band / reaction panel / house table, the debate in the PM dashboard, the drill-down in the
 deep-dive, the id in the appendix. Cross-reference, don't restate.
+
+---
+
+## MANDATORY PRE-LOCK CHECKS — run BOTH before saying the edition is done
+
+An edition is not finished until these two mechanical checks have been run and their
+output read. Neither is a gate you can wave through: they exist because each caught a
+real defect that shipped.
+
+**1. Calendar sort** — `python scripts/research/check_calendar_sort.py <the MD>`
+Every table with a `Date` / `When` / `Time` column must be chronological. Note the
+checker matches the header **exactly**: use a bare `When`, not `When (SGT)`, or the
+table is silently skipped and reports as "0 calendar tables".
+
+**2. Session scope** — `python scripts/research/check_session_scope.py --prev <prior> --curr <reported> --event <UTC time>`
+**This is the timezone check, and it is the one that catches attribution errors.**
+`rates.fact_observation` stamps each curve whenever the feed last snapped it, and those
+times differ by up to twelve hours across markets — grouping by `CAST(ts AS date)` does
+**not** give a common session. The checker prints each curve's last-mark time on both
+days and splits the universe into those that *could* have traded a given release and
+those marked before it.
+
+Read the output against your own prose. **Never attribute a move in the CANNOT column
+to that release.** Also act on its two flags: `MISMATCH` means the two days' marks are
+taken far enough apart that the day-over-day comparison itself is broken, and
+`NO PAIRED MARK` means the market cannot be marked at all and belongs in the
+unmarkable list, not the reaction table.
+
+*Why this rule exists:* the 26 Aug 2026 edition attributed a global rates rally to US
+releases published at 14:00 UTC — but nine of sixteen curves, including India's −7.2bp
+(the largest move in the universe), were last marked at 11:00–11:10 UTC, hours before
+the data existed. The magnitudes were right; the causal story was impossible. A
+same-calendar-day move is not a same-session move.
 
 ---
 
@@ -333,13 +468,23 @@ deep-dive, the id in the appendix. Cross-reference, don't restate.
 2. **No machinery on reader pages** — only the one-line data stamp. All ids/Qdrant/depth-flags →
    appendix.
 3. **Reaction is session-scoped, never a false like-for-like matrix.** Stale series omitted, not
-   footnoted. Moves attributed only to the window they actually capture.
+   footnoted. Moves attributed only to the window they actually capture — **verified with
+   `check_session_scope.py`, not assumed from the calendar date.** Curve marks range from
+   ~11:00 to 23:00 UTC across markets; an Asian curve marked at 11:00 UTC cannot have
+   traded a US release at 14:00 UTC. State the mark times in the reaction table whenever
+   they differ materially across the markets shown.
 4. **Disagreement leads.** The live debates (PM dashboard) and the news-vs-price reads are the
    edge and sit in Product A.
 5. **Trades split by status, one per row, with levels + falsifier.** "Street trade map", not
    "where the book tilts".
 6. **Selective coverage** (movers get blocks; quiet markets → one monitor table) — supersedes the
    old every-country-a-full-block rule. Korea is a full roster member, surfaced selectively.
+   **"Selective" governs SURFACING, never SWEEPING.** Every market is swept in full every run
+   per the mandatory per-country sweep above; only the surfacing is selective. A market may be
+   placed in the quiet monitor **only after** its level, DoD, WoW, MTD and drawdown-from-high
+   have been checked across rates, FX and equities and none is at an extreme. Calling a market
+   quiet without having looked is a coverage FAILURE, and it is the most serious defect in the
+   edition.
 7. **IMDR econ releases come through effectively** — sweep `econ.fact_indicator` per country every
    run; a print we loaded ourselves is a first-class FACT and must reach the note, never be
    dropped for not being in `cb_events`.
@@ -355,7 +500,12 @@ deep-dive, the id in the appendix. Cross-reference, don't restate.
     their own build rules ("movers get a block…", "split by status, multi-leg split…"). The audit
     appendix + all ids/logs/data-ops-healthcheck warnings are HTML-internal only; the production PDF
     (Product A + charts + Product B) carries none of it.
-12. **Calendars are chronological.** Any calendar / event table — the day-ahead / week-ahead
+12. **Both mechanical checks run before lock — calendar sort AND session scope.** The
+    session-scope check (`check_session_scope.py`) is the timezone guard: curve mark
+    times differ by up to twelve hours, so a same-calendar-day move is not a
+    same-session move, and a move marked before a release cannot be attributed to it.
+    See "Mandatory pre-lock checks" above.
+13. **Calendars are chronological.** Any calendar / event table — the day-ahead / week-ahead
     calendar and any within-block official-voice-vs-sell-side timeline (any table with a
     `Date` / `When` / `Time` column) — MUST be sorted ascending by date/time. Before locking,
     run `python scripts/research/check_calendar_sort.py <the MD>` and fix any flag. See
