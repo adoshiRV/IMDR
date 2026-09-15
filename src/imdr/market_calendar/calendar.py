@@ -27,6 +27,7 @@ False
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
@@ -241,3 +242,33 @@ def trading_days_between(
 def last_business_day(country_code: str, calendar_code: str) -> datetime:
     """Most recent completed trading day as a UTC-midnight datetime."""
     return _last_business_day_core(country_code, calendar_code)
+
+
+def last_business_day_any(
+    market_calendars: Sequence[tuple[str, str]],
+) -> datetime:
+    """Most recent completed session across ANY of ``market_calendars``.
+
+    Takes ``[(country_code, calendar_code), ...]`` and returns the latest
+    ``last_business_day`` among them, as a UTC-midnight datetime.
+
+    This is the correct anchor for a pipeline whose universe spans several
+    exchanges. Anchoring such a pipeline on ONE market's calendar drops every
+    day that market is shut but the others trade: the equity index ingest
+    anchored on US/GT and so never asked for 2026-09-07 (US Labor Day), a day
+    on which 11 of its 13 exchange calendars traded. Four runs that day logged
+    "success" while re-writing 09-04, and Monday's Asian and European closes
+    were lost. Picking a different single market cannot fix this -- NYSE was
+    shut too. The anchor has to be the union.
+
+    Raises ``ValueError`` if ``market_calendars`` is empty, rather than
+    returning a silent default.
+    """
+    pairs = list(market_calendars)
+    if not pairs:
+        raise ValueError(
+            "last_business_day_any() needs at least one (country_code, "
+            "calendar_code) pair; got none. An empty universe must fail "
+            "loudly, not fall back to a default calendar."
+        )
+    return max(_last_business_day_core(cc, cal) for cc, cal in pairs)

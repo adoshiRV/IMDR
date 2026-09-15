@@ -7,10 +7,20 @@ from pathlib import Path
 
 import yaml
 
+import structlog
+
+from imdr.market_calendar.countries import default_calendar
 from imdr.schemas.equity import IndexCreate, VIX_TICKERS
 from imdr.universe.base import BaseUniverse
 
 _UNIVERSE_PATH = Path(__file__).parent / "equity.yml"
+
+_log = structlog.get_logger("universe.equity")
+
+# Equity data follows EXCHANGE calendars. The project-wide default for US is
+# "GT" (SIFMA govt bond), which is wrong for equities -- tracked in
+# docs/admin/development/per_script_calendar_intent.md.
+_EQUITY_CALENDAR_OVERRIDES: dict[str, str] = {"US": "NY"}
 
 
 class EquityUniverse(BaseUniverse):
@@ -101,6 +111,38 @@ class EquityUniverse(BaseUniverse):
                     country_code=e["country_code"],
                 ))
         return entries
+
+    def market_calendars(self) -> list[tuple[str, str]]:
+        """Unique ``(country_code, calendar_code)`` pairs for the index set.
+
+        Used to anchor the daily ingest on the union of every exchange in the
+        universe rather than on one market -- see
+        ``market_calendar.last_business_day_any``.
+
+        US resolves to ``NY`` (NYSE), NOT the project-wide ``GT`` default
+        (SIFMA govt bond): equity closes follow the exchange calendar. This is
+        the mismatch filed in
+        ``docs/admin/development/per_script_calendar_intent.md``.
+
+        Countries with no calendar configured in ``DEFAULT_CALENDAR_BY_COUNTRY``
+        (FR, PL here) are skipped -- they cannot contribute a trading day, and
+        their exchanges are already represented by EU/TE. Skipping is safe
+        because the anchor is a MAX: an absent market can only ever have made
+        the anchor earlier, never later.
+        """
+        pairs: set[tuple[str, str]] = set()
+        for e in self._all_entries():
+            cc = e["country_code"]
+            cal = _EQUITY_CALENDAR_OVERRIDES.get(cc)
+            if cal is None:
+                try:
+                    cal = default_calendar(cc)
+                except KeyError:
+                    _log.debug("no_calendar_for_country", country_code=cc,
+                               ticker=e["ticker"])
+                    continue
+            pairs.add((cc, cal))
+        return sorted(pairs)
 
     def target_currencies(self) -> list[str]:
         """Unique currencies across all indices (for holiday detection)."""

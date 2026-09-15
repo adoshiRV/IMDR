@@ -13,7 +13,7 @@ from __future__ import annotations
 import argparse
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import structlog
@@ -22,7 +22,7 @@ from imdr.config.settings import get_settings
 from imdr.connectors.citi_helpers import TagQuotaExceeded
 from imdr.connectors.mssql import MSSQLConnector
 from imdr.domains.equity.pipeline_index import EquityIndexPipeline
-from imdr.market_calendar.calendar import last_business_day
+from imdr.market_calendar.calendar import last_business_day_any
 from imdr.market_calendar.holidays import holiday_hits_for_timestamp
 from imdr.notifications.email import send_outlook_email
 from imdr.notifications.formatters.equity_ingest import EquityIngestFormatter
@@ -31,6 +31,9 @@ from imdr.universe.equity import get_equity_universe
 from imdr.utils.logging import configure_logging
 
 log = structlog.get_logger(__name__)
+
+# Calendar days of trailing re-fetch on each run (see fetch_start below).
+_FETCH_LOOKBACK_DAYS = 5
 
 
 def parse_args() -> argparse.Namespace:
@@ -49,15 +52,33 @@ def main() -> int:
     if args.date:
         target = datetime.strptime(args.date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
     else:
-        # Provisional: anchors on US/GT (SIFMA Govt Bond) per project-wide default.
-        # Equity intent suggests "NY" (NYSE); follow-up tracked in
-        # docs/admin/development/per_script_calendar_intent.md.
-        target = last_business_day("US", "GT")
+        # Anchor on the union of every exchange in the universe, not on one
+        # market. Anchoring on US/GT silently dropped 2026-09-07 (US Labor Day)
+        # even though 11 of 13 exchange calendars traded that day: four runs
+        # logged "success" while all four re-wrote 09-04. Switching to NY would
+        # not have helped -- NYSE was shut too.
+        target = last_business_day_any(universe.market_calendars())
 
     start = target
     end = target.replace(hour=23, minute=59)
+    if args.date:
+        # An explicit --date means "exactly this day" -- a targeted repair or
+        # replay. Widening it would silently rewrite neighbouring days too.
+        fetch_start = start
+    else:
+        # Reach back a few days on every scheduled run so late-publishing tags
+        # land. The anchor advances as soon as the first exchange completes a
+        # session, so any one date is the anchor only briefly -- too briefly
+        # for FTSE, which Citi serves 12-20h after the LSE close. Quota is
+        # charged per TAG, not per tag-day, so a wider window costs nothing
+        # extra. Upserts make it a no-op for days already settled.
+        fetch_start = (target - timedelta(days=_FETCH_LOOKBACK_DAYS)).replace(
+            hour=0, minute=0, second=0, microsecond=0,
+        )
 
-    log.info("equity_index_live_start", date=str(target.date()))
+    log.info("equity_index_live_start", date=str(target.date()),
+             fetch_from=str(fetch_start.date()),
+             markets=len(universe.market_calendars()))
 
     connector = MSSQLConnector(settings)
     try:
@@ -65,6 +86,7 @@ def main() -> int:
         pipeline = EquityIndexPipeline(
             connector=connector, settings=settings,
             universe=universe, start=start, end=end,
+            fetch_start=fetch_start,
         )
         result = pipeline.run()
         elapsed = time.perf_counter() - t0

@@ -5,6 +5,9 @@ from __future__ import annotations
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
+import pytest
+
+import imdr.market_calendar.calendar as cal_mod
 from imdr.market_calendar.countries import (
     countries_for_currency,
     country_local_date,
@@ -128,3 +131,59 @@ def test_cn_covers_cnh():
     country = get_country("CN")
     assert "CNY" in country.currencies
     assert "CNH" in country.currencies
+
+# ---------------------------------------------------------------------------
+# last_business_day_any — the 2026-09-07 union-anchor regression
+#
+# 07 Sep 2026 was US Labor Day. Both US calendars (GT and NY) were shut, but
+# 11 of the equity universe's other 13 exchange calendars traded. The daily
+# equity ingest anchored on US/GT, so it targeted 09-04 on all four of that
+# day's runs -- each logging "success" -- and Monday's Asian and European
+# closes were never requested. Citi held them the whole time.
+# ---------------------------------------------------------------------------
+
+def test_last_business_day_any_takes_the_latest_market(monkeypatch):
+    """The anchor is the MAX across markets, not any single one."""
+    fake = {
+        ("US", "NY"): datetime(2026, 9, 4, tzinfo=ZoneInfo("UTC")),
+        ("UK", "LS"): datetime(2026, 9, 7, tzinfo=ZoneInfo("UTC")),
+        ("JP", "JN"): datetime(2026, 9, 7, tzinfo=ZoneInfo("UTC")),
+    }
+    monkeypatch.setattr(
+        cal_mod, "_last_business_day_core", lambda cc, code: fake[(cc, code)]
+    )
+    got = cal_mod.last_business_day_any(list(fake))
+    assert got.date() == date(2026, 9, 7)
+
+
+def test_last_business_day_any_beats_the_us_only_anchor(monkeypatch):
+    """THE regression: a US-anchored run drops a day the world traded."""
+    fake = {
+        ("US", "GT"): datetime(2026, 9, 4, tzinfo=ZoneInfo("UTC")),
+        ("US", "NY"): datetime(2026, 9, 4, tzinfo=ZoneInfo("UTC")),
+        ("UK", "LS"): datetime(2026, 9, 7, tzinfo=ZoneInfo("UTC")),
+        ("HK", "HK"): datetime(2026, 9, 7, tzinfo=ZoneInfo("UTC")),
+    }
+    monkeypatch.setattr(
+        cal_mod, "_last_business_day_core", lambda cc, code: fake[(cc, code)]
+    )
+    # Neither US calendar would have asked for 09-07 -- switching GT->NY,
+    # the fix proposed in per_script_calendar_intent.md, changes nothing.
+    assert fake[("US", "GT")].date() == date(2026, 9, 4)
+    assert fake[("US", "NY")].date() == date(2026, 9, 4)
+    assert cal_mod.last_business_day_any(list(fake)).date() == date(2026, 9, 7)
+
+
+def test_last_business_day_any_single_market_matches_last_business_day(monkeypatch):
+    """With one market the union must degenerate to the old behaviour."""
+    monkeypatch.setattr(
+        cal_mod, "_last_business_day_core",
+        lambda cc, code: datetime(2026, 9, 8, tzinfo=ZoneInfo("UTC")),
+    )
+    assert cal_mod.last_business_day_any([("US", "NY")]).date() == date(2026, 9, 8)
+
+
+def test_last_business_day_any_rejects_empty():
+    """An empty universe must fail loudly, not pick a default calendar."""
+    with pytest.raises(ValueError, match="at least one"):
+        cal_mod.last_business_day_any([])

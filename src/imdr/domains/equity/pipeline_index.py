@@ -47,6 +47,7 @@ class EquityIndexPipeline(BasePipeline[pd.DataFrame, list[IndexLevelCreate], int
         universe: EquityUniverse,
         start: datetime,
         end: datetime,
+        fetch_start: datetime | None = None,
     ) -> None:
         super().__init__(connector)
         self._settings = settings
@@ -54,6 +55,13 @@ class EquityIndexPipeline(BasePipeline[pd.DataFrame, list[IndexLevelCreate], int
         self._config = get_pipeline_config(self.pipeline_name)
         self._start = start
         self._end = end
+        # Extraction may reach further back than the anchor day so that
+        # late-publishing vendor tags are caught (FTSE arrives 12-20h after the
+        # LSE close, so a single-day fetch misses it). Health checks and
+        # get_run_context() stay keyed on ``_start`` -- the anchor -- so
+        # widening the fetch window cannot move what they measure. Loads are
+        # idempotent via bulk_upsert, so re-fetching a settled day is a no-op.
+        self._fetch_start = fetch_start or start
         self._raw_df: pd.DataFrame | None = None
         self._extraction_errors: list[dict] = []
         self._quota_usage: int | None = None
@@ -68,7 +76,7 @@ class EquityIndexPipeline(BasePipeline[pd.DataFrame, list[IndexLevelCreate], int
                 client=client, settings=self._settings,
                 universe=self._universe, quota_tracker=tracker,
             )
-            df = extractor.extract_index(self._start, self._end)
+            df = extractor.extract_index(self._fetch_start, self._end)
 
         self._extraction_errors = extractor._errors
         self._quota_usage = tracker.current_usage()
@@ -123,7 +131,7 @@ class EquityIndexPipeline(BasePipeline[pd.DataFrame, list[IndexLevelCreate], int
             return
         manifest = {
             "source": "citi_velocity_historical",
-            "range": [str(self._start.date()), str(self._end.date())],
+            "range": [str(self._fetch_start.date()), str(self._end.date())],
             "rows_loaded": result,
         }
         written = parquet_write(self._raw_df, manifest=manifest)

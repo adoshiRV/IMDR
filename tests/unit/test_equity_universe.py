@@ -94,3 +94,39 @@ class TestEquityUniverse:
         ccys = universe.target_currencies()
         assert "USD" in ccys
         assert "JPY" in ccys
+
+class TestMarketCalendars:
+    """Union-anchor inputs — see last_business_day_any and the 09-07 loss."""
+
+    def test_returns_unique_sorted_pairs(self, universe):
+        mc = universe.market_calendars()
+        assert mc == sorted(set(mc))
+        assert len(mc) > 5
+
+    def test_us_resolves_to_nyse_not_govt_bond(self, universe):
+        """Equity closes follow the exchange, not SIFMA.
+
+        The project-wide default for US is GT (govt bond). Using it here is the
+        mismatch filed in per_script_calendar_intent.md.
+        """
+        mc = dict(universe.market_calendars())
+        assert mc["US"] == "NY"
+        assert "GT" not in mc.values()
+
+    def test_covers_the_asian_and_european_exchanges(self, universe):
+        """These are the markets whose 07 Sep closes were lost."""
+        mc = dict(universe.market_calendars())
+        for cc in ("JP", "KR", "HK", "AU", "TW", "UK", "EU", "IN", "SG", "TH"):
+            assert cc in mc, cc
+
+    def test_countries_without_a_calendar_are_skipped(self, universe):
+        """FR and PL have no configured calendar; they must not raise.
+
+        Skipping is safe because the anchor is a MAX -- an absent market can
+        only ever have made the anchor earlier, never later -- and both are
+        already covered by EU/TE.
+        """
+        mc = dict(universe.market_calendars())
+        assert "FR" not in mc
+        assert "PL" not in mc
+        assert mc.get("EU") == "TE"
