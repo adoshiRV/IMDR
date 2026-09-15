@@ -66,6 +66,22 @@ class EquityIndexPipeline(BasePipeline[pd.DataFrame, list[IndexLevelCreate], int
         self._extraction_errors: list[dict] = []
         self._quota_usage: int | None = None
 
+    @property
+    def anchor_row_count(self) -> int:
+        """Rows extracted FOR THE ANCHOR DAY, not the whole fetch window.
+
+        ``run()`` returns rows loaded across the widened window, so once the
+        trailing re-fetch was added a healthy-looking total could hide a total
+        vendor outage on the day the run is actually about: 5 settled days
+        re-upserting ~115 rows reads as success while the anchor contributed
+        nothing. Reporting this alongside the total is what keeps the widening
+        from re-creating the silent success it was added to fix.
+        """
+        if self._raw_df is None or self._raw_df.empty:
+            return 0
+        anchor = self._start.date()
+        return int((pd.to_datetime(self._raw_df["ts"]).dt.date == anchor).sum())
+
     def extract(self) -> pd.DataFrame:
         tracker = TagQuotaTracker(
             quota_limit=self._settings.citi_tag_quota_limit,

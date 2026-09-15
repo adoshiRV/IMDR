@@ -91,12 +91,26 @@ def main() -> int:
         result = pipeline.run()
         elapsed = time.perf_counter() - t0
 
-        report.info("pipeline", f"Loaded {result} rows", details={
-            "date": str(target.date()),
-            "rows_loaded": result,
-            "elapsed_secs": round(elapsed, 1),
-            "quota_usage": pipeline._quota_usage,
-        })
+        # `result` spans the whole re-fetch window, so it must never be the
+        # only number reported against the anchor date -- 5 settled days
+        # re-upserting reads as success while the anchor contributed nothing.
+        anchor_rows = pipeline.anchor_row_count
+        report.info("pipeline", f"Loaded {result} rows ({anchor_rows} for {target.date()})",
+                    details={
+                        "date": str(target.date()),
+                        "rows_loaded": result,
+                        "rows_anchor_day": anchor_rows,
+                        "fetch_from": str(fetch_start.date()),
+                        "elapsed_secs": round(elapsed, 1),
+                        "quota_usage": pipeline._quota_usage,
+                    })
+
+        if anchor_rows == 0:
+            report.warning("anchor_day_empty",
+                f"No rows for {target.date()} — the vendor served nothing for "
+                f"the anchor session. The {result} rows loaded are backfill of "
+                f"earlier days and do NOT mean this run succeeded.",
+                details={"date": str(target.date()), "rows_loaded": result})
 
         if pipeline._extraction_errors:
             report.warning("extraction_errors",

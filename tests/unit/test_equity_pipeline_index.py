@@ -130,3 +130,37 @@ def test_health_checks_are_keyed_on_the_anchor_not_the_fetch_window():
                 f"{type(c).__name__} captured the widened fetch window; "
                 "health checks must measure the anchor day only"
             )
+
+
+# ---------------------------------------------------------------------------
+# anchor_row_count — the widened window must not hide an anchor-day outage
+# ---------------------------------------------------------------------------
+
+def _with_raw(rows):
+    p = _pipeline(WIDE)
+    p._raw_df = pd.DataFrame(rows, columns=["ticker", "ts", "value"]) if rows else pd.DataFrame()
+    return p
+
+
+def test_anchor_row_count_ignores_the_backfilled_days():
+    """5 settled days re-upserting must not read as a successful anchor run."""
+    p = _with_raw([
+        ("FTSE", pd.Timestamp("2026-09-09"), 1.0),
+        ("SPX", pd.Timestamp("2026-09-10"), 2.0),
+        ("SPX", pd.Timestamp("2026-09-11"), 3.0),
+    ])
+    assert p.anchor_row_count == 0, "nothing landed for the 14 Sep anchor"
+
+
+def test_anchor_row_count_counts_only_the_anchor_day():
+    p = _with_raw([
+        ("FTSE", pd.Timestamp("2026-09-09"), 1.0),
+        ("SPX", pd.Timestamp("2026-09-14"), 2.0),
+        ("N225", pd.Timestamp("2026-09-14"), 3.0),
+    ])
+    assert p.anchor_row_count == 2
+
+
+def test_anchor_row_count_handles_no_extract():
+    assert _with_raw([]).anchor_row_count == 0
+    assert _pipeline(WIDE).anchor_row_count == 0

@@ -430,3 +430,64 @@ def test_ambiguous_bank_acronyms_are_not_aliased():
     resolve, or they would mislabel rows with false confidence."""
     for text in ("BoC decision", "BoT meeting", "BI board meeting"):
         assert ced._country_from_text(text) is None
+
+
+def test_same_country_board_keeps_the_section_fallback(tmp_path):
+    """Two rows naming the SAME country is not a multi-country grid.
+
+    Counting rows rather than distinct countries made a real per-country board
+    trip the grid guard as soon as two of its own rows said "Japan" — and its
+    remaining rows, the ones carrying only "Trade balance", then lost the
+    section fallback and went unchecked. Regression from widening the lead-cell
+    scan: before, none of these rows resolved a country at all.
+    """
+    md = """## Japan
+
+| Date | Time | Event |
+|---|---|---|
+| 14 Sep | 08:50 | Japan Q2 GDP, final |
+| 15 Sep | 08:50 | Japan PPI |
+| 16 Sep | 08:50 | Trade balance; machinery orders |
+"""
+    p = tmp_path / "d.md"
+    p.write_text(md, encoding="utf-8")
+    rows = list(ced.digest_event_rows(p, dt.date(2026, 9, 15)))
+    assert len(rows) == 3
+    assert {r[2] for r in rows} == {"JP"}, "every row belongs to the section country"
+
+
+def test_genuine_grid_still_suppresses_the_section(tmp_path):
+    """The guard must still fire for two DIFFERENT countries."""
+    md = """## United States
+
+| Date | Time | Event |
+|---|---|---|
+| 16 Sep | 09:30 | Japan CPI |
+| 17 Sep | 12:30 | ECB's Lagarde speaks |
+| 18 Sep | 08:00 | Trade balance |
+"""
+    p = tmp_path / "d.md"
+    p.write_text(md, encoding="utf-8")
+    got = {r[2] for r in ced.digest_event_rows(p, dt.date(2026, 9, 15))}
+    assert "US" not in got, "the section heading must not leak into a grid"
+    assert {"JP", "EU"} <= got
+
+
+def test_impossible_date_is_dropped_not_crashed(tmp_path):
+    """A typo'd '31 Feb' cell must cost one row, not the whole gate.
+
+    _resolve_year finds no valid year and returned None, which reached
+    match_event as `date - None` -> TypeError.
+    """
+    assert ced._resolve_year(2, 31, dt.date(2026, 9, 15)) is None
+    md = """## Japan
+
+| Date | Event |
+|---|---|
+| 31 Feb | Typo row |
+| 16 Sep | Trade balance |
+"""
+    p = tmp_path / "d.md"
+    p.write_text(md, encoding="utf-8")
+    rows = list(ced.digest_event_rows(p, dt.date(2026, 9, 15)))
+    assert [r[1] for r in rows] == [dt.date(2026, 9, 16)]

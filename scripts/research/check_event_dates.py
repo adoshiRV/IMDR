@@ -301,11 +301,17 @@ def _row_lead(cells: list[str], date_col: int, country_col: int | None) -> str:
     )
 
 
-def _resolve_year(month: int, day: int, as_of: dt.date) -> dt.date:
+def _resolve_year(month: int, day: int, as_of: dt.date) -> dt.date | None:
     """Pick the year that puts (month, day) nearest the edition date.
 
     A digest compiled on 31 Dec legitimately carries early-January dates, so
     the year is chosen by proximity rather than assumed to be the edition's.
+
+    Returns None when (month, day) is not a real date in ANY candidate year --
+    a typo'd "31 Feb" cell. The caller drops the row: an impossible date
+    cannot be checked against a calendar, and letting the None through made
+    match_event raise `TypeError: date - NoneType` and take the whole gate
+    down instead of reporting one bad cell.
     """
     best = None
     for yr in (as_of.year - 1, as_of.year, as_of.year + 1):
@@ -364,10 +370,18 @@ def digest_event_rows(path: Path, as_of: dt.date):
         # heading must NOT be applied to its unlabelled rows: an "ECB decision"
         # row sitting inside a US section would be checked as a US release and
         # bind to whatever US event shares two tokens with it.
-        multi_country = country_col is not None or sum(
-            1 for _, cells in data
-            if _country_from_text(_row_lead(cells, date_col, country_col))
-        ) >= 2
+        # DISTINCT countries, not row count. Counting rows means a genuine
+        # per-country board trips the guard as soon as two of its own rows
+        # name their country ("Japan Q2 GDP", "Japan PPI") -- and then its
+        # remaining rows, the ones that say only "Trade balance", lose the
+        # section fallback and go unchecked. Two rows naming the same country
+        # is a single-country board; it takes two DIFFERENT countries to make
+        # a grid.
+        row_countries = {
+            cc for _, cells in data
+            if (cc := _country_from_text(_row_lead(cells, date_col, country_col)))
+        }
+        multi_country = country_col is not None or len(row_countries) >= 2
 
         for lno, cells in data:
             if date_col >= len(cells):
@@ -376,6 +390,8 @@ def digest_event_rows(path: Path, as_of: dt.date):
             if key is None or key[0] == 0 or key[1] == 0:
                 continue  # soft, time-only, or month-only cell
             when = _resolve_year(key[0], key[1], as_of)
+            if when is None:
+                continue  # impossible date (e.g. "31 Feb") -- uncheckable
             others = " ".join(
                 c for k, c in enumerate(cells) if k not in (date_col, country_col)
             )
