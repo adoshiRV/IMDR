@@ -164,3 +164,52 @@ def test_anchor_row_count_counts_only_the_anchor_day():
 def test_anchor_row_count_handles_no_extract():
     assert _with_raw([]).anchor_row_count == 0
     assert _pipeline(WIDE).anchor_row_count == 0
+
+
+# ---------------------------------------------------------------------------
+# resolve_fetch_start — the repair window, and the per-tag call cap it exists for
+# ---------------------------------------------------------------------------
+
+import importlib.util  # noqa: E402
+from pathlib import Path as _Path  # noqa: E402
+
+_RUNNER = (
+    _Path(__file__).resolve().parents[2]
+    / "scripts" / "equity" / "citi" / "equity_index_citi_live.py"
+)
+_rspec = importlib.util.spec_from_file_location("equity_index_citi_live", _RUNNER)
+runner = importlib.util.module_from_spec(_rspec)
+_rspec.loader.exec_module(runner)
+
+
+def test_scheduled_run_reaches_back():
+    """No flags: trailing re-fetch so late tags land."""
+    got = runner.resolve_fetch_start(ANCHOR, None, date_given=False)
+    assert got == dt.datetime(2026, 9, 9, tzinfo=UTC)
+
+
+def test_date_alone_means_exactly_that_day():
+    """A targeted replay must not silently rewrite its neighbours."""
+    assert runner.resolve_fetch_start(ANCHOR, None, date_given=True) == ANCHOR
+
+
+def test_fetch_from_opens_an_explicit_repair_window():
+    """One range call repairs a whole gap for the cost of ONE per-tag call.
+
+    Citi caps calls per TAG (10 per rolling 24h) and counts calls, not days.
+    Repairing 12 days as a loop of --date runs needs 12 and dies partway --
+    which is exactly what happened on 2026-09-15, stranding 4 of 12 days.
+    """
+    got = runner.resolve_fetch_start(ANCHOR, "2026-07-20", date_given=True)
+    assert got == dt.datetime(2026, 7, 20, tzinfo=UTC)
+
+
+def test_fetch_from_wins_over_the_date_narrowing():
+    """--fetch-from is opt-in, so it may widen a --date run."""
+    assert runner.resolve_fetch_start(ANCHOR, "2026-09-01", date_given=True) != ANCHOR
+
+
+def test_fetch_from_after_the_anchor_is_rejected():
+    """A backwards window would fetch nothing and look like a quiet day."""
+    with pytest.raises(ValueError, match="after the anchor"):
+        runner.resolve_fetch_start(ANCHOR, "2026-09-20", date_given=True)

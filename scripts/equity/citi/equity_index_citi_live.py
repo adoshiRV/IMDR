@@ -39,7 +39,53 @@ _FETCH_LOOKBACK_DAYS = 5
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Equity Index Daily EOD Ingest")
     parser.add_argument("--date", type=str, default=None, help="Override date (YYYY-MM-DD)")
+    parser.add_argument(
+        "--fetch-from", type=str, default=None, metavar="YYYY-MM-DD",
+        help=(
+            "Start the vendor fetch here instead of the default window. Use for "
+            "REPAIRS: Citi caps calls PER TAG (10 per rolling 24h), and that cap "
+            "counts calls, not days -- one range call covers a whole gap for the "
+            "same cost as one single-day call. Repairing 12 days as a loop of "
+            "--date runs burns 12 of the 10 available and dies partway; the same "
+            "repair as one --fetch-from run costs 1."
+        ),
+    )
     return parser.parse_args()
+
+
+def resolve_fetch_start(
+    target: datetime,
+    fetch_from: str | None,
+    date_given: bool,
+) -> datetime:
+    """Where the vendor fetch starts, given the anchor and the CLI flags.
+
+    Three cases, in precedence order:
+
+      * ``--fetch-from`` -- an explicit repair window. Opt-in, so it does not
+        violate the ``--date`` rule below: the operator asked for a range.
+        Raises ValueError if it starts after the anchor, which would be an
+        empty or backwards window.
+      * ``--date`` alone -- exactly that day. A targeted repair or replay;
+        widening it would silently rewrite neighbouring days too.
+      * neither (the scheduled run) -- reach back _FETCH_LOOKBACK_DAYS so
+        late-publishing tags land. The anchor advances as soon as the first
+        exchange completes a session, so any one date is the anchor only
+        briefly -- too briefly for FTSE, which Citi serves 12-20h after the
+        LSE close. Upserts make re-fetching a settled day a no-op.
+    """
+    if fetch_from:
+        started = datetime.strptime(fetch_from, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        if started > target:
+            raise ValueError(
+                f"--fetch-from {started.date()} is after the anchor {target.date()}"
+            )
+        return started
+    if date_given:
+        return target
+    return (target - timedelta(days=_FETCH_LOOKBACK_DAYS)).replace(
+        hour=0, minute=0, second=0, microsecond=0,
+    )
 
 
 def main() -> int:
@@ -61,20 +107,11 @@ def main() -> int:
 
     start = target
     end = target.replace(hour=23, minute=59)
-    if args.date:
-        # An explicit --date means "exactly this day" -- a targeted repair or
-        # replay. Widening it would silently rewrite neighbouring days too.
-        fetch_start = start
-    else:
-        # Reach back a few days on every scheduled run so late-publishing tags
-        # land. The anchor advances as soon as the first exchange completes a
-        # session, so any one date is the anchor only briefly -- too briefly
-        # for FTSE, which Citi serves 12-20h after the LSE close. Quota is
-        # charged per TAG, not per tag-day, so a wider window costs nothing
-        # extra. Upserts make it a no-op for days already settled.
-        fetch_start = (target - timedelta(days=_FETCH_LOOKBACK_DAYS)).replace(
-            hour=0, minute=0, second=0, microsecond=0,
-        )
+    try:
+        fetch_start = resolve_fetch_start(target, args.fetch_from, bool(args.date))
+    except ValueError as e:
+        log.error("fetch_window_invalid", error=str(e))
+        return 2
 
     log.info("equity_index_live_start", date=str(target.date()),
              fetch_from=str(fetch_start.date()),
@@ -112,10 +149,31 @@ def main() -> int:
                 f"earlier days and do NOT mean this run succeeded.",
                 details={"date": str(target.date()), "rows_loaded": result})
 
+        # A vendor fetch that ERRORED is a failed run, not a warning. The
+        # extractor swallows the exception and returns an empty frame, so
+        # without this the process logged "index_fetch_failed" at ERROR, loaded
+        # nothing, printed health_checks_passed and exited 0 — indistinguishable
+        # from a quiet day. That is how four days of a 2026-09-15 FTSE repair
+        # silently did nothing after Citi's per-tag call cap cut in.
+        # Health checks cannot catch it: they count rows in the TABLE for the
+        # run date, so pre-existing rows from other tickers satisfy them.
+        # Only genuine fetch failures land here — per-tag EMPTY payloads for a
+        # closed market go to a separate sink (_collect_tag_errors).
         if pipeline._extraction_errors:
-            report.warning("extraction_errors",
-                f"{len(pipeline._extraction_errors)} error(s)",
+            report.error("extraction_errors",
+                f"Vendor fetch failed ({len(pipeline._extraction_errors)} error(s)) — "
+                f"loaded {result} row(s), nothing can be concluded from this run",
                 details={"errors": pipeline._extraction_errors})
+            report.finish()
+            if settings.run_log_dir:
+                report.flush_jsonl(
+                    Path(settings.run_log_dir) / "equities" / "fact_index_level"
+                    / f"equity_index_citi_live_{target:%Y%m%d}.jsonl"
+                )
+            log.error("equity_index_live_failed_extraction",
+                      date=str(target.date()), rows=result,
+                      errors=pipeline._extraction_errors)
+            return 1
 
         # Holiday detection
         holiday_hits = holiday_hits_for_timestamp(universe.target_currencies(), target)
