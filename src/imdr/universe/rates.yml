@@ -844,7 +844,7 @@ multi_tenor_combos:
 
 bench_rates:
   - cb_code: ECB
-    display_name: "ECB Deposit Facility"
+    display_name: "ECB Main Refinancing Rate"
     currency: EUR
     country_code: EU
     citi_tag: "RATES.BENCH_RATES.ECB"

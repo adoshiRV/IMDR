@@ -79,9 +79,14 @@ Universe defined in [`src/imdr/universe/rates.yml`](../../src/imdr/universe/rate
 
 8 CB series in `dim_central_bank`:
 
+> **`ECB` is the Main Refinancing (MRO) rate, not the deposit facility.** It runs
+> 15bp above DFR under the post-Sep-2024 corridor and was 0.00 through the
+> negative-DFR years. IMDR holds no DFR actual — read the deposit rate from
+> `calendar.cb_events` (`ECB Deposit Facility Rate`). See migration 128.
+
 | cb_code | display_name | currency |
 |---|---|---|
-| ECB | ECB Deposit Facility | EUR |
+| ECB | ECB Main Refinancing Rate | EUR |
 | FED_FUNDS | Fed Effective Rate | USD |
 | UK_BASE | BoE Bank Rate | GBP |
 | US_FED_CP_1M | Fed Commercial Paper 1M | USD |

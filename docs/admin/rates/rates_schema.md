@@ -302,7 +302,7 @@ Stores the central bank entries tracked by IMDR for policy rate ingestion. One r
 |---|---|---|---|
 | `id` | `INT IDENTITY` | NO | Auto-increment primary key |
 | `cb_code` | `VARCHAR(30)` | NO | Unique code, e.g. `ECB`, `FED_FUNDS`, `UK_BASE` |
-| `display_name` | `VARCHAR(60)` | NO | Human-readable name, e.g. `ECB Deposit Facility` |
+| `display_name` | `VARCHAR(60)` | NO | Human-readable name, e.g. `ECB Main Refinancing Rate`. Label only — `cb_code` is derived from the vendor tag and must never be renamed to match a corrected label (migration 128) |
 | `currency` | `VARCHAR(3)` | NO | ISO currency code, e.g. `EUR`, `USD`, `GBP` |
 | `country_id` | `TINYINT` | NO | FK → `dbo.dim_country(id)` (migration 047, replaces legacy `market_code`) |
 | `citi_tag` | `VARCHAR(60)` | NO | Citi Velocity tag, e.g. `RATES.BENCH_RATES.ECB` |
