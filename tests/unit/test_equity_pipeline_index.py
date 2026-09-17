@@ -47,7 +47,7 @@ class _StubUniverse:
         return [("UK", "LN")]
 
 
-def _pipeline(fetch_start):
+def _pipeline(fetch_start, **kw):
     return EquityIndexPipeline(
         connector=_StubConnector(),
         settings=object(),
@@ -55,6 +55,7 @@ def _pipeline(fetch_start):
         start=ANCHOR,
         end=END,
         fetch_start=fetch_start,
+        **kw,
     )
 
 
@@ -99,7 +100,7 @@ def test_extract_asks_the_vendor_for_the_WIDENED_window(monkeypatch):
     import imdr.domains.equity.pipeline_index as mod
 
     monkeypatch.setattr(mod, "CitiVelocityEquityExtractor", _Extractor)
-    monkeypatch.setattr(mod, "CitiVelocityClient", lambda s: _Client())
+    monkeypatch.setattr(mod, "CitiVelocityClient", lambda s, **kw: _Client())
     monkeypatch.setattr(mod, "TagQuotaTracker", _Tracker)
 
     p = _pipeline(WIDE)
@@ -213,3 +214,78 @@ def test_fetch_from_after_the_anchor_is_rejected():
     """A backwards window would fetch nothing and look like a quiet day."""
     with pytest.raises(ValueError, match="after the anchor"):
         runner.resolve_fetch_start(ANCHOR, "2026-09-20", date_given=True)
+
+
+# ---------------------------------------------------------------------------
+# Second Citi key — a repair must be able to stay off the daily budget
+# ---------------------------------------------------------------------------
+
+def _capture_client_and_tracker(monkeypatch, pipeline):
+    """Run extract() against stubs, returning what the client/tracker got."""
+    seen = {}
+
+    class _Extractor:
+        _errors: list = []
+
+        def __init__(self, **kw):
+            pass
+
+        def extract_index(self, start, end, *a, **kw):
+            return pd.DataFrame(columns=["ticker", "ts", "value"])
+
+    class _Client:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    class _Tracker:
+        def __init__(self, **kw):
+            seen["tracker_path"] = kw.get("tracker_path")
+
+        def current_usage(self):
+            return 0
+
+    def _mk_client(s, **kw):
+        seen["client_id"] = kw.get("client_id")
+        seen["client_secret"] = kw.get("client_secret")
+        return _Client()
+
+    import imdr.domains.equity.pipeline_index as mod
+
+    monkeypatch.setattr(mod, "CitiVelocityEquityExtractor", _Extractor)
+    monkeypatch.setattr(mod, "CitiVelocityClient", _mk_client)
+    monkeypatch.setattr(mod, "TagQuotaTracker", _Tracker)
+
+    pipeline._settings = type(
+        "S", (), {"citi_tag_quota_limit": 1, "citi_tag_quota_file": "primary.json"}
+    )()
+    pipeline.extract()
+    return seen
+
+
+def test_defaults_to_the_primary_key_and_bucket(monkeypatch):
+    seen = _capture_client_and_tracker(monkeypatch, _pipeline(WIDE))
+    assert seen["client_id"] is None and seen["client_secret"] is None
+    assert seen["tracker_path"] == "primary.json"
+
+
+def test_second_key_routes_to_its_own_quota_bucket(monkeypatch):
+    """Both halves must move together.
+
+    Citi meters the rolling-24h tag quota AND the per-tag call cap per app
+    registration. Using the second key while still recording against the
+    primary bucket would mis-state both budgets — the whole point is that a
+    repair does not compete with the scheduled pipelines.
+    """
+    p = _pipeline(
+        WIDE,
+        client_id="hourly-id",
+        client_secret="hourly-secret",
+        quota_tracker_path="hourly.json",
+    )
+    seen = _capture_client_and_tracker(monkeypatch, p)
+    assert seen["client_id"] == "hourly-id"
+    assert seen["client_secret"] == "hourly-secret"
+    assert seen["tracker_path"] == "hourly.json", "must not bill the primary bucket"

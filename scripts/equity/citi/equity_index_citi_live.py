@@ -35,6 +35,12 @@ log = structlog.get_logger(__name__)
 # Calendar days of trailing re-fetch on each run (see fetch_start below).
 _FETCH_LOOKBACK_DAYS = 5
 
+# Second Citi OAuth client + its own tag-quota bucket, as rates/fx already use.
+# Exposed as a FLAG, not a module constant like rates_citi_historical's
+# USE_HOURLY_CREDS: a constant left flipped silently reroutes every later
+# scheduled run, and this one is only ever wanted for a manual repair.
+_HOURLY_QUOTA_FILE = "data/cache/citi_tag_quota_hourly.json"
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Equity Index Daily EOD Ingest")
@@ -48,6 +54,16 @@ def parse_args() -> argparse.Namespace:
             "same cost as one single-day call. Repairing 12 days as a loop of "
             "--date runs burns 12 of the 10 available and dies partway; the same "
             "repair as one --fetch-from run costs 1."
+        ),
+    )
+    parser.add_argument(
+        "--use-hourly-creds", action="store_true",
+        help=(
+            "Route through the SECOND Citi OAuth client and its own tag-quota "
+            "bucket. Citi meters both a rolling-24h tag quota and a per-tag "
+            "call cap (10/24h) per app registration, so a repair on the primary "
+            "key competes with the scheduled pipelines for both. Use for "
+            "backfills, especially alongside --fetch-from."
         ),
     )
     return parser.parse_args()
@@ -113,8 +129,16 @@ def main() -> int:
         log.error("fetch_window_invalid", error=str(e))
         return 2
 
+    if args.use_hourly_creds and not (
+        settings.citi_hourly_client_id and settings.citi_hourly_client_secret
+    ):
+        log.error("hourly_creds_missing",
+                  hint="set IMDR_CITI_HOURLY_CLIENT_ID / _SECRET, or drop the flag")
+        return 2
+
     log.info("equity_index_live_start", date=str(target.date()),
              fetch_from=str(fetch_start.date()),
+             creds="hourly" if args.use_hourly_creds else "primary",
              markets=len(universe.market_calendars()))
 
     connector = MSSQLConnector(settings)
@@ -124,6 +148,11 @@ def main() -> int:
             connector=connector, settings=settings,
             universe=universe, start=start, end=end,
             fetch_start=fetch_start,
+            client_id=settings.citi_hourly_client_id if args.use_hourly_creds else None,
+            client_secret=(
+                settings.citi_hourly_client_secret if args.use_hourly_creds else None
+            ),
+            quota_tracker_path=_HOURLY_QUOTA_FILE if args.use_hourly_creds else None,
         )
         result = pipeline.run()
         elapsed = time.perf_counter() - t0

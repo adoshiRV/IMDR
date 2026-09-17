@@ -48,6 +48,9 @@ class EquityIndexPipeline(BasePipeline[pd.DataFrame, list[IndexLevelCreate], int
         start: datetime,
         end: datetime,
         fetch_start: datetime | None = None,
+        client_id: str | None = None,
+        client_secret: str | None = None,
+        quota_tracker_path: str | None = None,
     ) -> None:
         super().__init__(connector)
         self._settings = settings
@@ -62,6 +65,15 @@ class EquityIndexPipeline(BasePipeline[pd.DataFrame, list[IndexLevelCreate], int
         # widening the fetch window cannot move what they measure. Loads are
         # idempotent via bulk_upsert, so re-fetching a settled day is a no-op.
         self._fetch_start = fetch_start or start
+        # Optional second Citi OAuth client + its own tag-quota bucket, the
+        # same escape hatch rates/fx already use (USE_HOURLY_CREDS). Citi meters
+        # BOTH a rolling-24h tag quota AND a per-tag call cap (10/24h) per app
+        # registration, so a backfill on the primary key competes with the
+        # scheduled pipelines for both. Routing a repair through the second key
+        # leaves the daily budget alone. None = primary key, primary bucket.
+        self._client_id = client_id
+        self._client_secret = client_secret
+        self._quota_tracker_path = quota_tracker_path
         self._raw_df: pd.DataFrame | None = None
         self._extraction_errors: list[dict] = []
         self._quota_usage: int | None = None
@@ -85,9 +97,17 @@ class EquityIndexPipeline(BasePipeline[pd.DataFrame, list[IndexLevelCreate], int
     def extract(self) -> pd.DataFrame:
         tracker = TagQuotaTracker(
             quota_limit=self._settings.citi_tag_quota_limit,
-            tracker_path=self._settings.citi_tag_quota_file or None,
+            tracker_path=(
+                self._quota_tracker_path
+                or self._settings.citi_tag_quota_file
+                or None
+            ),
         )
-        with CitiVelocityClient(self._settings) as client:
+        with CitiVelocityClient(
+            self._settings,
+            client_id=self._client_id,
+            client_secret=self._client_secret,
+        ) as client:
             extractor = CitiVelocityEquityExtractor(
                 client=client, settings=self._settings,
                 universe=self._universe, quota_tracker=tracker,
