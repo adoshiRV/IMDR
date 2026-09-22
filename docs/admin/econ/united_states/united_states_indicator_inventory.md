@@ -21,7 +21,7 @@ was lifted on 2026-06-23.
 | 1.2 Fiscal Demand    | ✅ | Treasury MTS receipts/outlays/deficit · Debt-to-Penny daily | |
 | 1.3 External Demand  | ✅ | Census FT-900 goods+services · BEA ITA net exports | |
 | 1.4 Macro Core       | ✅ | BEA NIPA GDP adv/2nd/3rd · BLS payrolls/unemp/LFPR · FRED GDPNow/INDPRO/CFNAI | PMI (ISM) paid — stays a gap |
-| 2.1 Input Costs      | ✅ | BLS import/export price indexes · EIA WTI/Brent/Henry Hub daily | |
+| 2.1 Input Costs      | ✅ | BLS import/export price indexes · EIA WTI/Brent/Henry Hub daily · **EIA weekly natural-gas storage, 8 series (added 2026-09-22)** | storage is the supply leg behind the HH price |
 | 2.2 Producer Prices  | ✅ | BLS PPI final demand + stage-of-processing | |
 | 2.3 Domestic Costs   | ✅ | BLS ECI total comp · JOLTS quits/openings · productivity · AHE | |
 | 2.4 CPI Pressure     | ✅ | BLS CPI-U headline+core+components · BEA PCE price | |
@@ -191,6 +191,14 @@ For full invocation, failure modes, and archive layout, see
 - **BIS REER** — ~~pending~~ **added 2026-06-23** via `bis_us.py`; cell 3.4 closed.
 - **Real PCE** — ~~deferred~~ **added 2026-06-23** (T20806/DPCERX in `bea_personal_income`); cell 1.1 consumption-quantity leg closed.
 - **Regional Fed further surveys** — Philly Fed + Dallas Fed added in `seed_us.yml` 2026-06-23; Richmond/Kansas City/Chicago are optional further adds.
+- **EIA natural-gas storage** — **added 2026-09-22** via `scripts/econ/us/eia/eia_natgas_storage.py`:
+  `EIA.NATGAS.STORAGE_{L48,EAST,MIDWEST,MOUNTAIN,PACIFIC,SOUTH_CENTRAL,SOUTH_CENTRAL_SALT,SOUTH_CENTRAL_NONSALT}.US`,
+  8 × 872 weekly obs, 2010-01-01→, unit `bcf` (migration 131). **NOT yet registered in
+  `us_daily.py`** — run manually until wired. The headline weekly *change* and the 5-year
+  band are **derived** from these levels, deliberately not stored. `L48` reconciles to the
+  sum of the five regions within 2 Bcf (EIA's own rounding of the published regionals;
+  10 weeks of 872 exceed 1 Bcf). Build tracker:
+  [`../../development/commodities_natural_gas.md`](../../development/commodities_natural_gas.md).
 
 ## Related
 

@@ -124,15 +124,29 @@ Keyless. GET to `https://api.fiscaldata.treasury.gov/services/api/fiscal_service
 paginated via `links.next`. `treasury_debt` is in `us_daily.py` (not monthly)
 because daily resolution matters.
 
-### EIA (1 fetcher)
+### EIA (2 fetchers)
 
 | Fetcher module | Topic | Wiring-map cells | Cadence |
 |---|---|---|---|
 | `scripts.econ.us.eia.eia_energy` | WTI + Brent + Henry Hub spot prices (native EIA daily) | 2.1 Input Costs | **Daily** |
+| `scripts.econ.us.eia.eia_natgas_storage` | Weekly natural-gas working storage — Lower-48 + 5 regions + South-Central salt/nonsalt (8 series, 2010→) | 2.1 Input Costs | **Weekly** (EIA publishes Thu 10:30 ET) — ⚠️ **not yet wired; run manually** |
 
 Key: `IMDR_ECON_EIA_KEY`. GET to `https://api.eia.gov/v2/{route}/data/`;
 `response.data[]` shape; facet-based series selection.
 `eia_energy` is in `us_daily.py` for 24h latency on energy prices.
+
+`eia_natgas_storage` (added 2026-09-22, route `natural-gas/stor/wkly`) fetches all eight
+series in **one** `fetch_series` call by passing the ids as a list facet — `EiaClient`
+emits a repeated `facets[series][]=` param per entry, so it is 2 HTTP requests rather than
+8 full paginations. Unit `bcf` requires **migration 131**; without it the loader aborts the
+whole parquet pair (`!! FK resolution failures`, rc=2) and nothing loads at all. A response
+missing 1–7 of the 8 series **raises** — that means EIA renamed or retired a series id, and
+loading only the survivors would leave the rest silently stale.
+
+> **EIA daily prices run ~T-5 and arrive in weekly ~5-obs batches** (e.g. the 16 Sep release
+> carried 11–15 Sep). That is EIA's own cadence, not a broken pipeline — do not chase it as
+> staleness. The same applies to the storage print, which covers the week ending the prior
+> Friday.
 
 ### BIS (1 fetcher) — added 2026-06-23
 
