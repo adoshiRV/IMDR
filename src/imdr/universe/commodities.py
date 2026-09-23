@@ -32,8 +32,13 @@ class CommoditiesUniverse(BaseUniverse):
         return [c["symbol"] for c in self._raw["commodities"]]
 
     def api_symbols(self) -> list[str]:
-        """All Citi Velocity tags across all three sub-products."""
-        return list(self.spot_tags()) + self.build_eia_tags() + self.build_all_vol_tags()
+        """All Citi Velocity tags across all four sub-products."""
+        return (
+            list(self.spot_tags())
+            + self.build_eia_tags()
+            + self.build_all_vol_tags()
+            + self.forecast_tags()
+        )
 
     # ── Shared dimension ─────────────────────────────────────────
 
@@ -149,6 +154,45 @@ class CommoditiesUniverse(BaseUniverse):
         for product in self.vol_products():
             tags.extend(self.build_vol_tags(product))
         return tags
+
+    # ── PRICE FORECAST ───────────────────────────────────────────
+
+    def forecast_config(self) -> dict:
+        """Raw forecast config dict."""
+        return self._raw["forecast"]
+
+    def forecast_vendor_code(self) -> str:
+        return self.forecast_config()["vendor_code"]
+
+    def forecast_specs(self) -> list[dict]:
+        """One entry per (product, horizon) tag.
+
+        Each carries everything the transform needs, so the caller never has to
+        re-parse a tag string: ``tag``, ``symbol`` (dim_commodity), ``quote_unit``,
+        ``horizon_code`` and ``horizon_type`` (RELATIVE | ABSOLUTE).
+        """
+        cfg = self.forecast_config()
+        tpl = cfg["tag_template"]
+        specs: list[dict] = []
+        for prod in cfg["products"]:
+            for hz in cfg["horizons"]:
+                specs.append({
+                    "tag": tpl.format(
+                        sector=prod["sector"], product=prod["product"], horizon=hz["path"]
+                    ),
+                    "symbol": prod["symbol"],
+                    "quote_unit": prod["quote_unit"],
+                    "horizon_code": hz["code"],
+                    "horizon_type": hz["type"],
+                })
+        return specs
+
+    def forecast_tags(self) -> list[str]:
+        """All Citi forecast tags."""
+        return [s["tag"] for s in self.forecast_specs()]
+
+    def forecast_spec_by_tag(self) -> dict[str, dict]:
+        return {s["tag"]: s for s in self.forecast_specs()}
 
     # ── Quality config ───────────────────────────────────────────
 

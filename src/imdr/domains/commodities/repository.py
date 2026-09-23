@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from imdr.connectors.bulk import MergeSpec, bulk_merge
@@ -15,6 +15,7 @@ from imdr.models.commodities import (
     CmdtyDimEIASeries,
     CmdtyFactEIA,
     CmdtyFactImpliedVol,
+    CmdtyFactPriceForecast,
     CmdtyFactSpot,
 )
 from imdr.schemas.commodities import (
@@ -63,6 +64,30 @@ _VOL_SPEC = MergeSpec(
     },
     natural_key=["commodity_id", "obs_date", "strike", "tenor"],
     value_columns=["vol"],
+)
+
+# target_date is part of the natural key and is NULL for EVERY RELATIVE row.
+# Plain `=` never matches NULL to NULL, so without null_safe_key the MERGE
+# would take the NOT MATCHED branch on every run -- re-inserting rows that
+# already exist and colliding with UX_fact_price_forecast_natural, which (like
+# all SQL Server unique indexes) does treat NULLs as equal.
+_FORECAST_SPEC = MergeSpec(
+    target_table="[commodities].[fact_price_forecast]",
+    staging_name="#cmdty_price_forecast_staging",
+    columns={
+        "commodity_id": "INT",
+        "vendor_id": "INT",
+        "horizon_type": "VARCHAR(10)",
+        "horizon_code": "VARCHAR(12)",
+        "target_date": "DATE",
+        "as_of_date": "DATE",
+        "forecast_value": "FLOAT",
+        "quote_unit": "VARCHAR(20)",
+    },
+    natural_key=["commodity_id", "vendor_id", "horizon_code", "target_date", "as_of_date"],
+    value_columns=["forecast_value", "horizon_type", "quote_unit"],
+    nullable_columns=["target_date"],
+    null_safe_key=["target_date"],
 )
 
 
@@ -171,3 +196,26 @@ class CmdtyImpliedVolRepository:
 
     def bulk_upsert(self, items: list[ImpliedVolCreate]) -> int:
         return bulk_merge(self._session, _VOL_SPEC, items)
+
+
+class CmdtyPriceForecastRepository:
+    """Data access layer for [commodities].[fact_price_forecast]."""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def bulk_upsert(self, rows: Sequence[dict]) -> int:
+        """MERGE forecast rows on the natural key. Idempotent by construction.
+
+        The pipeline re-fetches the vendor's full history every run and
+        recomputes the compressed RELATIVE series, so a re-run rewrites the
+        same natural keys rather than appending.
+        """
+        if not rows:
+            return 0
+        return bulk_merge(self._session, _FORECAST_SPEC, list(rows))
+
+    def count(self) -> int:
+        return self._session.scalar(
+            select(func.count()).select_from(CmdtyFactPriceForecast)
+        ) or 0

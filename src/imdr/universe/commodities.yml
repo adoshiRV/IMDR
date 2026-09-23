@@ -28,6 +28,18 @@ commodities:
     display_name: ICE Brent
     commodity_class: energy
     spot_tag: null
+  - symbol: NG_HH
+    display_name: Henry Hub Natural Gas
+    commodity_class: energy
+    spot_tag: null          # Citi carries NO gas spot/futures tag -- forecast only
+  - symbol: NG_TTF
+    display_name: TTF Natural Gas
+    commodity_class: energy
+    spot_tag: null
+  - symbol: NG_JKM
+    display_name: JKM LNG
+    commodity_class: energy
+    spot_tag: null
 
 # ── SPOT ─────────────────────────────────────────────────────────────
 # tag → commodity symbol mapping (only commodities with spot_tag)
@@ -93,6 +105,57 @@ eia:
     - name: ULSD_STOCKS
       regions: [TOTAL_US, PADD_I, PADD_II]
       units: thousands_barrels
+
+# ── PRICE FORECAST ───────────────────────────────────────────────────
+# Citi Velocity house price forecasts:
+#   COMMODITIES.FORECAST.{sector}.{product}.{horizon}.PRICE_FCST.CITI
+# The full branch is 29 products x 4 horizons = 115 tags; only the gas
+# products are ingested today. Adding a product here is a one-line change --
+# it needs a matching dim_commodity `symbol` above.
+#
+# TWO SHAPES behind one tag family (probed 2026-09-23):
+#   RELATIVE (POINT_PRICES.*) -- x is the AS-OF date, published daily. A step
+#     function: ~579 points over 2.2y but only 6-9 real changes.
+#   ABSOLUTE (QTR / ANNUAL)   -- x is the forecast TARGET period end. A forward
+#     curve, CURRENT VINTAGE ONLY; as-of history accrues only as we snapshot.
+#
+# Units are NOT discoverable -- the Citi metadata endpoint returns
+# "Invalid Input" for this whole branch -- so they are declared here.
+# TTF is USD/MMBtu, not the EUR/MWh its exchange quotes: across all ten
+# revisions TTF sits 1-2 BELOW JKM (USD/MMBtu by definition); in EUR/MWh it
+# would be ~3x smaller.
+
+forecast:
+  tag_template: "COMMODITIES.FORECAST.{sector}.{product}.{horizon}.PRICE_FCST.CITI"
+  vendor_code: citi_velocity
+
+  horizons:
+    - code: 0_3M
+      type: RELATIVE
+      path: POINT_PRICES.0_3M
+    - code: 6_12M
+      type: RELATIVE
+      path: POINT_PRICES.6_12M
+    - code: QTR
+      type: ABSOLUTE
+      path: QTR
+    - code: ANNUAL
+      type: ABSOLUTE
+      path: ANNUAL
+
+  products:
+    - product: HH_NGAS
+      sector: ENERGY
+      symbol: NG_HH
+      quote_unit: usd_mmbtu
+    - product: TTF_NGAS
+      sector: ENERGY
+      symbol: NG_TTF
+      quote_unit: usd_mmbtu
+    - product: JKM_LNG
+      sector: ENERGY
+      symbol: NG_JKM
+      quote_unit: usd_mmbtu
 
 # ── IMPLIED_VOL ──────────────────────────────────────────────────────
 # Commodity option implied vol surfaces from Citi Velocity.

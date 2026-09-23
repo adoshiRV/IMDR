@@ -54,7 +54,24 @@ class TagQuotaTracker:
     # ── Public API ────────────────────────────────────────────────
 
     def record_usage(self, pipeline: str, tags: int) -> None:
-        """Append a usage entry (thread/process safe)."""
+        """Append a usage entry (thread/process safe).
+
+        Argument order differs from ``check_budget(needed, pipeline)``, and a
+        reversed call used to write ``{"pipeline": 12, "tags": "some.name"}``
+        into the SHARED quota file -- after which ``current_usage()`` raised
+        TypeError for every Citi pipeline on the box, not just the offender.
+        Validated here so the bad call fails loudly at its own call site.
+        """
+        if not isinstance(tags, int) or isinstance(tags, bool):
+            raise TypeError(
+                f"record_usage(pipeline, tags): tags must be int, got "
+                f"{type(tags).__name__} ({tags!r}). Arguments reversed?"
+            )
+        if not isinstance(pipeline, str):
+            raise TypeError(
+                f"record_usage(pipeline, tags): pipeline must be str, got "
+                f"{type(pipeline).__name__} ({pipeline!r}). Arguments reversed?"
+            )
         entry = {
             "ts": datetime.now(timezone.utc).isoformat(),
             "pipeline": pipeline,

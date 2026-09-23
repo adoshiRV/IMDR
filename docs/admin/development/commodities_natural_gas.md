@@ -1,7 +1,8 @@
 # Natural gas in IMDR — build tracker
 
-**Status:** ✅ **Phase 1 DATA-LIVE 2026-09-22** (loaded, **not wired** — user holding on scheduler) · Phases 2–4 scoped, not started ·
-BBG track **parked at user's request**
+**Status:** ✅ **Phase 1 DATA-LIVE 2026-09-22** (loaded, **not wired** — user holding on scheduler) ·
+🔨 **Phase 3 BUILT 2026-09-23, load blocked on DBA** (`CREATE TABLE` denied — account is CRUD-only) ·
+Phases 2 & 4 scoped, not started · BBG track **parked at user's request**
 **Owner:** adoshi · **Linear:** _pending_
 
 Sister docs: [`../vendors/citi/exploration/commodities.md`](../vendors/citi/exploration/commodities.md)
@@ -19,9 +20,9 @@ IMDR has **one** natural-gas price series and **no** gas fundamentals:
 | Henry Hub spot (USD/MMBtu, daily) | `econ.fact_indicator` → `EIA.ENERGY.HH_GAS_SPOT.US` | ✅ live, 2015-01-02→, T-5 lag, loaded in weekly ~5-obs batches |
 | Henry Hub spot (FRED dupe) | `FRED.ENERGY.NATGAS.US` | ⛔ `is_active=0` — deliberate dupe kill, do not revive |
 | US gas storage (the market-moving print) | `econ.fact_indicator` → `EIA.NATGAS.STORAGE_*.US` | ✅ **added 2026-09-22** — 8 series × 872 weeks, 2010→; not yet wired |
-| Gas futures curve / strip | — | ❌ absent |
-| TTF, JKM | — | ❌ absent |
-| Anything gas in `commodities.*` | `dim_commodity` = XAU/XAG/XPT/CR_NYM_CL/CR_IPE_BRENT | ❌ absent |
+| Gas futures curve / strip | — | ❌ absent — EIA's `RNGC1`–`RNGC4` died 2024-04-05; CME/ICE are ToS-blocked |
+| TTF, JKM | `commodities.fact_price_forecast` (Citi house forecast) | 🔨 **built 2026-09-23** — 112 rows ready; **no market price exists without BBG**, this is a VIEW |
+| Anything gas in `commodities.*` | `dim_commodity` + **NG_HH / NG_TTF / NG_JKM** (ids 6–8) | ✅ seeded 2026-09-23 |
 
 Desk questions currently unanswerable: what the Thursday EIA storage print was vs the
 5-year band, where the HH curve sits, what European/Asian gas is doing.
@@ -132,16 +133,89 @@ gold 193, silver 180 — because the Citi live pipeline started then. Brent
 - [ ] Backfill WTI/Brent/HH from EIA (2015→, or 1986→ for `RWTC`/`RBRTE`)
 - [ ] Alternative/parallel: `cmdty_citi_historical.py` for WTI (quota-aware — 100k tags/24h)
 
-## 5. Phase 3 — Citi gas forecasts (the house view)
+## 5. Phase 3 — Citi gas forecasts (the house view) — **BUILT 2026-09-23, load blocked on DBA**
 
-12 tags, negligible quota. Gives Spider/Atlas the Citi curve for HH, TTF **and** JKM —
-the only TTF/JKM number obtainable without a Terminal.
+12 tags, negligible quota. The only TTF/JKM numbers obtainable without a Terminal.
+Probe: `playground/commodities/probe_citi_gas_forecasts.py`. **All 12 tags return data.**
 
-- [ ] Extend `src/imdr/universe/commodities.yml` with a `forecast:` block
-- [ ] Target table: **open** — `fact_spot` is wrong (these are forecasts, multi-horizon,
-      daily-revised). Likely a new `commodities.fact_price_forecast`
-      (commodity × horizon × as-of × value) → needs a migration + DBM review
-- [ ] Tags: `COMMODITIES.FORECAST.ENERGY.{HH_NGAS,TTF_NGAS,JKM_LNG}.{POINT_PRICES.0_3M,POINT_PRICES.6_12M,QTR,ANNUAL}.PRICE_FCST.CITI`
+### 5.1 Payload gotchas (each cost a wrong first answer — do not re-learn)
+
+1. **The value key is `c` (close), not `y`.** Shape is
+   `{"frequency", "status", "body": {"<tag>": {"x": [yyyymmdd], "c": [float], "type": "SERIES"}}}`.
+   Reading `y` returns an **empty list silently** — every tag looks like 0 values.
+2. **`fetch_historical`'s `end` clips on the TARGET date for FORECAST tags.** For
+   `QTR`/`ANNUAL` the x-axis is the *forecast target period*, not the as-of date, so
+   `end=today` **silently drops the entire forward curve** and the tags look stale/
+   backward-looking. Query with `end = today + ~4y`. With a forward window: **6 forward
+   quarters + 2 forward years** per product.
+3. **`fetch_metadata` returns `{"message": "Invalid Input", "status": "ERROR"}`** for the
+   whole FORECAST branch — no units, no display names. Units must be hard-coded
+   (HH = USD/MMBtu, TTF = EUR/MWh, JKM = USD/MMBtu — **confirm before storing**).
+
+### 5.2 Two different shapes behind one tag family
+
+| Tag family | x-axis | Points | Behaviour |
+|---|---|---|---|
+| `POINT_PRICES.{0_3M,6_12M}` | **as-of date**, daily | 579 over 2.2y | A **step function** — republished daily but only **6–9 changes in 2.2 years**. ~99% of rows are repeats of the prior day |
+| `QTR` / `ANNUAL` | **target period end** | 16 / 5 | A forward **curve**, current vintage only. Re-fetching overwrites; an as-of history exists only if we snapshot |
+
+This is the design crux: the two families are not the same object. `POINT_PRICES` gives
+as-of history for free; `QTR`/`ANNUAL` give a curve with no vintage dimension unless we
+snapshot daily.
+
+### 5.3 Live values (2026-09-22)
+
+| Product | 0–3M | 6–12M | Q4-26 | Q1-27 | 2027 |
+|---|---:|---:|---:|---:|---:|
+| Henry Hub (USD/MMBtu) | 2.8 | 2.5 | 3.3 | 3.2 | 2.81 |
+| TTF | 18.7 | 13.6 | 19.1 | 17.4 | 14.0 |
+| JKM | 19.2 | 14.1 | 19.6 | 18.0 | — |
+
+### 5.4 Built 2026-09-23 — BLOCKED ON DBA
+
+Everything is written and green except the table itself: **the IMDR account is
+`db_datareader` + `db_datawriter` only — CRUD, zero DDL**. `CREATE TABLE` returns
+*"CREATE TABLE permission denied in database 'imdr'"*. (Migration 131 landed only because
+it was an INSERT.) Same gate as migrations 120–122.
+
+| Piece | State |
+|---|---|
+| `migrations/132_create_commodities_fact_price_forecast.sql` | ⏳ **needs DBA** for the `CREATE TABLE`; the `dim_commodity` MERGE half was applied by hand (CRUD) and is idempotent, so the DBA can just run the whole file |
+| `commodities.dim_commodity` + NG_HH / NG_TTF / NG_JKM (ids 6–8) | ✅ seeded |
+| `src/imdr/universe/commodities.yml` — `forecast:` block | ✅ 12 tags; adding any of the other 26 products is a one-line entry |
+| `CommoditiesUniverse.forecast_*` | ✅ |
+| `imdr.domains.commodities.translate_forecast` | ✅ pure + fully tested |
+| `CmdtyFactPriceForecast` model · `_FORECAST_SPEC` · `CmdtyPriceForecastRepository` | ✅ |
+| `scripts/commodities/citi/cmdty_forecast_citi_live.py` | ✅ runs; `--no-load` verified end-to-end |
+| `tests/unit/test_cmdty_translate_forecast.py` | ✅ 26 tests |
+| Load | ⏳ blocked on the table |
+
+**Verified `--no-load` run:** 12/12 tags, **3,543 vendor points → 112 rows** after step
+compression (97% smaller), forward curve out to 2027-12-31.
+
+#### Two defects found and fixed while building
+
+1. **`bulk_merge` could not express this table's natural key.** `target_date` is NULL on
+   every RELATIVE row, and the generated `ON` clause used plain `tgt.col = src.col`.
+   `NULL = NULL` is never true, so MERGE would take the NOT MATCHED branch on *every*
+   run — re-inserting existing rows and colliding with `UX_fact_price_forecast_natural`,
+   which (unlike `=`) *does* treat NULLs as equal. Added an opt-in `null_safe_key` to
+   `MergeSpec`; omitted, every existing caller behaves exactly as before. The pre-existing
+   `nullable_columns` only shapes the staging DDL and does not help here.
+2. **`record_usage(pipeline, tags)` takes its arguments in the opposite order to
+   `check_budget(needed, pipeline)`.** A reversed call wrote
+   `{"pipeline": 12, "tags": "commodities.price_forecast"}` into the **shared**
+   `data/cache/citi_tag_quota.json`, after which `current_usage()` raised
+   `TypeError: unsupported operand type(s) for +: 'int' and 'str'` — for *every* Citi
+   pipeline on the box, not just the offender. File repaired (817 → 816 entries,
+   cumulative 56,210 tags) and `record_usage` now type-checks both arguments and names the
+   reversal in the error.
+
+#### Known trade-off
+
+ABSOLUTE rows are snapshotted every run, so an unchanged curve stores a fresh `as_of_date`
+each day (~24 rows/day for the 3 gas products). Detecting "unchanged since yesterday" needs
+a DB read, which would make the transform impure; revisit if row growth ever matters.
 
 ## 6. Phase 4 — EU gas fundamentals (optional)
 

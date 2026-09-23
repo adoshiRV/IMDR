@@ -66,6 +66,14 @@ class MergeSpec:
         Columns forming the MERGE ON clause (subset of columns).
     value_columns : list[str]
         Columns updated on MATCHED (subset of columns, disjoint from natural_key).
+    null_safe_key : list[str] | None
+        Natural-key columns that may legitimately hold NULL. SQL's ``=`` never
+        matches NULL to NULL, so a nullable key column joined with plain ``=``
+        makes MERGE take the NOT MATCHED branch on every run -- re-inserting
+        rows that already exist and colliding with any unique index (which,
+        unlike ``=``, DOES treat NULLs as equal). Columns listed here are
+        compared NULL-safely instead. Opt-in: omitting it preserves the plain
+        ``=`` behaviour for every existing caller.
     batch_size : int
         Rows per INSERT batch into the staging table.
     """
@@ -77,6 +85,7 @@ class MergeSpec:
         columns: dict[str, str],
         natural_key: list[str],
         value_columns: list[str],
+        null_safe_key: list[str] | None = None,
         batch_size: int = _DEFAULT_BATCH_SIZE,
         audit_columns: dict[str, str] | None = None,
         nullable_columns: list[str] | None = None,
@@ -91,6 +100,8 @@ class MergeSpec:
             validate_column(col, "value_column")
         for col in (nullable_columns or []):
             validate_column(col, "nullable_column")
+        for col in (null_safe_key or []):
+            validate_column(col, "null_safe_key column")
 
         all_cols = set(columns)
         if not set(natural_key).issubset(all_cols):
@@ -101,12 +112,18 @@ class MergeSpec:
             raise ValueError(
                 f"nullable_columns not in columns: {set(nullable_columns) - all_cols}"
             )
+        if null_safe_key and not set(null_safe_key).issubset(set(natural_key)):
+            raise ValueError(
+                "null_safe_key columns must be part of natural_key: "
+                f"{set(null_safe_key) - set(natural_key)}"
+            )
 
         self.target_table = target_table
         self.staging_name = staging_name
         self.columns = columns
         self.natural_key = natural_key
         self.value_columns = value_columns
+        self.null_safe_key: frozenset[str] = frozenset(null_safe_key or [])
         self.batch_size = batch_size
         self.nullable_columns: frozenset[str] = frozenset(nullable_columns or [])
 
@@ -169,7 +186,13 @@ class MergeSpec:
 
     def _build_merge_sql(self) -> str:
         on_clause = " AND ".join(
-            f"tgt.{col} = src.{col}" for col in self.natural_key
+            (
+                f"(tgt.{col} = src.{col} "
+                f"OR (tgt.{col} IS NULL AND src.{col} IS NULL))"
+            )
+            if col in self.null_safe_key
+            else f"tgt.{col} = src.{col}"
+            for col in self.natural_key
         )
         # UPDATE SET: value columns + any audit columns that should update on match
         update_parts = [f"tgt.{col} = src.{col}" for col in self.value_columns]

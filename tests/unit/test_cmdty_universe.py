@@ -12,13 +12,24 @@ def universe():
 
 
 class TestCommodityDimension:
-    def test_five_commodities(self, universe):
+    def test_eight_commodities(self, universe):
+        # 5 original + the 3 gas products added for the Citi PRICE_FCST branch
+        # (migration 132). Gas carries no spot tag -- Citi has no gas spot.
         entries = universe.commodity_create_entries()
-        assert len(entries) == 5
+        assert len(entries) == 8
 
     def test_commodity_symbols(self, universe):
         symbols = {e.symbol for e in universe.commodity_create_entries()}
-        assert symbols == {"XAU", "XAG", "XPT", "CR_NYM_CL", "CR_IPE_BRENT"}
+        assert symbols == {
+            "XAU", "XAG", "XPT", "CR_NYM_CL", "CR_IPE_BRENT",
+            "NG_HH", "NG_TTF", "NG_JKM",
+        }
+
+    def test_gas_products_have_no_spot_tag(self, universe):
+        """Citi carries no gas SPOT or futures tag -- forecast only."""
+        by_symbol = {e.symbol: e for e in universe.commodity_create_entries()}
+        for sym in ("NG_HH", "NG_TTF", "NG_JKM"):
+            assert by_symbol[sym].spot_tag is None
 
     def test_commodity_classes(self, universe):
         classes = {e.commodity_class for e in universe.commodity_create_entries()}

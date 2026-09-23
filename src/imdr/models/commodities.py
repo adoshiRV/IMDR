@@ -130,3 +130,46 @@ class CmdtyFactImpliedVol(Base):
             f"<CmdtyFactImpliedVol commodity_id={self.commodity_id} "
             f"{self.obs_date} {self.strike} {self.tenor}={self.vol}>"
         )
+
+
+class CmdtyFactPriceForecast(Base):
+    """Vendor house price forecasts (Citi Velocity PRICE_FCST branch).
+
+    Two shapes share this table, discriminated by ``horizon_type``:
+
+    * ``RELATIVE`` -- a rolling horizon ("0-3M ahead"). ``target_date`` is NULL
+      and ``as_of_date`` is the vendor's own publication date, so the vendor
+      hands us the as-of history.
+    * ``ABSOLUTE`` -- a dated target (quarter/year end) carried in
+      ``target_date``. The vendor serves only the CURRENT vintage, so
+      ``as_of_date`` is our snapshot date and history accrues going forward.
+
+    See migration 132 for the full reasoning.
+    """
+
+    __tablename__ = "fact_price_forecast"
+    __table_args__ = (
+        UniqueConstraint(
+            "commodity_id", "vendor_id", "horizon_code", "target_date", "as_of_date",
+            name="UX_fact_price_forecast_natural",
+        ),
+        {"schema": "commodities"},
+    )
+
+    commodity_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("commodities.dim_commodity.id"), nullable=False
+    )
+    vendor_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    horizon_type: Mapped[str] = mapped_column(String(10), nullable=False)
+    horizon_code: Mapped[str] = mapped_column(String(12), nullable=False)
+    target_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    as_of_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    forecast_value: Mapped[float] = mapped_column(Float, nullable=False)
+    quote_unit: Mapped[str] = mapped_column(String(20), nullable=False)
+
+    def __repr__(self) -> str:
+        target = self.target_date or self.horizon_code
+        return (
+            f"<CmdtyFactPriceForecast commodity_id={self.commodity_id} "
+            f"{target} asof={self.as_of_date} {self.forecast_value}>"
+        )
