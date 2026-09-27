@@ -20,14 +20,48 @@ ticker tags). API `count` field reports a 10,000-row total archive.
 |---|---|
 | Hostname | `research.db.com` |
 | Portal URL | `https://research.db.com/research` |
-| Sign-in | corporate SSO; no interactive login needed on the operator's machine (transparent redirect on first hit) |
-| Username | n/a (SSO session) |
-| `.env` key | `IMDR_RESEARCH_DB_URL` (URL only; user/pass commented out, unused while SSO works) |
-| MFA | not observed |
+| Healthcheck URL | `https://research.db.com/research/Research/Latest` |
+| Sign-in | **email verification-code** login at `research.db.com/research/Register` (2026-07-22 — see below); previously a transparent SSO redirect with no interactive step observed |
+| Username | `.env: IMDR_RESEARCH_DB_USERNAME` (email; **no password field** — the "secret" is a 6-char code DB emails on submit) |
+| `.env` key | `IMDR_RESEARCH_DB_USERNAME` (2026-07-22: no `IMDR_RESEARCH_DB_URL`/`_PASSWORD` field exists in `Settings` — the earlier `IMDR_RESEARCH_DB_URL` reference in this table was stale) |
+| MFA | not observed (email-code flow is the standard login path, not an MFA add-on) |
 
 A separate DB property, `www.dbresearch.com` ("Research Institute"),
 is out of scope for this `db` vendor and tracked at
 [`docs/admin/development/db_research_institute_onboarding.md`](../../development/db_research_institute_onboarding.md).
+
+### Auth findings (2026-07-22)
+
+Auth mode flipped `PROFILE_ONLY` → `PROGRAMMATIC`
+(`src/imdr/research/auth/loginflows/db.py`). What looked like silent
+SSO was actually a persisted session; when the profile session lapses,
+DB serves an email-verification-code flow, not a password form:
+
+1. **Step 1 (email)** — `#input-email` + the currently-**visible**
+   `button[type="submit"]` (the Register page carries two such buttons,
+   one per hidden step panel — always click whichever `is_visible()`).
+2. **Step 2 (code)** — DB emails a 6-character alphanumeric code from
+   `DoNotReply@markit.esp.db.com` (subject varies: "instant access to
+   research" / "Verify device"; body contains `Code: 6BA0EC`). The
+   code is read automatically from the Outlook Inbox via
+   `Win32OutlookClient.find_code`, baseline-diffed against the newest
+   existing code email *before* Submit so it only accepts one strictly
+   newer than the baseline (skew-proof; DB invalidates the prior code
+   on every new request anyway). Fill `#input-verification-code` +
+   click the visible submit button.
+3. **Step 3 (T&C)** — tick `#checkbox-accept-terms-conditions` if
+   present and unchecked, then click
+   `#button-accept-terms-conditions`. MiFID radios / country dropdowns
+   are first-registration-only (adoshi is already registered) and are
+   skipped; the whole step is handled gracefully if absent.
+
+The flow is **idempotent and refresh-only** — the session persists in
+the profile, so `login()` short-circuits via `is_authenticated()` on
+almost every run; the email round-trip only fires when the saved
+session has actually lapsed. The healthcheck predicate `_live_db` was
+tightened to reject the `/research/Register` funnel (a bare `"login"`
+exclusion previously false-passed it as LIVE). Full design doc:
+[`docs/admin/development/db_email_code_login.md`](../../development/db_email_code_login.md).
 
 ## Profile
 

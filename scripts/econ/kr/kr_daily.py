@@ -1,23 +1,29 @@
-"""Korea econ — DAILY orchestrator.
+"""Korea econ — DAILY orchestrator (dual-track).
 
 Runs every fetcher / sub-orchestrator that produces KR data at daily
-cadence. Currently a single component:
+cadence:
 
-  - scripts.econ.kr.govt.ingest_filings  — discovers + ingests govt
-    policy filings (BoK, MOEF, MOTIR, FSC, FSS, KCS, KDI, MoDS) into
-    ``research.dim_report`` + Qdrant + SharePoint via
-    ``imdr.research.filings.ingest_filing``.
+  Track A (indicators → ``econ.fact_indicator``):
+  - scripts.econ.kr.kofia.kofia_cd_trading  — CD secondary-market volume
+  - scripts.econ.kr.kofia.kofia_mmf_flows   — MMF daily subscriptions/redemptions/net
+  - scripts.econ.kr.kofia.kofia_mmf_level   — MMF net assets / setup principal (latest snapshot)
+  - scripts.econ.kr.ksd.ksd_cd_issuance     — CD primary issuance (volume/count/rate) + outstanding
 
-Future daily components (high-frequency rates / KRW spot / etc.) can be
-added to ``PIPELINES`` below. The shape is identical to
-``kr_weekly.py`` / ``kr_monthly.py`` — one subprocess per fetcher, with
-isolation so a single failure doesn't block the rest.
+  Track B (documents → ``research.dim_report`` + Qdrant + SharePoint):
+  - scripts.econ.kr.govt.ingest_filings     — govt policy filings (BoK, MOEF,
+    MOTIR, FSC, FSS, KCS, KDI, MoDS) via ``imdr.research.filings.ingest_filing``.
 
-Distinct from the ``_country_runner`` pattern used by weekly/monthly:
-those orchestrators report indicator-row counts pulled from
-``econ.fact_indicator``. KR has no daily-frequency indicators today,
-but DOES produce daily filings (text documents) — so the email below
-queries ``research.dim_report`` instead.
+The KOFIA Track-A fetchers run in *live* mode (no ``--since``): CD + flows
+re-pull a rolling ~90-day window (idempotent MERGE skips existing rows) and
+MMF-level appends the latest business-day snapshot, so the daily level series
+accumulates going forward. Historical backfill is a separate one-off
+(``--since``), not part of the daily loop.
+
+Future daily components extend ``PIPELINES`` below. Shape identical to
+``kr_weekly.py`` / ``kr_monthly.py`` — one subprocess per fetcher, isolated so
+a single failure doesn't block the rest. The email reports BOTH a Track-A
+indicator snapshot (``track_a_snapshot``, scoped to DAILY) and a Track-B
+filings snapshot (``filings_snapshot``).
 
 Wired into ``scripts/imdr_daily.py:PIPELINES``.
 
@@ -43,7 +49,11 @@ import structlog
 from imdr.config.settings import get_settings
 from imdr.notifications.email import send_outlook_email
 from imdr.utils.logging import configure_logging
-from scripts.econ._daily_snapshots import filings_snapshot, run_pipelines
+from scripts.econ._daily_snapshots import (
+    filings_snapshot,
+    run_pipelines,
+    track_a_snapshot,
+)
 
 log = structlog.get_logger(__name__)
 
@@ -53,8 +63,19 @@ log = structlog.get_logger(__name__)
 # ============================================================================
 
 PIPELINES: list[list[str]] = [
+    # Track A — KOFIA money-market + fund indicators (live mode: no --since)
+    [sys.executable, "-m", "scripts.econ.kr.kofia.kofia_cd_trading"],
+    [sys.executable, "-m", "scripts.econ.kr.kofia.kofia_cd_yield"],
+    [sys.executable, "-m", "scripts.econ.kr.kofia.kofia_mmf_flows"],
+    [sys.executable, "-m", "scripts.econ.kr.kofia.kofia_mmf_level"],
+    [sys.executable, "-m", "scripts.econ.kr.kofia.kofia_fund_aum"],
+    [sys.executable, "-m", "scripts.econ.kr.ksd.ksd_cd_issuance"],
+    # Track B — government policy filings
     [sys.executable, "-m", "scripts.econ.kr.govt.ingest_filings", "--ingest"],
 ]
+
+# Track-A frequency scope for the post-run indicator snapshot (KOFIA = DAILY).
+_TRACK_A_FREQ = ["DAILY"]
 
 # ============================================================================
 
@@ -67,15 +88,17 @@ def _render_email(
     pipelines: list[dict],
     failed: list[str],
     snap: dict,
+    track_a: dict,
 ) -> tuple[str, str]:
     """Render (subject, html_body) for the daily KR email."""
     n_new = snap["total_reports"]
     n_chunks = snap["total_chunks"]
+    n_obs = track_a["total_obs"]
     fail_n = len(failed)
     status = "✓ all ok" if fail_n == 0 else f"⚠ {fail_n} failed"
     subject = (
-        f"[IMDR Daily KR] {status} — {n_new} new filings, {n_chunks} chunks "
-        f"({duration_s/60:.1f} min)"
+        f"[IMDR Daily KR] {status} — {n_obs} econ obs, {n_new} new filings, "
+        f"{n_chunks} chunks ({duration_s/60:.1f} min)"
     )
 
     # Every external string (titles, display_names, pipeline argv tail)
@@ -101,6 +124,13 @@ def _render_email(
         f"<td>{_e(r['title'][:120])}</td></tr>"
         for r in snap["recent"]
     ) or "<tr><td colspan='3' style='color:#888'>—</td></tr>"
+    rows_track_a = "\n".join(
+        f"<tr><td>{_e(v['vendor_name'])}</td>"
+        f"<td style='text-align:right'>{v['n_indicators']}</td>"
+        f"<td style='text-align:right'>{v['n_obs']}</td>"
+        f"<td>{_e(v['latest_obs'])}</td></tr>"
+        for v in track_a["by_vendor"]
+    ) or "<tr><td colspan='4' style='color:#888'>no new indicator obs</td></tr>"
 
     css = (
         "body{font-family:Segoe UI,Arial,sans-serif;font-size:13px;}"
@@ -111,14 +141,19 @@ def _render_email(
     )
 
     body = f"""<!doctype html><html><head><style>{css}</style></head><body>
-<h3>IMDR KR Daily — government filings ingest</h3>
+<h3>IMDR KR Daily — econ indicators + government filings</h3>
 <p>Started {run_started_at:%Y-%m-%d %H:%M UTC} · finished {run_completed_at:%H:%M UTC} ·
-duration {duration_s/60:.1f} min · {n_new} new filings / {n_chunks} chunks ·
-{fail_n} pipeline(s) failed</p>
+duration {duration_s/60:.1f} min · {n_obs} new econ obs · {n_new} new filings /
+{n_chunks} chunks · {fail_n} pipeline(s) failed</p>
 
 <h4>Pipelines</h4>
 <table><thead><tr><th>name</th><th>rc</th><th>elapsed</th></tr></thead>
 <tbody>{rows_pipelines}</tbody></table>
+
+<h4>Track A — indicator obs ingested (DAILY scope)</h4>
+<table><thead><tr><th>vendor</th><th style='text-align:right'>indicators</th>
+<th style='text-align:right'>new obs</th><th>latest obs</th></tr></thead>
+<tbody>{rows_track_a}</tbody></table>
 
 <h4>Filings ingested by vendor</h4>
 <table><thead><tr><th>code</th><th>vendor</th><th>category</th>
@@ -153,7 +188,19 @@ def main(argv: list[str] | None = None) -> int:
     run_started_at = run["started_at"]
     run_completed_at = run["completed_at"]
 
-    # --- Filings snapshot + email -----------------------------------------
+    # --- Track A + Track B snapshots + email ------------------------------
+    track_a: dict = {"by_vendor": [], "total_obs": 0}
+    try:
+        track_a = track_a_snapshot(run_started_at, "KR", _TRACK_A_FREQ)
+        log.info(
+            "kr_daily_track_a_snapshot",
+            new_obs=track_a["total_obs"],
+            vendors_with_activity=len(track_a["by_vendor"]),
+        )
+    except Exception:
+        log.exception("kr_daily_track_a_snapshot_failed")
+        print(f"\n!! track-a snapshot failed:\n{traceback.format_exc()}")
+
     snap: dict = {"by_vendor": [], "total_reports": 0, "total_chunks": 0, "recent": []}
     try:
         snap = filings_snapshot(run_started_at, "KR")
@@ -180,6 +227,7 @@ def main(argv: list[str] | None = None) -> int:
                 pipelines=pipeline_results,
                 failed=failed,
                 snap=snap,
+                track_a=track_a,
             )
             send_outlook_email(
                 to=settings.email_to,

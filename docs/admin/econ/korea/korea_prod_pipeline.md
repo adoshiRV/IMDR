@@ -49,14 +49,30 @@ Domain library code lives in `src/imdr/domains/econ/`:
 python -m scripts.econ.kr.kr_daily
 ```
 
-**New 2026-06-10.** Runs every day under the daily cron. The orchestrator
-delegates to one subsystem today; more KR daily entries can extend the
+**New 2026-06-10; dual-track since 2026-07-20.** Runs every day under the daily
+cron. `kr_daily.py` now runs Track A (KOFIA money-market indicators) + Track B
+(govt filings) and emails a combined snapshot. More KR daily entries extend the
 `PIPELINES` list.
 
-| Sub-orchestrator | Purpose | Cadence per source |
-|---|---|---|
-| `scripts.econ.kr.govt.ingest_filings` | Discovers + ingests govt policy filings (BoK, MOEF, MOTIR, FSC, FSS, KCS, KDI, MoDS) into `research.dim_report` + `research.fact_chunk` + Qdrant + SharePoint via `imdr.research.filings.ingest_filing`. Per-vendor dedup at `data/econ/kr/govt/{vendor}/seen.json`; daily new-items manifest at `data/econ/kr/govt/{vendor}/snapshots/{YYYY-MM-DD}.json`; orchestrator log at `data/econ/kr/govt/_last_run.log`. Failed items retry on next run. | per-source — BoK ~1/day, MOEF ~5/day, MOTIR ~2/day, FSS ~0.3/day, FSC ~0.4/day, KDI ~0.1/day, MoDS monthly (CPI) |
-| `scripts.econ.kr.bis.bis_korea` | Fetches `BIS.POLICY_RATE.KR` (BOK Base Rate) from BIS SDMX WS_CBPOL D.KR. Daily series, 6,757 obs 1999-05-06→present, latest 2.5%. Maps to cell 4.4 Policy Reaction. No auth required. Mirrors `scripts.econ.id.bis.bis_indonesia`. | Daily (BIS typically 24h lag on policy-rate updates) |
+| Sub-orchestrator | Track | Purpose | Cadence per source |
+|---|---|---|---|
+| `scripts.econ.kr.kofia.kofia_cd_trading` | A | CD secondary-market volume (매도/매수/합계), freeSIS STATBND0100000050 → `KOFIA.CD.TRADE_*.KR` (krw_bn). Live mode re-pulls a rolling 90-day window through **T-1** (idempotent MERGE). History 2003-01→ (methodology break 2009-02-04). | Daily |
+| `scripts.econ.kr.kofia.kofia_cd_yield` | A | CD 91-day representative yield (시중은행/특수은행), freeSIS STATBND0100000320 → `KOFIA.CD.YIELD{,.SPECIAL_BANK}.KR` (%). Daily market benchmark (vs the monthly `BOK.BANK_RATE.CD_91D.KR`). History 2009-01→. | Daily |
+| `scripts.econ.kr.kofia.kofia_mmf_flows` | A | MMF daily flows 설정/해지/순증, freeSIS STATFND0100100030 filtered to 단기금융 (T1111=05) → `KOFIA.MMF.{INFLOW,OUTFLOW,NET_FLOW}.KR`. Rolling 90-day window through T-1. History 2006-05→. | Daily |
+| `scripts.econ.kr.kofia.kofia_mmf_level` | A | MMF **net assets** (전체/개인/법인), freeSIS STATFND0400000050 (tmpV39=2) → `KOFIA.MMF.NAV{,.INDIV,.CORP}.KR`. Live appends the latest business-day snapshot; backfill (`--since`) iterates month-ends. History 2010-01→. (MMF *principal* now lives in kofia_fund_aum.) | Daily |
+| `scripts.econ.kr.kofia.kofia_fund_aum` | A | Fund industry AUM by asset class (설정원본), freeSIS STATFND0100100130 → `KOFIA.FUND_AUM.{EQUITY,BOND,MMF,HYBRID_*,DERIVATIVES,REAL_ESTATE,FOF,SPECIAL_ASSET,MIXED_ASSET,…,TOTAL}.KR` (krw_bn, 14 series, 13 types sum to TOTAL). Daily (period code tmpV35=0), rolling window through T-1. History 2004-01→. | Daily |
+| `scripts.econ.kr.govt.ingest_filings` | B | Discovers + ingests govt policy filings (BoK, MOEF, MOTIR, FSC, FSS, KCS, KDI, MoDS) into `research.dim_report` + `research.fact_chunk` + Qdrant + SharePoint via `imdr.research.filings.ingest_filing`. Per-vendor dedup at `data/econ/kr/govt/{vendor}/seen.json`; daily new-items manifest at `data/econ/kr/govt/{vendor}/snapshots/{YYYY-MM-DD}.json`; orchestrator log at `data/econ/kr/govt/_last_run.log`. Failed items retry on next run. | per-source — BoK ~1/day, MOEF ~5/day, MOTIR ~2/day, FSS ~0.3/day, FSC ~0.4/day, KDI ~0.1/day, MoDS monthly (CPI) |
+| `scripts.econ.kr.bis.bis_korea` | A | Fetches `BIS.POLICY_RATE.KR` (BOK Base Rate) from BIS SDMX WS_CBPOL D.KR. Daily series, 6,757 obs 1999-05-06→present, latest 2.5%. Maps to cell 4.4 Policy Reaction. No auth required. Mirrors `scripts.econ.id.bis.bis_indonesia`. Wired standalone in `imdr_daily.py` (not via `kr_daily`). | Daily (BIS typically 24h lag on policy-rate updates) |
+
+**KOFIA Track A — vendor `kofia` (dim_vendor id=85), migrations 115 + 116.**
+25 active indicators / ~114.5k obs loaded 2026-07-20 (CD trading 3 · CD yield 2 ·
+MMF flows 3 · MMF NAV 3 · fund-AUM-by-type 14). `KOFIA.MMF.SETUP_PRINCIPAL.KR`
+deactivated (mig 116) — superseded by daily `KOFIA.FUND_AUM.MMF.KR`.
+Library transport: `src/imdr/domains/econ/kofia_http.py` (freeSIS JSON POST, no auth).
+The post-run email adds a Track-A snapshot (`track_a_snapshot`, DAILY scope).
+Sibling **KSD** vendor (id=86) is a dormant scaffold at `scripts/econ/kr/ksd/ksd_cd_trades.py`
+for the CD "who traded" (buyer/seller sector) cut — activates once `IMDR_KSD_API_KEY`
+(data.go.kr #15043446) is set and the response schema is verified.
 
 Writes to (per-filing — 3 or 4 layers depending on source type):
 - `research.dim_report` (one row per filing, `vendor_category` ∈ `official_cb / official_ministry / official_regulator / official_thinktank / official_statistics`)
@@ -85,8 +101,9 @@ Writes to (per-filing — 3 or 4 layers depending on source type):
 **BoK MSB-noise denylist** (commit `8b068a7` 2026-06-11): 131 of 487 BoK items (27%) were one-line MSB auction announcements with zero macro commentary. [`fetch_bok.py`](../../../scripts/econ/kr/govt/fetch_bok.py)`:_DROP_TITLE_RE` drops them at discovery so they never enter the FilingItem stream. Forward-only — existing 131 noise rows left in DB.
 
 Email summary sent to `Settings.email_to` after each run:
-> Subject: `[IMDR Daily KR] ✓ all ok — N new filings, M chunks (T min)`
-> Body: pipeline-results table · filings ingested by vendor · top-5 recent titles.
+> Subject: `[IMDR Daily KR] ✓ all ok — X econ obs, N new filings, M chunks (T min)`
+> Body: pipeline-results table · Track-A indicator obs by vendor (DAILY scope) ·
+> filings ingested by vendor · top-5 recent titles.
 
 Inline rendering in `scripts/econ/kr/kr_daily.py:_render_email()` — not via
 `_country_runner` (which is indicator-focused and doesn't fit Track B).

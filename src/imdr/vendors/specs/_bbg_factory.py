@@ -38,26 +38,76 @@ DEFAULT_MIN_MTIME_AGE = timedelta(hours=72)
 BBG_MIRROR_ROOT = Path(r"Z:\Business\Research\Dashboard\DataSources\BBG_mirror")
 BBG_FX_ROOT = BBG_MIRROR_ROOT / "FX"
 
+# Pre-cutover tree. Still refreshed by the R pipeline, and the ONLY place the
+# onshore EM forward curves exist: BBG_mirror\FX was provisioned with 22
+# currency folders and no CNY/CNO/MYO/IDO, so those pairs went dark the day
+# the FX feed cut over to the mirror -- last obs 2026-04-24 against a mirror
+# created 2026-04-28. Read-only, exactly like the mirror.
+BBG_LEGACY_ROOT = Path(r"Z:\Business\Research\Dashboard\DataSources\BBG")
+BBG_LEGACY_FX_ROOT = BBG_LEGACY_ROOT / "FX"
+
+# Onshore EM ccys served from the legacy tree instead of the mirror.
+#
+# CNO is deliberately ABSENT. Its file labels tenors ``FX_CNY_*`` while its
+# folder is ``CNO``, so ``alias_to_tenor`` rejects every row -- which is why
+# USD/CNO has never held a single fact row, before or after the cutover.
+# Including it here would acquire the file just to skip all of it and log a
+# warning per run. Making CNO work needs an explicit per-ccy tenor alias in
+# the extractor; that is a new curve, not part of restoring this outage.
+ONSHORE_FX_CCYS: tuple[str, ...] = ("CNY", "IDO", "MYO")
+
 # Shared rates glob shape — 4 BBG rates domains, one PAR CSV per curve folder.
 RATES_KINDS: tuple[str, ...] = ("IRS", "OIS", "BASIS", "CCS")
 RATES_PATTERNS: list[str] = [f"{k}/*/PAR/{k}_PAR_*.csv" for k in RATES_KINDS]
 
 
+def _fx_ccys_from_universe() -> list[str]:
+    """Non-USD leg of every FX rate pair in the universe, sorted."""
+    from imdr.universe.fx import get_fx_universe
+
+    universe = get_fx_universe()
+    return sorted({
+        quote if base == "USD" else base
+        for base, quote in universe.fx_rate_pairs()
+    })
+
+
 def fx_patterns_from_universe() -> list[str]:
-    """Build per-pair FX glob patterns from the IMDR universe.
+    """Per-pair FX glob patterns for the MIRROR root.
 
     BBG names files by the non-USD leg (``FX_{CCY}.csv`` per pair); the
     universe's ``fx_rate_pairs()`` already enumerates the pairs we want.
     Used by both ``bbg_fx_snapshot`` and ``bbg_fx_daily`` specs.
-    """
-    from imdr.universe.fx import get_fx_universe
 
-    universe = get_fx_universe()
-    bbg_ccys = sorted({
-        quote if base == "USD" else base
-        for base, quote in universe.fx_rate_pairs()
-    })
-    return [f"{ccy}/FX_{ccy}.csv" for ccy in bbg_ccys]
+    The onshore ccys are excluded because the mirror has no folder for them --
+    asking for them here matched nothing and logged a silent
+    ``bbg_source_file_missing`` warning on every run. They come from
+    ``onshore_fx_extra_source()`` instead.
+    """
+    return [
+        f"{ccy}/FX_{ccy}.csv"
+        for ccy in _fx_ccys_from_universe()
+        if ccy not in ONSHORE_FX_CCYS and ccy != "CNO"
+    ]
+
+
+def onshore_fx_extra_source() -> tuple[tuple[Path, tuple[str, ...]], ...]:
+    """``extra_sources`` entry pulling the onshore ccys from the legacy tree.
+
+    Restricted to ``ONSHORE_FX_CCYS`` so the legacy tree's other folders --
+    including the unparseable ``CNO`` and the untracked ``KRO`` -- are not
+    acquired. Only ccys actually in the universe are requested, so dropping a
+    pair from ``fx.yml`` stops asking for its file without a second edit here.
+    """
+    in_universe = set(_fx_ccys_from_universe())
+    patterns = tuple(
+        f"{ccy}/FX_{ccy}.csv"
+        for ccy in ONSHORE_FX_CCYS
+        if ccy in in_universe
+    )
+    if not patterns:
+        return ()
+    return ((BBG_LEGACY_FX_ROOT, patterns),)
 
 
 def build_bbg_feed(
@@ -71,6 +121,7 @@ def build_bbg_feed(
     success_context_builder: Callable[[Any, int], dict[str, Any]],
     min_matches: int,
     min_mtime_age: timedelta = DEFAULT_MIN_MTIME_AGE,
+    extra_sources: tuple[tuple[Path, tuple[str, ...]], ...] = (),
 ) -> tuple[LocalFilesystemSpec, VendorFeed]:
     """Assemble (SPEC, FEED) for a BBG_mirror-backed feed.
 
@@ -91,6 +142,7 @@ def build_bbg_feed(
         patterns=patterns,
         min_mtime_age=min_mtime_age,
         min_matches=min_matches,
+        extra_sources=extra_sources,
     )
     feed = VendorFeed(
         name=name,

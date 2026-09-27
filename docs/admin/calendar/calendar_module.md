@@ -386,6 +386,17 @@ Migration: `migrations/008_create_calendar_schema.sql`
 
 Bloomberg's `event_datetime` is **NOT UTC and NOT consistently convertible**. Do NOT attempt automatic timezone conversion. Use `event_date` for all calendar logic.
 
+> **Scope note (2026-07-27):** the paragraph above describes the **legacy Bloomberg-Excel
+> import path** (`import_cb_events.py`, multi-sheet CB-events workbook) — it still holds for
+> those rows. It does **not** hold for the newer **BQL SQLite lane** (`bql_econdata.py`, also
+> `vendor_id = 4`): that feed's `time` column was empirically confirmed to be rendered in a
+> **fixed Asia/Singapore (UTC+8)** desk timezone, and is now automatically converted to a true
+> UTC instant on read (see [`bql_calendar.md` § Timezone fix](bql_calendar.md#timezone-fix-2026-07-27)).
+> Both row types share `vendor_id = 4`, so when reading `cb_events`, check `source` (or the
+> row's provenance) rather than assuming a uniform `event_datetime` convention across the whole
+> vendor-4 lane. `event_date` itself is unaffected either way — it stays the source-provided
+> local calendar day for both paths.
+
 **Convention by event state:**
 
 | State | Convention | Example |

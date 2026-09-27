@@ -49,6 +49,10 @@ PIPELINES: list[list[str]] = [
     [sys.executable, "-m", "scripts.econ.id.bi.bi_bank_bs"],
     [sys.executable, "-m", "scripts.econ.id.bi.bi_bank_credit"],
     [sys.executable, "-m", "scripts.econ.id.bi.bi_bank_rates"],
+    # Survei Perbankan — new-loan demand (33 indicators, quarterly, 2012 Q1→).
+    # A genuine SLOOS-equivalent; distinct from bi_business_survey (SKDU),
+    # which surveys firms about activity rather than banks about credit.
+    [sys.executable, "-m", "scripts.econ.id.bi.bi_bank_survey"],
     [sys.executable, "-m", "scripts.econ.id.bi.bi_bop"],
     [sys.executable, "-m", "scripts.econ.id.bi.bi_business_survey"],
     [sys.executable, "-m", "scripts.econ.id.bi.bi_consumer_survey"],
@@ -56,6 +60,9 @@ PIPELINES: list[list[str]] = [
     [sys.executable, "-m", "scripts.econ.id.bi.bi_fx_reserves"],
     [sys.executable, "-m", "scripts.econ.id.bi.bi_monetary_base"],
     [sys.executable, "-m", "scripts.econ.id.bi.bi_money_supply"],
+    # Prompt Manufacturing Index — BI's own PMI (20 indicators, quarterly,
+    # 2010 Q1→). Free; the paid S&P Global monthly series stays out of scope.
+    [sys.executable, "-m", "scripts.econ.id.bi.bi_pmi"],
     [sys.executable, "-m", "scripts.econ.id.bi.bi_retail_sales"],
     [sys.executable, "-m", "scripts.econ.id.bi.bi_sbn"],
     [sys.executable, "-m", "scripts.econ.id.bi.bi_sbn_position"],

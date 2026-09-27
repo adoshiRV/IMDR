@@ -330,6 +330,8 @@ async def ingest_one(
                 title=meta_with_path.title,
                 text_preview=chunk.text,
                 model_id=model_id,
+                source="portal",
+                source_type="research",
             ))
         if points:
             _t = _phase_start("qdrant_upsert", f"{len(points)} points")

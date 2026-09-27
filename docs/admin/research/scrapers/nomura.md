@@ -61,11 +61,35 @@ Per-hit fields used:
 |---|---|
 | Hostname | `www.nomuranow.com` |
 | Entry path | `/research/` (the bare host bounces around — go straight to `/research/`) |
-| Hub page | `https://www.nomuranow.com/research/m/Home` |
-| Sign-in | login form on portal |
+| Hub page / healthcheck | `https://www.nomuranow.com/research/m/Home` |
+| Login URL | `https://www.nomuranow.com/research/m/public/login` (2026-07-22 — see below) |
+| Sign-in | email + password form, no MFA |
 | Username | see `.env: IMDR_RESEARCH_NOMURA_USERNAME` |
 | Password | in `.env: IMDR_RESEARCH_NOMURA_PASSWORD` |
 | URL env var | `IMDR_RESEARCH_NOMURA_URL=https://www.nomuranow.com` |
+
+### Auth findings (2026-07-22)
+
+The loginflow (`src/imdr/research/auth/loginflows/nomura.py`) was
+rewritten. **Prior bug:** its login URL pointed at the research
+*portal* (`…/portal/site/nnpub/research/`), which — logged out —
+serves a "Not Found" SPA shell with **no login form**; the field-fill
+silently no-op'd and `is_authenticated` was fooled by the shell, so the
+flow returned an empty session (0 KB `storage_state`) and the search
+API 401'd. Fixed to hit the real login page,
+`https://www.nomuranow.com/research/m/public/login`:
+
+* Email — `input[name="username"]`
+* Password — `input[name="password"]`
+* Submit — `#login-button` (**not** `#magicLink-button`, which is a
+  passwordless magic-link path to avoid)
+
+Auth verifies against the healthcheck URL (moved to
+`/research/m/Home` — the old `/portal/site/nnpub/research/` path
+rendered "Not Found" even when authenticated, so it could never detect
+a live session). The registry predicate `_live_nomura` now requires a
+real page title (rejecting `""` / `"not found"`) in addition to
+excluding the login URL. Mode remains `PROGRAMMATIC`; no MFA observed.
 
 ## Profile
 

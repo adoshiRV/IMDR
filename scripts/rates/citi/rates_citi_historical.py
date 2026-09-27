@@ -35,8 +35,8 @@ log = structlog.get_logger(__name__)
 MODE = "range"  # "range" | "catchup" | "gaps"
 
 # range: start and end dates (YYYY-MM-DD)
-START = "2024-05-05"
-END = "2025-05-05"
+START = "2010-11-26"
+END = "2015-05-29"
 
 # catchup: how many calendar days back from today
 LOOKBACK_DAYS = 30
@@ -47,24 +47,29 @@ GAPS_FILE = "data/gaps/rates_gaps.txt"
 # 0 = unlimited (for gaps mode, limits number of dates processed)
 MAX_DAYS = 0
 
+# Restrict the pull to specific curves, comma-separated "CCY.CURVE"
+# (e.g. "GBP.SONIA" or "GBP.SONIA,USD.SOFR"). None = all catalog curves.
+# Tenor cannot be scoped — every curve pulls its full maturity grid.
+CURVES: str | None = "GBP.SONIA"
+
 # Quote types (None = read from pipelines.yml default_quotes; or comma-separated override)
 # QUOTES: str | None = None
 
-QUOTES = "par,fwd"
+QUOTES = "par"
 
 # Data frequency
-FREQUENCY = "HOURLY"
+FREQUENCY = "DAILY"
 
 # When True, route through the dedicated hourly Citi OAuth client + tag-quota
 # bucket so a HOURLY backfill doesn't eat into the daily pipelines' budget.
-USE_HOURLY_CREDS = True
+USE_HOURLY_CREDS = False
 HOURLY_QUOTA_FILE = "data/cache/citi_tag_quota_hourly.json"
 
 # Chunk a long range into N-month windows. Citi's HOURLY API silently
 # downsamples to ~1 point/day when a single request spans >~6 months;
 # probed thresholds: 1/2/3/4/6M preserve 12 hrs/day; 12M collapses.
 # Set to 0 to disable chunking (one bulk call across full range).
-CHUNK_MONTHS = 3
+CHUNK_MONTHS = 0
 
 # Per-MERGE batch size for the DB load phase. 0 = use settings.bulk_batch_size
 # (5000). Smaller value = lower TempDB peak, more frequent commits.
@@ -95,6 +100,22 @@ def _parse_dates_from_file(path: Path) -> list[datetime]:
     return sorted(dates)
 
 
+def _parse_curves() -> list[tuple[str, str]] | None:
+    """Parse CURVES into (ccy, curve) tuples. None = whole catalog."""
+    if not CURVES:
+        return None
+    out: list[tuple[str, str]] = []
+    for item in CURVES.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        ccy, _, curve = item.partition(".")
+        if not ccy or not curve:
+            raise ValueError(f"Bad CURVES entry {item!r}; expected 'CCY.CURVE'")
+        out.append((ccy.upper(), curve.upper()))
+    return out or None
+
+
 def _run_pipeline(
     connector: MSSQLConnector,
     settings: object,
@@ -116,6 +137,7 @@ def _run_pipeline(
         end=end,
         quotes=quotes,
         frequency=frequency,
+        curves=_parse_curves(),
         use_cache=False,
         chunk_size=chunk_size,
         client_id=settings.citi_hourly_client_id if USE_HOURLY_CREDS else None,

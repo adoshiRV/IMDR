@@ -224,6 +224,90 @@ live) and FX reserves from FRED mirror.
 > BOK Base Rate is NOT in KOSIS — it's only accessible via the BOK
 > website or via Citi market data.
 
+#### 4.3a CD **trading volume** + **issuance** + **who traded** + **MMF** — non-KOSIS (KOFIA freeSIS / FSC / KSD)
+
+> **PROD-LIVE 2026-07-20.** KOFIA freeSIS onboarded as vendor `kofia`
+> (dim_vendor id=85), migrations 115 + 116 applied, backfilled + loaded, and
+> wired into `scripts/econ/kr/kr_daily.py` (Track A, DAILY) — itself already
+> registered in `scripts/imdr_daily.py:PIPELINES`. **25 active indicators /
+> ~114.5k obs** in `econ.fact_indicator`, all DAILY. The KSD CD "who traded" +
+> "issuance" cuts (vendor `ksd`, id=86) are **dormant scaffolds** at
+> `scripts/econ/kr/ksd/` — activate once `IMDR_KSD_API_KEY` (one data.go.kr key
+> unlocks #15043446 trades + #15059591 issuance) is set + the response verified.
+> Discovery captures: [`playground/econ/kr/kofia/`](../../../../playground/econ/kr/kofia/).
+>
+> | imdr_code | what | history | fetcher |
+> |---|---|---|---|
+> | `KOFIA.CD.TRADE_TOTAL/SELL/BUY.KR` | CD secondary-market volume (krw_bn) | 2003-01 → | kofia_cd_trading |
+> | `KOFIA.CD.YIELD.KR / .SPECIAL_BANK.KR` | CD 91d representative yield, daily (%) | 2009-01 → | kofia_cd_yield |
+> | `KOFIA.MMF.NET_FLOW/INFLOW/OUTFLOW.KR` | MMF daily flows 설정/해지/순증 (krw_bn) | 2006-05 → | kofia_mmf_flows |
+> | `KOFIA.MMF.NAV.KR / .INDIV.KR / .CORP.KR` | MMF net assets total/retail/instit. (krw_bn) | 2010-01 → (month-end backfill; daily live) | kofia_mmf_level |
+> | `KOFIA.FUND_AUM.{EQUITY,BOND,MMF,HYBRID_*,DERIVATIVES,REAL_ESTATE,FOF,SPECIAL_ASSET,MIXED_ASSET,…,TOTAL}.KR` | fund AUM by asset class, 설정원본 (krw_bn); 13 types sum to TOTAL | 2004-01 → | kofia_fund_aum |
+> | `KOFIA.MMF.SETUP_PRINCIPAL.KR` | *DEACTIVATED (mig 116)* — superseded by `KOFIA.FUND_AUM.MMF.KR` (daily, longer) | — | — |
+> | `KSD.CD.ISSUANCE.{VOLUME,COUNT,AVG_RATE}.KR` · `KSD.CD.OUTSTANDING.KR` | CD issuance volume · count · avg discount rate · outstanding stock (daily) — **LOADED 2026-08-11** (5,569 obs; via FSC data.go.kr 1160100) | issuance 2020-01→ · outstanding 2020-04→ | ksd_cd_issuance |
+> | `KSD.CD.NET_BUY.*.KR` | CD by buyer/seller sector (who-traded) — **dormant** (apply #15043446; the one cut FSC lacks) | — | ksd_cd_trades |
+>
+> Data note: freeSIS values are provisional (실시간, 추후 변경 가능) and the loader is
+> insert-only; the live fetchers therefore ingest only through **yesterday** (T-1),
+> so each day is stored once, finalized. freeSIS mechanism + serviceIds retained below.
+> Scripts + raw captures in
+> [`playground/econ/kr/kofia/`](../../../../playground/econ/kr/kofia/) (`SOURCES.md`,
+> `dump_freesis_catalog.py`, `capture_all_params.py`, `replay_requests.py`).
+
+**What this is for.** The CD *rate* we already have (`BOK.BANK_RATE.CD_91D.KR`,
+row 4.3 above). What KOSIS/ECOS do **not** carry, and what these sources add:
+CD **traded volume**, CD **who-traded** (by investor / financial sector), and
+**MMF** (money-market fund) AUM + fund flows. ECOS direct is BLOCKED (Korean
+mobile + citizenship). These come from **KOFIA freeSIS** and the **Korea
+Securities Depository (KSD)** public-data APIs.
+
+| Need | Source | Access | History | Status |
+|---|---|---|---|---|
+| CD **traded volume** (daily) | freeSIS `STATBND0100000050` (CD거래현황) | plain JSON POST, no auth | ≥ 2010-01 | ✅ PROD-LIVE (`KOFIA.CD.TRADE_*`) |
+| CD **issuance** (ISIN, amount, discount rate, maturity, bank) | **FSC** 단기금융증권 발행정보 — data.go.kr org **1160100** `getCdIssuBasiInfo_V2` | REST + service-key (raw-in-URL) | 2020-04→ | ✅ **BUILT + WIRED 2026-08-04** — vendor `ksd`, `KSD.CD.ISSUANCE.*`+`KSD.CD.OUTSTANDING.KR`. See [`fsc_short_term_securities.md`](fsc_short_term_securities.md) |
+| CD **who traded** (buyer/seller sector, ISIN-level) | **KSD** 단기금융증권거래정보 — data.go.kr **#15043446** | REST + service-key | ~2021→ (confirm) | ⏳ key loaded; apply for dataset + verify schema (not in FSC) |
+| ~~CD **issuance**~~ (KSD portal copy) | ~~KSD #15059591~~ | — | — | ⛔ redundant — superseded by FSC 1160100 above |
+| MMF **AUM level** (period) | freeSIS `STATFND0400000050` (기간별 MMF현황) | plain JSON POST | long | ✅ pullable |
+| MMF **by asset manager** | freeSIS `STATFND0400000060` (운용사별 MMF현황) | plain JSON POST | long | ✅ pullable |
+| MMF/fund **flows** (설정/해지/순증, daily) | freeSIS `STATFND0100100030` (자금유출입 시계열) | plain JSON POST | long | ✅ pullable |
+
+**KOFIA freeSIS 2.0 mechanism** — host `https://freesis.kofia.or.kr`, **no auth,
+no browser needed in prod** (verified live via plain `requests` 2026-07-20).
+Headers `Content-Type: application/json`, `X-Requested-With: XMLHttpRequest`;
+prime one `GET /stat/FreeSIS.do` for cookies. Three POSTs:
+1. **Catalog** `POST /meta/getMenuData.do` → `dsMainMenu[]` (every `SERVICE_ID`, `SERVICE_NM`, `DIVISIONDESC`, `COL2VAL`=history start). 100 statistics.
+2. **Param spec** `POST /meta/getSrvData.do` `{"dmSearchData":{"strSvrId":"<SERVICE_ID>",...,"strGetCode":"Y"}}` → `dsSearchCdList` (dropdown codes: unit, fund-type, investor-type).
+3. **Data** `POST /meta/getMetaDataList.do` `{"dmSearch":{<params>,"OBJ_NM":"<SERVICE_ID>BO"}}` → `{"ds1":[{TMPV1..n}]}`. `tmpV40`=unit (`100000000`=억).
+
+Verified data-call params + shape:
+- **CD거래현황** `STATBND0100000050` — `tmpV1:"D"`, `tmpV45`=from, `tmpV46`=to (yyyymmdd). Rows `TMPV1`=date, `TMPV2`+`TMPV3`=`TMPV4` (2 components → total; header labels TBC), 억원. e.g. 2026-07-16 → 9700/9350/**19050** (₩1.905tn). 133 daily rows Jan–Jul 2026.
+- **투자자별거래현황(장외)** `STATBND0100000270` — dates + selectors `tmpV76/92/77/93/67`. Rows `TMPV1`=거래유형, `TMPV2`=instrument, `TMPV3..14`=by-investor cols. ⚠️ instruments seen are **bonds** (국채/지방채…); **confirm CD is listed here**, else use KSD for CD-by-investor.
+- **자금유출입 시계열** `STATFND0100100030` — `tmpV30`=from, `tmpV31`=to, `tmpV7`=period, `tmpV5`/`tmpV3`=fund-type filter (blank=all → set for MMF-only). Rows `TMPV1`=date, `TMPV2/3/4`≈설정/해지/순증. 131 daily rows.
+- **운용사별 MMF현황** `STATFND0400000060` — `tmpV34`=date, `tmpV39`=type. Rows `TMPV1`=AMC, `TMPV2`=설정원본, `TMPV4`=순자산, last row `합계`. 2026-07-15 총계: 설정원본 **₩238.05tn**, 순자산 **₩216.02tn**, 30 AMCs (삼성 27.8tn · IBK 17.5tn · 신한 14.2tn …).
+- **기간별 MMF현황** `STATFND0400000050` — `tmpV34`=date. MMF level time series (개인/법인 split via `dsSearchCdList`).
+
+**FSC OpenAPI (data.go.kr org 1160100)** — the **verified CD-issuance path** (key loaded + tested
+2026-08-04). `GetShorTermSecuIssuInfoService_V2` → `getCdIssuBasiInfo_V2` = ISIN-level CD issuance
+(amount `codpIssuAmt`, discount rate `codpDcRat`, issue/maturity dates, issuing bank), 576k rows
+2020-04→; plus CP/ABCP/ABSTB issuance, issuance rates, maturity balances (9 operations). Aggregate
+per `basDt` → `FSC.CD.ISSUANCE.{VOLUME,COUNT,AVG_RATE}.KR` in `econ.fact_indicator` (vendor `fsc`).
+Full reference + gotchas (raw-key-in-URL, https): [`fsc_short_term_securities.md`](fsc_short_term_securities.md).
+
+**KSD OpenAPI (data.go.kr)** — provider 한국예탁결제원, REST JSON/XML, service-key.
+License **KOGL: attribution + non-commercial** (check against intended use).
+`#15043446` 거래정보 covers CP/**CD** with 매매금액(volume), 매매수익률, ISIN, and
+**매도·매수 금융업종구분** (buyer/seller sector = the who-traded cut) — **still the only who-traded
+source** (not in FSC or freeSIS). `#15059591` 발행정보 = CD issuance — **redundant**, superseded by
+FSC 1160100 (same KSD data, deeper). Generic KOFIA stats API `#15094809` carries only aggregate
+펀드순자산/CMA/credit — no MMF cut, no CD.
+
+**Status / open items:** (1) ✅ **CD issuance DONE 2026-08-04** — vendor `ksd`, transport
+`src/imdr/domains/econ/datagokr_http.py`, fetcher `scripts/econ/kr/ksd/ksd_cd_issuance.py`,
+backfilled + loaded + wired into `kr_daily` — see
+[`../../development/kr_kofia_onboarding.md`](../../development/kr_kofia_onboarding.md) §4c; (2) KSD
+who-traded — apply for #15043446, verify schema, implement `ksd_cd_trades` (reuse `datagokr_http`);
+(3) freeSIS residuals — decode grid headers to label `TMPV*`; confirm CD in 투자자별거래현황(장외).
+
 ### 4.4 Policy Reaction (BOK Base Rate, fiscal stance, macropru)
 
 | Concept | orgId | tblId | Cadence | Status |

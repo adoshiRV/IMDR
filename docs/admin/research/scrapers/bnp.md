@@ -15,6 +15,26 @@
 | Password | not in `.env` yet — Chrome profile retained it after manual login |
 | MFA | None observed at first login (one-shot username/password via SiteMinder) |
 
+### Auth findings (2026-07-22)
+
+* **Public site moved.** The public-facing landing is now
+  `globalmarkets.cib.bnpparibas/markets-360/` — a marketing page with
+  a "Login" button — rather than a bare `markets360.bnpparibas.com/`.
+  Hitting the bare host now 302s to that public landing (no longer to
+  the research app), so it can't be used as a healthcheck URL any
+  more. After SSO, the authenticated research portal still lands back
+  on `markets360.bnpparibas.com/contentportal/portal-content-service/markets360`
+  — the same URL captured at Phase 1 above — which is why
+  `registry.py`'s `healthcheck_url` now points directly at that authed
+  path (navigating it with the saved session skips the public-landing
+  + Login-button dance).
+* **`headless=False` required.** The BNP hosts throw
+  `ERR_HTTP2_PROTOCOL_ERROR` under headless Chrome (verified
+  2026-07-22) — headed only, same posture as UBS
+  ([ubs.md](ubs.md)). `VENDOR_AUTH_REGISTRY["bnp"].headless = False`.
+* Mode remains `PROFILE_ONLY` (SiteMinder SSO, no programmatic form) —
+  recovered via headed `auth login --vendor bnp`.
+
 `.env IMDR_BNP_URL` points at the SPA route, **not** a JSON API. The
 captured HTML shows `<base href="/contentportal/portal-content-service/">`
 and renders an Angular app (`gmportal-search-filter`,

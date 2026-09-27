@@ -173,6 +173,25 @@ This script may need to be re-run periodically until the fallback is removed
 from `cb_scrapers.py`; the soft-dates consumer rule is what keeps a stray
 re-seeded row from being misread as a hard date in the meantime.
 
+## Manual forward seeds
+
+Some central banks publish their meeting calendar 12–18 months out — further
+ahead than the Bloomberg / BQL / TE feeds roll. Rather than wait, we seed the
+known/projected forward dates manually with `vendor_id = NULL` and a descriptive
+`source`. The `cb_events` unique keys are **per-vendor**
+(`UX_cb_events_vendor_date_country_event`), so a manual `NULL`-vendor row and a
+later Bloomberg (vendor 4) / TE (vendor 73) row for the same meeting coexist
+without a key clash. Each seed script guards with `IF NOT EXISTS (event_date,
+country_id, event_name)` (across all vendors) so it is idempotent and stops
+adding a manual row once any feed already carries that meeting.
+
+| Script | Coverage | Convention |
+|--------|----------|------------|
+| `scripts/calendar/populate_asia_em_2026.py` | CN/SG/TW/PH/IN 2026 | date-only, `source=NULL` |
+| `scripts/calendar/populate_rba_schedule.py` | RBA (AU) 2027 known + 2028 projected | 2027 `is_estimated=0`, `source='rba_published_schedule'`, `event_datetime`=14:30 Sydney→UTC (03:30Z AEDT / 04:30Z AEST); 2028 `is_estimated=1`, `source='estimated'`, no datetime (soft) |
+
+Run with `--dry-run` first; both are safe to re-run.
+
 ## Files
 
 | File | Role |
@@ -183,4 +202,6 @@ re-seeded row from being misread as a hard date in the meantime.
 | `src/imdr/market_calendar/cb_events.py` | Query helpers |
 | `scripts/calendar/refresh_cb_events.py` | Monthly refresh orchestrator |
 | `scripts/calendar/import_cb_events.py` | Bloomberg-only import (standalone) |
+| `scripts/calendar/populate_rba_schedule.py` | Manual forward seed: RBA meetings 2027 (known) + 2028 (projected) |
+| `scripts/calendar/rba_upcoming_weekly.py` | Read-only view: upcoming RBA items grouped by week (Sydney time, cross-vendor deduped, `--weeks`/`--confirmed-only`) |
 | `playground/econ/cleanup_estimated_cb_events.py` | One-off: delete seeded `estimated`/`NULL`-source placeholder rows (dry-run default, `--apply` to delete, JSON backup each run) |

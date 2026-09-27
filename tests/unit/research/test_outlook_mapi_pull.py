@@ -143,3 +143,70 @@ def test_build_record_saves_pdf_bytes(tmp_path, monkeypatch):
     assert Path(saved["path"]).is_absolute()  # Outlook needs an absolute path
     assert rec["attachments"][0]["file"].endswith(".pdf")
     assert "_pdf_unsaved" not in rec["attachments"][0]
+
+
+# ── regression: the two defects that kept the email lane down ───────────────
+# Both were found by running the producer against live Outlook on 2026-09-22,
+# not by reading it — the code looked correct in isolation in both cases.
+
+
+def test_olk_date_matches_the_locale_short_date():
+    """Restrict date literals must use the locale's short date, not US order.
+
+    Outlook parses Restrict date literals in the WINDOWS SHORT DATE format of
+    the current locale. The producer hard-coded ``%m/%d/%Y``, which on this
+    en-GB box made ``[ReceivedTime] >= '06/29/2026'`` degenerate (it matched
+    the WHOLE folder rather than erroring — 29 is not a month) and made any
+    ``--until`` clause match nothing at all. So ``--since`` silently bounded
+    nothing and windowed backfill slices came back empty.
+    """
+    import locale
+
+    d = dt.date(2026, 6, 29)
+    assert mp._olk_date(d) == d.strftime("%x")
+    # LC_TIME must be the system locale, not C — under C, %x gives 06/29/26.
+    assert locale.getlocale(locale.LC_TIME) != (None, None)
+
+
+def test_olk_date_is_unambiguous_for_a_day_month_swap():
+    """A date whose day and month cannot be confused must still round-trip.
+
+    13 is not a valid month, so if the formatter ever reverts to US order this
+    produces a string Outlook cannot parse as the intended day.
+    """
+    s = mp._olk_date(dt.date(2026, 7, 13))
+    assert "13" in s and "07" in s
+
+
+def test_hwm_never_regresses_on_a_windowed_run():
+    """A backfill slice must not drag a folder's high-water mark backwards.
+
+    The producer assigned ``new_hwm[fname] = max_received`` unconditionally.
+    Staging an OLD window (a backfill slice) would then rewind the mark and
+    make the next incremental run re-stage weeks of already-ingested mail.
+    """
+    new_hwm = {"ANZ": "2026-09-22"}
+    # a backfill slice covering early July
+    max_received = "2026-07-06"
+    new_hwm["ANZ"] = max(new_hwm.get("ANZ", ""), max_received[:10])
+    assert new_hwm["ANZ"] == "2026-09-22"
+
+    # a genuinely newer run still advances it
+    new_hwm["ANZ"] = max(new_hwm.get("ANZ", ""), "2026-09-23"[:10])
+    assert new_hwm["ANZ"] == "2026-09-23"
+
+
+def test_com_transient_hresults_cover_the_observed_failures():
+    """The retry set must include the codes live Outlook actually returned."""
+    # 'Call was rejected by callee' and 'Operation unavailable' — both seen on
+    # 2026-09-22 while Outlook sat on a Choose Profile modal.
+    assert -2147418111 in mp._COM_TRANSIENT
+    assert -2147221021 in mp._COM_TRANSIENT
+    # A real fault must NOT be retried.
+    assert -2147024891 not in mp._COM_TRANSIENT  # E_ACCESSDENIED
+
+
+def test_com_unavailable_has_its_own_exit_code():
+    """'Outlook unreachable' must be distinguishable from 'producer broke'."""
+    assert mp.EXIT_COM_UNAVAILABLE == 3
+    assert mp.EXIT_COM_UNAVAILABLE not in (mp.EXIT_OK, mp.EXIT_FAIL)

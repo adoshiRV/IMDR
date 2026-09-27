@@ -1,9 +1,9 @@
 # Korea — Econ Documentation
 
-Last updated: 2026-06-16
+Last updated: 2026-07-20
 
-> **Current corpus state (2026-06-16):**
-> - **Track A (`econ.fact_indicator`)** — **173 indicators / ~53,757 obs**. KOSIS depth: GDP 1961→ (65yr), BoP 1980→ (45yr), CPI/retail/IIP 2000→. **BIS.POLICY_RATE.KR** (BOK Base Rate, daily 1999→, id 1435) added 2026-06-16 — cell 4.4 Policy Reaction now has the real Base Rate. FRED Discount Rate deactivated (migration 102). See [korea_prod_pipeline.md](korea_prod_pipeline.md) Track A section.
+> **Current corpus state (2026-07-20):**
+> - **Track A (`econ.fact_indicator`)** — **~198 indicators / ~168k obs** (KOSIS/REB/BIS ~173 + **KOFIA freeSIS 25 added 2026-07-20**). KOSIS depth: GDP 1961→ (65yr), BoP 1980→ (45yr), CPI/retail/IIP 2000→. **KOFIA** adds daily money-market + fund data (CD volume/yield, MMF flows/NAV, fund AUM by asset class), vendor `kofia`, wired into `kr_daily` — see [kosis_kr_coverage_plan.md](kosis_kr_coverage_plan.md) §4.3a + tracker [`../../development/kr_kofia_onboarding.md`](../../development/kr_kofia_onboarding.md). **BIS.POLICY_RATE.KR** (BOK Base Rate, daily 1999→, id 1435) is cell 4.4. See [korea_prod_pipeline.md](korea_prod_pipeline.md) Track A section.
 > - **Track B (`research.dim_report` + Qdrant + SharePoint)** — **2,135 govt policy filings** across 8 agencies. MOEF 2009→ (17yr), FSC 2020→ (6yr), FSS 2024→, BoK 2025-04→ (14mo, deep-backfill to 2011 pending decision). Backfill landed 2026-06-11; tracker at [`../../development/kr_govt_filings.md`](../../development/kr_govt_filings.md).
 
 Korean macroeconomic data source. BOK's Economic Statistics System (ECOS)
@@ -29,11 +29,19 @@ data archive layout, idempotency, and failure-mode guide.
 python -m scripts.econ.kr.kr_daily
 ```
 
-Runs govt policy filings ingest (BoK, MOEF, MOTIR, FSC, FSS, KCS, KDI,
-MoDS) → `research.dim_report` + Qdrant + SharePoint. Self-contained
-filings-aware email on completion (`[IMDR Daily KR] ...`). Wired
-2026-06-10. See [`govt_doc_sources.md`](govt_doc_sources.md) for the
-inventory + URL recipes.
+Dual-track since 2026-07-20:
+- **Track A** — KOFIA freeSIS money-market + fund indicators (`kofia_cd_trading`,
+  `kofia_cd_yield`, `kofia_mmf_flows`, `kofia_mmf_level`, `kofia_fund_aum`) →
+  `econ.fact_indicator` (25 active indicators, all daily; live mode rolls a
+  ~90-day window through T-1, MMF-level appends the latest snapshot).
+- **Track B** — govt policy filings ingest (BoK, MOEF, MOTIR, FSC, FSS, KCS,
+  KDI, MoDS) → `research.dim_report` + Qdrant + SharePoint.
+
+Consolidated dual-track email on completion (`[IMDR Daily KR] … N econ obs,
+M new filings …`). Track B wired 2026-06-10; Track A wired 2026-07-20. See
+[`govt_doc_sources.md`](govt_doc_sources.md) for the filings inventory and
+[`kosis_kr_coverage_plan.md`](kosis_kr_coverage_plan.md) §4.3a for the KOFIA
+CD/MMF series.
 
 **Weekly schedule** (`scripts/imdr_weekly.py`, pipeline #3):
 
@@ -89,6 +97,9 @@ Fans out to 19 KOSIS fetchers + 1 BIS fetcher (`scripts.econ.kr.bis.bis_korea` �
 | **KOSIS OpenAPI** — `kosis.kr/openapi/Param/...` | KOSIS API key (`IMDR_KOSIS_API_KEY`, free, instant) | Fast (REST) | Full KOSIS catalogue inc. `orgId=301` BOK series | **Production — auto-load via `kr_monthly` (2026-06-05)** |
 | **REB R-ONE OpenAPI** — data.go.kr | REB API key (`IMDR_REB_API_KEY`, 32-char hex) | Fast (REST) | 8 weekly housing tables (apt sale + jeonse) back to 2012-05-07 | **Production — auto-load via `kr_weekly` (2026-06-05)** |
 | **BIS SDMX** — `WS_CBPOL D.KR` | None (public) | Fast (SDMX-JSON) | BOK Base Rate daily 1999→ (`BIS.POLICY_RATE.KR`, cell 4.4) | **Production — auto-load via `imdr_daily.py` + `kr_monthly` (2026-06-16)** |
+| **KOFIA freeSIS** — `freesis.kofia.or.kr/meta/*.do` (JSON POST) | None (public) | Fast (JSON POST) | CD volume (2003→) + CD yield (2009→) + MMF flows (2006→) + MMF net assets (2010→) + fund AUM by asset class (2004→); 25 indicators, vendor `kofia` | **Production — auto-load via `kr_daily` (Track A, 2026-07-20)** |
+| **FSC 단기금융증권 발행정보** — data.go.kr org 1160100 `getCdIssuBasiInfo_V2` | data.go.kr key (`IMDR_KSD_API_KEY`, loaded) | Fast (REST) | ISIN-level **CD issuance** (amount, discount rate, maturity, bank), 2020-04→ → `KSD.CD.ISSUANCE.*` + `KSD.CD.OUTSTANDING.KR` | **Production — BUILT + WIRED 2026-08-04 (vendor `ksd`, `kr_daily`); see [fsc_short_term_securities.md](fsc_short_term_securities.md)** |
+| **KSD** — data.go.kr #15043446 | KSD service key (`IMDR_KSD_API_KEY`, loaded) | Fast (REST) | CD trades by buyer/seller financial sector ("who traded") — only source for this cut (not in FSC) | **Dormant scaffold — `scripts/econ/kr/ksd/ksd_cd_trades.py`; apply for dataset + verify schema** |
 | **FRED mirror** — `KORB6*CXCUM` family | FRED API key | Fast (REST) | Headline + selected sub-aggregates; no full FA decomposition; FRED KR Discount Rate deactivated 2026-06-16 | Live (manual load via `load_econ_indicator_from_playground`) |
 | **KOSIS browser download** | None | Slow (Playwright) | Full table including all `BOPF…` line items | Legacy fallback (playground only) |
 | **BOK ECOS Open API** — `ecos.bok.or.kr/api/` | ECOS API key | Fast (REST) | Full | **BLOCKED — registration requires Korean mobile + citizenship** |
@@ -106,6 +117,7 @@ superseded by `scripts/econ/kr/kosis/kosis_bop.py` in production.
 | **Production pipeline ops** — architecture, CLI, failure modes | [korea_prod_pipeline.md](korea_prod_pipeline.md) |
 | KOSIS OpenAPI — endpoints, limits, error codes | [kosis_openapi_reference.md](kosis_openapi_reference.md) |
 | KR wiring-map cells → KOSIS tblIds | [kosis_kr_coverage_plan.md](kosis_kr_coverage_plan.md) |
+| **FSC short-term-securities API** — CD/CP/ABCP/ABSTB issuance (parameter list, ops, fields) | [fsc_short_term_securities.md](fsc_short_term_securities.md) |
 | KR econ indicator shopping list (121 series) | [kr_indicator_targets.md](kr_indicator_targets.md) |
 | BPM6 framework + Korea's BoP composition | [_playground/bop.md](_playground/bop.md) |
 | Full `STAT_CODE` / `ITEM_CODE` inventory | [ecos_api_reference.md](ecos_api_reference.md) |

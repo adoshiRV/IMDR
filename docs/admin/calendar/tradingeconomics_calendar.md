@@ -1,6 +1,10 @@
 # TradingEconomics Calendar — daily refresh + 15-min macro alerter
 
-**Last updated:** 2026-07-16
+**Last updated:** 2026-07-27
+
+> **Sibling doc:** [`bql_calendar.md`](bql_calendar.md) covers the Bloomberg BQL lane
+> (vendor 4) in the same depth this doc gives TE (vendor 73) — timezone conventions,
+> scheduling, and the cross-feed date/name divergence between the two lanes.
 
 Single web scraper feeding `calendar.cb_events` from
 [tradingeconomics.com/calendar](https://tradingeconomics.com/calendar), with
@@ -239,9 +243,11 @@ inserted/updated/unchanged.
 
 **Tests:** `tests/unit/test_event_name.py` (new) plus accent-collision and
 per-row-isolation additions to `tests/unit/test_te_scraper.py` and
-`tests/unit/test_bql_econdata.py` — 37 pass. Verified live:
-`imdr_econ_calendar` (TE+BQL) now runs clean end-to-end (`errored=0`), no
-manual row-delete required.
+`tests/unit/test_bql_econdata.py` — 37 pass. Verified live (at the time, via
+the manual `imdr_econ_calendar` (TE+BQL) joint runner): clean end-to-end
+(`errored=0`), no manual row-delete required. **Note (2026-07-27):**
+`imdr_econ_calendar` is a manual dual-feed convenience wrapper, not a
+scheduled entry point — see [Scheduling correction](#scheduling-correction-2026-07-27) below for how each lane is actually scheduled today.
 
 ### Vendor-scoped unique indexes (migration 096)
 
@@ -396,6 +402,19 @@ schtasks /Create /SC MINUTE /MO 15 /TN "IMDR Macro Alert" `
 The daily refresh can stay manual, or be added to `scripts/imdr_daily.py`
 when ready.
 
+### Scheduling correction (2026-07-27)
+
+The registered Windows task is literally named `IMDR_econ_calendar` —
+despite the name, it runs `scripts.calendar.te_release_alert` (this file's
+15-minute alerter, **TE lane only**). It does not run the joint
+`scripts.calendar.imdr_econ_calendar` orchestrator and never refreshed the
+BQL lane. The BQL lane (vendor 4) had no scheduled runner at all until
+2026-07-27, when `bql_calendar_refresh` was wired into `scripts/imdr_daily.py`
+instead — see [`bql_calendar.md` § Scheduling](bql_calendar.md#scheduling) for
+the full before/after. Net: TE stays on its `IMDR_econ_calendar` Windows task
+(15-min, this alerter); BQL now runs via `imdr_daily` (~2×/day); the joint
+`imdr_econ_calendar.py` script remains a manual convenience wrapper only.
+
 ---
 
 ## Configuration
@@ -510,6 +529,6 @@ GROUP BY v.vendor_code;
 
 ## Out of scope (deliberately)
 
-- Cross-vendor de-duplication (treating BBG and TE observations of the "same" CB event as one row). Today they live as two rows under different `vendor_id`s.
+- Cross-vendor de-duplication (treating BBG and TE observations of the "same" CB event as one row). Today they live as two rows under different `vendor_id`s. **Concrete failure mode (2026-07-27):** the two lanes can bucket the same release under different `event_date`s (BQL on the SGT local day, TE on the true-UTC day — often the prior day for Asian-morning releases) **and** different `event_name`s (e.g. BQL `"Natl CPI YoY"` vs TE `"inflation rate yoy"`). A single-lane, single-date query can therefore miss the release entirely; this caused a Japan CPI print to be overlooked in a Spider daily digest. See [`bql_calendar.md` § Known limitation](bql_calendar.md#known-limitation--cross-feed-datename-divergence-not-fixed) for detail. Noted as a known limitation / future reconciliation work — not fixed here.
 - A separate `te_events` schema. We share `calendar.cb_events` — `vendor_id` discriminates.
 - Per-row alert provenance (which user got which alert when). The DB row holds the actual; the email is best-effort.

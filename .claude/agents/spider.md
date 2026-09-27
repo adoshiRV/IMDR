@@ -281,6 +281,60 @@ spec.)
    calling it "seven sessions stale" — when the data was present through
    24 Aug and had been ingested that morning. Two editions dropped a credit
    and volatility read that was sitting in the database.
+7. **A calendar lane's `event_date` is a DAY-BUCKET, not a release date.**
+   Never print one without verifying it. Before locking any digest MD, run
+   `python scripts/research/check_event_dates.py --as-of <edition date> <the digest MD>`
+   (exit 0 = every date agrees with its own country's calendar). The check
+   recomputes each event's date from `event_datetime` + `dim_country.timezone`
+   — the instant in the release country's own calendar, the only ground truth
+   — and reports (A) rows stored on the wrong day, (B) releases carrying two
+   different dates across lanes, and (C) dates in the digest itself that fall
+   on the wrong day.
+   **Neither lane can referee the other — never "just use the other one":**
+   - **TradingEconomics buckets by UTC** (100% of rows), so it is a day *early*
+     for any release before 08:00 UTC — most of Asia-Pacific. Wrong for 37 of
+     73 Japan rows in the 7–28 Sep 2026 window, 19 of 30 NZ, 13 of 28 Korea.
+   - **Bloomberg BQL buckets by SGT** (93.5%) — the ingest box's own timezone,
+     not the release country's — so it is a day *late* across the Americas:
+     63 of 306 US rows, 94 of 122 Mexico. It dates the 2:00 PM ET Beige Book
+     to the following day.
+   Take the date the checker computes, not either lane's. Rows with no
+   `event_datetime` are skipped, not failed — those are the estimated /
+   placeholder rows, which carry guessed dates and must never be printed as
+   hard anyway (see the `cb_events` soft-date rule).
+   This rule exists because the 07 Sep 2026 weekly printed "Japan Q2 GDP,
+   final | 07 Sep" for a release at 08:50 JST on **8 September**. Both lanes
+   held the correct instant (`2026-09-07 23:50+00:00`) and disagreed only on
+   the derived date; the edition read the TE lane, published the wrong day,
+   and then listed the same release a second time on 08 Sep from the BQL lane
+   as though they were two events. The gate stays in force regardless of any
+   upstream fix to the ingest.
+
+8. **A curve tenor whose spread to the 10Y never moves is NOT a market quote.**
+   It is the 10Y plus a construction constant: its level marks nothing, its
+   "change" is the 10Y's change, and a re-cut of the constant is a config
+   change that looks exactly like a move. Before locking any digest MD, run
+   `python scripts/research/check_curve_tenors.py <the digest MD>`
+   (exit 0 = this edition quotes no flagged tenor). Treat the SYNTHETIC list as
+   a **do-not-quote list** — no level, change, spread or curve trade from a
+   flagged tenor, in prose, in a curve table or in a hero tile. In a table the
+   cell is **`n/a`** with a one-line footnote naming the curves and why, never a
+   number and never a blank; the other rows keep their real 30Y.
+   **A month-to-date window spanning a STEP date is the trap** — the step is
+   indistinguishable from a move in any two-point comparison, so if your window
+   spans the date the checker names, the number is not quotable at any horizon.
+   The flagged set is **not static** (the constants get re-cut), so read the
+   current run rather than a remembered list; as of 23 Sep 2026 it is
+   **CNY NDIRS 5Y/30Y · CNY SHIBOR 30Y · CNH HIBOR 2Y/5Y/30Y · AUD BBSW_6M
+   2Y/5Y/30Y (the whole curve) · INR MIFOR 30Y · MYR KLIBOR 30Y · PHP PHIREF 30Y**.
+   This rule exists because the 22 Sep 2026 daily led Greater China with "a 20bp
+   steepening nobody in the window writes about" in CNY NDIRS 10s30s. Nobody
+   wrote about it because it did not happen: the spread sat at **0.00bp every
+   session** since June, then stepped to exactly **20.00bp** on 07 Sep, so the
+   reported `30Y +17.3bp MTD` was just `10Y −2.7bp` plus the step. The real CGB
+   10s30s *flattened* ~3bp on the month. It is the vendor's curve construction,
+   faithfully ingested — there is no ingest fix to wait on, and this gate is the
+   only guard.
 
 ## Organising principle — differs by edition
 

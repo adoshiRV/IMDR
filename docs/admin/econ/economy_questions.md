@@ -317,51 +317,15 @@ The overlay is a **judgment call from the country's structure** — the same cal
 Mercator makes when it rotates a country-specific cluster to the front. The
 generic set + the overlay together are the country's full read.
 
-### 6.1 · India — tracked country-specific questions
+### 6.1 · Per-country tracked questions — the building log
 
-The running list of India-specific questions to carry into India's Country Economy
-Profile (Smith). Each maps to a domain × archetype; the data-status flag says what's
-answerable from IMDR today. This is the template for accumulating country-specific
-questions — other countries get their own §6.x as questions surface.
-
-| Question | Domain · archetype | Data in IMDR |
-|---|---|---|
-| **Credit-growth deep-dive** — which *sectors* are driving bank-credit growth (agri / industry / services / personal), and are the growing sectors the **productive** ones that lead the activity cycle at a lag (capex, industry, infra) or just **personal-consumption** credit? At what lag does sectoral credit lead the growth pulse? | **D4** Q1 Decompose + Q2 Driver + Q4 History | ⚠️ **Gap** — needs RBI DBIE *Sectoral Deployment of Bank Credit* (the A7 path); this is India's ❌ cell **4.1 Demand Transmission**, not yet onboarded. Aggregate credit + BIS credit-to-GDP present; sectoral split is the missing leg. |
-| **Rural vs urban consumption (last 6m)** — how is **rural** consumption growing over the last 6 months, and how does it **contrast with urban**? | **D2** Q1 Decompose + Q2 Driver (the IN rural/urban overlay) | ⚠️ Partial — MOSPI PFCE is aggregate; rural/urban split needs proxies (rural: two-wheeler/tractor sales, FMCG rural volumes, MGNREGA demand, rural wages; urban: PV sales, urban FMCG, card spend). |
-| **FCNR(B) flows** — size + direction of NRI deposit flows (FCNR(B) / NRE / NRO); sticky vs hot, and the FX-sensitivity of the flows as an external-funding read. | **D5** Q1 Decompose + Q2 Driver | ✅ RBI Bulletin **T34 NRI Deposits** (FCNRB / NRERA / NRO) loaded. |
-
-### 6.2 · United States — tracked country-specific questions
-
-US dominant domains are **D7 (Fed reaction function), D1 (inflation), D3 (labour)** —
-the read is reaction-function-led and the trade lives in what's priced vs implied.
-Living list — refined as US reports land.
-
-| Question | Domain · archetype | Data in IMDR |
-|---|---|---|
-| **Where is core PCE** now (level), and where does it sit vs the 2% target? | **D1** Q1 Decompose | ✅ BEA **core PCE** price index (ex food & energy), monthly (cell 2.4). |
-| **What trend** in core PCE — 3m / 6m annualised, and direction (re-accelerating or cooling)? | **D1** Q2 Driver + Q4 History | ✅ same series; derive 3m / 6m annualised + sequential. |
-| **What has surprised** up / down in the last 3–6m, across the key releases (PCE, CPI, NFP, retail, ISM)? | **D1–D3** Q5 Surprise | ✅ surprise = `econ.fact_indicator` actual − `cb_events` consensus; sign + magnitude per release. |
-| **Where is momentum building** — which domain's pulse is accelerating (inflation, labour, activity)? | **D2 / D1** Q2 Driver + Q4 History | ✅ activity / labour / inflation series; momentum from sequential history. |
-| **Effect on 1y Fed pricing** of those surprises — how much has the 1y path repriced per unit of surprise? | **D7** Q6 Reaction/pricing + Q5 | ⚠️ 1y Fed pricing in `rates.fact_observation`; the *conditional repricing* computation is the §5 vol layer — **not built**; answer qualitatively + flag until built. |
-
-### 6.3 · South Korea — tracked country-specific questions
-
-Sourced from the research desk's **wealth-effect flywheel** thesis (Korea digest).
-The reads below are the *current annotation* — **verify vs `econ.fact_indicator` /
-REB when Smith answers**; the flywheel is a thesis to test, not an asserted fact.
-Dominant domains **D1, D4, D8**; the country-specific thesis is that a
-self-reinforcing wealth machine is switching on. Living list.
-
-| Question | Domain · archetype | Data in IMDR |
-|---|---|---|
-| **Is the wealth-effect flywheel compounding?** — the self-reinforcing loop wages → consumption → housing wealth → investment → pro-market policy. | Cross-domain (**D4** Q3 anchor + D2/D3/D6) | ✅ the pillar components below; the *loop* is a synthesis read. |
-| **Housing wealth → consumption** — Seoul home prices strong (thesis: +9.6% y/y, Apr-2026); how much of the consumption pickup is the **wealth effect** vs income / stimulus? | **D4** Q3 Sensitivity (wealth-effect pass-through) + Q1/Q2 | ✅ REB housing (R-ONE) prices; BOK household income; KOSTAT retail / private consumption. |
-| **Labour tightness → domestic demand** — unemployment low (thesis: ~2.6%), real wages turning positive, employment +YoY; is tight labour feeding **domestic-services** demand? | **D3** Q1 Decompose + Q2 Driver | ✅ KOSTAT EAPS unemployment / employment + Wages. |
-| **Investment / capex revival** — facility investment strong (thesis: +6.6% q/q, strongest in 4y); is the **semi super-cycle** driving a broader capex cycle? | **D2** Q1/Q2 + **D8** (semis) | ✅ BOK GDP facility-investment component; ties to the existing semi-export overlay. |
-| **Pro-market policy / tax architecture** — separate dividend tax (14/20/25/30%, passed Dec-2025), supplementary budgets, US tariff cap ~15%; structural tilt supporting asset prices + the BoK 2026 GDP upgrade (thesis: 2.6%). | **D6** Fiscal (stance / structural) + **D7** (BoK forecast) | ⚠️ Fiscal series (BOK Public Sector) present; the tax-reform + tariff facts are **corpus / news**, not a data series. |
-
-> Living list — refined as KR reports land. Each pillar's read must reconcile to
-> first-party data before it graduates from thesis to fact.
+The **accumulating, refined per-country question lists** (India, US, Korea, and
+others as they surface) live in their own living document:
+[**economy_questions_building.md**](economy_questions_building.md). That's where
+country-specific questions get built up over time — from research digests, PM
+input, and incoming reports — each mapped to a domain × archetype with a
+data-status flag. Smith reads it when authoring a country's profile; **new
+questions are appended there, not here** (this spec stays generic).
 
 ---
 

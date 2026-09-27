@@ -37,6 +37,8 @@ All five are wired into `au_daily` (SQM) or `au_monthly` (Cotality monthly, SEEK
 
 **Verification note (found during this refresh, not part of the housing/labour buildout):** the ABS `CPI` dataflow group grew from 22 to **86** indicators between 2026-06-22 and 2026-06-25 (COICOP group/sub-group breakdowns — `ABS.CPI.{AGG,GRP,SUB}_*`), and a new `ASX` vendor (5 indicators, `ASX.CASHRATE.*` / `ASX.RATETRACKER.*`, first ingested 2026-06-15) appeared in the DB — neither is narrated anywhere in this doc or in `_playground/abs.md`. Flagging for the record; not re-documented in full here as it's outside this session's scope.
 
+**ABS Employed persons by Industry division — PROD-LIVE (loaded + wired 2026-07-28; built 2026-07-23):** closes the confirmed zero-coverage gap on ABS employment-by-industry. `scripts/econ/au/abs/abs_lf_industry.py` (fetcher, category `labour`) + shared helper `src/imdr/domains/econ/abs_timeseries_xlsx.py` (generic ABS time-series-workbook parser, reusable for other XLSX-only ABS tables e.g. `6291005`/`6291006`). Source is a standalone XLSX time-series workbook (Table 04 of *Labour Force, Australia, Detailed*, `6291.0.55.001`) — **not** the SDMX REST API used by every other `abs_*.py` fetcher — resolved off the `latest-release` landing page (the `{mon-yyyy}` release-folder segment changes every quarter). 60 indicators (19 ANZSIC divisions + all-industries total, × Original/Seasonally Adjusted/Trend), quarterly back to 1984-11-01, ~166 obs/series (**9,960 obs loaded to `econ.fact_indicator`, latest ref month Feb-2026**). Codes `ABS.LF.EMPLOYED_IND_{DIVISION}_{SA|TREND|ORIG}.AU`; `{DIVISION}` is a hand-checked mapping (not auto-slugified) in `_DIVISIONS`. **Wired into `scripts/econ/au/au_monthly.py`** (quarterly folded into the monthly orchestrator, position 16, next to `abs_job_vacancies`); `imdr_code`-keyed dedup guard in `run_fetch` blocks a future division sex/FT-PT split from colliding.
+
 ## Status markers
 
 | Marker | Meaning |
@@ -79,6 +81,7 @@ Originally 31 playground fetchers as of 2026-06-10; +5 sources / +1 vendor-set a
 | `fetch_gdp.py` | ABS | `ANA_AGG` | 1.4 | 7 |
 | `abs_labour.py` (was `fetch_labour.py`) | ABS | `LF` (headline 6) + `LF_AGES` sibling (age breakdown, 21) + `LF` REGION dim (state breakdown, 24) | 1.4 | **51** (was 6; +45 age/state 2026-07-14) |
 | `abs_lf_under.py` (was `fetch_lf_under.py`) | ABS | `LF_UNDER` (M18/M21/M23/M24 — underemployment/underutilisation, native AGE+REGION dims) | 1.4 | **33** (was 3; +30 age/state 2026-07-14) |
+| `abs_lf_industry.py` | ABS | Table 04 XLSX (`6291004.xlsx`, NOT SDMX) — Employed persons by ANZSIC Industry division, 19 divisions + total × Original/SA/Trend | 1.4 | **60 (PROD-LIVE 2026-07-28; 9,960 obs; wired au_monthly)** |
 | `cotality_hvi_monthly.py` | Cotality | Monthly Values tab, `cotality.com/au/our-data/indices` — 8 capitals + Brisbane GCCSA cut + 5-capital agg | 4.2 / 1.1 | 10 (NEW 2026-07-14) |
 | `sqm_research.py` | SQM Research | Weekly asking rents (8 caps × combined/houses/units) + monthly vacancy (8 caps + National) | 4.2 / 1.1 | 33 (NEW 2026-07-14, new vendor) |
 | `apra_madis.py` | APRA | MADIS back-series XLSX — big-4 owner-occ + investor housing loan books | 4.1 | 8 (NEW 2026-07-14) |

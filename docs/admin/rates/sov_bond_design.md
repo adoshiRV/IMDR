@@ -1,6 +1,7 @@
 # Bond Yield Integration — Design
 
-- **Status**: SCHEMA + DIM SEED COMPLETE — DDL (`063`/`065`/`067`) and dim seeds (`064`/`066`) applied 2026-06-02. `rates.fact_bond_yield` is empty awaiting backfill (`068`+).
+- **Status**: SCHEMA + DIM SEED COMPLETE — DDL (`063`/`065`/`067`) and dim seeds (`064`/`066`) applied 2026-06-02. `rates.fact_bond_yield` is **empty** (0 rows, verified 2026-07-17) awaiting backfill.
+- **⚠️ Migration numbering superseded (2026-07-17):** the `068`–`072` slots this doc's §"Migration sequence" reserved for bond work were **reused by the econ build** (`068_create_econ_schema.sql`, `069_create_econ_dim_unit.sql`, …). Latest applied migration is now **111**. The backfill + the new ISIN-level path re-anchor at **112+**. Active implementation plan (with the corrected numbering, the Govy Monitor source, and the ISIN sibling fact) lives in [`../development/govt_bond_population.md`](../development/govt_bond_population.md).
 - **Drafted**: 2026-05-25, finalized 2026-05-26, schema applied 2026-06-02
 - **Companion exploration**: [`../vendors/citi/exploration/bonds_full.md`](../vendors/citi/exploration/bonds_full.md)
 - **Reference desk gap**: [`../development/apac_macro_data_gaps.md`](../development/apac_macro_data_gaps.md)

@@ -35,6 +35,13 @@ Barclays Live is hostile to that pattern in three ways:
    cookies — they need the full SPA-injected request shape (CSRF
    tokens, Origin, etc.). All API calls must be made via
    ``page.evaluate('fetch(...)')`` from inside the SPA's origin.
+4. **The OneTrust cookie banner paints late and intercepts the submit
+   click.** An immediate ``is_visible()`` check on the banner is flaky —
+   it returns false before the banner renders, dismissal is skipped, and
+   the undismissed overlay then swallows the submit click so login is
+   stranded on ``/UAB/ct_logon_basic``. The login must **wait for the
+   banner to be visible** before clicking, and **retry** on a stuck
+   submit. See [Login reliability](#login-reliability--robust-cookie-dismissal--retry-2026-07-21).
 
 These quirks dictate the architecture below.
 
@@ -44,10 +51,13 @@ These quirks dictate the architecture below.
 Discovery (`discover_reports`):
 
 1. ensure_clean_profile(profile_dir)            # nuke stale state
-2. login(ctx, username, password)
-   - dismiss OneTrust cookie banner
+2. login(ctx, username, password)              # up to _MAX_LOGIN_ATTEMPTS cycles
+   - WAIT for OneTrust cookie banner to be visible, then click it
+       (immediate is_visible() is flaky — banner paints late, then
+        intercepts submit → login stuck on /UAB/ct_logon_basic)
    - fill input[name="user"] + input[name="password"]
    - click button#submit  → page lands on /BU/
+   - if still on the login page, retry the whole cycle on a fresh page
 3. open_warm_page → goto(/BU/), wait for [data-pubid]
 4. firehose loop (page_num = 1..MAX_PAGES):
      fetch /publication/search?pageSize=200&pageNumber={N}&responseDetailLevel=FULL
@@ -86,6 +96,50 @@ of: HTML response (auth wall), non-200 status, exception during fetch,
 they call `login(ctx, ...)` again and re-open the warmed `/BU/` page,
 then retry. Long crawls cross PingFederate token rotations — without
 this, every run with >50 fetches breaks halfway through.
+
+## Login reliability — robust cookie dismissal + retry (2026-07-21)
+
+`login()` was intermittently failing with `LoginFailedError` (stuck on
+`/UAB/ct_logon_basic`). Root cause was the **OneTrust cookie banner — not
+MFA, not credentials, not URLs.** The old flow did an *immediate*
+`is_visible()` check on the banner; OneTrust paints it a beat late, so the
+check returned false, dismissal was skipped, and the undismissed overlay
+then intercepted the submit click.
+
+A render × cookie-strategy matrix (fresh profile per cell, 2 reps each —
+[`_probe_barclays_login_matrix.py`](../../../../playground/research/_probe_barclays_login_matrix.py))
+pinned it down:
+
+| render | cookie strategy | result |
+|---|---|---|
+| headed | none | 0/2 — BREAKS |
+| headed | current (immediate `is_visible()`) | 1/2 — FLAKY |
+| headed | **robust (`wait_for` visible)** | **2/2 — RELIABLE** |
+| headless | none | 0/2 — BREAKS |
+| headless | current | 1/2 — FLAKY |
+| headless | **robust** | **2/2 — RELIABLE** |
+
+Findings: **no MFA** — username + password alone reaches `/BU/` once the
+banner is dismissed; and the deciding factor is the **cookie step, not
+headed vs headless** (robust passes 2/2 in both, so no `headless=False`
+override was needed).
+
+Fix in [`imdr.research.auth.loginflows.barclays`](../../../../src/imdr/research/auth/loginflows/barclays.py):
+
+1. **Robust dismissal** — `cookie_btn.wait_for(state="visible",
+   timeout=_COOKIE_APPEAR_TIMEOUT_MS)` *before* clicking. A genuine
+   absence (banner already accepted this session) times out and is
+   swallowed, so the form is used directly.
+2. **Retry loop** — up to `_MAX_LOGIN_ATTEMPTS` (3) independent cycles,
+   each re-navigating + re-dismissing + re-submitting. Raises
+   `LoginFailedError` only if every attempt lands back on the login page.
+   A retry absorbs the occasional late-banner / slow-portal miss.
+
+Verified end-to-end: headless `ingest_today.py --vendors barclays
+--limit 1` → `login: OK`, 1 report inserted. Unit test:
+[`tests/unit/test_barclays_login_retry.py`](../../../../tests/unit/test_barclays_login_retry.py)
+(short-circuit-when-authed / first-try / retry-then-succeed /
+raise-after-N).
 
 ## Endpoints discovered
 
@@ -403,9 +457,17 @@ points + 56 OneDrive PDFs deleted alongside.
 
 ## Files
 
-* [`login_barclays.py`](../../../../playground/research/ingest/login_barclays.py)
+* **Login flow (real module):**
+  [`imdr/research/auth/loginflows/barclays.py`](../../../../src/imdr/research/auth/loginflows/barclays.py)
+  — programmatic login with robust cookie dismissal + retry
+  (`_COOKIE_APPEAR_TIMEOUT_MS`, `_MAX_LOGIN_ATTEMPTS`). Profile is wiped
+  per run (`wipe_profile_per_run=True` in the auth registry).
+* [`ingest/login_barclays.py`](../../../../playground/research/ingest/login_barclays.py)
+  — thin re-export shim of the above, kept for back-compat imports.
 * [`crawler_barclays.py`](../../../../playground/research/ingest/crawler_barclays.py)
 * [`ingest_today_barclays.py`](../../../../playground/research/ingest_today_barclays.py)
+* [`_probe_barclays_login_matrix.py`](../../../../playground/research/_probe_barclays_login_matrix.py)
+  — login robustness matrix (render × cookie strategy).
 
 ## Pipeline contract change
 

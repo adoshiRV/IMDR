@@ -36,7 +36,7 @@ Each country has a folder with prod reference docs at the top + a `_playground/`
 | **Eurozone (EU)** | Source catalogue only (ECB SDW, Eurostat, ECB docs) | [eurozone/](eurozone/) | [§7.2](macro_economy_wiring_map.md#72-eurozone-eu) | — |
 | **Philippines (PH)** | Source catalogue only (BSP, PSA, DBM, BTr) | [philippines/](philippines/) | [§7.15](macro_economy_wiring_map.md#715-philippines-ph) | — |
 | **Thailand (TH)** | Source catalogue only (BoT, NSO) | [thailand/](thailand/) | [§7.16](macro_economy_wiring_map.md#716-thailand-th) | — |
-| **Indonesia (ID)** | DB-LIVE — **308 indicators × 114,106 obs** (2026-06-10), all 16 wiring-map cells covered, 13 of 16 are full ✅. BPS (82, REST JSON) + BI (184 across SEKI tables + Survey publications + bank rates + SRBI auction yields + SBN position by holder) + BIS (6, SDMX) + DJPPR (36, daily SBN ownership). 28 prod fetchers; 2 registered in `imdr_daily.py` (BIS policy rate + SRBI). True tenor-by-investor SBN cross-tab is outstanding gap (requires Kemenkeu Buku Saku APBN); bank-type decomp now live via BI SEKI IV.4. | [indonesia/](indonesia/) | [§7.17](macro_economy_wiring_map.md#717-indonesia-id) | [indonesia_indicator_inventory.md](indonesia/indonesia_indicator_inventory.md) |
+| **Indonesia (ID)** | DB-LIVE — **356 indicators × 119,941 obs** (DB-verified 2026-09-21; the old 308 figure overstated BI by 5), **Track B PROD-LIVE 2026-09-21** ([id_govt_doc_sources.md](indonesia/id_govt_doc_sources.md)), all 16 wiring-map cells covered, 13 of 16 are full ✅. BPS (82, REST JSON) + BI (232 across SEKI tables + Survey publications + bank rates + SRBI auction yields + SBN position by holder + PMI + Survei Perbankan) + BIS (6, SDMX) + DJPPR (36, daily SBN ownership). 30 prod fetchers; 2 registered in `imdr_daily.py` (BIS policy rate + SRBI). True tenor-by-investor SBN cross-tab is outstanding gap (requires Kemenkeu Buku Saku APBN); bank-type decomp now live via BI SEKI IV.4. | [indonesia/](indonesia/) | [§7.17](macro_economy_wiring_map.md#717-indonesia-id) | [indonesia_indicator_inventory.md](indonesia/indonesia_indicator_inventory.md) |
 
 Other countries appear in the wiring map (UK, CA, CH, DE, CN, SG, TW) via FRED OECD mirrors — they don't have their own folder yet. When one graduates from FRED-mirror to native-vendor, create a folder following the Korea reference shape. **CN · MY · TH · SG · PH · TW** additionally now carry a Bloomberg macro slice via the [BBG EconDashboards mirror](bbg/index.md) (vendor `BBG`) — the only IMDR econ data for those six.
 
@@ -105,5 +105,7 @@ like `rba` is one row used as the source for both its indicator data
 feed AND its policy minutes.
 
 **Per-country filings inventories** (as completed):
-- Korea — [`korea/govt_doc_sources.md`](korea/govt_doc_sources.md) (70+ streams; daily-pull discovery live in playground 2026-06-10).
-- Australia / Indonesia / Japan / India / Thailand / Philippines — pending the Korea pattern replicating.
+- Korea — [`korea/govt_doc_sources.md`](korea/govt_doc_sources.md) (70+ streams; **prod-live** — `kr_daily` + `ingest_filings.py`, 307+ rows in `research.dim_report`).
+- Indonesia — [`indonesia/id_govt_doc_sources.md`](indonesia/id_govt_doc_sources.md) (**PROD-LIVE** 2026-09-21; 17 streams across BI/DJPPR/OJK/BPS at `scripts/econ/id/govt/`, **537 reports / 8,411 chunks**, zero SQL↔Qdrant drift, registered in `imdr_daily.py`). Ops: [`indonesia/indonesia_govt_prod_pipeline.md`](indonesia/indonesia_govt_prod_pipeline.md). MoF blocked by corp firewall — needs a browser check.
+- Australia — [`australia/au_cb_documents.md`](australia/au_cb_documents.md) (Phase H discovery; 6 fetchers, RBA via Playwright).
+- Japan / India / Thailand / Philippines — pending the Korea pattern replicating.

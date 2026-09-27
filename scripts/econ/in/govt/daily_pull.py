@@ -38,6 +38,7 @@ from __future__ import annotations
 import argparse
 import datetime
 import hashlib
+import html
 import json
 import re
 import sys
@@ -73,6 +74,7 @@ class DlResult:
     sha256: str = ""
     error: str | None = None
     skipped: bool = False
+    title: str | None = None
 
     def ok(self) -> bool:
         return self.error is None and (self.skipped or (self.n_pages is not None and self.n_pages > 0))
@@ -96,6 +98,26 @@ def _save(content: bytes, vendor: str, slug: str) -> Path:
     path = folder / slug
     path.write_bytes(content)
     return path
+
+
+def _sidecar_path(pdf_path: Path) -> Path:
+    return pdf_path.parent / f"{pdf_path.name}.meta.json"
+
+
+def _write_sidecar(pdf_path: Path, *, url: str, title: str, publish_date: str | None) -> None:
+    """Persist the listing-page anchor title alongside the saved PDF.
+
+    Real titles only exist on the RBI `.aspx` listing pages at harvest
+    time — the saved filename is the RBI doc-code, not the headline.
+    `ingest_filings.py` prefers this sidecar over the filename-derived
+    title (see `_title_from_filename`). Overwritten on every harvest run
+    so a file downloaded before this fix shipped gets backfilled the
+    next time its listing page is re-scraped.
+    """
+    meta = {"title": title, "source_url": url, "publish_date": publish_date}
+    _sidecar_path(pdf_path).write_text(
+        json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
 
 
 def _existing_path(vendor: str, slug: str) -> Path | None:
@@ -122,15 +144,18 @@ def _verify(content: bytes) -> tuple[int | None, str | None]:
 
 
 def _download(client: httpx.Client, vendor: str, url: str, slug: str,
+              title: str | None = None, publish_date: str | None = None,
               dry_run: bool = False) -> DlResult:
     safe = _safe_slug(slug)
     existing = _existing_path(vendor, safe)
     if existing:
+        if title and not dry_run:
+            _write_sidecar(existing, url=url, title=title, publish_date=publish_date)
         return DlResult(vendor=vendor, url=url, saved_path=existing,
-                         bytes_received=existing.stat().st_size, skipped=True)
+                         bytes_received=existing.stat().st_size, skipped=True, title=title)
     if dry_run:
         return DlResult(vendor=vendor, url=url, saved_path=None,
-                         bytes_received=0, skipped=True)
+                         bytes_received=0, skipped=True, title=title)
     try:
         r = client.get(url, headers=_UA, follow_redirects=True, timeout=60)
         r.raise_for_status()
@@ -148,15 +173,21 @@ def _download(client: httpx.Client, vendor: str, url: str, slug: str,
                          bytes_received=len(content), error=err)
     saved = _save(content, vendor, safe)
     sha = hashlib.sha256(content).hexdigest()[:16]
+    if title:
+        _write_sidecar(saved, url=url, title=title, publish_date=publish_date)
     return DlResult(vendor=vendor, url=url, saved_path=saved,
-                     bytes_received=len(content), n_pages=n_pages, sha256=sha)
+                     bytes_received=len(content), n_pages=n_pages, sha256=sha, title=title)
 
 
 # ---------------------------------------------------------------------------
-# Per-vendor harvesters: each returns a list of (url, suggested_filename).
+# Per-vendor harvesters: each returns a list of
+#   (url, suggested_filename, title_or_None, publish_date_iso_or_None).
+# Only the RBI harvesters (via _rbi_pdf_links_from_page) currently populate
+# title/publish_date — the listing pages expose the real headline as the
+# anchor's `alt='PDF - <title>'`, which the saved doc-code filename discards.
 # ---------------------------------------------------------------------------
 
-def _mospi_via_listing(client: httpx.Client, search_term: str, n: int) -> list[tuple[str, str]]:
+def _mospi_via_listing(client: httpx.Client, search_term: str, n: int) -> list[tuple[str, str, str | None, str | None]]:
     body = {
         "page_no": 1, "page_size": max(n, 50),
         "search_term": search_term,
@@ -180,7 +211,7 @@ def _mospi_via_listing(client: httpx.Client, search_term: str, n: int) -> list[t
             continue
         url = f"https://www.mospi.gov.in/{path}"
         name = f1.get("filename") or path.rsplit("/", 1)[-1]
-        out.append((url, name))
+        out.append((url, name, None, None))
         if len(out) >= n:
             break
     return out
@@ -206,37 +237,84 @@ def harv_ppac(client, n):
     out = []
     for u in links:
         slug = u.split("file=", 1)[-1].rsplit("/", 1)[-1]
-        out.append((u, slug))
+        out.append((u, slug, None, None))
     return out[:n]
 
 
-def _rbi_pdf_links_from_page(client, page_url: str) -> list[tuple[str, str]]:
-    """Scrape an RBI listing page; return rbidocs.rbi.org.in PDF links only."""
-    r = client.get(page_url, headers=_UA, timeout=30)
-    r.raise_for_status()
-    pdfs = re.findall(r'href=["\']([^"\']+\.pdf)["\']', r.text, re.I)
+# RBI listing pages render each item as
+#   <td><a class='link2' href=...>REAL TITLE</a></td>
+#   <td><a href='<pdf-url>'><img alt='PDF - REAL TITLE' ...></a></td>
+# — the doc-code filename never carries the headline. The `<img alt=...>`
+# duplicates the anchor text and sits inside the same <a> as the PDF href,
+# so pulling it is simpler than correlating two separate anchors. Rows are
+# grouped under `<td class="tableheader">...<b>Mon DD, YYYY<b></td>` date
+# headers; a merged-by-position pass over both patterns attributes each PDF
+# to the nearest preceding date header.
+_RBI_DATE_HEADER_RE = re.compile(
+    r'<td[^>]*class=["\']tableheader["\'][^>]*>\s*<b>\s*([A-Za-z]{3}\s+\d{1,2},\s*\d{4})',
+    re.I,
+)
+_RBI_PDF_ANCHOR_RE = re.compile(
+    r'<a\b[^>]*\bhref=(["\']?)([^"\'\s>]+\.pdf)\1[^>]*>(.*?)</a>', re.I | re.S,
+)
+_RBI_ALT_TITLE_RE = re.compile(r'''alt=(['"])PDF\s*-\s*(.*?)\1''', re.I | re.S)
+
+
+def _rbi_parse_date_header(raw: str) -> str | None:
+    try:
+        return datetime.datetime.strptime(raw.strip(), "%b %d, %Y").date().isoformat()
+    except ValueError:
+        return None
+
+
+def _parse_rbi_listing_html(text: str) -> list[tuple[str, str, str | None, str | None]]:
+    """Pure parse of one RBI listing page's HTML — no network. Split out
+    from :func:`_rbi_pdf_links_from_page` so the regex/merge logic is
+    unit-testable against a saved HTML fixture."""
+    events: list[tuple[int, str, object]] = []
+    for m in _RBI_DATE_HEADER_RE.finditer(text):
+        events.append((m.start(), "date", m.group(1)))
+    for m in _RBI_PDF_ANCHOR_RE.finditer(text):
+        events.append((m.start(), "pdf", (m.group(2), m.group(3))))
+    events.sort(key=lambda e: e[0])
+
     out = []
-    for p in pdfs:
-        if p.startswith("http"):
-            u = p
-        elif p.startswith("/"):
-            u = "https://rbi.org.in" + p
+    seen = set()
+    current_date: str | None = None
+    for _, kind, payload in events:
+        if kind == "date":
+            current_date = _rbi_parse_date_header(payload)  # type: ignore[arg-type]
+            continue
+        href, inner = payload  # type: ignore[misc]
+        if href.startswith("http"):
+            u = href
+        elif href.startswith("/"):
+            u = "https://rbi.org.in" + href
         else:
-            u = "https://rbi.org.in/" + p
+            u = "https://rbi.org.in/" + href
         # Filter to rbidocs.rbi.org.in to avoid grabbing footer/random PDFs
         if "rbidocs.rbi.org.in" not in u:
             continue
-        slug = u.rsplit("/", 1)[-1]
-        out.append((u, slug))
-    # Dedupe preserving order
-    seen = set()
-    deduped = []
-    for u, s in out:
         if u in seen:
             continue
         seen.add(u)
-        deduped.append((u, s))
-    return deduped
+        slug = u.rsplit("/", 1)[-1]
+        am = _RBI_ALT_TITLE_RE.search(inner)
+        title = html.unescape(am.group(2)).strip() if am else None
+        out.append((u, slug, title or None, current_date))
+    return out
+
+
+def _rbi_pdf_links_from_page(
+    client, page_url: str,
+) -> list[tuple[str, str, str | None, str | None]]:
+    """Scrape an RBI listing page; return rbidocs.rbi.org.in PDF links only,
+    with the real anchor title + nearest date-header (both may be None if
+    the page doesn't follow the standard tableheader/`alt='PDF - ...'`
+    layout — callers still get usable (url, slug) pairs in that case)."""
+    r = client.get(page_url, headers=_UA, timeout=30)
+    r.raise_for_status()
+    return _parse_rbi_listing_html(r.text)
 
 
 def harv_rbi_press(client, n):
@@ -288,7 +366,7 @@ def harv_budget(client, n):
     for p in pdfs:
         u = p if p.startswith("http") else (base + p.lstrip("/"))
         slug = u.rsplit("/", 1)[-1]
-        out.append((u, slug))
+        out.append((u, slug, None, None))
     return out[:n]
 
 
@@ -306,7 +384,7 @@ def harv_econ_survey(client, n):
         else:
             u = base + p
         slug = u.rsplit("/", 1)[-1]
-        out.append((u, slug))
+        out.append((u, slug, None, None))
     return out[:n]
 
 
@@ -321,7 +399,7 @@ def harv_cga_press(client, n):
     for p in pdfs:
         u = p if p.startswith("http") else ("https://cga.nic.in" + (p if p.startswith("/") else "/" + p))
         slug = u.rsplit("/", 1)[-1]
-        out.append((u, slug))
+        out.append((u, slug, None, None))
     return out[:n]
 
 
@@ -387,9 +465,10 @@ def main() -> int:
                 continue
             print(f"  {len(targets)} candidate PDFs found")
             per_vendor.setdefault(vendor, [])
-            for i, (url, slug) in enumerate(targets, 1):
+            for i, (url, slug, title, publish_date) in enumerate(targets, 1):
                 t0 = time.time()
-                res = _download(c, vendor, url, slug, dry_run=args.dry_run)
+                res = _download(c, vendor, url, slug, title=title,
+                                 publish_date=publish_date, dry_run=args.dry_run)
                 results.append(res)
                 per_vendor[vendor].append(res)
                 if res.skipped:
@@ -423,14 +502,17 @@ def main() -> int:
         print(f"    {v:18s}  {ok:>3d} ok, {skip:>3d} skip, {fail:>3d} fail   "
               f"{bytes_v / 1024 / 1024:>6.1f} MB")
 
-    # TODO: wire manifest source_url into ingest for real URLs (currently file:// placeholder)
+    # TODO: non-RBI harvesters (mospi/ppac/budget/econ_survey/cga) still have
+    # no real listing-page title — ingest falls back to file:// + filename
+    # title for those. RBI docs carry a real title + source_url via the
+    # per-PDF sidecar (`<pdf>.meta.json`, written above by `_write_sidecar`).
     today = datetime.date.today()
     manifests_dir = DATA_ROOT / "_manifests"
     manifests_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = manifests_dir / f"{today.isoformat()}.json"
     DATA_ROOT.mkdir(parents=True, exist_ok=True)
     manifest = [
-        {"vendor": r.vendor, "url": r.url,
+        {"vendor": r.vendor, "url": r.url, "title": r.title,
          "saved_path": str(r.saved_path) if r.saved_path else None,
          "bytes": r.bytes_received, "pages": r.n_pages,
          "sha256": r.sha256, "skipped": r.skipped,

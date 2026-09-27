@@ -1,6 +1,6 @@
 """Dry test — per-vendor pipeline check, no downloads.
 
-For each of the 6 live vendors, runs the same discovery the daily
+For each of the 15 live vendors, runs the same discovery the daily
 ingest uses (today-1 .. today), then for each surviving ref:
 
   1. discovery filter (filters/{vendor}.py)  — drops invites/webcasts
@@ -27,11 +27,19 @@ If a vendor's session has expired the script prints the failure and
 continues to the next one. Goldman/Barclays/HSBC etc. can each fail
 independently.
 
+Vendors run strictly one at a time: each spins up a headed Playwright
+Chrome, and the box cannot host two concurrently.
+
 Usage:
+    # full roster
     C:/Users/adoshi/.conda/envs/imdr/python.exe playground/research/dry_test_all_vendors.py
+
+    # narrow to a few
+    ... dry_test_all_vendors.py --vendors goldman,citi,ubs
 """
 from __future__ import annotations
 
+import argparse
 import asyncio
 import sys
 import traceback
@@ -48,30 +56,58 @@ from ingest._console import force_utf8_stdout  # noqa: E402
 # a report title can't crash the run when output is piped to Tee-Object.
 force_utf8_stdout()
 
-PROFILES_ROOT = HERE / "profiles"
+from imdr.config.settings import get_settings  # noqa: E402
+
+# Same local-disk profile root the daily ingest uses (default
+# C:\IMDR_LOCAL\research_profiles) — the old SMB playground/research/profiles
+# copies are stale since the 2026-07-22 C-drive unification.
+PROFILES_ROOT = get_settings().research_profile_root
+# Full live roster — mirrors _load_vendor_registry() in ingest_today.py.
+# Kept as a literal (rather than importing that registry) because the
+# registry imports all 15 crawlers eagerly: one broken crawler module
+# would take down the whole health check instead of failing its own row.
+# _check_roster_drift() below flags divergence at the end of a run.
 _VENDORS: tuple[str, ...] = (
-    "anz", "barclays", "bnp", "goldman", "hsbc", "ms", "nomura",
+    "anz", "barclays", "bnp", "bofa", "citi", "db", "goldman", "hsbc",
+    "jpm", "ms", "nomura", "socgen", "stanc", "ubs", "westpac",
 )
+
+# vendor -> ingest.crawler_* module suffix, where it isn't just the code.
+_CRAWLER_MODULE_OVERRIDES: dict[str, str] = {
+    # BofA is firehose-only per the 2026-07-17 decision.
+    "bofa": "bofa_firehose",
+}
 
 
 def _import_discover(vendor: str):
-    if vendor == "anz":
-        from ingest.crawler_anz import discover_reports
-    elif vendor == "barclays":
-        from ingest.crawler_barclays import discover_reports
-    elif vendor == "bnp":
-        from ingest.crawler_bnp import discover_reports
-    elif vendor == "goldman":
-        from ingest.crawler_goldman import discover_reports
-    elif vendor == "hsbc":
-        from ingest.crawler_hsbc import discover_reports
-    elif vendor == "ms":
-        from ingest.crawler_ms import discover_reports
-    elif vendor == "nomura":
-        from ingest.crawler_nomura import discover_reports
-    else:
-        raise KeyError(vendor)
-    return discover_reports
+    """Lazily import one vendor's discover_reports.
+
+    Per-vendor import (not a shared registry import) so a crawler that
+    fails to import is reported as that vendor's failure and the run
+    continues.
+    """
+    from importlib import import_module  # noqa: PLC0415
+
+    suffix = _CRAWLER_MODULE_OVERRIDES.get(vendor, vendor)
+    return import_module(f"ingest.crawler_{suffix}").discover_reports
+
+
+def _check_roster_drift() -> None:
+    """Best-effort: warn if _VENDORS has drifted from the prod registry."""
+    try:
+        from ingest_today import _load_vendor_registry  # noqa: PLC0415
+
+        prod = set(_load_vendor_registry())
+    except Exception as exc:  # noqa: BLE001 — informational only
+        print(f"  (roster drift check skipped: {type(exc).__name__}: {exc})")
+        return
+    here = set(_VENDORS)
+    if missing := sorted(prod - here):
+        print(f"  ! in ingest_today registry but NOT health-checked: {missing}")
+    if extra := sorted(here - prod):
+        print(f"  ! health-checked but NOT in ingest_today registry: {extra}")
+    if not (prod - here) and not (here - prod):
+        print(f"  roster matches ingest_today registry ({len(prod)} vendors)")
 
 
 def _format_ref_line(vendor: str, ref) -> str:
@@ -181,9 +217,20 @@ async def _test_one_vendor(vendor: str) -> dict:
     return stats
 
 
-async def _amain() -> None:
+def _resolve_vendors(arg: str) -> tuple[str, ...]:
+    if not arg:
+        return _VENDORS
+    picked = tuple(v.strip().lower() for v in arg.split(",") if v.strip())
+    if unknown := [v for v in picked if v not in _VENDORS]:
+        raise SystemExit(
+            f"unknown vendor(s): {unknown}; known: {list(_VENDORS)}"
+        )
+    return picked
+
+
+async def _amain(vendors: tuple[str, ...]) -> None:
     stats_list: list[dict] = []
-    for vendor in _VENDORS:
+    for vendor in vendors:
         try:
             stats = await _test_one_vendor(vendor)
         except Exception:  # noqa: BLE001 — last-resort guard
@@ -206,7 +253,20 @@ async def _amain() -> None:
             f"  {marker}{s['vendor']:<7}  {s['post_filter']:>10}  "
             f"{s['dropped_single_name']:>8}  {s['post_relevance']:>6}  {s['status']}"
         )
+    ok = sum(1 for s in stats_list if s["status"] == "ok")
+    failed = [s["vendor"] for s in stats_list if s["status"] == "failed"]
+    print()
+    print(f"  {ok}/{len(stats_list)} vendors classified a live ref")
+    if failed:
+        print(f"  FAILED: {', '.join(failed)}")
+    _check_roster_drift()
 
 
 if __name__ == "__main__":
-    asyncio.run(_amain())
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument(
+        "--vendors", default="",
+        help="comma-separated subset; default = full roster",
+    )
+    args = ap.parse_args()
+    asyncio.run(_amain(_resolve_vendors(args.vendors)))

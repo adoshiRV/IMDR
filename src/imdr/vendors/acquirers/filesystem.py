@@ -46,6 +46,19 @@ class LocalFilesystemSpec:
 
     follow_symlinks: bool = False
 
+    extra_sources: tuple[tuple[Path, tuple[str, ...]], ...] = ()
+    # Additional ``(root, patterns)`` pairs globbed alongside ``root``.
+    #
+    # For feeds whose files are not all under one tree. Patterns are per-root
+    # rather than shared because the extra tree usually holds a SUBSET, and
+    # globbing the full pattern list against it would pull in files the feed
+    # deliberately excludes -- e.g. the legacy BBG\FX tree contains
+    # ``CNO/FX_CNO.csv``, whose tenor labels cannot be parsed, alongside the
+    # three onshore files we do want.
+    #
+    # A missing extra root is a warning, not a failure: these are secondary
+    # trees that may be retired independently of the primary root.
+
 
 class LocalFilesystemAcquirer:
     """Discover files on disk matching a glob; do not copy or modify them."""
@@ -67,7 +80,14 @@ class LocalFilesystemAcquirer:
             report.info(
                 category="acquire",
                 message="filesystem_scan_start",
-                details={"root": str(spec.root), "patterns": spec.patterns},
+                details={
+                    "root": str(spec.root),
+                    "patterns": spec.patterns,
+                    "extra_sources": [
+                        {"root": str(r), "patterns": list(p)}
+                        for r, p in spec.extra_sources
+                    ],
+                },
             )
 
         if not spec.root.exists():
@@ -76,16 +96,27 @@ class LocalFilesystemAcquirer:
             )
 
         matched: list[Path] = []
-        for pattern in spec.patterns:
-            for path in spec.root.glob(pattern):
-                if path.is_file():
-                    matched.append(path)
+        warnings: list[str] = []
+        sources: list[tuple[Path, tuple[str, ...]]] = [
+            (spec.root, tuple(spec.patterns)), *spec.extra_sources,
+        ]
+        for src_root, src_patterns in sources:
+            if src_root != spec.root and not src_root.exists():
+                # Secondary trees may be retired independently; degrade to a
+                # warning so the primary feed still lands.
+                warnings.append(f"extra root does not exist: {src_root}")
+                log.warning("filesystem_extra_root_missing",
+                            feed=spec.name, root=str(src_root))
+                continue
+            for pattern in src_patterns:
+                for path in src_root.glob(pattern):
+                    if path.is_file():
+                        matched.append(path)
 
         # Dedup and sort for stable ordering across runs
         matched = sorted(set(matched))
 
         # Freshness filter
-        warnings: list[str] = []
         if spec.min_mtime_age is not None:
             cutoff = utcnow() - spec.min_mtime_age
             fresh: list[Path] = []

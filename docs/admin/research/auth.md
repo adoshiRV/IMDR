@@ -1,5 +1,9 @@
 # Research-portal auth — operator runbook
 
+Last updated: 2026-07-22 (auth-recovery session — db/nomura/stanc
+loginflows rewritten, jpm predicate fixed, bnp domain move, profile
+root migration completed; see the dated notes below).
+
 A single module at [`src/imdr/research/auth/`](../../../src/imdr/research/auth/)
 owns every research vendor's browser-session lifecycle: predicate-based
 healthchecks, persistent-profile session reuse, programmatic auto-login
@@ -14,6 +18,18 @@ The canonical vendor list and per-vendor configuration lives in
 (`VENDOR_AUTH_REGISTRY`). The table below tracks it manually; if they
 diverge, the registry wins.
 
+**Profile root (all vendors, all callers):** every Playwright
+`user_data_dir` — auth module, `portal_explorer`/`explore_*` probes,
+and the daily `ingest_today.py` orchestrator alike — is rooted at
+`Settings.research_profile_root` = `C:\IMDR_LOCAL\research_profiles\{vendor}`
+(**local disk**, not the SMB share). Chrome profile I/O over
+`\\rvsg-fs01…` stalls every `page.goto` (diagnosed 2026-07-21); the
+last holdout was `ingest_today.py`, which still read the old
+`playground/research/profiles/` SMB path — that was fixed 2026-07-22,
+completing the migration. Exploration **output** (screenshots/JSON,
+as opposed to the browser profile) is unaffected and still lives
+under `playground/research/{vendor}_explore/`.
+
 ---
 
 ## Per-vendor auth mode
@@ -21,18 +37,61 @@ diverge, the registry wins.
 | Vendor | Mode | Headless | Fetch in-session | Healthcheck URL | Env vars consumed |
 |---|---|---|---|---|---|
 | **anz** | `PROGRAMMATIC` | True | — | `research.anz.com/all_research` | `IMDR_RESEARCH_ANZ_USERNAME` / `_PASSWORD` |
-| **barclays** | `PROGRAMMATIC` (wipe per run) | True | yes (PingFederate) | `live.barcap.com` | `IMDR_BARCLAYS_USERNAME` / `_PASSWORD` |
-| **bnp** | `PROFILE_ONLY` | True | — | `markets360.bnpparibas.com/` | — |
-| **db** | `PROFILE_ONLY` | True | — | `research.db.com/research/Research/Latest` | — |
-| **goldman** | `PROFILE_ONLY` *(deferred — MFA push)* | True | — | `marquee.gs.com/s/` | — |
-| **hsbc** | `PROFILE_ONLY` *(deferred — hardware token)* | True | — | `research.hsbc.com/.../Reach?productid=5` | — |
-| **jpm** | `HEADER_INJECTION` | True | — | `markets.jpmorgan.com/jpmm/research` | `IMDR_RESEARCH_JPM_USERNAME` (header only) |
-| **ms** | `PROFILE_ONLY` *(deferred — dual cred)* | True | — | `ny.matrix.ms.com/eqr/research/portal/home/global` | — |
-| **nomura** | `PROGRAMMATIC` | True | — | `www.nomuranow.com/portal/site/nnpub/research/` | `IMDR_RESEARCH_NOMURA_USERNAME` / `_PASSWORD` |
+| **barclays** | `PROGRAMMATIC` (wipe per run; robust cookie-dismiss + 3× retry) | True | yes (PingFederate) | `live.barcap.com` | `IMDR_BARCLAYS_USERNAME` / `_PASSWORD` |
+| **bnp** | `PROFILE_ONLY` | **False** (2026-07-22: `ERR_HTTP2_PROTOCOL_ERROR` under headless, like UBS) | — | `markets360.bnpparibas.com/contentportal/portal-content-service/markets360` (authed portal; moved 2026-07-22 — see vendor note) | — |
+| **db** | `PROGRAMMATIC` (2026-07-22: was `PROFILE_ONLY`) | True | — | `research.db.com/research/Research/Latest` | `IMDR_RESEARCH_DB_USERNAME` (email; no password — see vendor note) |
+| **goldman** | `PROFILE_ONLY` *(recovered 2026-07-22 — headed mobile-push MFA; 805 reports discovered)* | True | — | `marquee.gs.com/s/` | — |
+| **hsbc** | `PROFILE_ONLY` *(recovered 2026-07-22 — headed hardware-token MFA; 23 reports + PDF verified)* | True | — | `research.hsbc.com/.../Reach?productid=5` | — |
+| **jpm** | `HEADER_INJECTION` | True | — | `markets.jpmorgan.com/jpmm/research` (predicate tightened 2026-07-22 — see vendor note) | `IMDR_RESEARCH_JPM_USERNAME` (header only) |
+| **ms** | `PROFILE_ONLY` *(recovered 2026-07-22 — Z-drive profile copied to `C:\IMDR_LOCAL`, no re-login needed; 201 reports + PDF verified)* | True | — | `ny.matrix.ms.com/eqr/research/portal/home/global` | — |
+| **nomura** | `PROGRAMMATIC` (loginflow rewritten 2026-07-22) | True | — | `www.nomuranow.com/research/m/Home` (moved 2026-07-22 from the dead `/portal/site/nnpub/research/` path — see vendor note) | `IMDR_RESEARCH_NOMURA_USERNAME` / `_PASSWORD` |
 | **socgen** | `PROFILE_ONLY` *(deferred — biometric)* | True | yes (OIDC) | `insight.sgmarkets.com/` | — |
-| **stanc** | `PROGRAMMATIC` | True | — | `research.sc.com/research/api/application/static/` | `IMDR_RESEARCH_STANC_USERNAME` / `_PASSWORD` |
+| **stanc** | `PROGRAMMATIC` (loginflow rewritten 2026-07-22) | True | **yes** (2026-07-22: `/render/{id}` is session-bound, like barclays/socgen) | `research.sc.com/research/api/application/static/` | `IMDR_RESEARCH_STANC_USERNAME` (email) / `_PASSWORD` |
 | **ubs** | `PROGRAMMATIC` | **False** | — | `neo.ubs.com/home` | `IMDR_RESEARCH_UBS_USERNAME` / `_PASSWORD` |
 | **westpac** | `PROFILE_ONLY` *(deferred — device trust)* | True | — | `www.westpaciq.com.au/economics` | — |
+
+> **2026-07-22 auth-recovery session:** a full `validate --vendor all`
+> returned **12/13 PASS** (only goldman `BLOCKED`, and only on a
+> per-doc PDF-viewer edge case — see
+> [scrapers/goldman.md](scrapers/goldman.md), not an auth failure).
+> Per-vendor detail below and in each `scrapers/{vendor}.md`.
+>
+> - **db** flipped `PROFILE_ONLY` → `PROGRAMMATIC`: an email
+>   verification-code flow at `research.db.com/research/Register`
+>   (code emailed from `DoNotReply@markit.esp.db.com`, read
+>   automatically via `Win32OutlookClient.find_code`). Idempotent —
+>   only fires on refresh, since the session persists in the profile.
+>   Full design doc:
+>   [`docs/admin/development/db_email_code_login.md`](../development/db_email_code_login.md).
+> - **nomura** loginflow was pointed at the research *portal*, which
+>   serves a logged-out "Not Found" shell with no login form (so the
+>   fill silently no-op'd). Rewritten to hit the real login page
+>   `https://www.nomuranow.com/research/m/public/login`
+>   (`input[name="username"]` / `input[name="password"]` / `#login-button`
+>   — not the passwordless `#magicLink-button`). Healthcheck URL moved
+>   off the dead portal path to `/research/m/Home`.
+> - **stanc** loginflow was pointed at a dead URL and used best-guess
+>   selectors for a form that doesn't exist by default (the default
+>   form is an activation-*link* flow). Rewritten to click "Already
+>   have a password?" first, then fill `#txtemail` / `#txtpwd` /
+>   `#btnlogin` and tick "Keep me logged in" (`span.LoginPage-kmli`).
+>   `fetch_in_session` added — the protected render endpoint is
+>   session-bound.
+> - **jpm** predicate `_live_jpm` used to flip LIVE on the SSO
+>   redirect interstitial (`markets.jpmorgan.com/home?...&securityLevel=0`,
+>   which has no literal `"login"` in the URL) — the bare `"login"`
+>   exclusion false-passed it, so the login poller exited before a
+>   human could sign in. Fixed to require `/jpmm/` in the URL.
+>   Recovered via headed SSO; 1637 reports discovered.
+> - **bnp** public site moved to
+>   `globalmarkets.cib.bnpparibas/markets-360/`; post-SSO the research
+>   portal lands on `markets360.bnpparibas.com/contentportal/…`
+>   (healthcheck URL updated to that authed path — the bare
+>   `markets360.bnpparibas.com/` now redirects to the public landing).
+>   `headless` flipped to `False` — these hosts throw
+>   `ERR_HTTP2_PROTOCOL_ERROR` under headless Chrome.
+> - A `validate` `UnicodeEncodeError` (non-cp1252 report titles) was
+>   fixed via `_force_utf8_stdio()` in `auth/cli.py`.
 
 **Mode semantics:**
 
@@ -46,8 +105,18 @@ diverge, the registry wins.
 
 **`fetch_in_session`** — True for vendors whose PDF fetch must happen
 in the same Playwright context as discovery (cookies are session-scoped
-and don't survive `ctx.close()`). The validate command's step 4 picks
-the right fetch branch based on this flag.
+and don't survive `ctx.close()`). Set for barclays, socgen, and (added
+2026-07-22) stanc. The validate command's step 4 picks the right fetch
+branch based on this flag.
+
+> **Barclays login note (2026-07-21):** `login()` **waits for the OneTrust
+> cookie banner to be visible** before clicking it (an immediate
+> `is_visible()` check was flaky — the banner paints late and then
+> intercepts the submit, stranding the run on `ct_logon_basic`), and
+> **retries the full login cycle up to `_MAX_LOGIN_ATTEMPTS`**. It is
+> **not** MFA — username + password suffices, and robust dismissal works
+> headed and headless alike. Full write-up + the render × cookie matrix:
+> [scrapers/barclays.md](scrapers/barclays.md#login-reliability--robust-cookie-dismissal--retry-2026-07-21).
 
 ---
 
@@ -61,8 +130,9 @@ Every env var the auth flow reads, declared in
 | `IMDR_BARCLAYS_USERNAME` / `_PASSWORD` | Barclays Live programmatic login. |
 | `IMDR_RESEARCH_UBS_USERNAME` / `_PASSWORD` | UBS Neo two-step form login. |
 | `IMDR_RESEARCH_ANZ_USERNAME` / `_PASSWORD` | ANZ Research form login. |
-| `IMDR_RESEARCH_NOMURA_USERNAME` / `_PASSWORD` | NomuraNow form login. |
-| `IMDR_RESEARCH_STANC_USERNAME` / `_PASSWORD` | Standard Chartered form login. |
+| `IMDR_RESEARCH_NOMURA_USERNAME` / `_PASSWORD` | NomuraNow form login (`nomuranow.com/research/m/public/login`). |
+| `IMDR_RESEARCH_STANC_USERNAME` / `_PASSWORD` | Standard Chartered form login (email + password via the "Already have a password?" path). |
+| `IMDR_RESEARCH_DB_USERNAME` | DB Research email-verification-code login (no password — code emailed to this address). |
 | `IMDR_RESEARCH_JPM_USERNAME` | JPM Janus `janus_user` GraphQL header value. |
 | `IMDR_EMAIL_ENABLED` | Master switch for all email dispatch. False = silent. |
 | `IMDR_EMAIL_TO` | Default operator recipient (semicolon-separated). |

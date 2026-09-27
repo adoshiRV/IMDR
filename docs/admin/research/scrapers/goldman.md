@@ -118,6 +118,20 @@ C:/IMDR_LOCAL/research_profiles/goldman/
 First run: launch `explore_goldman.py`, sign in interactively. Subsequent
 runs reuse cookies. Sessions appear stable for several weeks.
 
+### Auth recovery (2026-07-22)
+
+Session had lapsed; recovered via headed `auth login --vendor goldman`
+(mobile-push MFA, as expected for `PROFILE_ONLY` — no registry/loginflow
+changes needed). Post-recovery `discover()` found 805 reports. Full
+`validate --vendor all` on 2026-07-22 returned `BLOCKED` for goldman —
+**not an auth problem**: some viewer-only reports (e.g.
+`marquee.gs.com/s/content/markets/…`) don't expose a PDF URL at all, so
+the crawler can't extract a fetchable ref for those specific docs. This
+is a per-doc edge case in `fetch_pdf`/`discover`, not a session issue;
+ingest already skips these silently. See
+[registry.py](../../../../src/imdr/research/auth/registry.py) —
+`goldman` stays `PROFILE_ONLY`.
+
 ## URL patterns
 
 ### Reports — public-facing path

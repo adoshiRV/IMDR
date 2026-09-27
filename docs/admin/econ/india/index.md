@@ -28,6 +28,8 @@ India is the weakest API landscape in Asia. Real-economy series (CPI, IIP, GDP) 
 | [in_coverage_plan.md](in_coverage_plan.md) | Full scoping doc: wiring-map × vendor matrix, per-cell candidate datasets, A→O phase plan. |
 | [india_govt_doc_sources.md](india_govt_doc_sources.md) | Policy/fiscal document source inventory — full agency + tier inventory; all probed sources. |
 | [in_nri_rates_sourcing.md](in_nri_rates_sourcing.md) | NRI / FCNR(B) / NRE / NRO deposit rate sourcing notes. |
+| **[nsdl_fpi_sources.md](nsdl_fpi_sources.md)** | **NSDL FPI Monitor source inventory** — daily FPI cash flows (debt+equity) + derivatives + AUC holdings + debt-utilisation + ODI/P-Notes; full report menu, `Latest.aspx` table structure, historical (Archive) path, CDP-attach access constraint. Stage 2 connector build (2026-07-14). |
+| **[india_sectoral_credit.md](india_sectoral_credit.md)** | **BUILT, NOT WIRED** — India bank credit, the first India credit series IMDR has held. `INDIA.SECTORAL_CREDIT.*` 82 monthly series × 90 months (Jan-2019 →, gapless) from the RBI sectoral-deployment press release; `INDIA.SCB_BUSINESS.*` 3 all-SCB Section-42 series from DBIE reportId 1130. Closes the bank-credit half of dashboard gap DG24; **deposits still open**. Headed Chrome (TSPD + SAP-BO). |
 | **[india_mandi_prices.md](india_mandi_prices.md)** | **PRE-PROD** — OGD Agmarknet daily mandi-price pipeline (data.gov.in resource 35985678…; dedicated star schema; migration 104 drafted, not applied). |
 | **[../../research/india_food_nowcast_spec.md](../../research/india_food_nowcast_spec.md)** | **DESIGN SPEC** — Fresh-food inflation nowcaster: CPI-weighted mandi-median composite for Vegetables + Fruits + Spices (≈11.4% of CPI); MoM nowcast, seasonal norms, regional layer, phased build plan. |
 | [`_playground/rbi.md`](_playground/rbi.md) | RBI DBIE Playwright probes (XHR capture, payload inspection, SPA click-through). |
@@ -56,7 +58,7 @@ Both wired 2026-06-19. The three quarterly/annual fetchers (`mospi_nas_gdp`, `up
 
 | Fetcher (prod path) | Cadence | Release window | Orchestrator |
 |---|---|---|---|
-| `scripts.econ.in.imd.imd_rainfall` | DAILY (monsoon Jun-Sep), snapshot otherwise | Refreshed daily on the IMD portal | `in_daily.py` → `imdr_daily.py` |
+| `scripts.econ.in.imd.imd_rainfall` | DAILY, monsoon window only (1 Jun → ~31 Oct) | Refreshed daily on the IMD portal (0830 IST) | `in_daily.py` → `imdr_daily.py` |
 | `scripts.econ.in.bis.bis_india` | DAILY/MONTHLY/QUARTERLY | Continuous (BIS SDMX) | `in_monthly.py` → `imdr_monthly.py` |
 | `scripts.econ.in.fao.fao_fpi` | MONTHLY | ~first Friday of month | `in_monthly.py` → `imdr_monthly.py` |
 | `scripts.econ.in.rbi.rbi_fx_reserves` | WEEKLY | Continuous (DBIE) | `in_monthly.py` → `imdr_monthly.py` |
@@ -83,7 +85,7 @@ Both wired 2026-06-19. The three quarterly/annual fetchers (`mospi_nas_gdp`, `up
 | DPIIT | MONTHLY (WPI) | 8 | 1,352 | 2012-04 → 2026-04 |
 | DPIIT | MONTHLY (8-Core) | 18 | 3,150 | 2011-04 → 2026-04 |
 | CGA | MONTHLY (fiscal) | 30 | 4,182 | 2014-04 → 2026-02 |
-| IMD | DAILY (rainfall, monsoon) | 3 | 3 | 2026-06-10 snapshot |
+| IMD | DAILY (rainfall, monsoon) | 3 | 3 | `IMD.RAINFALL.AI.CUM.*` from 2026-08-20; the pre-fix `IMD.RAINFALL.AI.*` codes hold daily-window values mislabelled as cumulative — retired by mig 124 |
 | FAO | MONTHLY (FPI) | 6 | 2,622 | 1990-01 → 2026-05 |
 | DGCIS | MONTHLY (HS-2 trade) | 198 | ~30,888 | 2013-04 → 2026-03 (Export + Import × 98 HS chapters + TOTAL) |
 | **UPAg** | ANNUAL (MSP A31) | 28 | 353 | 2013-14 → 2026-27 (28 crops × INR/Qtl) |

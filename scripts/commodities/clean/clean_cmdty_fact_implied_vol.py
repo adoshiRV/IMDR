@@ -96,7 +96,7 @@ def build_quality_checks() -> list:
     from imdr.healthchecks.quality import DistributionCheck
 
     return [
-        DistributionCheck(value_column="vol", group_column="strike"),
+        DistributionCheck(value_column="vol", group_column="strike", ts_column="obs_date"),
     ]
 
 

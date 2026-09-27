@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import json
 import re
 import sys
 import time
@@ -152,12 +153,35 @@ def _iter_pdfs(
     yield from pdfs
 
 
+def _sidecar_path(path: Path) -> Path:
+    return path.parent / f"{path.name}.meta.json"
+
+
+def _load_sidecar(path: Path) -> dict | None:
+    """Read the `<pdf>.meta.json` written by `daily_pull.py`'s RBI
+    harvesters (real listing-page title + source_url + publish_date).
+    Returns None if absent or unparsable — caller falls back to the
+    filename-derived title (`_title_from_filename`)."""
+    sc = _sidecar_path(path)
+    if not sc.exists():
+        return None
+    try:
+        return json.loads(sc.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
 def _title_from_filename(path: Path) -> str:
     """Build a human-readable title from the saved filename.
 
     Underscores → spaces; trailing `_{8-char hash}` from the corpus
     saver is stripped so duplicate downloads of the same doc fold
     together at SharePoint path level too.
+
+    Fallback only — used when no sidecar (`_load_sidecar`) exists for
+    this PDF. For RBI, the saved filename is the RBI doc-code (e.g.
+    ``PR6611B8356F...``), not the headline, so this produces a hash-like
+    title; the sidecar is strongly preferred when present.
     """
     stem = path.stem
     # strip our content_hash suffix if present: foo_bar_a1b2c3d4 -> foo_bar
@@ -288,8 +312,15 @@ def main() -> int:
         stats.n_pdfs = len(pdfs)
         print(f"\n=== {folder} → vendor={vendor} doc_type={doc_type} ({len(pdfs)} PDFs) ===")
         for i, path in enumerate(pdfs, 1):
-            title = _title_from_filename(path)
+            sidecar = _load_sidecar(path)
+            title = (sidecar or {}).get("title") or _title_from_filename(path)
             publish_date = _publish_date_from_path(path)
+            if sidecar and sidecar.get("publish_date"):
+                try:
+                    publish_date = datetime.date.fromisoformat(sidecar["publish_date"])
+                except ValueError:
+                    pass
+            source_url = (sidecar or {}).get("source_url") or f"file://{path.as_posix()}"
             try:
                 pdf_bytes = path.read_bytes()
             except Exception as e:
@@ -301,7 +332,7 @@ def main() -> int:
                 vendor_code=vendor,
                 title=title[:200],
                 publish_date=publish_date,
-                source_url=f"file://{path.as_posix()}",
+                source_url=source_url,
                 pdf_bytes=pdf_bytes,
                 doc_type=doc_type,
                 stream=stream,

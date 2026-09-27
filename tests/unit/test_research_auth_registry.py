@@ -83,7 +83,7 @@ def test_upgraded_vendors_are_programmatic(vendor, expected_module):
 
 
 def test_fetch_in_session_only_for_session_bound_vendors():
-    expected_in_session = {"barclays", "socgen"}
+    expected_in_session = {"barclays", "socgen", "stanc"}
     for v in all_vendors():
         spec = get_spec(v)
         assert spec.fetch_in_session == (v in expected_in_session), (
@@ -122,13 +122,23 @@ def test_fetch_in_session_only_for_session_bound_vendors():
     ("hsbc", "HSBC Reach", "https://research.hsbc.com/ibcom/in/reach/servlet/Reach?productid=5", True),
 
     ("jpm", "Sign in", "https://login.jpmorgan.com/", False),
+    # Real SSO-redirect interstitial: same host, /home path, /jpmm only
+    # inside the URI= query param — must be False (regression: 2026-07-22 it
+    # passed as LIVE and the login poller exited before sign-in).
+    ("jpm", "", "https://markets.jpmorgan.com/home?URI=https%3a%2f%2fmarkets.jpmorgan.com%2fjpmm%2fresearch&securityLevel=0&xroute=nadc", False),
     ("jpm", "Research", "https://markets.jpmorgan.com/jpmm/research", True),
 
     ("ms", "Login", "https://login.ms.com/", False),
     ("ms", "Matrix", "https://ny.matrix.ms.com/eqr/research/portal/home/global", True),
 
     ("nomura", "Login", "https://login.nomuranow.com/", False),
-    ("nomura", "Nomura Now", "https://www.nomuranow.com/portal/site/nnpub/research/", True),
+    # Logged out → redirect to the /public/login page ('login' in URL).
+    ("nomura", "", "https://www.nomuranow.com/research/m/public/login?goto=%2F", False),
+    # The dead desktop portal renders 'Not Found' even when authed — must be
+    # False (regression 2026-07-22; healthcheck moved to /research/m/Home).
+    ("nomura", "Not Found", "https://www.nomuranow.com/portal/site/nnpub/research/", False),
+    # Authenticated mobile home.
+    ("nomura", "Nomura Research", "https://www.nomuranow.com/research/m/Home", True),
 
     # SG: signed out flows through sgconnect.com.
     ("socgen", "SG Connect", "https://sso.sgconnect.com/sgconnect/auth", False),

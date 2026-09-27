@@ -120,7 +120,14 @@ def _live_hsbc(title: str, url: str) -> bool:
 
 
 def _live_jpm(title: str, url: str) -> bool:
-    return "markets.jpmorgan.com" in url and "login" not in url.lower()
+    # Logged-out/SSO bounces to markets.jpmorgan.com/home?URI=…&securityLevel=0
+    # — a redirect interstitial with no literal "login", so a bare "login"
+    # exclusion false-passes it as LIVE and the login poller exits before
+    # sign-in (seen 2026-07-22). The authenticated research app stays under
+    # /jpmm/; the /home SSO landing does not (the /jpmm path is only present
+    # URL-encoded in its URI= query param), so require the literal /jpmm/.
+    u = url.lower()
+    return "markets.jpmorgan.com" in u and "/jpmm/" in u and "login" not in u
 
 
 def _live_ms(title: str, url: str) -> bool:
@@ -128,7 +135,17 @@ def _live_ms(title: str, url: str) -> bool:
 
 
 def _live_nomura(title: str, url: str) -> bool:
-    return "nomuranow.com" in url and "login" not in url.lower()
+    # Healthcheck is /research/m/Home. Authenticated → title 'Nomura
+    # Research'; logged out → redirect to /research/m/public/login. The old
+    # /portal/site/nnpub/research/ URL was a DEAD path that renders 'Not
+    # Found' even when authed (verified 2026-07-22), so it could never
+    # detect a live session. Require a real title and not the login page.
+    t = (title or "").strip().lower()
+    return (
+        "nomuranow.com" in url
+        and "login" not in url.lower()
+        and t not in ("", "not found")
+    )
 
 
 def _live_socgen(title: str, url: str) -> bool:
@@ -202,8 +219,17 @@ VENDOR_AUTH_REGISTRY: dict[str, VendorAuthSpec] = {
     "bnp": VendorAuthSpec(
         code="bnp",
         mode=AuthMode.PROFILE_ONLY,
-        healthcheck_url="https://markets360.bnpparibas.com/",
+        # Authed Markets 360 portal (2026-07-22): the public site moved to
+        # globalmarkets.cib.bnpparibas, but after SSO the research portal
+        # lands back on markets360.bnpparibas.com/contentportal/…. Navigating
+        # this URL directly with the saved session skips the landing + Login
+        # dance. The bare markets360.bnpparibas.com/ now redirects to the
+        # public globalmarkets landing (predicate → False = not authed).
+        healthcheck_url="https://markets360.bnpparibas.com/contentportal/portal-content-service/markets360",
         healthcheck_predicate=_live_bnp,
+        # These BNP hosts throw ERR_HTTP2_PROTOCOL_ERROR under headless
+        # Chrome (verified 2026-07-22) — headed only, like UBS.
+        headless=False,
     ),
     "db": VendorAuthSpec(
         code="db",
@@ -258,7 +284,7 @@ VENDOR_AUTH_REGISTRY: dict[str, VendorAuthSpec] = {
     "nomura": VendorAuthSpec(
         code="nomura",
         mode=AuthMode.PROGRAMMATIC,
-        healthcheck_url="https://www.nomuranow.com/portal/site/nnpub/research/",
+        healthcheck_url="https://www.nomuranow.com/research/m/Home",
         healthcheck_predicate=_live_nomura,
         login_module="imdr.research.auth.loginflows.nomura",
         notes="Programmatic form login (selectors best-guess). MFA "
@@ -281,8 +307,13 @@ VENDOR_AUTH_REGISTRY: dict[str, VendorAuthSpec] = {
         healthcheck_url="https://research.sc.com/research/api/application/static/",
         healthcheck_predicate=_live_stanc,
         login_module="imdr.research.auth.loginflows.stanc",
-        notes="Programmatic form login (selectors best-guess). MFA "
-              "fallback: revert to PROFILE_ONLY if validate reports MFA.",
+        # PDFs come from the protected /render/{id} endpoint, which is
+        # session-bound (a fresh context 302s to /static/login) — so fetch
+        # in-session via crawler_stanc.fetch_pdfs, like barclays/socgen.
+        fetch_in_session=True,
+        notes="Email+password via the 'Already have a password?' path "
+              "(default form is an activation-link flow); verified "
+              "selectors 2026-07-22. PDFs fetched in-session.",
     ),
     "ubs": VendorAuthSpec(
         code="ubs",

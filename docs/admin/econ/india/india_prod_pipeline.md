@@ -1,6 +1,6 @@
 # India Econ — Production Pipeline
 
-Last updated: 2026-06-19
+Last updated: 2026-07-14
 
 Operations reference for the India economic data ingest that was prod-promoted
 on 2026-06-19. For the broader India data landscape (sources, indicator
@@ -21,6 +21,8 @@ Vendor API / portal / XLSX
   FAO FPI REST API                   (fao.org)
   RBI FX Reserves DBIE               (data.rbi.org.in/CIMS_Gateway_DBIE/)
   RBI Key Rates DBIE                 (data.rbi.org.in/CIMS_Gateway_DBIE/)
+  RBI DBIE NRI Deposits (headed)     (data.rbi.org.in/DBIE/, SAP-BO)  *** requires display ***
+  RBI DBIE Forward Premia (headed)   (data.rbi.org.in/DBIE/, SAP-BO)  *** requires display ***
   MOSPI CPI XLSX release             (mospi.gov.in)
   MOSPI IIP XLSX release             (mospi.gov.in)
   DPIIT WPI XLSX release             (dpiit.gov.in)
@@ -84,6 +86,30 @@ are both rejected. Consequences:
 
 ---
 
+## Headed-Chrome constraint — RBI DBIE SAP-BO fetchers
+
+**`rbi_dbie_nri_deposits.py`** (reportId 417) and **`rbi_dbie_forward_premia.py`**
+(reportId 698) drive DBIE's SAP-BO report viewer (DBIE Home → search → click
+leaf → new SAP-BO tab → poll the report iframe). The SAP-BO iframe is NOT
+accessible headless, so both fetchers REQUIRE A HOST WITH A DISPLAY (same
+constraint as `rbi_bulletin.py`, different root cause — SAP-BO vs Akamai TSPD).
+
+Shared scraping scaffolding lives in `src/imdr/domains/econ/rbi_dbie_sapbo.py`:
+the persistent Chrome profile launch, the search→click→new-tab→poll-iframe
+flow (with retry + `UI5logon.jsp` login-wall detection — a token-handoff race
+in the SPA click-flow, not a real login), and the iframe table extractor.
+Each fetcher keeps its own parser + `_COL_MAP` (report-specific).
+
+Both fetchers share ONE persistent Chrome profile directory
+(`data/econ/in/rbi/_profile_dbie`, distinct from `rbi_bulletin.py`'s own
+`_profile`). `launch_persistent_context` takes an exclusive lock on that
+directory, so these two fetchers MUST run sequentially — safe today because
+`in_monthly.py`'s `PIPELINES` list runs each fetcher as its own sequential
+subprocess via `_country_runner`. A future change to run fetchers
+concurrently would corrupt/deadlock the profile lock.
+
+---
+
 ## Cadence and orchestrator placement
 
 ### Daily (`scripts/imdr_daily.py:PIPELINES`)
@@ -97,7 +123,7 @@ Wired into `scripts/imdr_daily.py:PIPELINES` 2026-06-19.
 
 | Fetcher | Vendor | Series | Cadence |
 |---|---|---|---|
-| `scripts.econ.in.imd.imd_rainfall` | IMD | All-India aggregate rainfall (3 indicators) | DAILY (refreshed daily on the IMD portal during monsoon Jun-Sep; snapshot otherwise) |
+| `scripts.econ.in.imd.imd_rainfall` | IMD | All-India **cumulative-from-1-Jun** rainfall, `IMD.RAINFALL.AI.CUM.*` (3 indicators) | DAILY, monsoon window only (1 Jun → ~31 Oct; off-season runs skip cleanly) |
 
 ### Monthly (`scripts/imdr_monthly.py:PIPELINES`)
 
@@ -108,7 +134,8 @@ python -m scripts.econ.in.in_monthly
 Wired into `scripts/imdr_monthly.py:PIPELINES` 2026-06-19.
 `frequency_scope=["MONTHLY", "WEEKLY", "DAILY", "QUARTERLY", "ANNUAL"]`.
 
-Fans out to 15 fetchers sequentially. The three quarterly/annual fetchers
+Fans out to 17 fetchers sequentially (18 total across daily+monthly — see
+`in_daily`'s IMD rainfall row above). The three quarterly/annual fetchers
 (`mospi_nas_gdp`, `upag_msp`, `upag_aiapy`) were originally in a separate
 `in_quarterly.py` but were folded here 2026-06-19 — fetchers are idempotent
 (MERGE on PK) so pulling quarterly/annual data every month is harmless and
@@ -130,7 +157,9 @@ avoids a separate trigger. RBI Bulletin runs last (slowest, headed-Chrome).
 | `scripts.econ.in.upag.upag_imc` | UPAg IMC mandi prices — 16 indicators (4 sections × 3-5 commodities × 8 anchor dates) | WEEKLY |
 | `scripts.econ.in.upag.upag_msp` | UPAg MSP — 28 crops × MSP level INR/Qtl | ANNUAL |
 | `scripts.econ.in.upag.upag_aiapy` | UPAg AIAPY — 324 indicators (37 crops × 4 seasons × Area/Production/Yield, 1966-67 → 2025-26) | ANNUAL |
-| `scripts.econ.in.rbi.rbi_bulletin` | RBI Bulletin — ~450 indicators across 23 tables (CPI · Call Money · IIP · Money Stock · Reserve Money · NEER/REER · WPI · RBI BS · FX Reserves · Foreign Trade · BoP T40 · NRI Deposits T34 + 11 more tables added 2026-06-18) | MONTHLY — **headed Chrome required** |
+| `scripts.econ.in.rbi.rbi_dbie_nri_deposits` | RBI DBIE NRI Deposits (reportId 417) — 8 indicators (4 schemes × Outstanding/Flow) | MONTHLY — **headed Chrome required (SAP-BO)** |
+| `scripts.econ.in.rbi.rbi_dbie_forward_premia` | RBI DBIE Daily Forward Premia Inter-Bank (reportId 698) — 3 indicators (1M/3M/6M tenors) | DAILY (pulled monthly; ~100-day rolling window covers gaps) — **headed Chrome required (SAP-BO)** |
+| `scripts.econ.in.rbi.rbi_bulletin` | RBI Bulletin — ~458 indicators across 24 tables (CPI · Call Money · IIP · Money Stock · Reserve Money · NEER/REER · WPI · RBI BS · FX Reserves · Foreign Trade · BoP T40 · NRI Deposits T34 + FX Intervention T4 + Forward Book Tenor T4A + 11 more tables added 2026-06-18) | MONTHLY — **headed Chrome required (Akamai TSPD)** |
 
 ---
 
@@ -189,10 +218,13 @@ data/econ/in/
 │   │                   mospi_cpi_20260619_1205_fact.parquet
 │   └── iip/ ...
 ├── rbi/
-│   ├── _profile/       ← headed Chrome persistent profile (gitignored)
+│   ├── _profile/       ← headed Chrome persistent profile, TSPD bulletin (gitignored)
+│   ├── _profile_dbie/  ← headed Chrome persistent profile, DBIE SAP-BO (gitignored)
 │   ├── _downloads/     ← Bulletin XLSX cache (gitignored)
 │   ├── rbi_bulletin/2026/06/19/ ...
-│   └── rbi_fx_reserves/2026/06/19/ ...
+│   ├── rbi_fx_reserves/2026/06/19/ ...
+│   ├── rbi_dbie_nri_deposits/2026/07/14/ ...
+│   └── rbi_dbie_forward_premia/2026/07/14/ ...
 ├── dpiit/ ...
 ├── cga/ ...
 ├── dgcis/ ...

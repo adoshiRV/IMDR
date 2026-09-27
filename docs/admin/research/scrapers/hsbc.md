@@ -13,6 +13,15 @@ window after dedup across scopes.
 * Auth: SSO via `<HSBC_USERNAME>` (long-lived cookie in persistent profile)
 * Profile: `C:/IMDR_LOCAL/research_profiles/hsbc/` (created 2026-05-08)
 
+### Auth recovery (2026-07-22)
+
+Session had lapsed; recovered via headed `auth login --vendor hsbc`
+(hardware-token MFA, as expected for `PROFILE_ONLY` — no
+registry/loginflow changes needed). Post-recovery, `discover()` found
+23 reports and a PDF fetch was verified end-to-end (part of the
+`validate --vendor all` 12/13-PASS run, see
+[`docs/admin/research/auth.md`](../auth.md)).
+
 ## Architecture (what we found, what's different from the other 4 vendors)
 
 **No JSON listing API.** `probe_listing_apis.py` captured 0 JSON XHR

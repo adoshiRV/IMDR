@@ -161,6 +161,7 @@ def build_quality_checks() -> list:
         DistributionCheck(
             value_column="value",
             group_column="strike",
+            ts_column="obs_date",
         ),
     ]
 
@@ -225,6 +226,7 @@ def _print_distribution(reader: AnalyticalReader, table: str = TABLE) -> None:
     check = DistributionCheck(
         value_column="value",
         group_column="strike",
+        ts_column="obs_date",
     )
     result = check.run(reader, table)
     if result.summary is not None and not result.summary.empty:

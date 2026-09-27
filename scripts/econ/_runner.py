@@ -138,8 +138,14 @@ def _summary(
         if cur is None:
             by_code[o.imdr_code] = (1, o.obs_date, o.obs_date, o.value)
         else:
-            n, lo, hi, _ = cur
-            by_code[o.imdr_code] = (n + 1, min(lo, o.obs_date), max(hi, o.obs_date), o.value)
+            n, lo, hi, last_val = cur
+            # `latest` must track the value AT the max obs_date, not whichever
+            # observation happens to be last in fetch/parse order (e.g. T34's
+            # rows are not guaranteed chronological) -- so only overwrite it
+            # when this observation's date is >= the running max.
+            new_hi = max(hi, o.obs_date)
+            new_val = o.value if o.obs_date >= hi else last_val
+            by_code[o.imdr_code] = (n + 1, min(lo, o.obs_date), new_hi, new_val)
     for code in sorted(by_code):
         n, lo, hi, last_val = by_code[code]
         print(f"  {code}: n={n} window={lo} → {hi} latest={last_val}")

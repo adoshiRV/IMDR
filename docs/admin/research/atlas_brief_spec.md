@@ -110,8 +110,8 @@ data/global_overview/{YYYY}/{MM}/{DD}/charts/                                ←
 data/global_overview/{YYYY}/{MM}/{DD}/assets/                                ← logo + theme.css (HTML stage)
 ```
 
-> **DO NOT** write Atlas editions under `data/research_summary/` (Lois) or
-> `data/topical_briefs/` (Mycroft). Atlas has its own path:
+> **DO NOT** write Atlas editions under `data/research_summary/` — that tree
+> holds the daily, weekly and topical editions. Atlas has its own path:
 > `data/global_overview/`. Same per-brief-folder discipline as the others —
 > every chart/asset lives inside the edition's own dated folder, never a shared
 > location.
@@ -401,8 +401,8 @@ identical. Lite drops *prose breadth*, never *citation rigour*.
 10. **The thesis persists.** Carry the standing house view week-to-week so drift
     is visible. (Atlas reads the prior edition's thesis lines as the baseline —
     he does NOT re-derive numbers from it; numbers are always re-queried live.)
-11. **Editions go in `data/global_overview/`.** Never `research_summary/`
-    (Lois) or `topical_briefs/` (Mycroft).
+11. **Editions go in `data/global_overview/`.** Never `data/research_summary/`
+    (daily · weekly · topical).
 12. **No DDL, no prod-script wiring.** Read-only DB; no commits without explicit
     user OK (that's `imdr-git`). Atlas is not registered into any
     `scripts/imdr_*.py` orchestrator without the user flipping the switch.

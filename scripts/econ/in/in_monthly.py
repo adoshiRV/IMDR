@@ -49,6 +49,12 @@ PIPELINES: list[list[str]] = [
     [sys.executable, "-m", "scripts.econ.in.upag.upag_aiapy"],
     # RBI DBIE NRI Deposits (headed Chrome, SAP-BO iframe — display required)
     [sys.executable, "-m", "scripts.econ.in.rbi.rbi_dbie_nri_deposits"],
+    # RBI DBIE Forward Premia (headed Chrome, SAP-BO — display required).
+    # Daily series on a ~100-day rolling window, so a monthly pull captures every
+    # new day without gaps; grouped with the other DBIE scrapers.
+    [sys.executable, "-m", "scripts.econ.in.rbi.rbi_dbie_forward_premia"],
+    # RBI DBIE Services Trade (ITS, monthly — headed Chrome, SAP-BO).
+    [sys.executable, "-m", "scripts.econ.in.rbi.rbi_dbie_services_trade"],
     # RBI Bulletin (headed Chrome, TSPD anti-bot — LAST, slowest)
     [sys.executable, "-m", "scripts.econ.in.rbi.rbi_bulletin"],
 ]

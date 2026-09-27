@@ -158,18 +158,40 @@ edition's repeated core-PCE / GPIF / FCNR restatements; do not repeat it.
 
 ## Structure
 
-### Tier 1 — Cross-universe executive summary (~5 pages)
-The global read a PM could stop after. **Lead with the edge, not a data march** — the live
+### Tier 1 — Cross-universe executive summary (~5–6 print pages, a HARD budget)
+The global read a PM could stop after — **a decision brief, not a second copy of the
+country tier**. The ~5–6 print-page budget is enforced by the repetition budget (each
+fact once, cross-referenced): the 07 Sep 2026 edition's 24-page Tier 1, where the same
+core-PCE/GPIF observations recurred across the opening, dashboard, themes and bank
+summaries, is the anti-pattern. **Lead with the edge, not a data march** — the live
 debates, the news-vs-price divergences and the trade book come first; the data recap
-(matrix, desk-by-desk, themes) is support underneath. Order:
+(matrix, desk-by-desk, themes) is support underneath. **"What changed?" is the
+organising principle**: a moved call, a raised conviction, a closed trade or a repriced
+path outranks a static restatement for placement everywhere in this tier. Order:
+
+**FORM — Tier 1 is BULLETED BY DEFAULT.** Every prose element in this tier (the deck, the
+bottom line, §5, the theme build-ups in §8, the assumption-digging in §10, the lines in
+§11) is written as **bullets, not paragraphs**, unless a bullet genuinely breaks the
+argument. A PM reads this tier standing up; a wall of prose is the anti-pattern — the
+13 Sep 2026 edition's single-paragraph deck and paragraph bottom line are what this rule
+replaces. Rules for bulleting:
+- **A bullet is a full claim, not a fragment.** Keep the number, the driver, the
+  attribution and the tag. "2y +19bp on the Iran/oil bid and a live July-hike premium
+  `PRICING`" — never a telegraphic stub like "front end sold off".
+- **One idea per bullet**, ordered by what changed. Sub-bullets one level deep where a
+  claim genuinely decomposes; no deeper.
+- **Bulleting is a presentation change, never a depth cut.** §10 remains the analytical
+  heart and keeps its room — it becomes bulleted assumptions and tells, not fewer of them.
+- **Tier 2 is unaffected** — country sections keep their existing form.
 
 1. **Masthead** — running header `RV CAPITAL · RATES & FX · WEEKLY CROSS-BANK
    SYNTHESIS`, the **editorial thesis line + deck** (factual, not a slogan — see the kit),
    the desk line (`{window} · Compiled {date}`), and a **Sources** line (houses covered
-   + official docs, IMDR library).
-2. **Bottom line (boxed).** 2–4 sentences: the working cross-universe regime this week and
-   the cleaner relative-value questions it raises. The single most-read element — the edge,
-   not a recap.
+   + official docs, IMDR library). The deck is **bulleted** — 4–7 bullets, one per
+   decisive development, not a paragraph.
+2. **Bottom line (boxed).** The working cross-universe regime this week and the cleaner
+   relative-value questions it raises, as **3–5 bullets** (a short framing clause may
+   precede them). The single most-read element — the edge, not a recap.
 3. **Universe hero stat band** — ~6–8 numbers, each caption **decomposing the why** +
    memory (see the kit). Grounded to the market / econ / CB layers.
 4. **PM dashboard — the live debates (the edge; leads).** A table of the week's
@@ -177,9 +199,13 @@ debates, the news-vs-price divergences and the trade book come first; the data r
    **Debate · Centre of gravity · Differentiated view (assumption → falsifier) · Resolver /
    when**. The `Differentiated view` cell carries the house's *own number*; a brief
    `Solid`/`Weak`/`Stale` where the audit already resolves it. This is the fattened successor
-   to the old "key tensions" preview and it *leads* the summary.
+   to the old "key tensions" preview and it *leads* the summary. **Lead each carried-over
+   debate with its delta**: where the debate ran in the prior edition, the row opens with
+   *last week → this week* (the call moved / conviction changed / a trade was closed / the
+   pricing shifted) and the stated reason — a changed call is the news; a static one is
+   context.
 5. **What moved — and did price agree? (cross-universe).** The week's 5–8 decisive
-   developments, **each once**: the move *decomposed* (which driver/components), then **did
+   developments as **one bullet each**: the move *decomposed* (which driver/components), then **did
    price confirm the narrative or diverge?** A divergence (a CB turned hawkish but the curve
    rallied; credit tightened but the currency didn't) leads and is **attributed to a catalyst
    or flagged `[RV — …]`** as a relative-value divergence. This is the weekly-horizon version
@@ -196,26 +222,40 @@ debates, the news-vs-price divergences and the trade book come first; the data r
    until an instrument is named. Titled "Street trade map" (aggregated sell-side
    positioning) — **never "where the book tilts"** (that reads as RV's own book).
 8. **The big cross-cutting themes (support).** The 4–8 strands the whole street is
-   discussing, each *built up*: who introduced it, who corroborated with what numbers, who
-   dissented, what breaks it. A `Sources:` line of report_ids ends each theme.
+   discussing, each *built up* as a short bullet stack: who introduced it, who corroborated
+   with what numbers, who dissented, what breaks it. A `Sources:` line of report_ids ends
+   each theme.
 9. **Universe desk-by-desk (support / evidence).** **Bank · This week's flagship(s) ·
    Cross-country core message** — the map of what each house pushed. This is *evidence*
    under the edge above, not the spine — it sits here, demoted, not at the top.
 
    *(Sections 1–9 above carry **bucket ①, the week that was** — what printed and moved.
-   Sections 10–11 below carry buckets ② and ③.)*
+   Sections 10–11 below carry buckets ② and ③; §12 closes the tier by scoring the prior
+   edition.)*
 
 10. **This week — estimates & where the desks split (bucket ②, the heaviest).** The
     cross-cut. A **tabular** grid of the coming week's decision-grade events/themes across
     the universe: **Event / theme · Date · Consensus / estimate · What's priced · Range of
-    house calls · The key assumption · Where they differ & why**. Then prose that **digs
-    into the assumptions** (what has to be true for each call to work, and the tell that
-    would break it) and the **theme divergences** (why two desks looking at the same data
-    land in different places). This is the analytical heart of the weekly — give it room.
+    house calls · The key assumption · Where they differ & why**. Then **bulleted** analysis
+    that **digs into the assumptions** (one bullet per call: what has to be true for it to
+    work, and the tell that would break it) and the **theme divergences** (one bullet per
+    split: why two desks looking at the same data land in different places). This is the
+    analytical heart of the weekly — **give it room; bulleting it must not shorten it**.
 11. **The week ahead — preview (bucket ③, lighter, same structure).** A lighter table of
     the *following* week's setup: **Event · Date · Consensus / prior · What it tests ·
-    Early lean** — plus a few tight lines. Lighter than §10, but the same discipline: no
-    bare calendar dump, every line says what it *tests*.
+    Early lean** — plus a few tight bullets. Lighter than §10, but the same discipline: no
+    bare calendar dump, every bullet says what it *tests*.
+12. **Last week's calls — scored (accountability; closes Tier 1).** Score the **prior
+    edition's** PM-dashboard verdicts and Street-trade-map rows against what actually
+    happened: **Call / trade · Last edition's read · What happened · Worked / Failed /
+    Unresolved · Was the reasoning wrong, or only the timing?** Rules: performance is
+    measured **from the actual entry date at the actual entry level** — a Wednesday-entered
+    trade is never scored on a Monday–Friday window; a forward-starting instrument is marked
+    on the forward, not spot; `Unresolved` is an honest state, not a failure. Feed from the
+    Retrospective (Janus) ledger (`playground/research/retrospective/`) where it has marked
+    the trades; otherwise mark from the same IMDR price layers the edition uses. A weekly
+    that judges must also be judged — this section is what makes the `Solid`/`Weak` verdicts
+    mean something over time.
 
 ### Tier 2 — Per-country deep sections (ordered by what moved)
 Each country is a compressed gold-standard block. Assemble from the kit as the country
@@ -342,6 +382,23 @@ separate and each item tagged. Weekly emphases:
 - **Judge only what's grounded** — every `Solid`/`Weak` verdict rests on a cited number
   or a stated house logic, never tone. Where two sources disagree, show both and flag
   unreconciled; never silently pick one.
+- **Verdict discipline — three failure modes that produce false confidence** (each one
+  shipped in a 2026 edition; do not repeat them):
+  1. **A pricing-vs-forecast gap is a lead, not a verdict.** Market pricing sitting above
+     (or below) every cited house's central forecast is a *research opportunity* with three
+     candidate explanations — mispricing, risk premium, or an asymmetric outcome
+     distribution. Name which one the evidence supports before judging; if the evidence
+     doesn't discriminate, the verdict is "unresolved", not `Weak` on the houses or "the
+     market is wrong".
+  2. **A weekly move is not a causal story.** "Yields rose in the week of the employment
+     report" does not demonstrate the market ignored (or traded) the report. Causal
+     attribution requires session-scoped evidence (`check_session_scope.py`) and — where
+     several catalysts share the week — the *separate* reactions to each (the statement,
+     the release, the global move), not one blended WoW delta.
+  3. **Never penalise acknowledged uncertainty.** A house that states a forecast *and* its
+     risks is not `Weak` for the honesty; judge the logic and the evidence, not the
+     confidence of the delivery. Scoring hedged-but-grounded calls below confident-but-
+     thin ones systematically rewards overconfident houses.
 - **Push econ depth (the depth lever).** Go deeper on `econ.fact_indicator`: pull the
   **component series** behind each headline — CPI core / tradables / services / the
   subsidy-suppressed slice; labour participation, hours, job-offer ratios; PMI
@@ -355,6 +412,75 @@ separate and each item tagged. Weekly emphases:
   recovery is not a WoW move; mislabelling it flips the sign). Sanity-check every rates / FX
   sign against the two closes before writing on top. Where a series lags to mid-week, label
   the as-of and don't assert a full-week move you can't ground.
+- **FX: never mix frequency lanes, and treat the DAILY row as a back-stamp, not a close
+  (critical).** `FX.fact_fx_rate` carries the SAME vendor tick twice — `bbg_fx_snapshot` at
+  the file mtime with `frequency_id = 2` (SNAPSHOT), and `bbg_fx_daily` re-stamping that
+  identical row at **midnight UTC of its own obs_date** with `frequency_id = 5` (DAILY). A
+  "last tick per day" read that does not filter `frequency_id` therefore compares a live
+  intraday tick against a 00:00Z row that is really the previous evening's last mark. On
+  11 Sep 2026 both stamps read EURUSD 1.16150 — one tick, two rows — while the true
+  hour-matched move was three times larger. **Always filter `frequency_id`; prefer an
+  hour-matched SNAPSHOT comparison at the same UTC hour on both Fridays.** The DAILY row is
+  not a close: `imdr_daily.py` fires that feed four times a day and each run rewrites the
+  date's 00:00Z row with whatever the mirror holds at the time. Full detail and the
+  morning-absence rule: `spider_daily_spec.md` § Grounding & depth.
+- **Cross-market rankings require like windows.** Ordering the moves matrix, or claiming
+  "the largest move in the universe", is only valid across marks with comparable windows and
+  close times. Where a market's window differs (an equity feed that stops mid-week, a curve
+  with no Friday tick, FX lanes stamped at different hours), either exclude it from the
+  ranking or label the difference in the row — never rank mixed windows silently. The
+  mark-time metadata from `check_session_scope.py` is the evidence here too.
+
+## Pre-lock verification — the trade-board & threshold audit (MANDATORY)
+
+The single largest error class in shipped editions is not grounding — it is
+**transcription**: the step from source chunk → trade-board row / falsifier cell. WoW
+market figures get re-derived; trade rows historically did not. Before locking, run this
+audit **row by row over every trade table and every threshold/falsifier cell** in the doc
+(Tier-1 Street trade map, every country trade board, the PM dashboard, §10's estimate
+grid). It is manual until `scripts/research/check_trade_boards.py` exists; when it does,
+run it like the other checkers and act on every flag.
+
+1. **Direction, against the source AND against the row's own rationale.** Re-read the
+   source chunk and confirm pay/receive, long/short, buy/sell verbatim. Then check
+   **internal polarity**: a row whose `Why` cell argues for receiving X cannot carry a
+   "Receive Y vs X" trade — a direction/rationale mismatch is a transcription error until
+   proven otherwise. **Never publish a criticism of a house's consistency until the
+   transcription is re-verified against the original note** — the 07 Sep 2026 edition
+   printed Nomura's *pay* 5y5y SGD vs HKD as *receive*, then criticised Nomura for an
+   inconsistency the digest itself had created.
+2. **Instrument and tenor fidelity.** Every trade is described, marked and falsified on
+   its **actual instrument**: a Dec-forward 5y payer is not spot 5y (07 Sep: a Dec-5y
+   Thailand payer carried a spot-5y falsifier); a 5y5y is not a 5y; an FX-hedged bond is
+   not the unhedged bond; an option's mark is a premium, not spot. If the actual
+   instrument cannot be marked from IMDR, say so (`n/s` / unmarkable) — do not
+   substitute the nearest spot series without labelling the substitution.
+3. **Recompute every derived number.** Any %/bp change printed in a trade row or its
+   surrounding prose must reproduce from the levels printed beside it (07 Sep:
+   1.3854 → 1.38408 shipped as "0.8% below entry"; it is 0.095%). Entry-vs-current
+   arithmetic, carry figures and target/stop distances are all recomputed, not carried
+   from the draft.
+4. **Entry-date honesty.** Performance and status ("underwater", "target hit") are
+   measured **from the actual entry date at the actual entry level** — never
+   Monday-to-Friday for a mid-week entry. Where the entry predates the window, say what
+   window the P/L covers.
+5. **Measure discipline (kills the CPI/PCE class of error).** Every threshold, tracking
+   estimate and falsifier keeps its **(house · measure · exact conditional)** triplet
+   intact end-to-end. Core CPI ≠ core PCE ≠ headline; m/m ≠ y/y ≠ 3m-saar; one house's
+   threshold is **never** transplanted onto another house's call (07 Sep: BofA's
+   "core **PCE** ≥ 0.24%" hike threshold shipped as the core-**CPI** falsifier on
+   *Citi's* hold). When compressing a debate into one falsifier cell, quote the
+   conditional owner by name.
+6. **Traceability without dirtying the reader pages.** Every trade row and every
+   consequential quotation must be traceable: the Tier-3 source register carries the
+   report_id (and page where available) keyed so a row can be re-found (House · Trade ·
+   report_id). Reader pages stay free of ids (the existing rule); the register is where
+   the audit trail lives.
+7. **Retrieval honesty.** Where only a title or a partial excerpt was retrieved, write
+   **"not established from the material reviewed"** — never convert a retrieval failure
+   into "the bank has no trade", "no house covers this", or a `Stale` verdict. Absence of
+   evidence in the corpus is a coverage statement, and it belongs in the production log
+   with the sweep that failed to find it.
 
 ## Render & output — HTML → A4 → PDF (client PDF), audit appendix HTML-only
 - MD → `data/research_summary/weekly/{YYYY}/{MM}/{DD}/spider-weekly-digest.md`
@@ -379,10 +505,25 @@ separate and each item tagged. Weekly emphases:
   appendix is HTML-only, hidden under `@media print`** (like the daily's Product C). The
   reader's forward calendar lives in Tier-1 §10–11 + the per-country forward tables (which
   print); the full reference calendar + source register + machinery stay in the appendix.
-- **Navigation (the doc is long — ~40+ pages).** Generate a **clickable contents page** (the
-  country roster + the Tier-1 sections, linked) and **PDF bookmarks / outline** for every
-  Tier-1 section and every country chapter. A PM must be able to jump to a country, not
-  scroll 40 pages.
+- **Navigation — a contents index to the daily's standard (the doc runs 100+ pages).**
+  **Generated from the document's own headings, never hand-maintained.** It does two jobs,
+  exactly as `spider_daily_spec.md` specifies:
+  - **Page numbers, resolved against the real pagination.** Every Tier-1 section and every
+    country chapter carries its **print page number**, produced by the **two-pass render** —
+    print, read each heading's page off the PDF outline, inject, print again, repeat until a
+    print produces the numbers it was printed with. **It fails loudly rather than ship a
+    wrong number**: a heading-count mismatch, an order desync or a failure to converge exits
+    non-zero. Stage 1 marks every PRINTABLE heading (`data-pic-level` / `data-pic-title`);
+    **Tier 3 is never marked**, because it is hidden under `@media print` and so is absent
+    from the painted outline — marking it would break the count and stop the render.
+  - **Coverage.** One line stating how much of the standing 17-market roster this edition
+    actually covers, **counted in markets, not headings**, and reconciled against the roster.
+    An unresolvable chapter name, or a market claimed by two chapters, **raises** rather than
+    printing a guessed count. Where the chapters fall short of 17, the line says so and names
+    the missing markets — surfacing that gap is the reason it exists.
+  **PDF bookmarks** accompany it: every marked heading as a nested, clickable outline entry
+  (H1 → H2 → H3 → H4) with verbatim titles. Tier 3 appears in **neither** the printed
+  contents page nor the print PDF's bookmarks.
 - **Chart hygiene (from the daily's redesign review):**
   - **Never mix units on one axis** — a `%`-vs-`bp` or level-vs-delta pair buries the
     smaller series; split into two single-unit charts. Never mix m/m and y/y on one axis.
@@ -401,8 +542,11 @@ separate and each item tagged. Weekly emphases:
   - **Callout boxes** = a `> **TAG** — body` blockquote. Colour is auto by TAG: STOP* →
     red, *FLAG/PENDING/INTEGRITY/INSTRUMENT* → amber, PRICING/CARRY/BOOK-LEVEL/COHERENCE →
     blue, else green. Use the kit's box names.
-  - **Verdict pills** = `Solid` / `Weak` / `Stale` / `Live` render as coloured pills
-    (leading a table cell, or as `**Solid**`).
+  - **Verdict pills — author as BOLD, never backticked.** Write `**Solid**` /
+    `**Weak**` / `**Stale**` / `**Live**`: only the bold form renders as a coloured
+    pill. A backticked verdict renders as a grey code chip, not a pill — the 31 Aug
+    (pre-fix) and 07 Sep 2026 editions both regressed this way. (This spec's own prose
+    uses backticks when *talking about* the verdicts; the authored MD must not.)
   - **Charts** = a fenced ```` ```spiderchart ```` block of JSON
     `{"type":"bar"|"grouped"|"line","title","caption","series":[{"name","color","points":[["label",val],…]}]}` →
     inline SVG. A bare `[FIG. KEY — caption]` with no data renders as a dashed
@@ -469,6 +613,37 @@ separate and each item tagged. Weekly emphases:
   never generalise a **weekly** series' cadence to a daily/weekly block
   (`FRED.SENTIMENT.NFCI_CREDIT.US` is a Chicago Fed weekly, unrelated to credit OAS). See
   `spider.md` hard rule 6.
+- **Event dates are verified against the release country's own calendar.** A lane's
+  `event_date` is a **day-bucket, not a release date** — never print one unverified. Before
+  locking, run `python scripts/research/check_event_dates.py --as-of <edition date> <the MD>`
+  (exit 0 = every date agrees). It recomputes each event's date from `event_datetime` plus
+  `dim_country.timezone` and flags misdated rows (A), releases carrying two dates across
+  lanes (B), and wrong dates in the digest itself (C). **Neither lane can referee the other:**
+  TradingEconomics buckets by **UTC**, so it is a day *early* for pre-08:00-UTC Asia-Pacific
+  releases (37 of 73 Japan rows in the 7–28 Sep window, 19 of 30 NZ, 13 of 28 Korea);
+  Bloomberg BQL buckets by **SGT**, the ingest box's timezone, so it is a day *late* across
+  the Americas (63 of 306 US rows — it dates the 2:00 PM ET Beige Book to the next day). Take
+  the date the checker computes, not either lane's. Rows with no `event_datetime` are skipped,
+  not failed — those are the estimated/placeholder rows, which must never be printed as hard.
+  *Why:* the 07 Sep 2026 weekly printed "Japan Q2 GDP, final | 07 Sep" for an 08:50 JST **8 Sep**
+  release, then listed the same release again on 08 Sep from the other lane as if they were two
+  events. See `spider.md` hard rule 7.
+- **The pre-lock trade-board & threshold audit is mandatory.** Every trade row and every
+  threshold/falsifier cell passes the seven-point audit above (direction vs source AND vs
+  the row's own rationale · instrument/tenor fidelity, forwards never marked as spot ·
+  derived numbers recomputed · performance from the actual entry date · the
+  house-measure-conditional triplet intact · traceable to a report_id in the Tier-3
+  register · retrieval failure stated as "not established from the material reviewed",
+  never as a house having no view). No consistency criticism of a house ships without
+  the transcription being re-verified first.
+- **Verdict discipline.** A pricing-vs-forecast gap is a lead with three candidate
+  explanations (mispricing / risk premium / asymmetric distribution), not a verdict; a
+  weekly move is not a causal story without session-scoped, catalyst-separated evidence;
+  acknowledged uncertainty is never penalised — judge the logic, not the confidence.
+- **Tier 1 is a ~5–6 print-page decision brief** organised by "what changed", closing
+  with §12 "Last week's calls — scored" (prior edition's verdicts and trades marked from
+  actual entry dates; reasoning-wrong vs timing-wrong stated; fed from the Retrospective
+  ledger where available). The 24-page Tier 1 is the anti-pattern.
 - **No-bullshit language.** Write plainly and directly. State what happened, what's
   priced, what the assumption is, and where it breaks — in the fewest honest words. No
   filler, no hedging-for-cover, no throat-clearing, no consultant-speak ("navigating

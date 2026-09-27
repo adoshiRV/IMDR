@@ -46,6 +46,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import inspect
 import os
 import sys
 import time
@@ -111,12 +112,10 @@ def _load_vendor_registry() -> dict[str, VendorSpec]:
     from ingest.crawler_barclays import discover_reports as barclays_discover  # noqa: PLC0415
     from ingest.crawler_bnp import discover_reports as bnp_discover  # noqa: PLC0415
     from ingest.crawler_citi import discover_reports as citi_discover  # noqa: PLC0415
-    # BofA is held out of the orchestrator pending Phase 8 audit
-    # (2026-06-04 user decision — see docs/admin/research/scrapers/bofa.md
-    # "PROD-HOLD"). Crawler / fetcher / classifier all built and tested
-    # standalone; re-enable here + re-add the VendorSpec below + re-add
-    # the pipeline.py URL-host dispatch when promoting.
-    # from ingest.crawler_bofa import discover_reports as bofa_discover  # noqa: PLC0415
+    # BofA Securities Mercury — LIVE 2026-07-17 (firehose crawler). The
+    # email-security-token MFA handler + credit keep-by-default shipped;
+    # see docs/admin/development/credit_bofa.md. Firehose-only per decision.
+    from ingest.crawler_bofa_firehose import discover_reports as bofa_discover  # noqa: PLC0415
     from ingest.crawler_db import discover_reports as db_discover  # noqa: PLC0415
     from ingest.crawler_goldman import discover_reports as goldman_discover  # noqa: PLC0415
     from ingest.crawler_hsbc import discover_reports as hsbc_discover  # noqa: PLC0415
@@ -150,17 +149,15 @@ def _load_vendor_registry() -> dict[str, VendorSpec]:
         # The orchestrator's classifier path populates asset_class/tags/
         # context; use_pubtype_as_asset_class is moot here.
         "citi": VendorSpec(code="citi", discover=citi_discover),
-        # BofA Securities Mercury — HELD OUT of orchestrator pending
-        # Phase 8 audit (2026-06-04). Crawler / fetcher / classifier
-        # all built and tested standalone (2 reports already in DB
-        # from a manual smoke run). Re-enable by uncommenting:
-        #   * the `from ingest.crawler_bofa import …` line above
-        #   * the line below (`"bofa": VendorSpec(...)`)
-        #   * pipeline._fetch_pdf_dispatch (currently restored to the
-        #     plain fetch.fetch_pdf)
-        #   * classifiers/__init__._VENDOR_CODES + dispatcher branch
-        # See docs/admin/research/scrapers/bofa.md "PROD-HOLD" section.
-        # "bofa": VendorSpec(code="bofa", discover=bofa_discover),
+        # BofA Securities Mercury — LIVE 2026-07-17 (firehose). Classifier
+        # (classifiers/bofa.py) populates asset_class so
+        # use_pubtype_as_asset_class is moot. Shares Barclays' PingFederate
+        # realm → auth_realm="rv-pingfed" serialises the two logins (avoids
+        # concurrent-login IdP anomaly flags).
+        "bofa": VendorSpec(
+            code="bofa", discover=bofa_discover,
+            auth_realm="rv-pingfed",
+        ),
         # DB has a classifier (classifiers/db.py) — topics[].template
         # gives a clean asset-class mapping; use_pubtype_as_asset_class
         # is moot (the classifier path populates asset_class/tags/context).
@@ -483,17 +480,34 @@ async def _run_vendor(
     drop_single_name_equity: bool,
 ) -> VendorRunSummary:
     started = time.perf_counter()
-    profile_dir = HERE / "profiles" / vendor.code
+    # Profiles live on LOCAL disk (Settings.research_profile_root, default
+    # C:\IMDR_LOCAL\research_profiles) — NOT the SMB share. Chrome profile
+    # I/O over \\rvsg-fs01… stalls every page.goto (diagnosed 2026-07-21);
+    # this is the same root the auth module + portal_explorer use.
+    from imdr.config.settings import get_settings  # noqa: PLC0415
+    profile_dir = get_settings().research_profile_root / vendor.code
     log = VendorLogger(vendor.code)
     log.section(f"vendor: {vendor.code}")
     log.line(f"  log file     : {log.path}")
     log.line(f"  profile      : {profile_dir}")
     profile_dir.mkdir(parents=True, exist_ok=True)
 
+    # Pass the per-vendor logger into crawlers that opt in (accept a
+    # ``log`` kwarg) so their discover-time diagnostics — HTTP errors,
+    # session-prime warnings, server-count on a silent zero — land in the
+    # vendor log FILE, not just stdout. Crawlers print to stdout via bare
+    # print(), which VendorLogger doesn't tee; without this a silent
+    # DISCOVER_ZERO leaves no forensic trail in {vendor}.log. Crawlers that
+    # don't accept ``log`` are called unchanged.
+    discover_kwargs = {"since": since, "until": until}
     try:
-        refs = await vendor.discover(
-            profile_dir, since=since, until=until,
-        )
+        if "log" in inspect.signature(vendor.discover).parameters:
+            discover_kwargs["log"] = log
+    except (ValueError, TypeError):
+        pass  # builtins / C-callables have no introspectable signature
+
+    try:
+        refs = await vendor.discover(profile_dir, **discover_kwargs)
     except BaseException as exc:  # noqa: BLE001
         elapsed = time.perf_counter() - started
         log.line(
@@ -612,6 +626,25 @@ async def _run_vendor(
         from ingest.crawler_socgen import fetch_pdfs as _socgen_fetch_pdfs  # noqa: PLC0415
         outcomes: list[Outcome] = []
         async for ref, pdf_bytes in _socgen_fetch_pdfs(profile_dir, refs):
+            if pdf_bytes is None:
+                outcomes.append(Outcome(
+                    vendor=vendor.code, ref=ref,
+                    error=RuntimeError("PDF fetch returned no bytes"),
+                ))
+                continue
+            outcomes.append(await _ingest_one_ref(
+                vendor=vendor, ref=ref, pdf_bytes=pdf_bytes,
+                sem=sem, api_keys=api_keys, engine=engine,
+                profile_dir=profile_dir, do_embed=do_embed,
+                embed_model=embed_model, qdrant_writer=qdrant_writer,
+                log=log,
+            ))
+    elif vendor.code == "stanc":
+        # STANC's /render/{id} endpoint is session-bound (a fresh ctx 302s
+        # to /static/login), so pull PDF bytes in-session like socgen.
+        from ingest.crawler_stanc import fetch_pdfs as _stanc_fetch_pdfs  # noqa: PLC0415
+        outcomes: list[Outcome] = []
+        async for ref, pdf_bytes in _stanc_fetch_pdfs(profile_dir, refs):
             if pdf_bytes is None:
                 outcomes.append(Outcome(
                     vendor=vendor.code, ref=ref,
@@ -923,7 +956,7 @@ def _acquire_orchestrator_lock():
     """Fail fast if another ingest_today run is in progress on this host.
 
     Two concurrent orchestrators would share the same Chrome profile
-    dirs (one per vendor under ``playground/research/profiles/``);
+    dirs (one per vendor under ``C:/IMDR_LOCAL/research_profiles/``);
     Chrome's profile lock is unreliable on Windows + SMB, which can
     silently corrupt the LevelDB inside the profile and bork the next
     re-login. Better to crash loudly here.

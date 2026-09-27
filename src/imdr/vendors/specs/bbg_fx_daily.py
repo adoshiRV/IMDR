@@ -30,11 +30,14 @@ from imdr.vendors.specs._bbg_factory import (
     build_bbg_feed,
     fx_patterns_from_universe,
     fx_success_context,
+    onshore_fx_extra_source,
 )
 
 FEED_NAME = "bbg_fx_daily"
 
 _PATTERNS = fx_patterns_from_universe()
+# Onshore EM ccys are absent from BBG_mirror; they come from the legacy tree.
+_EXTRA = onshore_fx_extra_source()
 
 
 def _build_pipeline(
@@ -62,6 +65,7 @@ SPEC, FEED = build_bbg_feed(
         fx_success_context, mode_label="Daily", frequency="DAILY"
     ),
     min_matches=len(_PATTERNS) // 2,
+    extra_sources=_EXTRA,
 )
 
 register_feed(FEED)

@@ -7,8 +7,8 @@ Maps every Indonesia (ID) cell of the
 to specific vendor identifiers per source agency.
 
 This is the **plan** for filling `econ.dim_indicator` Indonesia rows — as of
-2026-06-10 there are **308 indicators × 114,106 observations** in
-`econ.fact_indicator` (BPS 82 + BI 184 + BIS 6 + DJPPR 36). Wired into
+2026-09-21 there are **356 indicators × 119,941 observations** (DB-verified) in
+`econ.fact_indicator` (BPS 82 + BI 232 + BIS 6 + DJPPR 36). Wired into
 `scripts/imdr_monthly.py:PIPELINES` 2026-06-09 and `scripts/imdr_daily.py:PIPELINES`
 2026-06-09/10 (see [indonesia_prod_pipeline.md](indonesia_prod_pipeline.md)).
 
@@ -109,7 +109,8 @@ When a series is published by both BI and BPS (notably CPI from BPS publication 
 | Industrial Production Index (IMK — Small Mfg) | BPS | Indeks Produksi IMK | Q | ⚠ pending Phase C2 |
 | Mfg Capacity Utilisation | BI | SK — Business Survey | Q | ⚠ |
 | Business Sentiment (Survei Kegiatan Dunia Usaha) | BI | SKDU | Q | ⚠ |
-| Manufacturing PMI | S&P Global | paid | M | ❌ (use SKDU equiv) |
+| Manufacturing PMI (monthly) | S&P Global | paid | M | ❌ vendor-gated |
+| **Prompt Manufacturing Index (PMI-BI)** | **BI** | **free** | **Q** | **✅ BUILT 2026-09-21** — `bi_pmi`, 20 indicators (headline + 5 components + 14 sub-sectors), 2010 Q1→. BI publishes its own PMI; quarterly not monthly, so it does not replace S&P, but it is a far closer concept match than the SKDU balance that was standing in |
 | Unemployment rate | BPS | sub=6 `var=543` vervar=9999 (Sakernas) | Feb + Aug | ✅ Phase C ([fetch_labour.py](../../../playground/econ/bps/fetch_labour.py)) |
 | Employment level | BPS | Sakernas — pending Phase C2 | Aug + Feb | ⚠ |
 | Labour force participation rate | BPS | Sakernas — pending Phase C2 | Aug + Feb | ⚠ |

@@ -357,6 +357,30 @@ design (access model, archetypes, adapter, lenient relevance, `source`/
 `source_type` provenance via migration 099, code map, status). Prototype
 status: code-complete + dry-run-validated; migration not applied; not wired.
 
+## Bloomberg desk-chat read — manual cross-house synthesis (Hermes)
+
+A separate, **manual** product (not part of the ingest pipeline above), owned by the
+**Hermes** agent (`.claude/agents/hermes.md`) and triggered by the phrase *"bbg chat
+summary"*. Two intake channels: a pasted Bloomberg IB (Instant Bloomberg) **desk-chat
+dump** (path given), or the Outlook **`BBG_chats`** folder (~26–36 per-house emails a day,
+forwarded by the desk). Out comes a PM-chair cross-house synthesis tied to the messages —
+the day's thesis + stat band, the market blocks (incl. where N houses put N numbers on one
+event, and who was right), a post-mortem of RV's own RFQs with a running dealer
+pricing-error ledger, a who-gave-good-colour scorecard, a RIGHT/WRONG/OPEN/TENSION call
+audit, and a source register that states its own coverage ceilings.
+
+Raw pasted chats stay under `data/bloomberg/chats/`; the read is written to
+`data/research_summary/daily/{YYYY}/{MM}/{DD}/bbg_chat_summary_{date}.md` and rendered to
+**`{.md, .html, .pdf}`** in the RVC research-synthesis look via
+`playground/research/_build_deskchat_html.py --pdf` (stage 2 is Picasso's
+`_html_to_pdf.py`).
+
+This is desk chatter (flow/axes/colour + execution), a layer the portal PDFs never capture —
+adjacent to the Outlook `desk_commentary` channel but not (yet) ingested into
+`research.fact_chunk`. Full format, authoring grammar, source shape, grounding + coverage
+rules, and the weekly variant are in
+[`bloomberg_chat_summary_spec.md`](bloomberg_chat_summary_spec.md).
+
 ## Vendor authentication
 
 See [`auth.md`](auth.md) — the central operator runbook for
@@ -413,15 +437,63 @@ embedding model is `gemini-embedding-2`.
 Research rows land in `research.dim_report` + `research.fact_chunk`.
 What consumes them downstream:
 
-* **[Macro brief author spec](weekly_brief_spec.md)** — the canonical
-  instruction set for producing RV-Capital-styled weekly + daily HTML
-  briefs from ingested research + cross-asset IMDR data. Includes the
-  design system pointer, per-section content rubric, data-source
-  recipes, hard rules, and a pre-ship checklist. **[Lois sub-agent](../../../.claude/agents/lois.md)**
-  reads this and ships briefs end-to-end. Assets (CSS + logo + reference
-  HTML example) under [`brief_assets/`](brief_assets/).
+* **[Spider sub-agent](../../../.claude/agents/spider.md)** — RV Capital's macro
+  research digest (daily pulse + judging weekly), grounded in ingested research +
+  cross-asset IMDR data. Specs: [`spider_daily_spec.md`](spider_daily_spec.md) and
+  [`spider_weekly_spec.md`](spider_weekly_spec.md). (The former Lois brief-author spec
+  was retired 2026-07-10 — archived under [`_archived_2026-07-10/`](_archived_2026-07-10/).)
+* **[Picasso sub-agent](../../../.claude/agents/picasso.md)** — the renderer. Takes
+  Spider's locked MD → self-contained **A4 HTML** in one of two house looks
+  (`spider-daily` / `spider-weekly`, auto-selected from `edition:` frontmatter) →
+  **A4 PDF**. Deterministic two-stage pipeline
+  ([`_build_spider_html.py`](../../../playground/research/_build_spider_html.py) →
+  [`_html_to_pdf.py`](../../../playground/research/_html_to_pdf.py)); spec at
+  [`picasso_spec.md`](picasso_spec.md).
+* **[credit sub-agent](../../../.claude/agents/credit.md)** — RV Capital's
+  single-name credit analyst. Produces the **Credit Brief** — a ~2-page issuer
+  credit memo for a bond analyst, blending the official layer (filings + rating
+  actions, via web) with the sell-side layer (research corpus + PM credit library
+  `Z:\Business\Research\Credit`). Universal-adaptive (corporate vs financials
+  track); grounded MD only (Picasso render deferred). Spec:
+  [`credit_brief_spec.md`](credit_brief_spec.md).
 * **Research MCP** — owner-only Qdrant MCP for ad-hoc semantic search
   (see project memory `project_research_mcp_owner_only`).
+
+### Brief-support checkers
+
+Run before locking any brief that leans on a claim of the form *"indicator X
+supports outcome Y"*:
+
+* **[`check_indicator_lead.py`](../../../scripts/research/check_indicator_lead.py)**
+  — scores any IMDR econ series as a leading indicator of any other, for any
+  country. Sweeps transforms (`3m3m` / `yoy` / `mom` / `level`) and leads 0–3,
+  reports r, R², an overlap-adjusted t and a de-trended directional hit rate per
+  sample window, ranks competing predictors **within** each target/window, and
+  flags decay via a rolling 60-month correlation.
+
+  ```bash
+  python scripts/research/check_indicator_lead.py --panel au-labour
+  python scripts/research/check_indicator_lead.py --list-panels
+  python scripts/research/check_indicator_lead.py \
+      --predictor 4245:ANZ-Indeed --predictor 4155:SEEK \
+      --target 715:unemployment:diff:3:invert --exclude 2020-03:2021-02
+  ```
+
+  It exists because the 23 Sep 2026 Australia brief called ANZ out for "quoting
+  its own index" off a **y/y** comparison. On `3m3m` — the transform that
+  actually predicts — the two job-ads indices broadly agreed, and ANZ-Indeed was
+  the better series (winning 4 of 6 target/window contests). Both errors were
+  thirty seconds of scoring away. The script therefore sweeps transforms rather
+  than trusting the author's choice of one, and prints a transform-sensitivity
+  block naming the weakest reading.
+
+  Series are **vintage-pinned** (`MAX(vintage)` per `(indicator_id, obs_date)`);
+  a plain `MAX(value)` returns the largest print, not the latest. Read-only, not
+  wired to any scheduler. Known limits, printed on every run: outcomes are
+  latest-vintage so scores are an upper bound on real-time skill, and overlapping
+  windows mean `t_adj` — not `t` — is the significance to read. Monthly series
+  only; a quarterly one is refused rather than silently mis-scored. Adding a
+  named panel is one entry in `PANELS`.
 
 ## Adjacent corpus: government policy filings
 
@@ -444,7 +516,7 @@ Discrimination is by `dbo.dim_vendor.vendor_category`:
   `official_thinktank` / `official_statistics` / `official_market_infra` /
   `official_supranational` — see [`migrations/086_add_dim_vendor_category.sql`](../../../migrations/086_add_dim_vendor_category.sql).
 
-Mycroft and Lois blend both corpora by default; users can filter
+Downstream consumers (e.g. Spider) blend both corpora by default; users can filter
 via the payload field. See per-country docs for the official-source
 inventory + URL recipes:
 

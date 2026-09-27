@@ -31,6 +31,8 @@ parse_cd_cp = _rbi.parse_cd_cp
 parse_date_rows = _rbi.parse_date_rows
 parse_iip_assets_liab = _rbi.parse_iip_assets_liab
 parse_tbill_auctions_26 = _rbi.parse_tbill_auctions_26
+parse_fx_intervention_4 = _rbi.parse_fx_intervention_4
+parse_forward_book_tenor_4a = _rbi.parse_forward_book_tenor_4a
 
 NOW = datetime.datetime(2026, 6, 18, 12, 0, 0, tzinfo=datetime.timezone.utc)
 
@@ -490,3 +492,366 @@ class TestParseTbillAuctions26:
         apr = [o for o in obs if "CUTOFF_YIELD" in o.imdr_code]
         assert len(apr) == 1
         assert apr[0].obs_date == datetime.date(2025, 4, 2)
+
+
+# ---------------------------------------------------------------------------
+# parse_fx_intervention_4 — T4 (added 2026-07-14)
+# ---------------------------------------------------------------------------
+# Fixture trimmed from the live Jul-2026 download
+# (playground/econ/in/rbi/_smoke/downloads/T4.xlsx). The user's original ask
+# named this table "39"; live discovery confirmed the Bulletin's current
+# numbering has "Sale/Purchase of U.S. Dollar by the RBI" at Table No. 4
+# (T39 is now split into 39a/39b, unrelated INR-invoicing tables).
+
+def _make_t4_rows() -> list[list[str]]:
+    return [
+        ["", "No. 4: Sale/ Purchase of U.S. Dollar by the RBI"],
+        ["", "i) Operations in onshore / offshore OTC segment"],
+        ["", "Item", "2024-25", "2025", "2026"],
+        ["", "", "", "Mar.", "Feb.", "Mar."],
+        ["", "", "1", "2", "3", "4"],
+        ["", "1.\xa0Net Purchase/ Sale of Foreign Currency (US $ Million) (1.1-1.2)",
+         "-34511", "14355", "7409", "-9758"],
+        ["", "1.1 Purchase (+)", "364200", "41515", "21403", "19880"],
+        ["", "1.2 Sale (–)", "398711", "27160", "13994", "29638"],
+        ["", "2. ₹ equivalent at contract rate (₹ Crores)",
+         "-291233", "124586", "66881", "-89785"],
+        ["", "3. Cumulative (over end-March) (US $ Million)",
+         "-34511", "-34511", "-43374", "-53132"],
+        ["", "(₹ Crore)", "-291233", "-291233", "-379669", "-469454"],
+        ["", "4. Outstanding Net Forward Sales (-)/ Purchase (+) at the end of month (US $ Million)",
+         "-84345", "-84345", "-77666", "-103064"],
+        ["", "ii) Operations in currency futures segment"],
+        ["", "Item", "2024-25", "2025", "2026"],
+        ["", "", "", "Mar.", "Feb.", "Mar."],
+        ["", "", "1", "2", "3", "4"],
+        ["", "1.\xa0Net Purchase/ Sale of Foreign Currency (US $ Million) (1.1-1.2)",
+         "0", "0", "0", "0"],
+        ["", "1.1 Purchase (+)", "31415", "1202", "1405", "3244"],
+        ["", "1.2 Sale (–)", "31415", "1202", "1405", "3244"],
+        ["", "2. Outstanding Net Currency Futures Sales (-)/ Purchase (+) at the end of month (US $ Million)",
+         "0", "0", "-522", "-1401"],
+        ["", "Note: Maturity-wise position of outstanding forward contracts is available at "
+              "http://nsdp.rbi.org.in under 'Reserves Template'."],
+    ]
+
+
+class TestParseFxIntervention4:
+    def _target(self):
+        return {
+            "name": "fx_intervention_4", "table_num": "4",
+            "imdr_prefix": "INDIA.RBI_BULLETIN.FX_INTERVENTION",
+            "category": "fx", "frequency": "MONTHLY",
+            "description": "T4 test",
+        }
+
+    def test_four_indicators(self):
+        inds, _ = parse_fx_intervention_4(_make_t4_rows(), self._target(), NOW)
+        codes = {i.imdr_code for i in inds}
+        assert codes == {
+            "INDIA.RBI_BULLETIN.FX_INTERVENTION.PURCHASE.IN",
+            "INDIA.RBI_BULLETIN.FX_INTERVENTION.SALE.IN",
+            "INDIA.RBI_BULLETIN.FX_INTERVENTION.NET.IN",
+            "INDIA.RBI_BULLETIN.FORWARD_BOOK.NET_OUTSTANDING.IN",
+        }
+
+    def test_currency_futures_block_excluded(self):
+        # Block (ii) values (0/0/0/0 net, 31415 purchase) must NOT leak into
+        # the OTC-segment PURCHASE/SALE/NET series.
+        _, obs = parse_fx_intervention_4(_make_t4_rows(), self._target(), NOW)
+        purchase_vals = {o.value for o in obs if o.imdr_code.endswith("PURCHASE.IN")}
+        assert 31415.0 not in purchase_vals
+        assert 1202.0 not in purchase_vals
+
+    def test_mar_2026_purchase_19880(self):
+        _, obs = parse_fx_intervention_4(_make_t4_rows(), self._target(), NOW)
+        match = [o for o in obs if o.imdr_code.endswith("PURCHASE.IN")
+                 and o.obs_date == datetime.date(2026, 3, 1)
+                 and o.value == pytest.approx(19880)]
+        assert len(match) == 1
+
+    def test_mar_2026_sale_29638(self):
+        _, obs = parse_fx_intervention_4(_make_t4_rows(), self._target(), NOW)
+        match = [o for o in obs if o.imdr_code.endswith("SALE.IN")
+                 and o.obs_date == datetime.date(2026, 3, 1)
+                 and o.value == pytest.approx(29638)]
+        assert len(match) == 1
+
+    def test_mar_2026_net_negative_9758(self):
+        _, obs = parse_fx_intervention_4(_make_t4_rows(), self._target(), NOW)
+        match = [o for o in obs if o.imdr_code.endswith("FX_INTERVENTION.NET.IN")
+                 and o.obs_date == datetime.date(2026, 3, 1)
+                 and o.value == pytest.approx(-9758)]
+        assert len(match) == 1
+
+    def test_net_outstanding_mar_2026_negative_103064(self):
+        _, obs = parse_fx_intervention_4(_make_t4_rows(), self._target(), NOW)
+        match = [o for o in obs if o.imdr_code.endswith("FORWARD_BOOK.NET_OUTSTANDING.IN")
+                 and o.obs_date == datetime.date(2026, 3, 1)
+                 and o.value == pytest.approx(-103064)]
+        assert len(match) == 1
+
+    def test_fy_column_dropped_from_flow_series(self):
+        # Regression (2026-07-14 code review): the "2024-25" FY-cumulative
+        # column must NOT appear in PURCHASE/SALE/NET (MONTHLY flow series) --
+        # it's an annual total (364200/398711/-34511 in the fixture), and
+        # mixing it with the monthly columns lets a naive SUM/AVG
+        # double-count. Only the 3 explicit month columns should survive.
+        _, obs = parse_fx_intervention_4(_make_t4_rows(), self._target(), NOW)
+        flow_obs = [o for o in obs if "FX_INTERVENTION" in o.imdr_code]
+        assert len(flow_obs) == 9  # 3 codes x 3 monthly columns (FY col dropped)
+        flow_values = {o.value for o in flow_obs}
+        assert 364200.0 not in flow_values
+        assert 398711.0 not in flow_values
+        assert -34511.0 not in flow_values
+
+    def test_net_outstanding_stock_keeps_fy_column_normalised_to_month_start(self):
+        # FORWARD_BOOK.NET_OUTSTANDING is a STOCK/snapshot, not a flow -- the
+        # FY column and the "Mar." column describe the SAME period-end
+        # balance (identical value in the raw table: -84345), so both must
+        # collapse to the same month-start obs_date rather than being
+        # silently dropped or left as two near-duplicate dates.
+        _, obs = parse_fx_intervention_4(_make_t4_rows(), self._target(), NOW)
+        fb_obs = [o for o in obs if o.imdr_code.endswith("NET_OUTSTANDING.IN")]
+        dates = [o.obs_date for o in fb_obs]
+        assert all(d.day == 1 for d in dates), f"expected all day=1, got {dates}"
+        mar_2025 = [o for o in fb_obs if o.obs_date == datetime.date(2025, 3, 1)]
+        assert len(mar_2025) == 2  # FY column + explicit "Mar." column, same value
+        assert {o.value for o in mar_2025} == {-84345.0}
+
+    def test_all_units_usd_mn(self):
+        inds, _ = parse_fx_intervention_4(_make_t4_rows(), self._target(), NOW)
+        for ind in inds:
+            assert ind.unit == "usd_mn"
+
+
+# ---------------------------------------------------------------------------
+# parse_forward_book_tenor_4a — T4A (added 2026-07-14)
+# ---------------------------------------------------------------------------
+
+def _make_t4a_rows() -> list[list[str]]:
+    return [
+        ["", "No. 4A : Maturity Breakdown (by Residual Maturity) of Outstanding Forwards of RBI (US $ Million)"],
+        ["", "Item", "As on April 30, 2026"],
+        ["", "", "Long (+)", "Short (-)", "Net (1-2)"],
+        ["", "", "1", "2", "3"],
+        ["", "1. Upto 1 month", "0", "13525", "-13525"],
+        ["", "2. More than 1 month and upto 3 months", "0", "10898", "-10898"],
+        ["", "3. More than 3 months and upto 1 year", "0", "20153", "-20153"],
+        ["", "4. More than 1 year", "0", "50728", "-50728"],
+        ["", "Total (1+2+3+4)", "0", "95304", "-95304"],
+    ]
+
+
+class TestParseForwardBookTenor4a:
+    def _target(self):
+        return {
+            "name": "forward_book_tenor_4a", "table_num": "4A",
+            "imdr_prefix": "INDIA.RBI_BULLETIN.FORWARD_BOOK",
+            "category": "fx", "frequency": "MONTHLY",
+            "description": "T4A test",
+        }
+
+    def test_five_indicators(self):
+        inds, _ = parse_forward_book_tenor_4a(_make_t4a_rows(), self._target(), NOW)
+        codes = {i.imdr_code for i in inds}
+        assert codes == {
+            "INDIA.RBI_BULLETIN.FORWARD_BOOK.UPTO_1M.IN",
+            "INDIA.RBI_BULLETIN.FORWARD_BOOK.1_3M.IN",
+            "INDIA.RBI_BULLETIN.FORWARD_BOOK.3M_1Y.IN",
+            "INDIA.RBI_BULLETIN.FORWARD_BOOK.OVER_1Y.IN",
+            "INDIA.RBI_BULLETIN.FORWARD_BOOK.NET_OUTSTANDING.IN",
+        }
+
+    def test_tenor_buckets_use_literal_as_on_date(self):
+        _, obs = parse_forward_book_tenor_4a(_make_t4a_rows(), self._target(), NOW)
+        bucket_dates = {o.obs_date for o in obs if not o.imdr_code.endswith("NET_OUTSTANDING.IN")}
+        assert bucket_dates == {datetime.date(2026, 4, 30)}
+
+    def test_net_outstanding_normalised_to_month_start(self):
+        # Regression (2026-07-14 code review): NET_OUTSTANDING must NOT use
+        # the literal "as on" day (30) -- it needs to collide with T4's own
+        # NET_OUTSTANDING column for the same month (which resolves to
+        # day=1), or the two tables produce two near-duplicate rows per
+        # month for the same series.
+        _, obs = parse_forward_book_tenor_4a(_make_t4a_rows(), self._target(), NOW)
+        net_outstanding = [o for o in obs if o.imdr_code.endswith("NET_OUTSTANDING.IN")]
+        assert len(net_outstanding) == 1
+        assert net_outstanding[0].obs_date == datetime.date(2026, 4, 1)
+
+    def test_net_values_are_signed_short(self):
+        # Net column values are already signed (Long - Short); RBI has a net
+        # short forward-dollar book across every bucket in this fixture.
+        _, obs = parse_forward_book_tenor_4a(_make_t4a_rows(), self._target(), NOW)
+        by_code = {o.imdr_code: o.value for o in obs}
+        assert by_code["INDIA.RBI_BULLETIN.FORWARD_BOOK.UPTO_1M.IN"] == pytest.approx(-13525)
+        assert by_code["INDIA.RBI_BULLETIN.FORWARD_BOOK.1_3M.IN"] == pytest.approx(-10898)
+        assert by_code["INDIA.RBI_BULLETIN.FORWARD_BOOK.3M_1Y.IN"] == pytest.approx(-20153)
+        assert by_code["INDIA.RBI_BULLETIN.FORWARD_BOOK.OVER_1Y.IN"] == pytest.approx(-50728)
+
+    def test_total_maps_to_net_outstanding_and_sums_buckets(self):
+        _, obs = parse_forward_book_tenor_4a(_make_t4a_rows(), self._target(), NOW)
+        by_code = {o.imdr_code: o.value for o in obs}
+        total = by_code["INDIA.RBI_BULLETIN.FORWARD_BOOK.NET_OUTSTANDING.IN"]
+        assert total == pytest.approx(-95304)
+        buckets = (
+            by_code["INDIA.RBI_BULLETIN.FORWARD_BOOK.UPTO_1M.IN"]
+            + by_code["INDIA.RBI_BULLETIN.FORWARD_BOOK.1_3M.IN"]
+            + by_code["INDIA.RBI_BULLETIN.FORWARD_BOOK.3M_1Y.IN"]
+            + by_code["INDIA.RBI_BULLETIN.FORWARD_BOOK.OVER_1Y.IN"]
+        )
+        assert buckets == pytest.approx(total)
+
+    def test_all_units_usd_mn(self):
+        inds, _ = parse_forward_book_tenor_4a(_make_t4a_rows(), self._target(), NOW)
+        for ind in inds:
+            assert ind.unit == "usd_mn"
+
+    def test_net_column_resolved_dynamically_not_hardcoded(self):
+        # If Long/Short/Net get reordered (or a column inserted), a hard-coded
+        # index would silently read the wrong column. Insert a spare column
+        # after "Long (+)" and confirm Net is still picked up correctly by
+        # its own sub-header label, not by position.
+        rows = [
+            ["", "No. 4A test with a reordered column"],
+            ["", "Item", "As on April 30, 2026"],
+            ["", "", "Long (+)", "Spare", "Short (-)", "Net (1-2)"],
+            ["", "", "1", "1a", "2", "3"],
+            ["", "1. Upto 1 month", "0", "999", "13525", "-13525"],
+        ]
+        _, obs = parse_forward_book_tenor_4a(rows, self._target(), NOW)
+        match = [o for o in obs if o.imdr_code.endswith("UPTO_1M.IN")]
+        assert len(match) == 1
+        assert match[0].value == pytest.approx(-13525)  # not 999 (the spare col)
+
+    def test_no_net_subheader_returns_empty_not_wrong_column(self):
+        # Sub-header shape changed beyond recognition (no "Net" token at
+        # all) -- must fail loudly (empty result), not guess a column.
+        rows = [
+            ["", "No. 4A test with unrecognisable sub-header"],
+            ["", "Item", "As on April 30, 2026"],
+            ["", "", "Buy", "Sell", "Balance"],
+            ["", "", "1", "2", "3"],
+            ["", "1. Upto 1 month", "0", "13525", "-13525"],
+        ]
+        inds, obs = parse_forward_book_tenor_4a(rows, self._target(), NOW)
+        assert inds == []
+        assert obs == []
+
+
+class TestT4T4ADedupInteraction:
+    """The interaction the MUST-FIX bugs (2026-07-14 code review) lived in:
+    T4 and T4A both emit FORWARD_BOOK.NET_OUTSTANDING for overlapping
+    months, and run_fetch's final step dedups on the fact PK
+    (imdr_code, obs_date, vintage). Before the fix, T4 normalised its
+    NET_OUTSTANDING dates to month-start while T4A used the literal "as on"
+    day -- so the same month's value landed as TWO rows instead of
+    colliding into one.
+    """
+
+    def _dedup(self, *obs_lists):
+        deduped: dict[tuple, object] = {}
+        for obs in obs_lists:
+            for o in obs:
+                deduped[(o.imdr_code, o.obs_date, o.vintage)] = o
+        return list(deduped.values())
+
+    def test_exactly_one_net_outstanding_obs_per_month(self):
+        _, obs4 = parse_fx_intervention_4(_make_t4_rows(), {
+            "name": "fx_intervention_4", "table_num": "4",
+            "imdr_prefix": "INDIA.RBI_BULLETIN.FX_INTERVENTION",
+            "category": "fx", "frequency": "MONTHLY", "description": "T4 test",
+        }, NOW)
+        _, obs4a = parse_forward_book_tenor_4a(_make_t4a_rows(), {
+            "name": "forward_book_tenor_4a", "table_num": "4A",
+            "imdr_prefix": "INDIA.RBI_BULLETIN.FORWARD_BOOK",
+            "category": "fx", "frequency": "MONTHLY", "description": "T4A test",
+        }, NOW)
+        deduped = self._dedup(obs4, obs4a)
+        net_outstanding = [o for o in deduped if o.imdr_code.endswith("NET_OUTSTANDING.IN")]
+        dates = [o.obs_date for o in net_outstanding]
+        assert len(dates) == len(set(dates)), (
+            f"duplicate obs_date(s) in NET_OUTSTANDING after dedup: {dates}"
+        )
+        # T4's fixture months (2025-03, 2026-02, 2026-03) + T4A's month
+        # (2026-04, normalised from "As on April 30" to day=1) -- 4 distinct
+        # months, exactly 4 rows, none doubled.
+        assert sorted(dates) == [
+            datetime.date(2025, 3, 1),
+            datetime.date(2026, 2, 1),
+            datetime.date(2026, 3, 1),
+            datetime.date(2026, 4, 1),
+        ]
+
+
+class TestIndexDiscovery:
+    """Guard the bulletin index URL matching against RBI filename changes.
+
+    2026-07 regression: RBI dropped the 'BULL' token from XLSX filenames
+    (34T_BULL22052026....XLSX -> 34T_22062026....XLSX). The old regex required
+    'BULL', so _map_anchors_to_tables returned {} and the ENTIRE bulletin loaded
+    0 rows silently. These tests exercise both the current and legacy filename
+    forms so a future change fails here, not in prod.
+    """
+
+    _BASE = "https://website.rbi.org.in/documents/rdocs/Bulletin/DOCs/"
+
+    def _anchor(self, fname):
+        return {"href": self._BASE + fname, "text": ""}
+
+    def test_current_filenames_no_bull_token(self):
+        anchors = [
+            self._anchor("34T_22062026ABCD.XLSX"),
+            self._anchor("4T_22062026ABCD.XLSX"),
+            self._anchor("4AT_22062026ABCD.XLSX"),
+            self._anchor("19CT_22062026ABCD.XLSX"),
+        ]
+        m = _rbi._map_anchors_to_tables(anchors)
+        assert m.keys() >= {"34", "4", "4A", "19C"}
+
+    def test_legacy_bull_filenames_still_match(self):
+        anchors = [self._anchor("34T_BULL22052026ABCD.XLSX")]
+        m = _rbi._map_anchors_to_tables(anchors)
+        assert "34" in m
+
+    def test_aug_2026_bul_token_matches(self):
+        """Third spelling: the token came BACK, as three letters not four.
+
+        `1T_BUL25082026....XLSX`. The 2026-07 fix made the literal 'BULL'
+        optional, which still missed 'BUL' -- so every table silently
+        stopped resolving from the August issue onward. Found 2026-09-15:
+        `data/econ/in/rbi/bulletin/` stopped at 2026-08-25 (the August
+        bulletin date) while every other India fetcher kept producing.
+        Five scheduled runs lost over three weeks, nothing alerted.
+        """
+        anchors = [
+            self._anchor("1T_BUL2508202622735BAE809B471E.XLSX"),
+            self._anchor("4AT_BUL2508202696FC7CB2197C48.XLSX"),
+            self._anchor("19CT_BUL25082026ABCD.XLSX"),
+        ]
+        m = _rbi._map_anchors_to_tables(anchors)
+        assert m.keys() >= {"1", "4A", "19C"}
+
+    def test_an_unseen_future_token_still_matches(self):
+        """Match ANY alphabetic token rather than enumerate known ones.
+
+        Three outages have come from this one field. A fourth spelling
+        must not cost a fourth.
+        """
+        for token in ("", "BUL", "BULL", "BULLETIN", "B"):
+            anchors = [self._anchor(f"34T_{token}22062026ABCD.XLSX")]
+            assert "34" in _rbi._map_anchors_to_tables(anchors), token
+
+    def test_non_bulletin_and_non_xlsx_ignored(self):
+        anchors = [
+            {"href": "https://website.rbi.org.in/some/other/notification.pdf", "text": ""},
+            {"href": self._BASE + "readme.txt", "text": ""},
+            self._anchor("34T_22062026ABCD.XLSX"),
+        ]
+        m = _rbi._map_anchors_to_tables(anchors)
+        assert list(m.keys()) == ["34"]
+
+    def test_empty_result_is_detectable(self):
+        # a filename form that matches NOTHING must yield {} (the prod caller
+        # treats {} as "index broken" -> all targets skip)
+        assert _rbi._map_anchors_to_tables([{"href": "x/UNRELATED.XLSX", "text": ""}]) == {}

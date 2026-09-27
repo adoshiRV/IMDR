@@ -75,6 +75,15 @@ class BloombergFXRatePipeline(BasePipeline[pd.DataFrame, list[FXRateCreate], int
     # so subclasses get the right value without monkey-patching the module.
     FREQUENCY_CODE: str = "SNAPSHOT"
 
+    # Whether ``extract`` collapses each pair to its newest obs_date.
+    #
+    # True for both live cadences: the CSV carries a long historical tail, but
+    # a live fire represents ONE batch moment, and every row it reads shares
+    # the same file-mtime ``obs_ts`` -- so keeping the tail would collide on
+    # the (pair, vendor, freq, obs_ts, tenor) unique key. The backfill
+    # pipeline sets this False and re-stamps obs_ts per obs_date instead.
+    KEEP_ONLY_LATEST: bool = True
+
     def __init__(
         self,
         files: list[Path],
@@ -142,7 +151,7 @@ class BloombergFXRatePipeline(BasePipeline[pd.DataFrame, list[FXRateCreate], int
         # only the latest obs_date per pair so MERGE's unique key
         # (pair, vendor, freq, obs_ts, tenor) doesn't collide on rows that
         # all share the same file-mtime obs_ts.
-        if not df.empty:
+        if not df.empty and self.KEEP_ONLY_LATEST:
             latest_per_pair = df.groupby(["base_ccy", "quote_ccy"])["obs_date"].transform("max")
             df = df[df["obs_date"] == latest_per_pair].reset_index(drop=True)
 

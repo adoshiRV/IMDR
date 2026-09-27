@@ -42,6 +42,16 @@ _SUBMIT_BUTTON = "button#submit"
 _NAV_TIMEOUT_MS = 30000
 _COOKIE_TIMEOUT_MS = 5000
 _FIELD_TIMEOUT_MS = 10000
+# How long to wait for the OneTrust cookie banner to actually render before
+# clicking it. An immediate is_visible() check is flaky — the banner paints a
+# beat late, the click is skipped, and the banner then intercepts the submit
+# so login lands back on ct_logon_basic (matrix 2026-07-21: 1/2). Waiting for
+# it to be visible is reliable (2/2, headed and headless).
+_COOKIE_APPEAR_TIMEOUT_MS = 15000
+# Independent full login attempts before giving up. Each attempt re-navigates,
+# re-dismisses the banner, and re-submits; a retry catches the occasional late-
+# banner / slow-portal miss that a single attempt hits.
+_MAX_LOGIN_ATTEMPTS = 3
 
 
 async def _safe_title(page) -> str:
@@ -104,29 +114,34 @@ async def is_authenticated(ctx) -> bool:
             await page.close()
 
 
-async def login(ctx, *, username: str, password: str) -> None:
-    """Full programmatic login — idempotent.
+async def _attempt_login(ctx, *, username: str, password: str) -> tuple[bool, str, str]:
+    """One full nav → dismiss-banner → fill → submit → verify cycle.
 
-    Calls :func:`is_authenticated` first and short-circuits if the
-    persistent cookie still works. Raises :class:`LoginFailedError`
-    if we land back on the login page after submit (typically: wrong
-    creds, or Barclays flipped on MFA for this device).
+    Returns ``(ok, title, url)`` — ``ok`` is True iff we landed past the
+    login page. Raises nothing for a stuck login (the caller decides
+    whether to retry or raise); genuine navigation errors propagate.
     """
-    if await is_authenticated(ctx):
-        return
-
     page = await ctx.new_page()
     try:
         await page.goto(LOGIN_URL, wait_until="commit", timeout=_NAV_TIMEOUT_MS)
         async with silent_cleanup("barclays.login.networkidle.pre"):
             await page.wait_for_load_state("networkidle", timeout=15000)
 
-        # 1. Cookie banner — must be dismissed before form is interactive.
+        # 1. Cookie banner — WAIT for it to render, then click. An immediate
+        #    is_visible() check is flaky (see _COOKIE_APPEAR_TIMEOUT_MS); an
+        #    undismissed banner intercepts the submit and login fails. If the
+        #    banner never appears (already accepted this session), the
+        #    wait_for times out and we proceed — that's fine.
         async with silent_cleanup("barclays.login.cookie_banner"):
             cookie_btn = page.locator(_COOKIE_ACCEPT).first
-            if await cookie_btn.count() > 0 and await cookie_btn.is_visible():
+            try:
+                await cookie_btn.wait_for(
+                    state="visible", timeout=_COOKIE_APPEAR_TIMEOUT_MS
+                )
                 await cookie_btn.click(timeout=_COOKIE_TIMEOUT_MS)
-                await page.wait_for_timeout(500)
+                await page.wait_for_timeout(800)
+            except Exception:  # noqa: BLE001
+                pass  # banner genuinely absent — proceed to the form
 
         # 2. Fill credentials.
         await page.locator(_USER_INPUT).fill(username, timeout=_FIELD_TIMEOUT_MS)
@@ -152,20 +167,50 @@ async def login(ctx, *, username: str, password: str) -> None:
 
         title = await _safe_title(page)
         cur = _safe_url(page)
-        if "Login" in title or "ct_logon_basic" in cur:
-            raise LoginFailedError(
-                vendor="barclays",
-                title=title,
-                url=cur,
-                hint=(
-                    "if MFA is now required, extend "
-                    "imdr.research.auth.loginflows.barclays with the "
-                    "Outlook-poll pattern sketched below."
-                ),
-            )
+        ok = "Login" not in title and "ct_logon_basic" not in cur
+        return ok, title, cur
     finally:
         async with silent_cleanup("barclays.login.page.close"):
             await page.close()
+
+
+async def login(ctx, *, username: str, password: str) -> None:
+    """Full programmatic login — idempotent, with retry.
+
+    Calls :func:`is_authenticated` first and short-circuits if the
+    persistent cookie still works. Otherwise runs up to
+    :data:`_MAX_LOGIN_ATTEMPTS` independent login cycles (each
+    re-navigates + re-dismisses the cookie banner + re-submits) — a
+    retry absorbs the occasional late-banner / slow-portal miss that
+    makes a single attempt flaky. Raises :class:`LoginFailedError` only
+    if every attempt lands back on the login page (genuine cause:
+    wrong creds, or Barclays flipped on MFA for this device).
+    """
+    if await is_authenticated(ctx):
+        return
+
+    last_title, last_url = "", ""
+    for _attempt in range(1, _MAX_LOGIN_ATTEMPTS + 1):
+        ok, last_title, last_url = await _attempt_login(
+            ctx, username=username, password=password
+        )
+        if ok:
+            return
+        # Stuck on the login page — likely the cookie banner intercepted the
+        # submit on this cycle. Retry with a fresh page; the banner is usually
+        # accepted by now, so the next attempt sails through.
+
+    raise LoginFailedError(
+        vendor="barclays",
+        title=last_title,
+        url=last_url,
+        hint=(
+            f"login still on the sign-in page after {_MAX_LOGIN_ATTEMPTS} "
+            "attempts. If MFA is now required, extend "
+            "imdr.research.auth.loginflows.barclays with the Outlook-poll "
+            "pattern sketched below."
+        ),
+    )
 
 
 # ---------------------------------------------------------------------

@@ -151,6 +151,7 @@ def build_quality_checks() -> list:
         DistributionCheck(
             value_column="value",
             group_column="quote",
+            ts_column="ts",
         ),
     ]
 
@@ -218,7 +219,7 @@ def _print_freshness(reader: AnalyticalReader) -> None:
 
 def _print_distribution(reader: AnalyticalReader) -> None:
     """Run DistributionCheck and print summary."""
-    check = DistributionCheck(value_column="value", group_column="quote")
+    check = DistributionCheck(value_column="value", group_column="quote", ts_column="ts")
     result = check.run(reader, TABLE)
     if result.summary is not None and not result.summary.empty:
         print(f"\n  Distribution summary:")

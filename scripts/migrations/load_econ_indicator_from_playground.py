@@ -47,6 +47,7 @@ from sqlalchemy import text
 
 from imdr.config.settings import get_settings
 from imdr.connectors.mssql import MSSQLConnector
+from imdr.utils.vintage import classify_fact_action  # noqa: F401  (re-exported; tests import from here)
 
 
 # ---------------------------------------------------------------------------
@@ -355,22 +356,10 @@ WHERE s.value IS NOT NULL
 """
 
 
-def classify_fact_action(exists: bool, incoming_value, current_value) -> str:
-    """Pure-Python mirror of the SQL revision predicate (SQL is the runtime
-    source of truth; this is the testable contract).
-
-    - ``exists=False``                          -> ``"new"``      (insert at staged vintage)
-    - existing, ``incoming_value is None``       -> ``"skip"``     (never clobber with NULL)
-    - existing, current NULL or value changed    -> ``"revision"`` (insert at cur_vintage+1)
-    - existing, value unchanged                  -> ``"skip"``
-    """
-    if not exists:
-        return "new"
-    if incoming_value is None:
-        return "skip"
-    if current_value is None or incoming_value != current_value:
-        return "revision"
-    return "skip"
+# classify_fact_action (the pure mirror of the SQL revision predicate) now lives
+# in imdr.utils.vintage and is imported at module top; it is re-exported here so
+# the existing `from ...load_econ_indicator_from_playground import
+# classify_fact_action` call sites (tests) keep working.
 
 
 def _load_fact(

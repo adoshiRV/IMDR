@@ -67,11 +67,23 @@ def test_relevance_mapping():
     assert _relevance("", "", None) is None
 
 
-def test_parse_datetime_utc():
+def test_parse_datetime_sgt_to_utc():
+    # 09:30 SGT (UTC+8) -> 01:30 UTC same day.
     dt = _parse_datetime("2026-06-02", "09:30")
-    assert dt == datetime(2026, 6, 2, 9, 30, tzinfo=timezone.utc)
+    assert dt == datetime(2026, 6, 2, 1, 30, tzinfo=timezone.utc)
     assert _parse_datetime("2026-06-02", "") is None
     assert _parse_datetime("", "09:30") is None
+
+
+def test_parse_datetime_sgt_to_utc_crosses_date_boundary():
+    # Japan CPI: BQL date=2026-07-24, time=07:30 (SGT desk render of an
+    # 08:30 JST release) -> true UTC instant is the PREVIOUS day, 23:30.
+    # Regression for the forward-event-guard bug: the old UTC-stamping code
+    # stored 2026-07-24 07:30+00:00, which classified an already-released
+    # Asian-morning event as future for most of release day and stripped
+    # its actual.
+    dt = _parse_datetime("2026-07-24", "07:30")
+    assert dt == datetime(2026, 7, 23, 23, 30, tzinfo=timezone.utc)
 
 
 def test_read_basic_mapping(tmp_path):
@@ -91,7 +103,7 @@ def test_read_basic_mapping(tmp_path):
     # stored value can never disagree with the DB's accent/case-insensitive
     # unique index.
     assert e.event_name == "cpi core yoy"
-    assert e.event_datetime == datetime(2026, 6, 2, 9, 30, tzinfo=timezone.utc)
+    assert e.event_datetime == datetime(2026, 6, 2, 1, 30, tzinfo=timezone.utc)  # 09:30 SGT
     assert e.category == "Macro economic data"
     assert (e.survey, e.actual, e.prior_value) == ("2.3", "2.4", "2.2")
     assert e.revised is None
@@ -229,7 +241,7 @@ class _FakeSession:
 def _country_lookup(monkeypatch):
     monkeypatch.setattr(
         "imdr.market_calendar.bql_econdata.build_country_lookup",
-        lambda session: {"US": 47, "UK": 46, "EU": 17},
+        lambda session: {"US": 47, "UK": 46, "EU": 17, "JP": 35},
     )
 
 
@@ -260,6 +272,40 @@ def test_forward_event_guard_nulls_future_actual(monkeypatch):
     past = next(p for p in sess.merged if p["event_name"] == "Past CPI")
     assert future["actual"] is None and future["revised"] is None
     assert past["actual"] == "2.1" and past["revised"] == "*"
+
+
+def test_forward_event_guard_retains_asian_morning_actual(monkeypatch):
+    """Regression for the SGT-vs-UTC bug: Japan CPI released 2026-07-24
+    08:30 JST is stored by BQL as date=2026-07-24, time=07:30 (SGT desk
+    render). Its true-UTC instant is 2026-07-23 23:30. For any `now` on/after
+    that instant the event must NOT be classified forward — its actual must
+    survive. A genuinely future event (next week) must still be nulled.
+    """
+    _country_lookup(monkeypatch)
+    sess = _FakeSession()
+    now = datetime(2026, 7, 24, 6, 0, tzinfo=timezone.utc)  # mid-morning JST, well after release
+    events = [
+        BqlEvent(  # already released — event_datetime is UTC-correct now
+            event_date=date(2026, 7, 24),
+            event_datetime=_parse_datetime("2026-07-24", "07:30"),
+            country_code="JP", event_name="Natl CPI YoY", category="macro",
+            survey="3.3", actual="3.4", prior_value="3.3", revised=None,
+            relevance=100.0, frequency="M",
+        ),
+        BqlEvent(  # genuinely future event next week — still nulled
+            event_date=date(2026, 7, 31),
+            event_datetime=_parse_datetime("2026-07-31", "07:30"),
+            country_code="JP", event_name="Future JP Event", category="macro",
+            survey="1.0", actual="9.9", prior_value="0.9", revised=None,
+            relevance=100.0, frequency="M",
+        ),
+    ]
+    res = upsert_events(sess, events, now_utc=now)
+    assert isinstance(res, UpsertResult)
+    cpi = next(p for p in sess.merged if p["event_name"] == "Natl CPI YoY")
+    future = next(p for p in sess.merged if p["event_name"] == "Future JP Event")
+    assert cpi["actual"] == "3.4"  # retained, not stripped
+    assert future["actual"] is None and future["revised"] is None
 
 
 def test_unknown_country_skipped(monkeypatch):

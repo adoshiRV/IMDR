@@ -1,56 +1,56 @@
 """Programmatic Nomura NomuraNow login.
 
-Form-fill flow against ``www.nomuranow.com``. Credentials from
-``Settings.research_nomura_username`` / ``research_nomura_password``.
+Form-fill against the real login page
+``https://www.nomuranow.com/research/m/public/login`` — email + password,
+**no MFA**. Credentials from ``Settings.research_nomura_username`` /
+``research_nomura_password`` (research@rvcapital.com). Selectors verified
+via a live DOM probe 2026-07-22.
 
-**⚠ Selectors unverified.** This module ships with best-guess
-selectors. Verify via ``python -m imdr.research.auth validate --vendor
-nomura``; on failure, run a headed Playwright probe against the live
-login form, update the selectors below, and retry.
-
-**MFA fallback policy.** If validate reports MFA gating, revert the
-Nomura registry entry to ``PROFILE_ONLY`` and drop this module's
-import from ``loginflows/__init__.py``.
+**Prior bug (fixed 2026-07-22):** ``LOGIN_URL`` used to point at the
+research *portal* (``…/portal/site/nnpub/research/``). Logged out, that
+serves a 'Not Found' SPA shell with **no login form**, so the fill did
+nothing and ``is_authenticated`` was fooled by the shell → the flow
+returned an empty session (0 KB storage_state) and the search API 401'd.
+Now the flow hits the actual login page and verifies auth via the
+registry's ``_live_nomura`` predicate (which rejects the 'Not Found'
+shell) against the portal.
 """
 from __future__ import annotations
 
+from ..registry import _live_nomura
 from ._base import LoginFailedError, silent_cleanup
 
-LOGIN_URL = "https://www.nomuranow.com/portal/site/nnpub/research/"
+LOGIN_URL = "https://www.nomuranow.com/research/m/public/login"
+# Authenticated landing (title 'Nomura Research'); the old desktop portal
+# path rendered 'Not Found' even when authed, so it could never verify.
+HEALTHCHECK_URL = "https://www.nomuranow.com/research/m/Home"
 
-# Best-guess selectors — verify via validate command.
-_USER_INPUT = 'input[name="userid"], input[name="username"], #userid, #username'
-_PASSWORD_INPUT = 'input[name="password"], input[type="password"]'
-_SUBMIT_BUTTON = 'button[type="submit"], input[type="submit"]'
+# Verified via live DOM probe 2026-07-22.
+_USER_INPUT = 'input[name="username"]'
+_PASSWORD_INPUT = 'input[name="password"]'
+_LOGIN_BUTTON = "#login-button"  # NOT #magicLink-button (passwordless email link)
 
 _NAV_TIMEOUT_MS = 45000
 _FIELD_TIMEOUT_MS = 15000
 _POST_LOGIN_SETTLE_MS = 5000
 
 
-def _on_login_page(url: str, title: str) -> bool:
-    return (
-        "login" in url.lower()
-        or "signon" in url.lower()
-        or "Sign" in title
-        or "Login" in title
-    )
-
-
 async def is_authenticated(ctx) -> bool:
+    """Navigate the research portal; True iff it renders authenticated
+    content. Reuses the registry ``_live_nomura`` predicate, which rejects
+    the logged-out 'Not Found' shell. Never raises."""
     page = await ctx.new_page()
     try:
         await page.goto(
-            LOGIN_URL, wait_until="domcontentloaded", timeout=_NAV_TIMEOUT_MS,
+            HEALTHCHECK_URL, wait_until="domcontentloaded", timeout=_NAV_TIMEOUT_MS,
         )
         async with silent_cleanup("nomura.is_authenticated.networkidle"):
             await page.wait_for_load_state("networkidle", timeout=15000)
-        url = page.url or ""
         title = ""
         async with silent_cleanup("nomura.is_authenticated.title"):
             title = (await page.title()) or ""
-        return "nomuranow.com" in url and not _on_login_page(url, title)
-    except Exception:
+        return _live_nomura(title, page.url or "")
+    except Exception:  # noqa: BLE001
         return False
     finally:
         async with silent_cleanup("nomura.is_authenticated.page.close"):
@@ -58,9 +58,8 @@ async def is_authenticated(ctx) -> bool:
 
 
 async def login(ctx, *, username: str, password: str) -> None:
-    """Idempotent form-fill login. Raises :class:`LoginFailedError` on
-    failure (wrong creds, MFA gate, selector miss).
-    """
+    """Idempotent email+password form login. Raises :class:`LoginFailedError`
+    if the portal is still unauthenticated afterwards."""
     if await is_authenticated(ctx):
         return
 
@@ -72,41 +71,34 @@ async def login(ctx, *, username: str, password: str) -> None:
         async with silent_cleanup("nomura.login.networkidle.pre"):
             await page.wait_for_load_state("networkidle", timeout=15000)
 
-        await page.locator(_USER_INPUT).first.fill(
-            username, timeout=_FIELD_TIMEOUT_MS,
-        )
+        await page.locator(_USER_INPUT).fill(username, timeout=_FIELD_TIMEOUT_MS)
         await page.wait_for_timeout(300)
-        await page.locator(_PASSWORD_INPUT).first.fill(
-            password, timeout=_FIELD_TIMEOUT_MS,
-        )
+        await page.locator(_PASSWORD_INPUT).fill(password, timeout=_FIELD_TIMEOUT_MS)
         await page.wait_for_timeout(300)
 
+        # Click Log In. It may navigate to the portal or resolve via AJAX +
+        # redirect; either way we re-verify against the portal below rather
+        # than trusting the post-submit page, so a missed nav event is fine.
         async with silent_cleanup("nomura.login.expect_navigation"), page.expect_navigation(
             timeout=_NAV_TIMEOUT_MS, wait_until="domcontentloaded",
         ):
-            await page.locator(_SUBMIT_BUTTON).first.click(
-                timeout=_FIELD_TIMEOUT_MS,
-            )
+            await page.locator(_LOGIN_BUTTON).click(timeout=_FIELD_TIMEOUT_MS)
 
         async with silent_cleanup("nomura.login.networkidle.post"):
             await page.wait_for_load_state("networkidle", timeout=15000)
         await page.wait_for_timeout(_POST_LOGIN_SETTLE_MS)
-
-        cur = page.url or ""
-        title = ""
-        async with silent_cleanup("nomura.login.title"):
-            title = (await page.title()) or ""
-        if _on_login_page(cur, title):
-            raise LoginFailedError(
-                vendor="nomura",
-                title=title,
-                url=cur,
-                hint=(
-                    "still on login/verify page — likely MFA gate, "
-                    "wrong creds, or selector mismatch. If MFA, revert "
-                    "Nomura to PROFILE_ONLY in the registry."
-                ),
-            )
     finally:
         async with silent_cleanup("nomura.login.page.close"):
             await page.close()
+
+    # Verify against the research portal (fresh page in the same context).
+    if not await is_authenticated(ctx):
+        raise LoginFailedError(
+            vendor="nomura",
+            url=LOGIN_URL,
+            hint=(
+                "login submitted but the research portal is still not "
+                "authenticated — check creds (research@rvcapital.com) or "
+                "selector drift on the login form"
+            ),
+        )

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import re
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
@@ -274,49 +274,61 @@ def _fetch_with_retry(
             attempt += 1
 
 
-def _process_batch(
+def iter_fetched_batches(
     client: CitiVelocityClient,
-    batch: list[str],
+    tags: list[str],
     start: datetime,
     end: datetime,
     frequency: str,
-    response_parser: Callable[[dict], pd.DataFrame],
-    batch_num: int,
-    total_batches: int,
-    cumulative_tags: int,
-    total_tags: int,
-    quota_tracker: TagQuotaTracker | None,
-    pipeline_name: str,
-    tag_errors: list[dict] | None,
-) -> pd.DataFrame:
-    """Fetch one batch, record quota, collect errors, log, return parsed frame.
+    batch_size: int,
+    rate_limit: float,
+    quota_tracker: TagQuotaTracker | None = None,
+    pipeline_name: str = "",
+    tag_errors: list[dict] | None = None,
+) -> Iterator[dict]:
+    """Yield the raw Citi Historical response dict for each batch of tags.
 
-    Pulled out of `fetch_and_parse_batched` so the outer loop is just batch
-    iteration + rate-limit sleep, and the per-batch steps share one signature.
+    Owns the cross-cutting concerns every Citi pull needs — 5xx retry with
+    backoff (``_fetch_with_retry``), tag-quota recording, per-tag ERROR/EMPTY
+    capture (``_collect_tag_errors``), batch logging, and inter-batch rate
+    limiting — while leaving parsing/consumption to the caller. Two consumers:
+    ``fetch_and_parse_batched`` (accumulates a DataFrame) and streaming loaders
+    that parse+persist each batch without holding a whole backfill in memory.
     """
-    resp = _fetch_with_retry(
-        client, batch, start, end, frequency, batch_num, total_batches,
-    )
+    total_batches = (len(tags) + batch_size - 1) // batch_size
+    cumulative_tags = 0
 
-    if quota_tracker is not None:
-        quota_tracker.record_usage(pipeline_name, len(batch))
+    for i in range(0, len(tags), batch_size):
+        batch = tags[i : i + batch_size]
+        batch_num = i // batch_size + 1
+        cumulative_tags += len(batch)
 
-    # Capture per-tag failures / empty payloads before parsing — we still want
-    # the signal even if the response_parser swallows partial responses.
-    if tag_errors is not None:
-        _collect_tag_errors(resp, tag_errors)
+        resp = _fetch_with_retry(
+            client, batch, start, end, frequency, batch_num, total_batches,
+        )
 
-    _log.info(
-        "batch_complete",
-        batch=f"{batch_num}/{total_batches}",
-        tags_this_batch=len(batch),
-        cumulative_tags=cumulative_tags,
-        total_tags=total_tags,
-        ratelimit_remaining=client.rate_limit_remaining,
-        quota_remaining=quota_tracker.remaining() if quota_tracker else None,
-    )
+        if quota_tracker is not None:
+            quota_tracker.record_usage(pipeline_name, len(batch))
 
-    return response_parser(resp)
+        # Capture per-tag failures / empty payloads before the caller parses —
+        # keep the signal even if the caller's parser swallows partial responses.
+        if tag_errors is not None:
+            _collect_tag_errors(resp, tag_errors)
+
+        _log.info(
+            "batch_complete",
+            batch=f"{batch_num}/{total_batches}",
+            tags_this_batch=len(batch),
+            cumulative_tags=cumulative_tags,
+            total_tags=len(tags),
+            ratelimit_remaining=client.rate_limit_remaining,
+            quota_remaining=quota_tracker.remaining() if quota_tracker else None,
+        )
+
+        yield resp
+
+        if i + batch_size < len(tags):
+            time.sleep(rate_limit)
 
 
 def fetch_and_parse_batched(
@@ -332,38 +344,21 @@ def fetch_and_parse_batched(
     pipeline_name: str = "",
     tag_errors: list[dict] | None = None,
 ) -> pd.DataFrame:
-    """Fetch tags in batches, respecting rate limits, concat results.
+    """Fetch tags in batches, respecting rate limits, concat parsed results.
 
-    response_parser converts a single API response dict → DataFrame.
-    Each domain provides its own parser.
-
-    If ``quota_tracker`` is provided, each batch records its tag count
-    to the shared quota file for cross-process visibility.
-
-    If ``tag_errors`` is provided, per-tag ERROR / EMPTY / MALFORMED entries
-    are appended to it (see ``_collect_tag_errors``). Caller can later run
-    them through ``summarize_tag_errors`` for reporting.
+    response_parser converts a single API response dict → DataFrame; each domain
+    provides its own. Thin consumer of ``iter_fetched_batches`` (which owns
+    retry / quota / error-capture / rate-limit); see that function for the
+    ``quota_tracker`` and ``tag_errors`` semantics.
     """
     frames: list[pd.DataFrame] = []
-    total_batches = (len(tags) + batch_size - 1) // batch_size
-    cumulative_tags = 0
-
-    for i in range(0, len(tags), batch_size):
-        batch = tags[i : i + batch_size]
-        batch_num = i // batch_size + 1
-        cumulative_tags += len(batch)
-
-        df = _process_batch(
-            client, batch, start, end, frequency, response_parser,
-            batch_num, total_batches, cumulative_tags, len(tags),
-            quota_tracker, pipeline_name, tag_errors,
-        )
-
+    for resp in iter_fetched_batches(
+        client, tags, start, end, frequency, batch_size, rate_limit,
+        quota_tracker, pipeline_name, tag_errors,
+    ):
+        df = response_parser(resp)
         if not df.empty:
             frames.append(df)
-
-        if i + batch_size < len(tags):
-            time.sleep(rate_limit)
 
     if not frames:
         return pd.DataFrame()

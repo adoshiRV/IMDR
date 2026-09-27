@@ -319,9 +319,11 @@ the diagnostic.
 | Gujarat | Potato (Deesa), vegetable north-west |
 | Uttar Pradesh | Potato (Agra), vegetables north |
 
-**Monsoon link:** IMD gridded rainfall data (already live in
-`econ.fact_indicator` via `scripts.econ.in.imd.imd_rainfall`) provides the
-seasonal deficit/excess context. When a deficit state has a below-seasonal
+**Monsoon link:** IMD district-level rainfall, aggregated to an All-India
+cumulative-from-1-June figure (`IMD.RAINFALL.AI.CUM.*`, live in
+`econ.fact_indicator` via `scripts.econ.in.imd.imd_rainfall`), provides the
+seasonal deficit/excess context. It is a district-unweighted sum-ratio, **not**
+IMD's area-weighted headline departure — quote it as an IMDR-computed proxy. When a deficit state has a below-seasonal
 rainfall deficit AND a vs-seasonal-norm spike in a perishable commodity, the
 combination is a persistent-shock signal.
 

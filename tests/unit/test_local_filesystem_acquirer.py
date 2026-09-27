@@ -140,3 +140,109 @@ class TestLocalFilesystemAcquirer:
         assert result.elapsed_s >= 0
         assert result.finished_at >= result.started_at
         assert result.ok
+
+class TestExtraSources:
+    """Per-root pattern sources — added to restore the onshore BBG FX pairs.
+
+    ``BBG_mirror\\FX`` was provisioned without CNY/CNO/MYO/IDO folders, so
+    those pairs went dark at the 2026-04-24 cutover while the legacy
+    ``BBG\\FX`` tree kept carrying them. ``extra_sources`` lets one feed read
+    the 22 mirror ccys plus the 3 onshore ccys from the legacy tree.
+    """
+
+    def test_defaults_to_empty(self, tmp_path: Path) -> None:
+        assert _spec(tmp_path).extra_sources == ()
+
+    def test_globs_the_extra_root(self, tmp_path: Path) -> None:
+        primary = tmp_path / "mirror"
+        legacy = tmp_path / "legacy"
+        (primary / "CNH").mkdir(parents=True)
+        (primary / "CNH" / "FX_CNH.csv").write_text("x")
+        (legacy / "CNY").mkdir(parents=True)
+        (legacy / "CNY" / "FX_CNY.csv").write_text("y")
+
+        spec = _spec(primary, patterns=["CNH/FX_CNH.csv"],
+                     extra_sources=((legacy, ("CNY/FX_CNY.csv",)),))
+        result = LocalFilesystemAcquirer(spec).fetch()
+
+        assert {p.parent.name for p in result.saved_files} == {"CNH", "CNY"}
+
+    def test_extra_patterns_are_per_root_not_shared(self, tmp_path: Path) -> None:
+        """The extra root must NOT be globbed with the primary patterns.
+
+        The legacy BBG tree holds CNO/FX_CNO.csv (tenor labels unparseable)
+        and KRO (untracked) beside the files we want. Sharing the pattern list
+        across roots would acquire them.
+        """
+        primary = tmp_path / "mirror"
+        legacy = tmp_path / "legacy"
+        (primary / "CNH").mkdir(parents=True)
+        (primary / "CNH" / "FX_CNH.csv").write_text("x")
+        for junk in ("CNO", "KRO"):
+            (legacy / junk).mkdir(parents=True)
+            (legacy / junk / f"FX_{junk}.csv").write_text("junk")
+        (legacy / "CNY").mkdir(parents=True)
+        (legacy / "CNY" / "FX_CNY.csv").write_text("y")
+
+        spec = _spec(primary, patterns=["*/FX_*.csv"],
+                     extra_sources=((legacy, ("CNY/FX_CNY.csv",)),))
+        result = LocalFilesystemAcquirer(spec).fetch()
+
+        got = {p.parent.name for p in result.saved_files}
+        assert got == {"CNH", "CNY"}
+        assert "CNO" not in got and "KRO" not in got
+
+    def test_missing_extra_root_warns_and_does_not_fail(self, tmp_path: Path) -> None:
+        """A secondary tree may be retired without taking the feed down."""
+        primary = tmp_path / "mirror"
+        primary.mkdir()
+        (primary / "a.csv").write_text("x")
+        gone = tmp_path / "does_not_exist"
+
+        spec = _spec(primary, extra_sources=((gone, ("*.csv",)),))
+        result = LocalFilesystemAcquirer(spec).fetch()
+
+        assert len(result.saved_files) == 1
+        assert any("extra root does not exist" in w for w in result.warnings)
+
+    def test_missing_primary_root_still_raises(self, tmp_path: Path) -> None:
+        """Only the EXTRA roots are forgiving; the primary is still fatal."""
+        legacy = tmp_path / "legacy"
+        legacy.mkdir()
+        (legacy / "a.csv").write_text("x")
+
+        spec = _spec(tmp_path / "nope",
+                     extra_sources=((legacy, ("*.csv",)),))
+        with pytest.raises(ListingNotFound, match="root path does not exist"):
+            LocalFilesystemAcquirer(spec).fetch()
+
+    def test_extra_files_count_toward_min_matches(self, tmp_path: Path) -> None:
+        primary = tmp_path / "mirror"
+        legacy = tmp_path / "legacy"
+        primary.mkdir()
+        legacy.mkdir()
+        (primary / "a.csv").write_text("x")
+        (legacy / "b.csv").write_text("y")
+
+        spec = _spec(primary, min_matches=2,
+                     extra_sources=((legacy, ("*.csv",)),))
+        assert len(LocalFilesystemAcquirer(spec).fetch().saved_files) == 2
+
+    def test_freshness_filter_applies_to_extra_files(self, tmp_path: Path) -> None:
+        """An extra root gets no exemption from the staleness cutoff."""
+        primary = tmp_path / "mirror"
+        legacy = tmp_path / "legacy"
+        primary.mkdir()
+        legacy.mkdir()
+        (primary / "fresh.csv").write_text("x")
+        stale = legacy / "stale.csv"
+        stale.write_text("y")
+        old = stale.stat().st_mtime - 60 * 60 * 24 * 30
+        os.utime(stale, (old, old))
+
+        spec = _spec(primary, min_mtime_age=timedelta(hours=72),
+                     extra_sources=((legacy, ("*.csv",)),))
+        result = LocalFilesystemAcquirer(spec).fetch()
+
+        assert {p.name for p in result.saved_files} == {"fresh.csv"}
+        assert any("stale file" in w for w in result.warnings)

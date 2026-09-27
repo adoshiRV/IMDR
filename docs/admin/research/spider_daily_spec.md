@@ -60,9 +60,118 @@ a single stamp (below).
   Tuesday. Reference the release month for data (June PPI, June CPI) and the calendar date for
   events. "Yesterday/Tuesday/last week" are banned in the body.
 
+### Contents index (page 1, above the Bottom line)
+
+**Generated from the document's own headings — never hand-maintained**, so it cannot drift from
+the edition. It does two jobs:
+
+- **Navigation.** Every section and country block with a **page number**, grouped: summary
+  sections, deep-dive country blocks, quiet-market monitor, trade map, relative-value. Page
+  numbers come from a **two-pass render** — print, map each heading to its page, inject, print
+  again, and repeat until a print produces the numbers it was printed with. **Fail loudly rather
+  than ship a wrong number**: a heading-count mismatch, an order desync or a failure to converge
+  must exit non-zero, never guess.
+- **Coverage.** One line stating **how much of the roster this edition actually covers** — the
+  market count, how many got a full block and how many a monitor line. **Count markets, not
+  index entries**: a block heading may cover several markets ("Greater China" is CN + HK;
+  "ASEAN and India" is five). Reconcile against the standing 17-market roster, and where blocks
+  plus monitor do not sum to 17, **say so explicitly and name the missing markets**. This line
+  exists to surface a coverage gap, so it must never quietly print the smaller number.
+  **Tie-break:** a market that has its own quiet-monitor row is credited to the **monitor**, not
+  to the group block that contains it — so an ASEAN-and-India block scores 5, not 6, when the
+  Philippines is monitored separately. A market may be counted **once**; a market appearing in
+  both a block and the monitor, or in two blocks, is an error and must fail loudly, not be
+  silently deduplicated.
+
+The index sits on page 1 and may take the page. **The trade matrix may start on page 2** — do not
+compress or demote the index to keep the matrix on page 1.
+
+**PDF bookmarks** accompany it: every section and country heading as a nested, clickable outline
+entry (H1 → H2 → H3), with verbatim titles. The internal appendix appears in **neither** the index
+nor the bookmarks of the print PDF.
+
 ### Bottom line (a boxed callout)
-2–3 sentences: the working regime + the cleaner relative-value questions it raises. This is
-the single most-read element.
+**Bullets, not a paragraph — 3–5 of them.** This is the single most-read element and it must
+be scannable in one pass. The **first bullet states the working regime**; each remaining bullet
+states **one** cleaner relative-value question that regime raises. One sentence per bullet, each
+self-contained and leading with its subject (the market, country or driver), never with a
+connective. No bullet may run past two lines at A4 width. Verify the bullets survive the render
+into the boxed callout in **both** the HTML and the PDF — a callout that collapses to a single
+run-on line has failed this section.
+
+### Trade matrix (immediately below the Bottom line, above the hero band)
+
+The summary's second element, and for most readers the reason they opened the file. **Five
+columns, one row per trade, 8–12 rows:**
+
+| Trade | Levels | Why | Street | Since | Kills it |
+
+- **Trade** — direction + instrument in bold, then `House · status · conviction delta · sug
+  {date}` on a second line (`HSBC · NEW · sug 18 Sep`, `Nomura · ON · conv 3→4 · sug 2 Sep`).
+  The trade leads; the house is a subtitle. This collapses the old New / Revalidated / Closed
+  split into one table. **`sug` is the date the idea was FIRST suggested**, not the date it was
+  last reaffirmed — that is the honest scorecard. Where a house has re-struck the trade at a
+  new level or conviction, append the re-strike in parentheses: `sug 2 Sep (re-struck 18 Sep)`.
+- **Levels** — numbers only: `entry → target`, stop, spot/mark, and carry as a sign
+  (`carry +` / `carry −` / `carry flat`). Where no stop was published, write
+  **`no stop published`** — that absence is itself a judgement on the trade.
+- **Why** — the mechanism, **≤ 20 words**. Not the narrative.
+- **Street** — **≤ 12 words.** Count with, count against, and **name the house on the other
+  side** (`2 with · 1 against — Nomura's long TWD/KRW is the opposite KRW leg`), or
+  **`alone`**. This column is the one thing a multi-house corpus can say that no single bank's
+  note can. Do not omit it; if the corpus is genuinely silent, write `no other house in window`.
+- **Since** — the mark, **from IMDR, as of the edition cut**. Two lines: `{level at suggestion}
+  → {level now}`, then `{move} · onside|offside · {days held}`. **The move is signed to the
+  trade's direction, never raw** — a raw percentage on a short reads backwards and will be
+  misread at speed. Run it from the **first-suggested** date, not the re-strike.
+- **Kills it** — falsifier **and** the dated catalyst that resolves it, **≤ 15 words**.
+
+**Sort contested-first** — by disagreement in the Street column, not by house or asset class.
+Where the street splits is the fastest insight on the page; a trade eight houses agree on is
+already in the price.
+
+**Structures that do not fit a 20-word Why** (a hybrid digital, a conditional spread — where the
+structure *is* the argument) get **one italic continuation line directly under their row**, never
+a bloated cell.
+
+**Closed / take-profit trades drop out of the matrix** into a compact three-column strip beneath
+it — `Trade · Result · What it teaches`. Scoring belongs in the record, but a closed trade is
+not actionable and must not compete with live ones for the top of the page.
+
+**This matrix is a summary layer.** The per-country detail, full rationale, horizon and sizing
+stay in the "Street trade map" in Product B — which carries the same mark, folded into its
+existing levels column rather than as a seventh column (seven will not hold at A4 portrait).
+
+#### Marking rules (the `Since` column)
+
+**Mark from IMDR only. Never mark from a sell-side run, and never estimate.**
+
+- **Markable:** FX outrights and **crosses** (triangulate off the USD legs — SGD/KRW from
+  USD/SGD and USD/KRW — hour-matched on both dates, vendor 1 / `frequency_id = 4`); swap and
+  OIS par-curve levels, spreads and flies — **except on a tenor `check_curve_tenors.py` calls
+  SYNTHETIC**, which is the 10Y plus a construction constant and marks nothing. Print
+  `not markable · synthetic tenor ({curve} {tenor} is the 10Y plus a constant)`. See
+  § Grounding → *RATES: not every tenor on a curve is a market quote*; equity indices.
+- **Not markable, and it must say so:** option structures, digitals and ERKOs (a level is not a
+  price — these need a vol surface); **any cash-bond leg**. `rates.fact_bond_yield` is **not
+  empty** — 278,921 rows across 45 curves — but it holds **one tenor only (10Y generic/CMT)**
+  and stops at **31 Aug 2026**, so it cannot mark a 5s20s, a 2s10s or anything current. Also
+  unmarkable: **meeting-dated OIS** (IMDR carries par tenors and standard forwards, not
+  meeting-date strips — deriving one from the par curve is bootstrapping, which these rules
+  bar); anything with no IMDR instrument. Print **`not markable · {reason}`** — never a blank
+  cell, never a guess, never a sell-side mark substituted in.
+- Where the suggestion pre-dates IMDR coverage of that instrument, print
+  `not markable · no history at suggestion`.
+- The mark is computed at the **edition cut**, and the cut time is already stamped on the
+  masthead — do not restate it per row.
+- **Always write the literal token `onside` / `offside` / `not markable`.** The renderer tints
+  the `Since` cell off that token (green `#1f6b4f`, red `#a1382f`, grey `#6b6658`) and **never
+  off the sign of the number** — a short that has fallen is onside while showing a minus. Drop
+  the token and the row renders uncoloured.
+- Red/green asserts a **verdict**, so it appears **only** in the `Since` column, the same mark
+  in the Product B trade map, and the closed-trade `Result` cell. **Never** tint reaction
+  panels, curve-move tables, hero tiles or drawdown columns — a −4bp move is not "good", and
+  colouring it would assert something false.
 
 ### Hero band — 4 tiles (precise, decompositional captions)
 Exactly **four** big number tiles (the day's decisive prints). The caption says **WHY the
@@ -71,6 +180,11 @@ flat, OER cooling → core-PCE ~0.18%") plus the memory (survey/prior). **Number
 never a literary metaphor** — ban "the second shoe", "the gravity shifts", "the tide", etc.
 If a category decomposition isn't at hand, say what you do know, not a mood. When an IMDR econ
 pipeline has just loaded a release, that print is a strong tile candidate.
+
+**Hard cap: 30 words per tile caption.** The tile carries the print, the surprise against
+survey/prior, and the single driver — nothing else. Board splits, quotes, revisions, forecast
+changes and second-order read-through belong in the country block, not here. A caption that
+runs past 30 words has failed this section; cut it, do not shrink the type.
 
 ### What moved — and did price agree (ONE place; kills the repetition)
 This **consolidates** what used to be three overlapping sections (a "five things" list, a
@@ -185,14 +299,54 @@ But **surface it selectively**:
 - **A country with a fresh IMDR econ release always earns at least a short note** — a print we
   loaded ourselves must not be relegated to the quiet monitor (see "IMDR econ releases").
 
-### Deep-dive block shape (flexible, disagreement-centric)
-Lead with the *why* and the *debate*, not a data recap. A block typically carries: a short
-"what changed" prose lead; a compact house-view table where a real disagreement exists (e.g.
-`House · Core-PCE tracking · Interpretation` — the core-PCE cluster appears **once**, here, not
-eleven times); a "why it matters" note; and, for a **marquee Americas event** (US CPI/PCE/NFP/
-retail sales, FOMC/Fed-speaker cluster, BoC decision/MPR), a compact **within-window
-official-voice-vs-sell-side timeline** (release + policymaker comms as FACT/official, in one
-column; the desk read as VIEW, in the other) — strictly inside the edition's timeframe.
+### Deep-dive block shape (default spine, disagreement-centric)
+
+Lead with the *why* and the *debate*, not a data recap. The spine below is the **default**, not a
+template — depart from it where a country genuinely needs a different shape, but the **lens and
+the decider are mandatory in every block**:
+
+1. **Decision lens — one line, directly under the heading. MANDATORY.** Name the rates/FX
+   decision the block informs, and nothing else: *"Informs: whether to hold KRW receivers through
+   Chuseok, and whether short-KRW expressions survive the exporter bid."* The heading names the
+   observation; the lens names what it is **for**. Everything in the block sits under it. This is
+   not a recommendation — Spider stays neutral on execution — it is the question the block
+   answers.
+2. **What changed** — a short prose lead, hour-matched marks, no data recap.
+3. **Why, attributed** — the mechanism and who says it.
+4. **House divergence table**, where a real disagreement exists (e.g.
+   `House · Core-PCE tracking · Interpretation` — the core-PCE cluster appears **once**, here,
+   not eleven times). Immediately beneath it, **one bolded line quantifying the spread and naming
+   what resolves it**: *"Goldman 1,350 against Barclays 1,430 — 5.9% apart on a 12-month view;
+   resolves on whether exporter conversion survives Chuseok."* **Never average two houses** —
+   averaging destroys the information the divergence carries. Do not leave the reader to compute
+   the spread, and do not bury it paragraphs later.
+5. **IMDR's own data** — the flow/money-market/pipeline series that the sell-side does not have.
+6. **Decider — one line closing the block. MANDATORY.** The dated event that resolves the
+   block's open question, and what it would change: *"Decider: 28 September, whether exporter
+   conversion resumes after the holiday. Goldman's 1,350 floor breaks if it does not."* This is
+   the country-block analogue of the matrix's `Kills it`, and it is what makes a block
+   re-readable a week later.
+
+**Primary over digest — tag only where a primary exists.** Where a central bank has actually
+spoken in the window, say whether the statement/minutes/speech was read, or only a house's
+paraphrase of it: `— BoK statement read` vs `— per Goldman's read, primary not checked`. A
+sell-side characterisation of a central bank is a claim, not a fact, and has repeatedly
+contradicted the primary text. **Do not** tag blocks where no primary was published — a universal
+tag is noise.
+
+**Coverage ceiling — name the houses, in the body.** Where the corpus is thin or a house is
+absent, say so in the block: *"No UBS, Deutsche Bank or Morgan Stanley view on Korea surfaced in
+the window."* That is editorial information about how complete the section is, and it belongs on
+the reader pages. **Phrase it as what surfaced, not as what a house published** — the cluster
+register evidences the first and not the second, and a house absent from one topic may be all
+over another in the same edition. Never assert a hard negative about a house's output.
+**File paths, parser states, report-ids and ingest failures are machinery** and stay in the
+Product C appendix with the hazard register — never in the body.
+
+For a **marquee Americas event** (US CPI/PCE/NFP/retail sales, FOMC/Fed-speaker cluster, BoC
+decision/MPR), add a compact **within-window official-voice-vs-sell-side timeline** (release +
+policymaker comms as FACT/official in one column; the desk read as VIEW in the other) — strictly
+inside the edition's timeframe.
 
 ### Street trade map — the trade register, split by STATUS
 One table is not enough because it mixes different things. Split by status, **one trade per row**:
@@ -211,6 +365,12 @@ regime view ("goldilocks summer") is `Macro view only` until an instrument is sp
 Title it **"Street trade map"** (aggregated sell-side positioning) — never "where the book
 tilts", which reads as RV Capital's own positions — and, per above, **no subtitle line** under
 that title.
+
+Every trade row here carries the **suggestion date and the IMDR mark**, on the same rules as the
+summary matrix above: `sug {date}` in the Source cell, and `{level at suggestion} → {level now}
+· {move} · onside|offside` appended to the level/entry/target/stop cell. Folded into the
+existing columns — this table does **not** gain a seventh. Unmarkable legs print
+`not markable · {reason}`.
 
 ### Regional relative-value
 Where the cleaner expression is a *pair* (AU vs NZ rather than broad short-USD), say so — this
@@ -240,8 +400,67 @@ in the HTML, only.
 - **Sell-side source register** — `Cluster · Report IDs`. **All report-ids live here**, not on
   the reader pages.
 - **Production / data-quality log** — Qdrant queries run, corpus size, deep-read vs
-  noted-not-read counts, thin-DB-depth flags, missing-BBG, `fact_bond_yield` empty, and **which
-  IMDR econ pipelines posted a fresh in-window release** (so a missed one is caught).
+  noted-not-read counts, thin-DB-depth flags, missing-BBG, and **which IMDR econ pipelines
+  posted a fresh in-window release** (so a missed one is caught).
+- **Data hazard register — MANDATORY, every edition.** Walk the standing hazard list below and
+  record, for each one, whether it **touched this edition's dataset** and **how it was handled**.
+  Write `checked — did not apply` where it did not: an absent line is indistinguishable from an
+  unchecked one, and the point of the register is that each edition carries its own record of
+  what went wrong with that day's data. Add any new hazard found during the run, and say so.
+
+  Standing list (re-verify each item's status — several have changed and will change again):
+  1. `econ.fact_indicator` carries forecasts out to 2029 — always
+     `obs_date <= CAST(GETDATE() AS date)`.
+  2. Bloomberg quarterly CPI forward-fills (NZ, AU) set `release_date` to the ingest date, so
+     `obs_date <= release_date` does **not** remove them.
+  3. Bloomberg daily curves (INR 54, CNY 43) carry Saturday/Sunday rows holding stale values.
+  4. **Frozen series** — flag any run of ≥ 5 identical values. Known: Indonesia JIBOR 10Y, the
+     vendor-4 `*:10` lane (CAD 2Y sat at 3.3090 across six consecutive marks), AUD 6M BBSW.
+  5. `calendar.cb_events` survey / actual / prior are **varchar** — cast before arithmetic.
+  6. **Oil.** `commodities.fact_spot` has held no Brent since 29 Jul 2026. The EIA lane
+     `EIA.ENERGY.BRENT_SPOT.US` stalled at 15 Sep on **USD130.80**, roughly 34 dollars above
+     where desks mark — an unconfirmed print, not a usable level. Never forward-fill it.
+  7. **Vendor lanes are not interchangeable.** Filter on `(curve_id, vendor_id, frequency_id)`.
+     Vendor 1 / frequency 4 is on-the-hour; vendor 4 / frequency 2 is stamped `*:10` and carries
+     frozen repeats. `check_session_scope.py` does **not** filter by vendor, so its mark times
+     will disagree with a vendor-1 read.
+  8. **FX.** The batch writes a 00:00 UTC row carrying the prior 23:00Z close and has
+     double-written the same value intraday. Hour-match both dates; never use the back-stamped
+     daily lane; sanity-bracket for bad ticks (a USDIDR 17,477.9 print sat between 17,750.0 and
+     17,700.5).
+  9. `rates.fact_bond_yield` is **not empty** — 278,921 rows, 45 curves — but holds **10Y
+     generic only** and stops **31 Aug 2026**. It cannot mark a 5s20s, a 2s10s, or anything
+     current.
+  10. `research.dim_report.pdf_text` and `summary` have been NULL since ~10 Aug 2026 (parser
+      outage) — retrieve through `research.fact_chunk`.
+  11. **Qdrant drift.** A bulk-upsert bug aborted large reports *after* the SQL commit, so
+      `dim_report` / `fact_chunk` can look complete while Qdrant holds nothing for that report.
+      A thin semantic sweep is a drift symptom, not proof of a quiet corpus — run the structured
+      SQL title inventory first and cross-check.
+  12. `event_date` is a **vendor day-bucket**, not the release date (TE buckets by UTC, BQL by
+      SGT). Truth is `event_datetime` + `dim_country.timezone`.
+  13. **Equity index ingest lag** — FTSE 100 runs ~1–2 days behind. Check `created_at`, not
+      `obs_date`, before calling anything a gap.
+  14. The `imdr-db` MCP query tool rejects `;`, `--`, `sp_`, `xp_` — single statement, no
+      comments.
+  15. Government-shutdown gap: Oct 2025 US CPI and unemployment are missing.
+  16. **Corpus outages.** JPMorgan published nothing 15–17 Sep 2026 and it was never
+      backfilled; `short_uuid()` collides on JPM filenames, dropping same-title same-date
+      re-issues. Report the day's JPM volume.
+  17. **A scheduled release neither lane carries an actual for.** TE and BQL both hold the
+      event with a null actual. Name every release sourced from a sell-side write-up instead,
+      and prefer a figure several houses agree on to a single-house number.
+  18. **Lanes carrying incompatible definitions**, not merely different dates (UK PSNB: TE
+      −18.3 against BQL survey 15.5, prior 1.8, no actual). Show both, flag unreconciled,
+      prefer neither without independent corroboration.
+  19. **Exchange-holiday marks read as zero change.** A shut market's curve prints 0.0 at every
+      tenor and its last equity close is days old. Label it a holiday carry in the row itself —
+      never read it as an unchanged market.
+  20. **The last hourly FX row of the day (21:00 UTC) is the one most likely to be a bad tick**
+      in thin Asian crosses — USD/INR printed 94.4684 against 95.9980 an hour earlier, a 1.6%
+      jump with no corroboration in any other pair, and USD/TWD 31.6329 against 31.8159 on the
+      same row. Strike the FX panel at **15:00 UTC** and bracket every cross against its
+      neighbours before use.
 - **Reader rule** — a one-box reminder: pages 1–2 are the complete briefing; 3–N are selective
   drill-down; this page preserves auditability without production metadata interrupting the read.
 
@@ -355,6 +574,52 @@ just gets *surfaced selectively*, not dumped.
   intraday first-tick/open/low/high/mean to the close (an intraday low-to-close recovery is not
   a DoD move and mislabelling it flips the sign — this inverted the whole front-end thesis on
   2026-07-10). Sanity-check every rates/FX sign against the two closes before writing on top.
+- **FX: never mix frequency lanes, and treat the DAILY row as a back-stamp, not a close
+  (critical).** `FX.fact_fx_rate` carries the SAME vendor tick twice. `bbg_fx_snapshot`
+  writes it at the file's mtime with `frequency_id = 2` (SNAPSHOT); `bbg_fx_daily` re-reads
+  the identical latest row and re-stamps it at **midnight UTC of its own obs_date** with
+  `frequency_id = 5` (DAILY). So a "last tick per day" read that does not filter
+  `frequency_id` compares a live intraday tick on one day against a 00:00Z row that is
+  really the *previous* evening's last mark. On 11 Sep 2026 the 00:00Z DAILY row and the
+  15:10Z SNAPSHOT row both read EURUSD 1.16150 — one tick, two stamps — while the true
+  11:10Z-to-11:10Z move was three times larger. Therefore:
+  - **Always filter `frequency_id` in the WHERE clause.** One lane per query, never both.
+  - **Prefer an hour-matched SNAPSHOT comparison** (same UTC hour on both days) over
+    last-tick-per-day. It is the only comparison immune to the back-stamp.
+  - The DAILY row is **not a close.** `imdr_daily.py` fires `bbg_fx_daily` four times a day
+    (~00:5x / 06:3x / 12:3x / 18:3x UTC) and each run rewrites that date's 00:00Z row with
+    whatever the mirror CSV holds at the time; where it lands is an accident of scheduling.
+    Never quote it as a closing mark.
+  - The DAILY row for *today* does not exist until the first run whose CSV has rolled to
+    today's date — typically the ~14:3x SGT run, not the 08:5x SGT one. Its absence in the
+    morning is normal and is **not** evidence of a feed failure. (The 08:00 SGT rule in
+    `daily_batch_timing.md` governs the Citi lane, `vendor_id = 1`, which does land by then.)
+- **RATES: not every tenor on a curve is a market quote (critical).** A vendor curve is fitted
+  to a handful of liquid points and interpolated or extrapolated everywhere else. On several
+  APAC curves the long end is simply **the 10Y plus a fixed constant**, so its spread to the 10Y
+  never moves — the point does not trade, a "move" in it is the 10Y's move, and a change in the
+  constant is a config change wearing a market's clothes. On **22 Sep 2026** the daily led its
+  Greater China section with *"the 30-year is +17.3bp month-to-date against a 10-year −2.7bp, a
+  20bp steepening nobody in the window writes about."* Nobody wrote about it because it did not
+  happen: CNY NDIRS 10s30s sat at **0.00bp every session** through 04 Sep (the 30Y equalled the
+  10Y to five decimals, with the 20Y ~2bp *above* both — an inverted hump no desk would quote),
+  then stepped to exactly **20.00bp** on 07 Sep and froze again. So `+17.3 = −2.7 + 20.0`, the
+  printed number exactly. The real China long end went the other way — CGB 10s30s *flattened*
+  about 3bp on the month — and IMDR holds no CGB curve to have caught it. Therefore:
+  - **Run `check_curve_tenors.py` and treat its SYNTHETIC list as a do-not-quote list.** Never
+    print a level, a change, a spread or a curve trade from a flagged tenor — not in prose, not
+    in a curve table, not in a hero tile.
+  - In a curve table, a flagged cell is **`n/a`**, never a number and never a blank, with one
+    footnote under the table naming the curves and why. The other rows keep their real 30Y.
+  - **A month-to-date or week-to-date window that spans a STEP date is the trap**, because the
+    step is indistinguishable from a move in any two-point comparison. The checker names the
+    date and size; if your window spans it, the number is not quotable at any horizon.
+  - The flagged set is **not static** — the constants get re-cut. Read the current run's output
+    rather than a remembered list. As of 23 Sep 2026 it covers **CNY NDIRS 5Y/30Y · CNY SHIBOR
+    30Y · CNH HIBOR 2Y/5Y/30Y · AUD BBSW_6M 2Y/5Y/30Y (the whole curve) · INR MIFOR 30Y ·
+    MYR KLIBOR 30Y · PHP PHIREF 30Y**.
+  - This is the vendor's curve construction, faithfully ingested — there is no ingest bug to
+    wait on, and the guard exists only here, at authoring time.
 - **Cluster fan-out** is the build method (working files: `_pmnote.md` / regional deep-dive
   clusters / `_appendix.md`), stitched into the final MD. The clusters are the research input;
   the products are the synthesis.
@@ -396,11 +661,31 @@ core-PCE nowcast ~11×, the JP 20y auction ~12×, the NZ 2y ~8×, the China loan
 band / reaction panel / house table, the debate in the PM dashboard, the drill-down in the
 deep-dive, the id in the appendix. Cross-reference, don't restate.
 
+### Compression pass (run on the finished draft, before the render)
+
+A separate editing pass over the whole document once the content is written. For every
+sentence, ask: **can this be said shorter without losing a fact?** If yes, cut it. Specifically:
+
+- **No analogies, metaphors or scene-setting.** "A supply-side headline did in one session what
+  a 25bp hike could not" is a flourish; "oil fell 6%, and every G10 curve rallied with it" is
+  the same fact in half the words. Ban "the second shoe", "the tide", "the gravity shifted".
+- **No "not X but Y" constructions** where Y alone carries the meaning. Write the claim; drop
+  the strawman it is being contrasted against.
+- **Never restate a number that appears in an adjacent table or tile.** Refer to it, don't
+  reprint it.
+- **No throat-clearing.** "It is worth noting that", "the key question is whether", "this
+  raises the question of" — delete and start at the verb.
+- **One clause per idea.** A sentence carrying three subordinate clauses is three sentences
+  that have not been separated yet, or two that should have been cut.
+
+The pass **removes words; it does not restructure sections**. Structure is governed by the
+Product A / B / C definitions above.
+
 ---
 
-## MANDATORY PRE-LOCK CHECKS — run ALL THREE before saying the edition is done
+## MANDATORY PRE-LOCK CHECKS — run ALL FIVE before saying the edition is done
 
-An edition is not finished until these three mechanical checks have been run and their
+An edition is not finished until these four mechanical checks have been run and their
 output read. None is a gate you can wave through: they exist because each caught a
 real defect that shipped.
 
@@ -448,6 +733,58 @@ cash Treasuries as unloaded past 19 Aug — the 26th calling it "seven sessions 
 the data was present through 24 Aug and had been ingested that morning. Two editions dropped
 a credit and volatility read that was sitting in the database. See `spider.md` hard rule 6.
 
+**4. Event dates** — `python scripts/research/check_event_dates.py --as-of <edition date> <the MD>`
+**A calendar lane's `event_date` is a day-bucket, not a release date.** Never print one
+without this check. It recomputes every event's date from `event_datetime` plus
+`dim_country.timezone` — the instant in the release country's own calendar, which is the
+only ground truth — and reports three things: rows whose stored date is wrong (A),
+releases carrying two different dates across lanes (B), and dates in the digest itself
+that fall on the wrong day (C). Exit 0 = every date agrees.
+
+**Neither lane can referee the other, so never "just use the other one":**
+- **TradingEconomics buckets by UTC** (100% of rows). Its `event_date` is a day early for
+  every release before 08:00 UTC — i.e. most of Asia-Pacific. In the 7–28 Sep window it is
+  wrong for **37 of 73** Japan rows, 19 of 30 New Zealand, 13 of 28 Korea, 10 of 54 Australia.
+- **Bloomberg BQL buckets by SGT** (93.5% of rows) — the ingest box's own timezone, not the
+  release country's. It is a day *late* across the Americas: 94 of 122 Mexico rows, 63 of 306
+  US. It dates the 2:00 PM ET Beige Book to the following day.
+
+When A or B fires, take the date the checker computes, not either lane's. When C fires, fix
+the digest. A row with no `event_datetime` is skipped, not failed — those are the estimated /
+placeholder rows, which carry guessed dates and must never be printed as hard anyway.
+
+*Why this rule exists:* the 07 Sep 2026 weekly printed "Japan Q2 GDP, final | 07 Sep". The
+release is 08:50 JST on **8 September**; both lanes held the correct instant
+(`2026-09-07 23:50+00:00`) and disagreed only on the derived date. The edition read the TE
+lane, published the wrong day, and then listed the same release a second time on 08 Sep from
+the BQL lane, as if they were two events. The root cause is in `te_scraper.parse_calendar_html`,
+which stores the TE page's GMT day verbatim; `_parse_time` even says *"consumers can shift by
+`event_date_offset` if needed"*, but no `event_date_offset` exists anywhere in the repo, so no
+consumer ever shifted. This gate is the failsafe and stays in force regardless of any upstream
+fix to the ingest.
+
+**5. Curve tenors** — `python scripts/research/check_curve_tenors.py <the MD>`
+**A tenor whose spread to the 10Y never moves is not a market quote.** It is the 10Y plus a
+construction constant, so its level marks nothing and its "change" is the 10Y's. The check
+measures every active and reformed par curve over the last 90 sessions, prints the SYNTHETIC
+list with each one's frozen share and the dates its constant was re-cut, then scans the MD —
+both prose (`CNY NDIRS … 30-year`) and **curve tables, where the tenor is a column header and
+no single line carries both tokens**. Exit 0 = the edition quotes no flagged tenor.
+
+The survey alone never blocks: the construction is the vendor's and no edit to an MD changes
+it, so gating on it would leave this check permanently red, which is how a gate stops being
+read (the same reasoning as `check_event_dates.py`). It exits 1 only when **this edition**
+quotes a flagged tenor — which is the one thing an author can fix. Replace the cell with `n/a`
+plus a one-line footnote; see § Grounding → *RATES: not every tenor on a curve is a market quote*.
+
+*Why this rule exists:* the 22 Sep 2026 daily built its Greater China headline on *"a 20bp
+steepening nobody in the window writes about"* in CNY NDIRS 10s30s. The spread had sat at
+**0.00bp every session** since June and stepped to exactly **20.00bp** on 07 Sep — a Citi
+curve-config change, not a market — so the reported `30Y +17.3bp MTD` was just `10Y −2.7bp`
+plus the step. The real CGB 10s30s *flattened* ~3bp on the month. Twelve lines of that edition
+quoted a synthetic tenor, six of them table cells that a line-wise scan cannot see, which is
+why this check reads tables by column.
+
 ---
 
 ## Render & output — the layered PDF
@@ -492,8 +829,42 @@ a credit and volatility read that was sitting in the database. See `spider.md` h
    ~11:00 to 23:00 UTC across markets; an Asian curve marked at 11:00 UTC cannot have
    traded a US release at 14:00 UTC. State the mark times in the reaction table whenever
    they differ materially across the markets shown.
+3a. **A mark hour must sit inside that market's own session, and any two-market comparison
+   must be struck on ONE clock hour at which both markets are open.** Two distinct failures,
+   both shipped in the first build of the 25 Sep 2026 daily:
+   - **Out-of-session mark.** NZIONA was marked at 20:00 UTC. New Zealand is UTC+12, so
+     20:00 UTC is 08:00 NZST — *before* the Auckland open. A 23-to-24 September change on
+     that hour therefore compares New Zealand's 24 Sep opening indication with its 25 Sep
+     opening indication: it is not the 24 September session at all, and the 23 Sep 20:00
+     print (3.97778%) was itself a 9.7bp isolated spike against 3.88034% at 21:00. Before
+     using a curve's mark hour, convert it to local time and confirm it falls inside that
+     market's trading day **on both dates**. Prefer the market's own local close:
+     05:00 UTC = Auckland 17:00, 07:00 UTC = Sydney 17:00, 08:00 UTC = Tokyo 17:00.
+   - **Mixed-clock comparison.** The same build set Australia's +7.7bp (09:00 UTC) against
+     New Zealand's −8.5bp (20:00 UTC) and called it a 16.2bp one-session divergence, with
+     the mark-hour difference disclosed in the prose as though disclosure repaired it. **It
+     does not.** A spread, a divergence, a beta or a relative-value bullet built from two
+     different clock hours is not an observation about the two markets; it is an artefact of
+     the snapshot times. Re-struck at a common 05:00 UTC, Australia was +9.3bp and New
+     Zealand **+11.2bp** — New Zealand was *higher*, at every one of the ten UTC hours where
+     both curves carry vendor-1 marks on both dates, and the published sign was wrong.
+   So: find the hours at which **both** legs quote on **both** dates, pick one inside both
+   sessions, and strike both legs there. If no such hour exists, the comparison cannot be
+   made and the bullet does not run — say the legs do not overlap instead of disclosing a
+   caveat and printing the number anyway. `check_session_scope.py` flags MARK-TIME MISMATCH
+   for exactly this; the flag is **blocking for any cross-market claim**, not advisory.
 4. **Disagreement leads.** The live debates (PM dashboard) and the news-vs-price reads are the
    edge and sit in Product A.
+4a. **Never invent a precision. Quote the unrounded figure where one is evidenced.** The
+   failure to avoid is a number **no source states**: an ABS unemployment rate of **4.646%**
+   re-rounded to a two-decimal **4.65%** is fabricated precision and reads as a different print.
+   Where an unrounded value is evidenced — IMDR's own series carry it (indicator 715 stores
+   4.4618246900 for July), and houses quote it — **use the unrounded figure throughout,
+   including the title, deck, hero tile and block heading**, and give the agency's published
+   rounding alongside it on first use in the block: *"4.646%, which the ABS publishes as 4.6%"*.
+   Where no unrounded value is evidenced, quote the published figure and stop there — never
+   manufacture decimals to fill the gap. The headline and the body must always carry the **same**
+   figure at the **same** precision.
 5. **Trades split by status, one per row, with levels + falsifier.** "Street trade map", not
    "where the book tilts".
 6. **Selective coverage** (movers get blocks; quiet markets → one monitor table) — supersedes the
@@ -519,11 +890,13 @@ a credit and volatility read that was sitting in the database. See `spider.md` h
     their own build rules ("movers get a block…", "split by status, multi-leg split…"). The audit
     appendix + all ids/logs/data-ops-healthcheck warnings are HTML-internal only; the production PDF
     (Product A + charts + Product B) carries none of it.
-12. **Both mechanical checks run before lock — calendar sort AND session scope.** The
-    session-scope check (`check_session_scope.py`) is the timezone guard: curve mark
-    times differ by up to twelve hours, so a same-calendar-day move is not a
+12. **The mechanical checks run before lock — calendar sort, session scope AND curve
+    tenors.** The session-scope check (`check_session_scope.py`) is the timezone guard:
+    curve mark times differ by up to twelve hours, so a same-calendar-day move is not a
     same-session move, and a move marked before a release cannot be attributed to it.
-    See "Mandatory pre-lock checks" above.
+    The curve-tenor check (`check_curve_tenors.py`) is the instrument guard: a tenor
+    whose spread to the 10Y never moves is the 10Y plus a constant, and quoting it
+    prints a number that describes nothing. See "Mandatory pre-lock checks" above.
 13. **Calendars are chronological.** Any calendar / event table — the day-ahead / week-ahead
     calendar and any within-block official-voice-vs-sell-side timeline (any table with a
     `Date` / `When` / `Time` column) — MUST be sorted ascending by date/time. Before locking,

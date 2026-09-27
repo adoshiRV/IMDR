@@ -13,10 +13,11 @@ with a deterministic PDF render URL.
 | | |
 |---|---|
 | Hostname | `research.sc.com` |
-| Sign-in URL | `https://research.sc.com/` |
+| Login URL | `https://research.sc.com/research/api/application/static/login` (2026-07-22 — see below; the old `research.sc.com/` sign-in URL 302s to an error page) |
+| Healthcheck URL | `https://research.sc.com/research/api/application/static/` |
 | Username | `.env: IMDR_RESEARCH_STANC_USERNAME` (`adoshi@rvcapital.com`) |
 | Password | `.env: IMDR_RESEARCH_STANC_PASSWORD` |
-| MFA | **none observed at first login 2026-06-03** — session cookies in persistent profile suffice |
+| MFA | **none observed** — session cookies in persistent profile suffice |
 | API hint from `.env` | `IMDR_RESEARCH_STANC_URL=https://research.sc.com/research/api/application/static/` (UI base, not the API listing) |
 
 ## Profile
@@ -25,8 +26,40 @@ with a deterministic PDF render URL.
 C:/IMDR_LOCAL/research_profiles/stanc/
 ```
 
-Fresh profile — no inherited Z:\…\playwrights\ Chrome profile observed.
-First interactive login required.
+### Auth findings (2026-07-22)
+
+The loginflow (`src/imdr/research/auth/loginflows/stanc.py`) was
+rewritten. **Prior bug:** it pointed at `research.sc.com/research/`
+(302s to an error page), never clicked "Already have a password?", and
+used best-guess username/password selectors that don't exist on the
+default form — so it never authenticated and the `newSearch` API
+returned a session error.
+
+The default login page
+(`research.sc.com/research/api/application/static/login`) is an
+**email activation-link** flow (submit email → SC emails a
+device-activation link). Behind an **"Already have a password?"** link
+is a password form — that's the path we use:
+
+1. Dismiss the cookie banner if present (`#accept-recommended-btn-handler`).
+2. Click the **"Already have a password?"** text link to switch off
+   the default activation-link form.
+3. Fill `#txtemail` + `#txtpwd`.
+4. Tick "Keep me logged in" — a visible `span.LoginPage-kmli` label is
+   itself the toggle (there is no adjacent standard checkbox input;
+   `#chkbox-id` on this page is an unrelated category filter).
+5. Click `#btnlogin`.
+
+No MFA. Mode remains `PROGRAMMATIC`; selectors verified via a live DOM
+probe 2026-07-22. `fetch_in_session=True` was **added** to the
+registry spec — the protected PDF-render endpoint
+(`/research/api/application/protected/rp/api/data/render/{id}`) is
+session-bound (a fresh context 302s to `/static/login`), so PDFs are
+now fetched in-session via `crawler_stanc.fetch_pdfs`
+(`ctx.request.get` returns `application/pdf`), the same posture as
+barclays and socgen. The earlier "selectors best-guess / MFA fallback"
+boilerplate elsewhere in this doc is now obsolete — see this section
+instead.
 
 ## Expected content focus
 

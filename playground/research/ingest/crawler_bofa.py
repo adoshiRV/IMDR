@@ -360,8 +360,11 @@ def _drop_reason(*, hub: str, series: str, title: str = "") -> str | None:
         # Actually safer: be strict on equity hubs since the user posture
         # is "no single-name equity". Drop unless explicit keep.
         return f"equity-hub-blanket:{hub}"
-    # 2. Series single-name regex.
-    if _is_corporate_name(series):
+    # 2. Series single-name regex. Recall-first (2026-07-17, Fold 2a):
+    # KEEP single-name issuer credit in credit hubs (that's now wanted) —
+    # only drop single-name corporates in NON-credit hubs (i.e. equity).
+    # See docs/admin/development/credit_bofa.md Fold 2a.
+    if _is_corporate_name(series) and not (hub or "").startswith("credit_"):
         return f"single-name-corporate:{series[:40]}"
     # 3. MBS data-table.
     if hub == "credit_securitized" and _is_mbs_datatable(series):

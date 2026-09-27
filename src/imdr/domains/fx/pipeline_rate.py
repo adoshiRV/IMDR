@@ -80,6 +80,7 @@ class FXRatePipeline(BasePipeline[pd.DataFrame, list[FXRateCreate], int]):
         self._client_secret = client_secret
         self._quota_tracker_path = quota_tracker_path
         self._raw_df: pd.DataFrame | None = None
+        self._frequency_id: int | None = None
         self._quality_results: list[dict[str, Any]] = []
         self._extraction_errors: list[dict] = []
         self._tag_errors: list[dict] = []
@@ -162,6 +163,7 @@ class FXRatePipeline(BasePipeline[pd.DataFrame, list[FXRateCreate], int]):
                 )
             vendor_id = vendor.id
             frequency_id = frequency.id
+            self._frequency_id = frequency_id
 
         if raw.empty:
             return []
@@ -296,15 +298,20 @@ class FXRatePipeline(BasePipeline[pd.DataFrame, list[FXRateCreate], int]):
         cleaning = self._config.cleaning
         reader = AnalyticalReader(self._connector)
         table = self._config.fully_qualified_table
+        # fx.fact_fx_rate mixes frequencies (DAILY/HOURLY/other) in the same
+        # (pair_id, tenor) partitions — scope every check to this run's
+        # frequency so a daily check never mixes in intraday rows and vice
+        # versa (docs/admin/development/prod_long_running_quality_query.md).
         where = (
             f"AND [{self._config.date_column}] >= '{self._start:%Y-%m-%d}' "
-            f"AND [{self._config.date_column}] <= '{self._end:%Y-%m-%d}'"
+            f"AND [{self._config.date_column}] <= '{self._end:%Y-%m-%d}' "
+            f"AND [frequency_id] = {self._frequency_id}"
         )
 
         # Per-pair hard-bound violations are handled by the cleaning pipeline
         # (HardBoundViolationRule with pair_id-keyed ranges). Live quality only
         # checks things that don't need the range map.
-        checks = [
+        checks: list[Any] = [
             PositiveValueCheck(columns=["mid_rate"], symbol_column="pair_id"),
             PercentageChangeCheck(
                 value_column="mid_rate",
@@ -313,15 +320,22 @@ class FXRatePipeline(BasePipeline[pd.DataFrame, list[FXRateCreate], int]):
                 threshold_pct=cleaning.pct_threshold,
                 min_abs_value=1e-6,
             ),
-            RobustStatisticalOutlierCheck(
-                value_column="mid_rate",
-                group_columns=["pair_id", "tenor"],
-                n_mad=cleaning.n_mad,
-                trailing_months=cleaning.trailing_months,
-                ts_column=self._config.date_column,
-                min_obs=cleaning.min_obs,
-            ),
         ]
+        # RobustStatisticalOutlierCheck is a heavier trailing-window pull —
+        # keep it once/day on the daily path, drop it from the 3-hourly
+        # fire (up to 9x/day) per the hot-path policy in the dev doc above.
+        if self._frequency.upper() == "DAILY":
+            checks.append(
+                RobustStatisticalOutlierCheck(
+                    value_column="mid_rate",
+                    group_columns=["pair_id", "tenor"],
+                    n_mad=cleaning.n_mad,
+                    trailing_months=cleaning.trailing_months,
+                    ts_column=self._config.date_column,
+                    min_obs=cleaning.min_obs,
+                    baseline_filter=f"AND [frequency_id] = {self._frequency_id}",
+                )
+            )
 
         for check in checks:
             try:

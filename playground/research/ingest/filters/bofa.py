@@ -83,26 +83,16 @@ def credit_hub_drop_reason(*, hub: str, series: str, title: str) -> str | None:
     if hub not in _CREDIT_HUBS:
         return None
 
-    series_lc = (series or "").lower()
-    title_lc = (title or "").lower()
-    blob = series_lc + " " + title_lc
-
-    # KEEP: credit-strategy / flagship series (Strategist, Situation Room, etc.)
-    if _CREDIT_STRATEGY_KEEP_RE.search(series or "") or _CREDIT_STRATEGY_KEEP_RE.search(title or ""):
-        return None
-
-    # KEEP: sovereign/EM-macro series or title fragments
-    if _SOVEREIGN_EM_KEEP_RE.search(series or "") or _SOVEREIGN_EM_KEEP_RE.search(title or ""):
-        return None
-
-    # KEEP: macro keywords in title (CPI, IPCA, election, etc.)
-    for kw in _MACRO_TITLE_KEYWORDS:
-        if kw in blob:
-            return None
-
-    # Everything else in a credit hub: DROP.
-    tag = (series or title or "unknown")[:30]
-    return f"credit-hub-nonmacro:{tag}"
+    # Recall-first (2026-07-17, Fold 2a): credit hubs are now KEEP-by-default.
+    # Single-name issuer credit AND sector credit are wanted (the PM corpus
+    # Z:\Business\Research\Credit is issuer/sector organised). The genuine
+    # drops still apply upstream — admin-series + MBS-datatable in
+    # crawler_bofa._drop_reason, and title noise in should_exclude below.
+    # The macro/sovereign/strategy allowlist regexes above
+    # (_CREDIT_STRATEGY_KEEP_RE, _SOVEREIGN_EM_KEEP_RE, _MACRO_TITLE_KEYWORDS)
+    # are retained for easy re-tightening. See
+    # docs/admin/development/credit_bofa.md Fold 2a.
+    return None
 
 
 # ---------------------------------------------------------------------------

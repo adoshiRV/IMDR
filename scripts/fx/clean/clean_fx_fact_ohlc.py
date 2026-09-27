@@ -187,7 +187,7 @@ def build_quality_checks(basis_threshold: float = 5.0) -> list:
         ),
         DistributionCheck(
             value_column="close_px", group_column="symbol",
-            series_filter="SPOT",
+            series_filter="SPOT", ts_column="ts",
         ),
     ]
 
@@ -259,7 +259,7 @@ def _print_freshness(reader: AnalyticalReader, table: str = TABLE) -> None:
 def _print_distribution(reader: AnalyticalReader, table: str = TABLE) -> None:
     """Run DistributionCheck and print summary."""
     check = DistributionCheck(
-        value_column="close_px", group_column="symbol", series_filter="SPOT",
+        value_column="close_px", group_column="symbol", series_filter="SPOT", ts_column="ts",
     )
     result = check.run(reader, table)
     if result.summary is not None and not result.summary.empty:

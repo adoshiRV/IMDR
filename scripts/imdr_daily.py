@@ -46,12 +46,25 @@ PIPELINES: list[dict] = [
     {"cmd": ["python", "-m", "scripts.rates.citi.rates_bench_citi_live"], "estimated_tags": 10},
     {"cmd": ["python", "-m", "scripts.rates.citi.rates_basis_swaps_citi_live"], "estimated_tags": 100},
     # Non-Citi vendor feeds (no tag quota).
-    {"cmd": ["python", "-m", "scripts.econ.id.bis.bis_indonesia"], "estimated_tags": 0},
-    {"cmd": ["python", "-m", "scripts.econ.id.bi.bi_srbi"], "estimated_tags": 0},
+    # Indonesia dual-track daily orchestrator (registered 2026-09-21).
+    # REPLACES the two individual entries that used to sit here —
+    # `scripts.econ.id.bis.bis_indonesia` and `scripts.econ.id.bi.bi_srbi` —
+    # both of which are in `id_daily.py:TRACK_A_PIPELINES`. Re-adding them
+    # alongside this entry would run Indonesia twice per day.
+    # Track A: BIS policy rate + NEER/REER/DSR, SRBI auction yields.
+    # Track B: BI/BPS/DJPPR/OJK filings -> research.dim_report + Qdrant +
+    #          SharePoint. Kemenkeu is an expected ok=False every run.
+    {"cmd": ["python", "-m", "scripts.econ.id.id_daily"], "estimated_tags": 0},
     # BOK Base Rate (BIS WS_CBPOL D.KR) — daily 24h-latency path for the KR
     # policy rate; kr_monthly.py carries the monthly backstop. MERGE-on-PK
     # makes daily re-runs free. See docs/admin/econ/econ_to_prod.md §G.3.
     {"cmd": ["python", "-m", "scripts.econ.kr.bis.bis_korea"], "estimated_tags": 0},
+    # Bloomberg BQL economic-calendar refresh (calendar.cb_events vendor lane 4).
+    # Reads the STIRT BQL SQLite; idempotent MERGE keeps actuals/revisions filling
+    # in around releases. The TE lane (73) is refreshed separately by the
+    # te_release_alert task; this is the BQL lane's scheduled home. Bind via
+    # sys.executable — needs the imdr env + the Z: STIRT share.
+    {"cmd": [sys.executable, "-m", "scripts.calendar.bql_calendar_refresh"], "estimated_tags": 0},
     # Per-country daily orchestrators — own their email summary. Add
     # countries here as their {country}_daily.py is built. Use
     # ``sys.executable`` to bind the subprocess to the same Python env

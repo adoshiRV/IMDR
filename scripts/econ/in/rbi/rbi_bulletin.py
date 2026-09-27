@@ -50,8 +50,29 @@ DL_DIR  = _REPO_ROOT / "data" / "econ" / "in" / "rbi" / "_downloads"
 
 BULLETIN_LANDING = "https://www.rbi.org.in/Scripts/BS_ViewBulletin.aspx"
 
-# Filename prefix is "<num>T_BULL..." e.g. 34T_BULL..., 19CT_BULL...
-_TABLE_NUM_RE = re.compile(r"/(\d+[A-Z]?)T_BULL", re.IGNORECASE)
+# Filename prefix is "<num>T_<token?><8-digit date>..." e.g.
+# 34T_22062026B02C9279....XLSX or 1T_BUL25082026....XLSX.
+#
+# RBI HAS NOW CHANGED THIS TOKEN THREE TIMES, and each change silently
+# zeroed the fetcher:
+#   pre Jul-2026   "34T_BULL22062026..."   literal "BULL"
+#   Jul-2026       "34T_22062026..."       token dropped entirely
+#   Aug-2026       "1T_BUL25082026..."     token back, but THREE letters
+#
+# Each time the failure is invisible: `_scrape_xlsx_links` returns an empty
+# {table_num: url} map, every PRIORITY_TARGETS lookup misses, and the whole
+# Bulletin fetcher reports 0 indicators / 0 observations with rc=0 while the
+# tables sit plainly downloadable on the page.
+#
+# The Aug-2026 break was found on 2026-09-15 by comparing on-disk output
+# across India fetchers: every other fetcher produced parquet that day, while
+# `data/econ/in/rbi/bulletin/` stopped at 2026-08-25 -- the date of the August
+# bulletin, i.e. the first issue carrying "BUL". FIVE consecutive scheduled
+# runs were lost over three weeks and nothing alerted.
+#
+# So: match ANY alphabetic token (or none) rather than enumerate the ones
+# seen so far. A fourth spelling should not cost another three-week outage.
+_TABLE_NUM_RE = re.compile(r"/(\d+[A-Z]?)T_[A-Z]*\d", re.IGNORECASE)
 _XLSX_HREF_RE = re.compile(r"rdocs/Bulletin/DOCs/.+\.XLSX", re.IGNORECASE)
 
 # ---------------------------------------------------------------------------
@@ -260,6 +281,37 @@ PRIORITY_TARGETS: list[dict] = [
         "description": "RBI Bulletin T26 — Auctions of Treasury Bills (INR Crore)",
         "parser": "parse_tbill_auctions_26",
     },
+    # --- NEW (added 2026-07-14) ---
+    # NOTE: the user's original ask named this "Table No. 39". As of the
+    # Jul-2026 issue the Bulletin's table numbering has shifted -- T39 is now
+    # split into 39a/39b ("Invoicing/Settlement in INR of Exports/Imports"),
+    # unrelated content. "Sale/Purchase of the U.S. Dollar by the RBI" +
+    # the outstanding-forward-book total live at **Table No. 4**; the tenor
+    # (residual-maturity) breakdown of that forward book is a SEPARATE
+    # sub-table, **No. 4A**, confirmed via live discovery. Both are additive
+    # here since neither is covered by any existing target.
+    {
+        "name": "fx_intervention_4",
+        "table_num": "4",
+        "imdr_prefix": "INDIA.RBI_BULLETIN.FX_INTERVENTION",
+        "category": "fx", "frequency": "MONTHLY",
+        "description": (
+            "RBI Bulletin T4 — Sale/Purchase of U.S. Dollar by the RBI "
+            "(onshore/offshore OTC segment, USD Million)"
+        ),
+        "parser": "parse_fx_intervention_4",
+    },
+    {
+        "name": "forward_book_tenor_4a",
+        "table_num": "4A",
+        "imdr_prefix": "INDIA.RBI_BULLETIN.FORWARD_BOOK",
+        "category": "fx", "frequency": "MONTHLY",
+        "description": (
+            "RBI Bulletin T4A — Maturity Breakdown (Residual Maturity) of "
+            "RBI's Outstanding Forwards (USD Million)"
+        ),
+        "parser": "parse_forward_book_tenor_4a",
+    },
 ]
 
 
@@ -267,12 +319,14 @@ PRIORITY_TARGETS: list[dict] = [
 # URL auto-discovery (replaces hard-coded per-month hash URLs)
 # ---------------------------------------------------------------------------
 
-def _scrape_xlsx_links(page) -> dict[str, str]:
-    """Scrape the bulletin index page and return {table_num: url} for all XLSX links."""
-    anchors = page.eval_on_selector_all(
-        "a",
-        "els => els.map(a => ({href: a.href, text: (a.textContent||'').trim()}))",
-    )
+def _map_anchors_to_tables(anchors: list[dict]) -> dict[str, str]:
+    """Map scraped anchors [{href, text}, ...] → {table_num: url} for bulletin XLSX links.
+
+    Pure/offline (no Playwright) so the URL-matching regexes are unit-testable.
+    A stale regex — e.g. RBI dropping the 'BULL' filename token (July 2026) — must
+    fail a test here rather than silently returning {} in prod (which drops the
+    entire bulletin: every PRIORITY_TARGETS lookup misses → 0 observations loaded).
+    """
     result: dict[str, str] = {}
     seen: set[str] = set()
     for a in anchors:
@@ -287,6 +341,15 @@ def _scrape_xlsx_links(page) -> dict[str, str]:
             num = m.group(1).upper()
             result[num] = href
     return result
+
+
+def _scrape_xlsx_links(page) -> dict[str, str]:
+    """Scrape the bulletin index page and return {table_num: url} for all XLSX links."""
+    anchors = page.eval_on_selector_all(
+        "a",
+        "els => els.map(a => ({href: a.href, text: (a.textContent||'').trim()}))",
+    )
+    return _map_anchors_to_tables(anchors)
 
 
 def _discover_urls(page, wanted_nums: list[str]) -> dict[str, str]:
@@ -328,55 +391,72 @@ def _discover_urls(page, wanted_nums: list[str]) -> dict[str, str]:
 # ---------------------------------------------------------------------------
 
 def _download_via_headed(targets: list[dict], *, headless: bool = False) -> list[Path]:
+    """Resolve this month's URLs in-browser, then download each table.
+
+    Uses the shared primitives in `imdr.domains.econ.rbi_tspd` rather than
+    its own `launch_persistent_context`. That is not tidiness -- the old
+    inline version reused `PROFILE` across runs, and a reused profile makes
+    Chrome tear itself down on the FIRST download with `TargetClosedError`,
+    after which all 23 remaining tables time out at 60 s each. Confirmed
+    live on this fetcher 2026-09-15: discovery resolved 24/24 URLs and then
+    `[1/24] cpi_combined FAIL: TargetClosedError` killed the run.
+    `fresh_profile` + the relaunch below are the fix.
+
+    Downloads are NOT routed through `rbi_tspd.download_all`, deliberately:
+    that helper skips a label whose file already exists, and these files are
+    named per TABLE not per month (`cpi_combined.xlsx`), so caching would
+    serve last month's bulletin forever.
+    """
     from playwright.sync_api import sync_playwright
 
-    PROFILE.mkdir(parents=True, exist_ok=True)
+    from imdr.domains.econ.rbi_tspd import (
+        download_xlsx,
+        fresh_profile,
+        is_context_dead,
+        launch_download_context,
+    )
+
     DL_DIR.mkdir(parents=True, exist_ok=True)
     saved: list[Path] = []
     print(f"  launching {'HEADLESS (will fail)' if headless else 'headed'} Chrome")
     with sync_playwright() as pw:
-        ctx = pw.chromium.launch_persistent_context(
-            user_data_dir=str(PROFILE),
-            channel="chrome", headless=headless,
-            accept_downloads=True,
-            viewport={"width": 1280, "height": 900},
-        )
-        page = ctx.pages[0] if ctx.pages else ctx.new_page()
+        ctx = launch_download_context(pw, fresh_profile(PROFILE), headless=headless)
+        try:
+            page = ctx.pages[0] if ctx.pages else ctx.new_page()
 
-        # --- discover current URLs for all wanted table numbers ---
-        wanted_nums = [t["table_num"].upper() for t in targets]
-        url_map = _discover_urls(page, wanted_nums)
+            # --- discover current URLs for all wanted table numbers ---
+            wanted_nums = [t["table_num"].upper() for t in targets]
+            url_map = _discover_urls(page, wanted_nums)
 
-        for i, t in enumerate(targets, 1):
-            num = t["table_num"].upper()
-            url = url_map.get(num)
-            if not url:
-                print(f"  [{i}/{len(targets)}] {t['name']} (T{num}) — URL not found in index, skip")
-                continue
-            outpath = DL_DIR / f"{t['name']}.xlsx"
-            print(f"  [{i}/{len(targets)}] {t['name']} (T{num})")
-            try:
-                with page.expect_download(timeout=60000) as dl_info:
+            for i, t in enumerate(targets, 1):
+                num = t["table_num"].upper()
+                url = url_map.get(num)
+                if not url:
+                    print(f"  [{i}/{len(targets)}] {t['name']} (T{num}) — URL not found in index, skip")
+                    continue
+                outpath = DL_DIR / f"{t['name']}.xlsx"
+                print(f"  [{i}/{len(targets)}] {t['name']} (T{num})")
+                got = download_xlsx(page, url, outpath)
+                if got is None and is_context_dead(ctx):
+                    # One dead browser must not fail the remaining tables on
+                    # a 60 s timeout each.
+                    print("    browser died — relaunching")
                     try:
-                        page.goto(url, timeout=30000)
+                        ctx.close()
                     except Exception:
-                        pass  # download triggers a Page.goto error we swallow
-                download = dl_info.value
-                download.save_as(str(outpath))
-                head = outpath.read_bytes()[:4]
-                if head.startswith(b"PK\x03\x04"):
-                    size = outpath.stat().st_size
-                    print(f"    OK  {size:,}B (XLSX)")
-                    saved.append(outpath)
-                elif head.startswith(b"<!DO") or head.startswith(b"<htm"):
-                    print(f"    BLOCKED: TSPD challenge")
-                    outpath.unlink(missing_ok=True)
-                else:
-                    print(f"    UNKNOWN format head={head!r}")
-            except Exception as e:
-                print(f"    FAIL: {type(e).__name__}: {str(e)[:100]}")
-            time.sleep(2)
-        ctx.close()
+                        pass
+                    ctx = launch_download_context(
+                        pw, fresh_profile(PROFILE), headless=headless)
+                    page = ctx.pages[0] if ctx.pages else ctx.new_page()
+                    got = download_xlsx(page, url, outpath)
+                if got is not None:
+                    saved.append(got)
+                time.sleep(2)
+        finally:
+            try:
+                ctx.close()
+            except Exception:
+                pass
     return saved
 
 
@@ -1752,6 +1832,340 @@ def parse_tbill_auctions_26(
     return indicators, observations
 
 
+def _fy_end_col_periods(
+    rows: list[list[str]], header_row_idx: int,
+    data_first_col: int, n_header_rows: int,
+) -> tuple[dict[int, datetime.date], dict[int, bool]]:
+    """Column-period resolver for T4-style headers where the FY/year token
+    and the month token sit on DIFFERENT header rows (year on the row
+    immediately under "Item", month on the row below that) and a year seen
+    in one column must carry forward to later columns that only carry a
+    month token (e.g. col "2026" + "Feb." then the next col has no year
+    cell at all, just "Mar." -- reuses the running year).
+
+    FY labels ("2024-25") resolve to FY-END (31 March of the end year), not
+    FY-start -- confirmed against T4 live data: the "2024-25" column's Net
+    Purchase/Sale value is identical to the "Mar. 2025" column's cumulative
+    value, i.e. both describe the same period-end.
+
+    Mirrors the column-period logic parse_nri_deposits_34 built inline for
+    T34's similar year-then-month split-row layout; kept as its own
+    resolver rather than forcing it through `_col_periods_from_header_block`,
+    whose `carry_year_across_cols` variant tracks the running year PER HEADER
+    ROW (works when a row's own year token repeats down that row) not
+    PER COLUMN across rows (what T4 needs).
+
+    Returns (col_period, col_is_fy): `col_is_fy[j]` is True for columns
+    resolved via the FY-label branch -- callers need this to tell an annual
+    cumulative column apart from a single-month column (they must NOT be
+    mixed into one "MONTHLY" flow series; see parse_fx_intervention_4).
+    """
+    hdr = [
+        rows[header_row_idx + k] if header_row_idx + k < len(rows) else []
+        for k in range(n_header_rows)
+    ]
+    max_cols = max((len(r) for r in hdr), default=0)
+
+    col_best_year: dict[int, str] = {}
+    running_year: str | None = None
+    for j in range(data_first_col, max_cols):
+        for r in hdr:
+            cell = (r[j] if j < len(r) else "").strip()
+            if re.match(r"^\d{4}$", cell):
+                running_year = cell
+        if running_year:
+            col_best_year[j] = running_year
+
+    col_period: dict[int, datetime.date] = {}
+    col_is_fy: dict[int, bool] = {}
+    for j in range(data_first_col, max_cols):
+        last_dt: datetime.date | None = None
+        is_fy = False
+        for r in hdr:
+            cell = (r[j] if j < len(r) else "").strip()
+            if not cell:
+                continue
+            fy_m = re.match(r"^(\d{4})-(\d{2,4})$", cell)
+            if fy_m:
+                year2 = fy_m.group(2)
+                full_year = int(fy_m.group(1)) + 1 if len(year2) == 2 else int(year2)
+                last_dt = datetime.date(full_year, 3, 31)
+                is_fy = True
+                continue
+            if re.match(r"^\d{4}$", cell):
+                continue  # plain year token -- already captured in col_best_year
+            yr = col_best_year.get(j)
+            if yr:
+                t = re.sub(r"\s*\([PR]\)\s*$", "", cell).strip().rstrip(".").strip()
+                for fmt in ("%b %d %Y", "%b. %d %Y", "%b %Y", "%b. %Y"):
+                    try:
+                        last_dt = datetime.datetime.strptime(f"{t} {yr}", fmt).date()
+                        is_fy = False
+                        break
+                    except ValueError:
+                        continue
+        if last_dt is not None:
+            col_period[j] = last_dt
+            col_is_fy[j] = is_fy
+    return col_period, col_is_fy
+
+
+# Shared with forward_book_tenor_4a's own imdr_prefix (its PRIORITY_TARGETS
+# entry). parse_fx_intervention_4 needs it too, even though its own target's
+# topic is FX_INTERVENTION, because T4's "Outstanding Net Forward..." row is
+# the same underlying series as T4A's "Total" row -- see that parser's
+# docstring below.
+_FORWARD_BOOK_PREFIX = "INDIA.RBI_BULLETIN.FORWARD_BOOK"
+
+
+def parse_fx_intervention_4(
+    rows: list[list[str]], target: dict, now: datetime.datetime,
+) -> tuple[list[IndicatorRow], list[ObservationRow]]:
+    """T4 — Sale/Purchase of U.S. Dollar by the RBI, OTC segment (block i).
+
+    Layout (Jul-2026):
+      R1: "i) Operations in onshore / offshore OTC segment"
+      R2: | Item | 2024-25 | 2025      | 2026
+      R3: |      |         | Mar.      | Feb. | Mar.
+      R4: |      | 1       | 2         | 3    | 4
+      R5: 1. Net Purchase/Sale of FC (1.1-1.2)
+      R6: 1.1 Purchase (+)
+      R7: 1.2 Sale (-)
+      R8: 2. Rupee equivalent at contract rate       -- not extracted (not asked)
+      R9: 3. Cumulative (over end-March) (US$ Mn)     -- not extracted (not asked)
+      R10: (Rupee-equivalent continuation of R9)       -- not extracted
+      R11: 4. Outstanding Net Forward Sales(-)/Purchase(+) at end of month
+      R12: "ii) Operations in currency futures segment" -- STOP (out of scope)
+
+    Only the OTC spot/forward block is extracted; the currency-futures
+    block (ii) is a distinct, smaller instrument not requested here.
+
+    Emits INDIA.RBI_BULLETIN.FX_INTERVENTION.{PURCHASE|SALE|NET}.IN and
+    INDIA.RBI_BULLETIN.FORWARD_BOOK.NET_OUTSTANDING.IN (this last code is
+    shared with parse_forward_book_tenor_4a's Total row -- same underlying
+    series, two different tables/cadences; run_fetch's final PK dedup
+    handles any coincidental date collision).
+
+    Two data-model rules, both confirmed against live-loaded DB rows
+    (2026-07-14 code review):
+
+    - FX_INTERVENTION.{PURCHASE,SALE,NET} is declared MONTHLY. The FY column
+      (e.g. "2024-25") is an ANNUAL CUMULATIVE flow, not a single month's
+      flow -- mixing it into the same series as the monthly columns lets a
+      naive SUM/AVG double-count (e.g. FY total 142245 alongside its own
+      constituent months). Dropped entirely via `col_is_fy` (annual figures
+      are derivable elsewhere; not worth a second FY_CUM series here).
+    - FORWARD_BOOK.NET_OUTSTANDING is a STOCK/snapshot measure, not a flow --
+      the FY column and the "Mar." column both describe the exact same
+      period-end balance (same value in the raw XLSX), so both columns'
+      obs_date is normalised to month-start (`.replace(day=1)`) exactly like
+      parse_nri_deposits_34 does for its OUTSTANDING measure. Without this,
+      T4A's "As on <day>" snapshot (day=30) and T4's own month column
+      (day=1) for the same calendar month never collide on the fact PK and
+      both land as separate near-duplicate rows.
+    """
+    fx_base = target["imdr_prefix"]
+    # FORWARD_BOOK is a separate topic (own PRIORITY_TARGETS entry, own
+    # imdr_prefix) but T4's row 4 ("Outstanding Net Forward Sales(-)/
+    # Purchase(+)") is the SAME underlying series as parse_forward_book_
+    # tenor_4a's "Total" row -- both write INDIA.RBI_BULLETIN.FORWARD_BOOK.
+    # NET_OUTSTANDING.IN so the two tables' snapshots of the same month
+    # collide on the fact PK instead of landing as near-duplicate rows.
+    fb_base = _FORWARD_BOOK_PREFIX
+
+    header_row_idx = None
+    for i, r in enumerate(rows):
+        if len(r) >= 2 and (r[1] or "").strip() == "Item":
+            header_row_idx = i
+            break
+    if header_row_idx is None:
+        return [], []
+
+    col_period, col_is_fy = _fy_end_col_periods(rows, header_row_idx, data_first_col=2, n_header_rows=3)
+    if not col_period:
+        return [], []
+
+    indicators: list[IndicatorRow] = []
+    observations: list[ObservationRow] = []
+    seen_codes: set[str] = set()
+
+    def _register(code: str, desc_suffix: str) -> None:
+        if code in seen_codes:
+            return
+        seen_codes.add(code)
+        indicators.append(IndicatorRow(
+            imdr_code=code, vendor_name="RBI",
+            source_code=f"bulletin/{target['name']}/{code.rsplit('.', 2)[-2].lower()}",
+            display_name=f"{target['description']} — {desc_suffix}"[:255],
+            unit="usd_mn", frequency="MONTHLY", country_iso="IN",
+            category=target["category"], is_seasonally_adjusted=False,
+            bbg_ticker=None,
+        ))
+
+    for r in rows[header_row_idx + 1:]:
+        if not r or len(r) < 2:
+            continue
+        label = (r[1] or "").replace("\xa0", " ").strip()
+        if not label:
+            continue
+        if label.lower().startswith("ii)"):
+            break  # currency-futures block -- out of scope (checked before
+            # the data-column-count skip below, else this short row is
+            # silently swallowed and block ii's rows leak through as if
+            # they belonged to block i)
+        if len(r) < 3:
+            continue
+
+        code: str | None = None
+        is_stock = False  # True for NET_OUTSTANDING -- a snapshot, not a flow
+        if label.startswith("1.1 Purchase"):
+            code = f"{fx_base}.PURCHASE.IN"
+            _register(code, "Purchase")
+        elif label.startswith("1.2 Sale"):
+            code = f"{fx_base}.SALE.IN"
+            _register(code, "Sale")
+        elif re.match(r"^1\.\s*Net Purchase", label):
+            code = f"{fx_base}.NET.IN"
+            _register(code, "Net")
+        elif label.startswith("4."):
+            code = f"{fb_base}.NET_OUTSTANDING.IN"
+            is_stock = True
+            _register(code, "Outstanding Net Forward Position (end of month)")
+        if code is None:
+            continue
+
+        for ci, period in col_period.items():
+            if not is_stock and col_is_fy.get(ci):
+                continue  # FY-cumulative column -- not a monthly flow, drop
+            if ci >= len(r):
+                continue
+            cell = (r[ci] if isinstance(r[ci], str) else str(r[ci])).replace(",", "").strip()
+            if not re.match(r"^-?\d+(\.\d+)?$", cell):
+                continue
+            obs_date = period.replace(day=1) if is_stock else period
+            observations.append(ObservationRow(
+                imdr_code=code, obs_date=obs_date, vintage=0,
+                release_date=now, value=float(cell), ingested_at=now,
+            ))
+    return indicators, observations
+
+
+_TENOR_BUCKET_MAP: tuple[tuple[str, str], ...] = (
+    ("upto 1 month", "UPTO_1M"),
+    ("more than 1 month and upto 3 months", "1_3M"),
+    ("more than 3 months and upto 1 year", "3M_1Y"),
+    ("more than 1 year", "OVER_1Y"),
+)
+
+
+def parse_forward_book_tenor_4a(
+    rows: list[list[str]], target: dict, now: datetime.datetime,
+) -> tuple[list[IndicatorRow], list[ObservationRow]]:
+    """T4A — Maturity Breakdown (Residual Maturity) of RBI Outstanding Forwards.
+
+    Layout (Jul-2026):
+      R1: | Item | As on April 30, 2026
+      R2: |      | Long (+) | Short (-) | Net (1-2)
+      R3: |      | 1        | 2         | 3
+      R4: 1. Upto 1 month
+      R5: 2. More than 1 month and upto 3 months
+      R6: 3. More than 3 months and upto 1 year
+      R7: 4. More than 1 year
+      R8: Total (1+2+3+4)
+
+    Single as-of-date SNAPSHOT (no time series inside this table -- history
+    is built by the monthly append). Only the Net column is extracted (the
+    signed net long(+)/short(-) figure the desk actually tracks); Long/Short
+    gross columns are not requested.
+
+    "Total" row reuses INDIA.RBI_BULLETIN.FORWARD_BOOK.NET_OUTSTANDING.IN --
+    same code as T4's row 4, different table/cadence. Its obs_date is
+    normalised to month-start (`.replace(day=1)`) so it collides with T4's
+    own NET_OUTSTANDING column for the same month instead of landing as a
+    separate near-duplicate row keyed on the literal "as on" day (see
+    parse_fx_intervention_4's docstring for the full rationale). The tenor
+    buckets (UPTO_1M/1_3M/3M_1Y/OVER_1Y) have no T4 counterpart to collide
+    with, so they keep the exact "as on" date.
+    """
+    fb_base = target["imdr_prefix"]
+
+    as_on_row_idx = None
+    for i, r in enumerate(rows):
+        if len(r) >= 3 and (r[1] or "").strip() == "Item":
+            as_on_row_idx = i
+            break
+    if as_on_row_idx is None:
+        return [], []
+
+    as_on_cell = (rows[as_on_row_idx][2] or "").strip()
+    m = re.match(r"^As on\s+(.+)$", as_on_cell, re.IGNORECASE)
+    obs_date = _parse_date(m.group(1)) if m else None
+    if obs_date is None:
+        return [], []
+
+    # Resolve the Net column dynamically from the Long(+)/Short(-)/Net
+    # sub-header (mirrors parse_bop's col_kind dict) instead of a hard-coded
+    # index -- a column reorder now fails loudly (empty result) rather than
+    # silently reading the wrong column.
+    sub_header = rows[as_on_row_idx + 1] if as_on_row_idx + 1 < len(rows) else []
+    NET_COL: int | None = None
+    for ci, v in enumerate(sub_header):
+        if (v or "").strip().lower().startswith("net"):
+            NET_COL = ci
+            break
+    if NET_COL is None:
+        return [], []
+
+    indicators: list[IndicatorRow] = []
+    observations: list[ObservationRow] = []
+    seen_codes: set[str] = set()
+
+    def _register(code: str, desc_suffix: str) -> None:
+        if code in seen_codes:
+            return
+        seen_codes.add(code)
+        indicators.append(IndicatorRow(
+            imdr_code=code, vendor_name="RBI",
+            source_code=f"bulletin/{target['name']}/{code.rsplit('.', 2)[-2].lower()}",
+            display_name=f"{target['description']} — {desc_suffix}"[:255],
+            unit="usd_mn", frequency="MONTHLY", country_iso="IN",
+            category=target["category"], is_seasonally_adjusted=False,
+            bbg_ticker=None,
+        ))
+
+    for r in rows[as_on_row_idx + 1:]:
+        if not r or len(r) < NET_COL + 1:
+            continue
+        label = (r[1] or "").replace("\xa0", " ").strip()
+        if not label:
+            continue
+        low = re.sub(r"^[\d.\s]+", "", label).lower().strip()
+
+        code: str | None = None
+        desc: str | None = None
+        is_total = low.startswith("total")
+        if is_total:
+            code, desc = f"{fb_base}.NET_OUTSTANDING.IN", "Outstanding Net Forward Position (total)"
+        else:
+            for key, slug in _TENOR_BUCKET_MAP:
+                if key in low:
+                    code, desc = f"{fb_base}.{slug}.IN", f"Outstanding Net Forward Position ({key})"
+                    break
+        if code is None:
+            continue
+        _register(code, desc)
+
+        cell = (r[NET_COL] if isinstance(r[NET_COL], str) else str(r[NET_COL])).replace(",", "").strip()
+        if not re.match(r"^-?\d+(\.\d+)?$", cell):
+            continue
+        row_obs_date = obs_date.replace(day=1) if is_total else obs_date
+        observations.append(ObservationRow(
+            imdr_code=code, obs_date=row_obs_date, vintage=0,
+            release_date=now, value=float(cell), ingested_at=now,
+        ))
+    return indicators, observations
+
+
 # ---------------------------------------------------------------------------
 # Parser registry
 # ---------------------------------------------------------------------------
@@ -1767,6 +2181,8 @@ _PARSERS = {
     "parse_date_rows": parse_date_rows,
     "parse_iip_assets_liab": parse_iip_assets_liab,
     "parse_tbill_auctions_26": parse_tbill_auctions_26,
+    "parse_fx_intervention_4": parse_fx_intervention_4,
+    "parse_forward_book_tenor_4a": parse_forward_book_tenor_4a,
 }
 
 

@@ -72,6 +72,7 @@ PIPELINES: list[list[str]] = [
     [sys.executable, "-m", "scripts.econ.au.abs.abs_bop_goods"],
     [sys.executable, "-m", "scripts.econ.au.abs.abs_trade_prices"],
     [sys.executable, "-m", "scripts.econ.au.abs.abs_job_vacancies"],
+    [sys.executable, "-m", "scripts.econ.au.abs.abs_lf_industry"],
     [sys.executable, "-m", "scripts.econ.au.abs.abs_iip"],
     # Derived ToT (reads from econ.fact_indicator — runs after trade_prices)
     [sys.executable, "-m", "scripts.econ.au.abs.abs_tot"],

@@ -226,6 +226,21 @@ Source: BIS SDMX-JSON `WS_CBPOL D.KR` (same BIS CBPOL dataflow used for Indonesi
 |---|:---:|:---:|---|
 | `BIS.POLICY_RATE.KR` | 1435 | D | **Korea central bank policy rate — BOK Base Rate (BIS CBPOL, %).** 6,757 obs, 1999-05-06 → present, latest 2.5%. Cell 4.4 Policy Reaction. Mirrors `BIS.POLICY_RATE.ID` (id 600) and `BIS.POLICY_RATE.IN` (id 900). |
 
+### 5.4 KOFIA freeSIS — money-market + fund AUM (vendor `kofia`, daily, PROD-LIVE 2026-07-20)
+
+**Production fetchers** (all under `scripts/econ/kr/kofia/`, wired into `scripts/econ/kr/kr_daily.py` Track A; transport `src/imdr/domains/econ/kofia_http.py`; migrations 115 + 116). 25 active indicators / ~114.3k obs. What KOSIS/ECOS don't carry: CD *traded volume*, *daily* CD yield, MMF flows/levels, fund AUM by asset class. Tracker: [`../../development/kr_kofia_onboarding.md`](../../development/kr_kofia_onboarding.md).
+
+| Fetcher | `imdr_code` family | Freq | Why important |
+|---|---|:---:|---|
+| `kofia_cd_trading` | `KOFIA.CD.TRADE_{TOTAL,SELL,BUY}.KR` | D | CD secondary-market turnover (krw_bn), 2003→ — money-market activity/liquidity. |
+| `kofia_cd_yield` | `KOFIA.CD.YIELD{,.SPECIAL_BANK}.KR` | D | *Daily* CD 91d representative yield (%), 2009→ — the KRW benchmark that prices IRS/FRNs (vs the monthly `BOK.BANK_RATE.CD_91D.KR`). |
+| `kofia_mmf_flows` | `KOFIA.MMF.{INFLOW,OUTFLOW,NET_FLOW}.KR` | D | MMF subscriptions/redemptions/net (krw_bn), 2006→ — money-market cash demand. |
+| `kofia_mmf_level` | `KOFIA.MMF.NAV{,.INDIV,.CORP}.KR` | D | MMF net assets total/retail/institutional (krw_bn), 2010→ — 법인 swings lead money-market stress. |
+| `kofia_fund_aum` | `KOFIA.FUND_AUM.{EQUITY,BOND,MMF,HYBRID_EQUITY,HYBRID_BOND,DERIVATIVES,REAL_ESTATE,FOF,SPECIAL_ASSET,MIXED_ASSET,COMMODITY,CONTRACT,GROWTH,TOTAL}.KR` (14) | D | Asset-mgmt fund AUM by asset class, 설정원본 (krw_bn), 2004→ — 13 types sum to TOTAL. Cell 4.2. |
+
+*Deactivated:* `KOFIA.MMF.SETUP_PRINCIPAL.KR` (migration 116) — superseded by daily `KOFIA.FUND_AUM.MMF.KR`.
+*Dormant (needs `IMDR_KSD_API_KEY`):* `KSD.CD.*` — CD who-traded (data.go.kr #15043446) + issuance (#15059591); scaffolds at `scripts/econ/kr/ksd/`.
+
 ### 5.6 Monetary Aggregates (BOK monthly, 2003-10 → 2026-03, KRW bn, SA)
 
 | `imdr_code` | Freq | Why important |

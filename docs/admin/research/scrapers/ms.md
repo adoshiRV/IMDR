@@ -83,6 +83,17 @@ First-run setup is interactive: login → click "send verification email"
 window's address bar**. That authenticates the persistent session;
 subsequent runs are silent until the cookies expire.
 
+### Auth recovery (2026-07-22)
+
+Recovered without re-running the email-verification-link flow above —
+its still-live Z-drive profile (`Z:\…\playwrights\...`) was simply
+copied to `C:\IMDR_LOCAL\research_profiles\ms\` (the local-disk root,
+per the 2026-07-21 SMB→local migration). `headless=True` works fine
+for ms. Post-recovery, `discover()` found 201 reports and a PDF fetch
+was verified end-to-end (part of the `validate --vendor all`
+12/13-PASS run, see [`docs/admin/research/auth.md`](../auth.md)). Mode
+remains `PROFILE_ONLY`; no registry/loginflow changes.
+
 ## URL chain
 
 ### Step 1 — listing

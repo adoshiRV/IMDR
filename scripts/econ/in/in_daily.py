@@ -3,8 +3,9 @@
 Runs every fetcher / sub-orchestrator that produces IN data at daily cadence:
 
   Track A — daily + weekly data series:
-    - scripts.econ.in.imd.imd_rainfall       (IMD All-India rainfall, Jun–Sep monsoon window;
-                                              MERGE on PK so off-season runs are harmless)
+    - scripts.econ.in.imd.imd_rainfall       (IMD All-India cumulative-from-1-Jun rainfall;
+                                              publishes only inside the monsoon window
+                                              (1 Jun → ~31 Oct), off-season runs skip cleanly)
     - scripts.econ.in.ogd.ogd_food_nowcast   (OGD Agmarknet FOCUS commodities; trailing-10-day
                                               window → weekly national medians; P1 nowcast)
 

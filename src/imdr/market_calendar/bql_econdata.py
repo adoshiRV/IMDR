@@ -50,6 +50,7 @@ import sqlite3
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import structlog
 from sqlalchemy import text
@@ -65,6 +66,13 @@ DEFAULT_DB = Path(r"Z:/Business/Research/Dashboard/STIRT/db/BQL.EconData.DB")
 
 VENDOR_CODE = "BBG"
 BQL_SOURCE = "bloomberg_bql"
+
+# BQL `time` is rendered in a fixed desk timezone, not per-country local time.
+# Confirmed empirically (2026-07-23) by cross-referencing 5 released events
+# spanning JP/KR/US/UK/EU against the TE lane's true-UTC event_datetime for
+# the same release — all five differ by exactly +8h. SG has no DST, so this
+# is a constant offset, not a rule that needs updating twice a year.
+_BQL_TZ = ZoneInfo("Asia/Singapore")
 
 # Daily incremental window. The full history is backfilled once (`--all`);
 # day-to-day the only rows that change are actuals/revisions filling in around
@@ -148,12 +156,15 @@ def _relevance(relevancy: str | None, tier: str | None, tier_rank) -> float | No
 
 
 def _parse_datetime(date_str: str | None, time_str: str | None) -> datetime | None:
-    """Combine BQL `date` + `time` into a UTC-stamped datetime.
+    """Combine BQL `date` + `time` into a true-UTC-instant datetime.
 
-    BQL times are Bloomberg-rendered local time; we stamp UTC to match the
-    te_scraper convention so the `event_datetime` column stays homogeneous.
-    The value drives only the forward-event guard, where sub-day timezone
-    skew is immaterial.
+    BQL's `time` is Bloomberg-rendered Asia/Singapore desk time (fixed +8,
+    confirmed empirically — see `_BQL_TZ`), NOT per-country local time and
+    NOT UTC. We localize the naive (date, time) as SGT, then convert to the
+    real UTC instant, so this drives the forward-event guard correctly (an
+    Asian-morning release already out can otherwise land on the wrong side
+    of "now" and get its actual wrongly stripped). `event_date` is left
+    untouched by callers — it stays the source SGT calendar day.
     """
     if not date_str:
         return None
@@ -168,8 +179,9 @@ def _parse_datetime(date_str: str | None, time_str: str | None) -> datetime | No
             t = datetime.strptime(t_raw, fmt).time()
         except ValueError:
             continue
-        return datetime(d.year, d.month, d.day, t.hour, t.minute, t.second,
-                        tzinfo=timezone.utc)
+        local = datetime(d.year, d.month, d.day, t.hour, t.minute, t.second,
+                          tzinfo=_BQL_TZ)
+        return local.astimezone(timezone.utc)
     return None
 
 

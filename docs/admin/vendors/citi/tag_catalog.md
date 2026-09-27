@@ -112,15 +112,15 @@ Consistent structure across G10 and EM pairs. Verified on: EUR/USD, GBP/USD, USD
 
 | Subcategory | Children | Description |
 |---|---|---|
-| **NEER_IDX** | 7 (BROAD, NARROW, regional) | Nominal Effective Exchange Rate indices (50+ ccys) |
-| **REER_IDX** | 8 (BROAD, NARROW, regional, USD) | Real Effective Exchange Rate indices (50+ ccys) |
-| **CITIPAIN** | 10 G10 ccys (leaf tags) | Citi Pain Index (positioning indicator) |
-| **CTOT** | DM (11 ccys), EM (50+ ccys) | Commodity Terms of Trade |
-| **LIQUIDITY_IDX** | 7 (AUD, EM, EUR, G10, GBP, NZD, USD) | FX liquidity indices |
-| **MRICITI** | 3 (EM, LT, ST MRI) | Macro Risk Index (EM spread, FX vol, correlation, etc.) |
-| **CRFI** | 2 (EM_VALUE, G10_VALUE) | Citi Risk Factor Index |
-| **SURPRISE_INDEX** | ESI (5 sub-indices), ISI (3) | Economic/Inflation Surprise Indices (CESI, CEDI, etc.) |
-| **SC_SCORECARD** | 4 (FLOWPCT, AVGRANK, FACTOR, POS) | FX Scorecard (multi-factor model: carry, value, ToT, etc.) |
+| **NEER_IDX** | 133 tags (BROAD/NARROW/regional × ccy) | Nominal Effective Exchange Rate indices. **INGESTED** → `fx.*`. [fx_indices.md](exploration/fx_indices.md) |
+| **REER_IDX** | 195 tags | Real Effective Exchange Rate indices. **INGESTED** → `fx.*` |
+| **CITIPAIN** | 10 G10 ccys | Citi Pain Index (positioning). **INGESTED** → `fx.*` |
+| **CTOT** | 68 tags (DM/EM × ccy) | Commodity Terms of Trade. **INGESTED** → `fx.*` |
+| **LIQUIDITY_IDX** | 28 tags | FX liquidity indices. **INGESTED** (⚠️ stale, ends Oct 2025) → `fx.*` |
+| **MRICITI** | 23 tags (EM/LT/ST × component) | Macro Risk Index (EM spread, FX vol, correlation). **INGESTED** → `fx.*` |
+| **CRFI** | 2 (EM_VALUE, G10_VALUE) | Citi Risk Factor Index. **INGESTED** (⚠️ stale, ends Oct 2025) → `fx.*` |
+| **SURPRISE_INDEX** | ESI (5 types), ISI (3 types) — **2,415 leaf tags** | Economic/Inflation Surprise Indices (CESI, CECI, CEDI, CERI, EFUI / SI_CISI, SI_CIDI, SI_CICI). **INGESTED** → `fx.dim_index_series`+`fx.fact_index_value`. See [exploration/fx_indices.md](exploration/fx_indices.md) |
+| **SC_SCORECARD** | 460 tags (FLOWPCT/AVGRANK/FACTOR/POS) | FX Scorecard (multi-factor: carry, value, ToT…). ⏸ **DEFERRED Phase 2** (some tags dataless). [fx_indices.md](exploration/fx_indices.md) |
 
 ### Citi Fair Value Models
 

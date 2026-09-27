@@ -17,6 +17,7 @@ Classifiers emit a 2-char code and the writer resolves it to the FK.
 """
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable
 
 # ───── Asset-class vocab (single-valued on dim_report.asset_class) ─────
@@ -36,6 +37,27 @@ ASSET_CLASSES: tuple[str, ...] = (
     ASSET_CLASS_CREDIT, ASSET_CLASS_COMMODITIES, ASSET_CLASS_MACRO,
     ASSET_CLASS_ESG, ASSET_CLASS_STRATEGY,
 )
+
+
+# ───── Credit-signal title heuristic (shared, 2026-07-17) ────────────────
+# Structured / corporate-credit product signals in a title. Per-vendor
+# classifiers use this to route a desk-coded RATES (or unclassified) doc to
+# CREDIT when the title clearly names a credit product — covered bonds,
+# CLO/ABS/CMBS/RMBS/securitized, HY/HG/IG, CDS/CDX/iTraxx, index families
+# (JACI/JULI/EMBI/CEMBI), leveraged loans. Used by nomura/ubs/hsbc after
+# their desk-code map, so a "Rates" desk covered-bond note lands as CREDIT.
+CREDIT_TITLE_RE = re.compile(
+    r"\b(?:clo|cdo|abs|cmbs|rmbs|mbs|securiti[sz]\w*|covered\s+bonds?|"
+    r"high[\s-]?yield|high[\s-]?grade|investment[\s-]?grade|"
+    r"cds|cdx|itraxx|jaci|juli|embi|cembi|leveraged\s+loans?|"
+    r"corporate\s+credit|credit\s+strategy)\b",
+    re.IGNORECASE,
+)
+
+
+def looks_like_credit(title: str | None) -> bool:
+    """True if the title clearly names a corporate/structured-credit product."""
+    return bool(title and CREDIT_TITLE_RE.search(title))
 
 # ───── Region tag values (Tag('region', ...)) ────────────────────────────
 # Broad geographic buckets. Per-country still emits Tag('country', 'US').

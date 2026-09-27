@@ -23,6 +23,7 @@ from typing import Any, Callable
 
 import pandas as pd
 import structlog
+from dateutil.relativedelta import relativedelta
 
 from imdr.connectors.reader import AnalyticalReader
 from imdr.healthchecks.base import CheckResult, CheckStatus
@@ -432,23 +433,41 @@ class DistributionCheck(QualityCheck):
     """Compute per-group distribution stats: mean, std, min, max, percentiles.
 
     Returns INFO status — this is informational, not pass/fail.
+
+    The mean/std/min/max stats are a single indexed GROUP BY aggregate —
+    cheap even unbounded. Percentiles have no grouped-aggregate form in
+    T-SQL (only the windowed `PERCENTILE_CONT ... OVER()`, which re-sorts
+    every row per partition), so they are computed in pandas over a
+    trailing-window range-scan pull instead. That pull is always bounded
+    to `trailing_months` regardless of the caller's `where` — some callers
+    (e.g. scripts/*/clean/*.py with >=6 distinct years) pass an empty
+    `where`, which would otherwise pull the entire fact table.
+
+    Args:
+        ts_column: Timestamp/date column used to bound the percentile pull.
+        trailing_months: Trailing window in months for the percentile pull.
     """
 
     def __init__(self, value_column: str, group_column: str,
                  percentiles: list[float] | None = None,
-                 series_filter: str | None = None) -> None:
+                 series_filter: str | None = None,
+                 ts_column: str = "ts",
+                 trailing_months: int = 12) -> None:
         self._value_col = value_column
         self._group_col = group_column
         self._percentiles = percentiles or [0.01, 0.99]
         self._series_filter = series_filter
+        self._ts_col = ts_column
+        self._trailing_months = trailing_months
 
     def run(self, reader: AnalyticalReader, table: str,
             where: str = "", params: dict[str, Any] | None = None) -> QualityResult:
+        params = dict(params) if params else {}
         series_clause = ""
         if self._series_filter:
             series_clause = f"AND [series] = '{self._series_filter}'"
 
-        # Stats query
+        # Stats query — plain GROUP BY aggregate, cheap even unbounded.
         stats_sql = f"""
             SELECT [{self._group_col}],
                    COUNT(*) AS n,
@@ -463,23 +482,41 @@ class DistributionCheck(QualityCheck):
         """
         df_stats = reader.read_sql(stats_sql, params)
 
-        # Percentiles query (MSSQL window function syntax)
-        pctls = []
-        pctl_labels = []
-        for p in self._percentiles:
-            label = f"p{int(p * 100):02d}"
-            pctls.append(
-                f"PERCENTILE_CONT({p}) WITHIN GROUP (ORDER BY [{self._value_col}]) "
-                f"OVER (PARTITION BY [{self._group_col}]) AS [{label}]"
-            )
-            pctl_labels.append(label)
+        pctl_labels = [f"p{int(p * 100):02d}" for p in self._percentiles]
+        df_pctl = pd.DataFrame(columns=[self._group_col, *pctl_labels])
 
-        pctl_sql = f"""
-            SELECT DISTINCT [{self._group_col}], {', '.join(pctls)}
-            FROM {table}
+        max_ts_sql = f"""
+            SELECT MAX([{self._ts_col}]) AS mt FROM {table}
             WHERE 1=1 {where} {series_clause}
         """
-        df_pctl = reader.read_sql(pctl_sql, params)
+        max_ts_df = reader.read_sql(max_ts_sql, params)
+        max_ts = max_ts_df["mt"].iloc[0] if not max_ts_df.empty else None
+
+        if max_ts is not None and not pd.isna(max_ts):
+            max_ts_val = pd.Timestamp(max_ts).to_pydatetime()
+            baseline_start = max_ts_val - relativedelta(months=self._trailing_months)
+
+            pull_sql = f"""
+                SELECT [{self._group_col}], [{self._value_col}]
+                FROM {table}
+                WHERE [{self._ts_col}] >= :baseline_start
+                  AND [{self._ts_col}] <= :max_ts
+                  AND [{self._value_col}] IS NOT NULL
+                  {where} {series_clause}
+            """
+            pull_params = dict(params)
+            pull_params["baseline_start"] = baseline_start
+            pull_params["max_ts"] = max_ts_val
+            pull_df = reader.read_sql(pull_sql, pull_params)
+
+            if not pull_df.empty:
+                pull_df[self._value_col] = pull_df[self._value_col].astype(float)
+                grouped = pull_df.groupby(self._group_col)[self._value_col]
+                pctl_data = {
+                    label: grouped.quantile(p)
+                    for label, p in zip(pctl_labels, self._percentiles)
+                }
+                df_pctl = pd.DataFrame(pctl_data).reset_index()
 
         # Merge
         summary = df_stats.merge(df_pctl, on=self._group_col, how="left")
@@ -614,8 +651,19 @@ class RobustStatisticalOutlierCheck(QualityCheck):
     """Flag values beyond median +/- N * MAD per group using robust statistics.
 
     Uses median and MAD (median absolute deviation) instead of mean/std,
-    making it resistant to outlier contamination.  Stats are computed over
-    a trailing window but applied to the full dataset.
+    making it resistant to outlier contamination. Stats are computed in
+    pandas over a trailing-window range-scan pull — T-SQL has no grouped
+    `PERCENTILE_CONT` aggregate, only the windowed `... OVER(PARTITION BY)`
+    form, which re-sorts every input row per partition and was the cause
+    of a 62-minute suspended query on prod (see
+    docs/admin/development/prod_long_running_quality_query.md). The server
+    now only does cheap indexed range-scan SELECTs; all percentile/MAD math
+    happens in the app tier.
+
+    The trailing baseline is anchored independently of the run-window
+    `where` (`baseline_start = max_ts - trailing_months`, NOT intersected
+    with `where`) — the run-window `where` only narrows which rows are
+    *candidates* to flag, not which rows feed the baseline stats.
 
     Args:
         value_column: Column to check (e.g. "close_px").
@@ -625,6 +673,10 @@ class RobustStatisticalOutlierCheck(QualityCheck):
         ts_column: Timestamp column name.
         min_obs: Minimum observations per group to compute stats.
         max_rows: Maximum flagged rows to return.
+        baseline_filter: Extra persistent SQL filter (e.g.
+            "AND [frequency_id] = 5") applied to both the max_ts anchor
+            query and the baseline pull, so a consumer can scope a
+            multi-frequency table to a single frequency.
     """
 
     _MAD_SCALE = 1.4826  # scale factor: MAD * 1.4826 ≈ σ for normal data
@@ -638,6 +690,7 @@ class RobustStatisticalOutlierCheck(QualityCheck):
         ts_column: str = "ts",
         min_obs: int = 100,
         max_rows: int = 50,
+        baseline_filter: str = "",
     ) -> None:
         self._value_col = value_column
         self._group_cols = group_columns or ["symbol", "series"]
@@ -646,6 +699,18 @@ class RobustStatisticalOutlierCheck(QualityCheck):
         self._ts_col = ts_column
         self._min_obs = min_obs
         self._max_rows = max_rows
+        self._baseline_filter = baseline_filter
+
+    def _no_outliers_result(self) -> QualityResult:
+        return QualityResult(
+            check_name="robust_outliers",
+            status=CheckStatus.PASSED,
+            category="statistical",
+            message=(
+                f"No outliers beyond {self._n_mad} MAD "
+                f"({self._trailing_months}mo window) for {self._value_col}"
+            ),
+        )
 
     def run(
         self,
@@ -655,91 +720,113 @@ class RobustStatisticalOutlierCheck(QualityCheck):
         params: dict[str, Any] | None = None,
     ) -> QualityResult:
         params = dict(params) if params else {}
+        group_cols = self._group_cols
+        group_list_sql = ", ".join(f"[{c}]" for c in group_cols)
 
-        group_list = ", ".join(f"[{c}]" for c in self._group_cols)
-        partition = f"PARTITION BY {group_list}"
-
-        sql = f"""
-            WITH max_ts AS (
-                SELECT MAX([{self._ts_col}]) AS mt FROM {table} WHERE 1=1 {where}
-            ),
-            trailing AS (
-                SELECT {group_list}, [{self._value_col}]
-                FROM {table}, max_ts
-                WHERE [{self._ts_col}] >= DATEADD(MONTH, -{self._trailing_months}, max_ts.mt)
-                  AND [{self._value_col}] IS NOT NULL
-                  {where}
-            ),
-            grp_counts AS (
-                SELECT {group_list}, COUNT(*) AS n
-                FROM trailing
-                GROUP BY {group_list}
-                HAVING COUNT(*) >= {self._min_obs}
-            ),
-            medians AS (
-                SELECT DISTINCT {group_list},
-                       PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY [{self._value_col}])
-                           OVER ({partition}) AS median_val
-                FROM trailing
-            ),
-            abs_devs AS (
-                SELECT t.{group_list.replace(', ', ', t.')},
-                       ABS(CAST(t.[{self._value_col}] AS FLOAT) - m.median_val) AS abs_dev
-                FROM trailing t
-                JOIN medians m ON {' AND '.join(
-                    f't.[{c}] = m.[{c}]' for c in self._group_cols
-                )}
-            ),
-            mad_stats AS (
-                SELECT DISTINCT {group_list},
-                       PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY abs_dev)
-                           OVER ({partition}) AS mad_val
-                FROM abs_devs
-            ),
-            robust AS (
-                SELECT m.{group_list.replace(', ', ', m.')},
-                       m.median_val,
-                       d.mad_val,
-                       d.mad_val * {self._MAD_SCALE} AS robust_sigma
-                FROM medians m
-                JOIN mad_stats d ON {' AND '.join(
-                    f'm.[{c}] = d.[{c}]' for c in self._group_cols
-                )}
-                JOIN grp_counts g ON {' AND '.join(
-                    f'm.[{c}] = g.[{c}]' for c in self._group_cols
-                )}
-            )
-            SELECT TOP {self._max_rows}
-                   f.[{self._ts_col}],
-                   {', '.join(f'f.[{c}]' for c in self._group_cols)},
-                   f.[{self._value_col}],
-                   r.median_val,
-                   r.mad_val,
-                   ABS(CAST(f.[{self._value_col}] AS FLOAT) - r.median_val)
-                       / NULLIF(r.robust_sigma, 0) AS robust_z
-            FROM {table} f
-            JOIN robust r ON {' AND '.join(
-                f'f.[{c}] = r.[{c}]' for c in self._group_cols
-            )}
-            WHERE f.[{self._value_col}] IS NOT NULL
-              {where}
-              AND r.robust_sigma > 0
-              AND ABS(CAST(f.[{self._value_col}] AS FLOAT) - r.median_val)
-                  / r.robust_sigma > {self._n_mad}
-            ORDER BY robust_z DESC
+        # 1. Anchor point — cheap indexed MAX(). `where` here just bounds
+        # the anchor to the run window (e.g. the date range being ingested);
+        # it is NOT used to narrow the baseline pull below.
+        max_ts_sql = f"""
+            SELECT MAX([{self._ts_col}]) AS mt
+            FROM {table}
+            WHERE 1=1 {where} {self._baseline_filter}
         """
-        flagged = reader.read_sql(sql, params)
+        max_ts_df = reader.read_sql(max_ts_sql, params)
+        max_ts = max_ts_df["mt"].iloc[0] if not max_ts_df.empty else None
+        if max_ts is None or pd.isna(max_ts):
+            return self._no_outliers_result()
+
+        max_ts_val = pd.Timestamp(max_ts).to_pydatetime()
+        baseline_start = max_ts_val - relativedelta(months=self._trailing_months)
+
+        # 2. Baseline pull — single indexed range-scan, no OVER(), no
+        # PERCENTILE_CONT, no SELECT DISTINCT, no implicit cross join.
+        # Deliberately NOT intersected with `where` (finding 2 fix).
+        baseline_params = dict(params)
+        baseline_params["baseline_start"] = baseline_start
+        baseline_params["max_ts"] = max_ts_val
+        baseline_sql = f"""
+            SELECT {group_list_sql}, [{self._ts_col}], [{self._value_col}]
+            FROM {table}
+            WHERE [{self._ts_col}] >= :baseline_start
+              AND [{self._ts_col}] <= :max_ts
+              AND [{self._value_col}] IS NOT NULL
+              {self._baseline_filter}
+        """
+        baseline_df = reader.read_sql(baseline_sql, baseline_params)
+        if baseline_df.empty:
+            return self._no_outliers_result()
+
+        baseline_df[self._value_col] = baseline_df[self._value_col].astype(float)
+
+        # 3. Per-group median/MAD in pandas.
+        stats = (
+            baseline_df.groupby(group_cols)[self._value_col]
+            .agg(median_val="median", n="count")
+            .reset_index()
+        )
+        merged = baseline_df.merge(stats[[*group_cols, "median_val"]], on=group_cols, how="left")
+        merged["abs_dev"] = (merged[self._value_col] - merged["median_val"]).abs()
+        mad = (
+            merged.groupby(group_cols)["abs_dev"]
+            .median()
+            .reset_index()
+            .rename(columns={"abs_dev": "mad_val"})
+        )
+        stats = stats.merge(mad, on=group_cols, how="left")
+        stats["robust_sigma"] = stats["mad_val"] * self._MAD_SCALE
+        stats = stats[stats["n"] >= self._min_obs]
+        if stats.empty:
+            return self._no_outliers_result()
+
+        # 4. Candidates = the run-window rows, kept a subset of the
+        # baseline pull (same time bounds) and further narrowed by `where`.
+        # Re-pulling (rather than reusing baseline_df) keeps the candidate
+        # set correct even when `where` isn't a pure time-range fragment;
+        # when `where` is empty this collapses to the baseline set.
+        if not where.strip():
+            candidates_df = baseline_df
+        else:
+            candidates_sql = f"""
+                SELECT {group_list_sql}, [{self._ts_col}], [{self._value_col}]
+                FROM {table}
+                WHERE [{self._ts_col}] >= :baseline_start
+                  AND [{self._ts_col}] <= :max_ts
+                  AND [{self._value_col}] IS NOT NULL
+                  {self._baseline_filter}
+                  {where}
+            """
+            candidates_df = reader.read_sql(candidates_sql, baseline_params)
+            if not candidates_df.empty:
+                candidates_df[self._value_col] = candidates_df[self._value_col].astype(float)
+
+        if candidates_df.empty:
+            return self._no_outliers_result()
+
+        merged_c = candidates_df.merge(
+            stats[[*group_cols, "median_val", "mad_val", "robust_sigma"]],
+            on=group_cols,
+            how="inner",
+        )
+        merged_c = merged_c[merged_c["robust_sigma"] > 0]
+        if merged_c.empty:
+            return self._no_outliers_result()
+
+        merged_c["robust_z"] = (
+            (merged_c[self._value_col] - merged_c["median_val"]).abs()
+            / merged_c["robust_sigma"]
+        )
+        flagged = (
+            merged_c[merged_c["robust_z"] > self._n_mad]
+            .sort_values("robust_z", ascending=False)
+            .head(self._max_rows)
+        )
+        flagged = flagged[
+            [self._ts_col, *group_cols, self._value_col, "median_val", "mad_val", "robust_z"]
+        ].reset_index(drop=True)
 
         if flagged.empty:
-            return QualityResult(
-                check_name="robust_outliers",
-                status=CheckStatus.PASSED,
-                category="statistical",
-                message=(
-                    f"No outliers beyond {self._n_mad} MAD "
-                    f"({self._trailing_months}mo window) for {self._value_col}"
-                ),
-            )
+            return self._no_outliers_result()
 
         return QualityResult(
             check_name="robust_outliers",

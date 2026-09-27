@@ -132,6 +132,35 @@ Annual and semi-annual fetchers (Sakernas, fiscal) are included here: MERGE on
 PK makes them idempotent — running monthly catches every release window without
 needing separate schedulers.
 
+### Built 2026-09-21 — NOT in `id_monthly.py`, NOT loaded
+
+| Module | Source | Cadence | Indicators |
+|---|---|---|---:|
+| `scripts.econ.id.bi.bi_pmi` | BI data-series ZIP (discovered href) | Quarterly | 20 |
+| `scripts.econ.id.bi.bi_bank_survey` | BI data-series ZIP (discovered href) | Quarterly | 33 |
+
+Both smoke-tested with `--no-load` (732 and 1,914 observations to parquet).
+Registering them in `id_monthly.py:PIPELINES` and running the loader are
+user-gated steps. Two mechanics differ from every other BI fetcher and are
+worth reading before touching them:
+
+- **The archive URL is discovered, not constructed.** These two publications
+  give each edition its own filename, and BI is inconsistent about it —
+  `Data-Series-PMI-Triwulan-II-2026.zip`, `PMI-Triwulan-I-2026.zip` (no
+  prefix), `Data-Series-Survei-Perbank-Tw-IV-2025.zip` (name truncated). The
+  stable-slug approach `download_survey_zip` uses for SK/spe/SKDU cannot work
+  here; `discover_latest_data_series_zip()` reads the href off the
+  `?Kategori=`-filtered listing instead. A templated URL would go silently
+  stale the next time BI renamed the token — the failure mode that killed
+  `rbi_bulletin` for three weeks.
+- **The trailing column is a FORECAST.** BI publishes next quarter's estimate
+  inside the current edition, flagged `III*` with an "Angka Perkiraan"
+  footnote, and it parses exactly like an actual. `forecast_periods()` returns
+  the dates to drop. Without that filter a projection lands in
+  `econ.fact_indicator` as a print and never gets corrected, because the next
+  edition writes the same period as an actual and the revision-aware loader
+  reads the change as a legitimate vintage bump.
+
 ---
 
 ## On-demand invocation

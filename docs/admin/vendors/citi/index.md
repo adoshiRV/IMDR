@@ -18,5 +18,6 @@ IMDR's primary market-data vendor. Provides rates, FX, equity, and commodities d
 | Rates (XCCY OIS) | planned | [exploration/rates_xccy_ois.md](exploration/rates_xccy_ois.md) |
 | Rates (OIS meeting) | planned | [exploration/rates_ois_meeting.md](exploration/rates_ois_meeting.md) |
 | FX (spot + forward) | `fx.citi_rate` | [exploration/fx_spot_forward.md](exploration/fx_spot_forward.md) |
+| FX (proprietary indices: CESI/NEER/REER/CTOT/MRI/…) | `fx.citi_fx_indices` | [exploration/fx_indices.md](exploration/fx_indices.md) |
 | Equity | `equity.citi_live` | [exploration/equity.md](exploration/equity.md) |
 | Commodities | `commodities.citi_live` | [exploration/commodities.md](exploration/commodities.md) |

@@ -33,6 +33,20 @@ runs reuse it without re-auth.
 > `Z:\…\playwrights\jpm-playwright`. The old one was a non-IMDR mixed
 > profile with 102 visits.
 
+### Healthcheck predicate fix (2026-07-22)
+
+`registry._live_jpm` used to flip **LIVE** on the SSO-redirect
+interstitial `markets.jpmorgan.com/home?URI=…&securityLevel=0` — that
+URL has no literal `"login"` substring, so the predicate's bare
+`"login" not in url` exclusion false-passed it as authenticated. That
+meant the login poller could exit before a human actually completed
+SSO, silently leaving a dead session. Fixed by additionally requiring
+`/jpmm/` in the URL (the authenticated research app always stays under
+`/jpmm/`; the `/home` SSO landing only carries that substring
+URL-encoded inside its `URI=` query param, never literally). Mode is
+still `HEADER_INJECTION` — recovered via headed SSO on 2026-07-22;
+1637 reports discovered post-recovery.
+
 ## URL patterns
 
 ### Article viewer

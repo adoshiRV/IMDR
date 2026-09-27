@@ -168,6 +168,34 @@ class TestInvokeLoader:
         assert rc == 7
 
 
+class TestSummaryLatestValue:
+    def test_latest_is_value_at_max_obs_date_not_last_in_list(self, capsys) -> None:
+        # Regression: observations are not guaranteed chronological (e.g.
+        # T34's row order); `latest=` must reflect the MAX obs_date's value,
+        # not whichever row happens to be processed last.
+        obs = [
+            _obs(d=datetime.date(2018, 2, 1)),
+            _obs(d=datetime.date(2026, 4, 1)),
+        ]
+        obs[0].value = 111.0
+        obs[1].value = 999.0
+        _runner._summary([_ind()], obs)
+        out = capsys.readouterr().out
+        assert "latest=999.0" in out
+        assert "window=2018-02-01 → 2026-04-01" in out
+
+    def test_latest_correct_when_max_date_row_processed_first(self, capsys) -> None:
+        obs = [
+            _obs(d=datetime.date(2026, 4, 1)),
+            _obs(d=datetime.date(2018, 2, 1)),
+        ]
+        obs[0].value = 999.0
+        obs[1].value = 111.0
+        _runner._summary([_ind()], obs)
+        out = capsys.readouterr().out
+        assert "latest=999.0" in out
+
+
 class TestRunMain:
     def test_no_parquet_skips_writes_and_load(self, monkeypatch, capsys) -> None:
         # No parquet should be written and no loader subprocess invoked.
