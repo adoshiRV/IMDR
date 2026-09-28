@@ -87,7 +87,10 @@ def test_folder_vendor_map():
     # SCB (desk) and STANC (formal research) are two folders, one vendor.
     assert FOLDER_TO_VENDOR["SCB"] == "stanc"
     assert FOLDER_TO_VENDOR["STANC"] == "stanc"
-    assert len(FOLDER_TO_VENDOR) == 16
+    # Citadel Securities added 2026-09-28 — its folder had no mapping, so 71
+    # messages of desk commentary were being dropped silently on every run.
+    assert FOLDER_TO_VENDOR["Citadel"] == "citadel"
+    assert len(FOLDER_TO_VENDOR) == 17
 
 
 # ─── CBA classifier ──────────────────────────────────────────────────────
@@ -345,7 +348,7 @@ def test_source_type_body_disclaimer_overrides_research_default():
     assert _derive_source_type(rec, "attached_pdf", vendor="cba") == "desk_commentary"
 
 
-def test_discover_holds_cba_and_cacib(tmp_path):
+def test_discover_no_longer_holds_cba_and_cacib(tmp_path):
     import json as _json
 
     def _write(vendor, slug):
@@ -364,13 +367,14 @@ def test_discover_holds_cba_and_cacib(tmp_path):
     _write("cacib", "b")
     _write("citi", "c")
 
-    # Default run: cba + cacib are held out, citi flows through.
+    # cba and cacib were RELEASED from the hold on 2026-09-28. Neither has a
+    # portal crawler, so holding them kept their research out of the corpus
+    # entirely — they now flow like every other house.
     got = {r.vendor_code for r in discover_reports(tmp_path)}
-    assert "citi" in got
-    assert "cba" not in got and "cacib" not in got
-    # Explicit --vendors request overrides the hold (for later onboarding).
+    assert {"citi", "cba", "cacib"} <= got
+    # Explicit --vendors still scopes a run to one house.
     assert {r.vendor_code for r in discover_reports(tmp_path, vendors=["cba"])} == {"cba"}
-    assert EMAIL_VENDOR_HOLD == frozenset({"cba", "cacib"})
+    assert EMAIL_VENDOR_HOLD == frozenset()
 
 
 def test_dedup_ingests_new_body():

@@ -395,3 +395,230 @@ masthead/serial/email-twin paths). Email corpus in `dim_report` = **110 rows**
 2026-06-23 email-to-email dup cleanup) — the route-C build itself wrote nothing
 (dry-runs / staging only). Spike + smoke helpers: `_p0_com_spike.py`,
 `_p4_parity_check.py`, `_smoke_netnew_sim.py`, `_cleanup_email_dups.py`.
+
+---
+
+## 11. The 85-day outage and the 2026-09-28 repair
+
+**The email lane was dead from 2026-06-29 to 2026-09-28 — 85 days, ~5,146
+messages.** Nobody noticed. This section is the post-mortem and the repair,
+because every one of the causes was invisible from reading the code.
+
+### 11.1 What the evidence looked like
+
+`research.dim_report` at the point of discovery:
+
+| source | reports | last publish | last ingested |
+|--------|--------:|--------------|---------------|
+| portal | 36,834  | 2026-09-22   | 2026-09-22    |
+| email  | **264** | **2026-06-29** | **2026-06-29** |
+
+The scheduled task `IMDR_research` ran every 3h throughout, on time, and looked
+healthy — because it was still running the portal lane.
+
+### 11.2 Four independent causes
+
+1. **The prod wiring was never committed.** `scripts/imdr_research.py` gained
+   named steps + `email-stage`/`email-ingest` on 2026-06-23, but that version was
+   never in a commit: `git log -S "email-stage" --all` returns nothing. A
+   working-tree revert on 2026-07-01 14:42 silently removed both email steps.
+   The last summary JSON from the wired version is `20260701_1330`.
+
+2. **Classic Outlook was parked on a "Choose Profile" modal.** It was *running*
+   — so nothing looked wrong — but MAPI never initialised, it never registered
+   in the Running Object Table, and every COM call failed `MK_E_UNAVAILABLE`
+   (0x800401E3) / `RPC_E_CALL_REJECTED` (0x80010001). Reproduced from both
+   pywin32 and an independent PowerShell client. Ruled out on the way: same
+   user, same session (2), both processes MEDIUM integrity — **not** an
+   elevation mismatch. Note this box also runs **new Outlook (`olk.exe`)**,
+   which has no COM/MAPI at all; route C depends on classic Outlook surviving.
+
+3. **The producer's date filter was locale-broken.** It formatted Restrict
+   literals as `%m/%d/%Y`, but Outlook parses them in the **Windows short date
+   format of the current locale** — en-GB here. Measured on the ANZ folder:
+
+   | Restrict | Count |
+   |----------|------:|
+   | `[ReceivedTime] >= '06/29/2026'` | 557 (whole folder — filter degenerate, 29 is not a month, and it does **not** error) |
+   | `... >= '06/29/2026' AND ... < '07/06/2026'` | **0** |
+   | `... >= '29/06/2026' AND ... < '06/07/2026'` | **44** (correct) |
+
+   So `--since` silently bounded nothing and `--until` matched nothing. The
+   first week-1 backfill slice returned `staged=0` because of this.
+
+4. **Nothing escalated the failure.** Twelve consecutive runs wrote
+   `"failed": ["email-stage"]` into `logs/research_ingest_*.summary.json`. An rc
+   captured in a file nothing reads is not monitoring.
+
+### 11.3 The repair
+
+* **`_connect_mapi()`** — `CoInitialize`, `GetActiveObject` before
+  `CoCreateInstance` (a busy Outlook rejects CoCreateInstance most often),
+  retry/backoff over `_COM_TRANSIENT`, and an explicit
+  **`ns.Logon(profile, "", False, False)`** so the producer drives the profile
+  itself instead of inheriting whatever state Outlook is in. `--profile`
+  defaults to `Outlook`, the single MAPI profile on this box.
+* **Exit code 3 (`EXIT_COM_UNAVAILABLE`)** — "Outlook unreachable" is an
+  environment condition and must be distinguishable from "the producer broke",
+  or a genuine fault hides in the noise. The orchestrator reports it `UNAVAIL`.
+* **`_olk_date()`** — `locale.setlocale(LC_TIME, "")` + `strftime("%x")`.
+* **HWM never regresses** — `new_hwm[f] = max(new_hwm.get(f, ""), received)`.
+  A windowed backfill slice processes OLD mail; a bare assignment would rewind
+  the mark and re-stage weeks of already-ingested messages.
+* **`scripts/research/check_research_freshness.py`** (NEW, tracked) — per-lane
+  staleness in business days plus a producer-HWM age check. Exit 1 is the alarm.
+  Run against the dead lane it reported `email STALE, 61 business days`.
+
+### 11.4 Coverage widened 14 → 17 houses
+
+* **Citadel** had a mailbox folder but **no `FOLDER_TO_VENDOR` entry**, so 71
+  messages were dropped silently on every run. It is desk commentary from one
+  named sender (US Rates Recap / Asia Update, Macro Thoughts, Macro Credit
+  Thoughts, Risktaker Landscape) and appears on no portal.
+* **CBA and CACIB** released from `EMAIL_VENDOR_HOLD` (held since 2026-06-18).
+  Neither has a portal crawler, so holding them kept their research out of the
+  corpus entirely. CBA arrives with real attached PDFs.
+* `EMAIL_VENDOR_HOLD` is now empty. Migration **130** seeds `cba`, `cacib`,
+  `citadel` (vendor_type `email` — the first rows to use it; they have no portal
+  route). None existed before, and `_resolve_vendor_id()` raises on a miss, so
+  the load would have hard-failed.
+
+### 11.5 Provenance in the vector payload
+
+Qdrant payloads carried no `source`/`source_type`, so a retriever could not tell
+a sell-side desk email from a published portal note, could not scope a search to
+desk commentary, and could not filter it out. Now first-class on `ChunkPoint`
+and written by both pipelines; the existing corpus was backfilled to
+**741,097 portal + 1,194 email = 742,291** points.
+
+> A bulk `set_payload` over ~742k points takes minutes and the shared client's
+> 30s timeout aborts mid-write — the server keeps going, leaving it half
+> applied (272,382 the first time). Use a patient client for corpus-wide writes.
+
+### 11.6 Country tags were weakly grounded
+
+`_scan_country` took an argmax of raw country-name counts over title+body, with
+no threshold and ties broken by declaration order. Measured over the 414-message
+week-1 slice: **15% of tags rested on a single passing mention** and **17% were
+silent ties**. Observed: `Australian Morning Focus → CN` (china=1, india=1),
+`NZ Morning Focus → AU` (3-way tie at 1), `DB JPY Market PM Summary → DE`
+(germany=2; "japan" never appears — `JPY` was not a signal).
+
+Rewritten to score `3 × subject hits + body hits`, with subject-only aliases
+(adjectival forms, ISO currencies, central banks, 2-letter codes), a minimum
+score of 2, and **ties returning `None`** — a morning wrap naming three
+countries once each belongs to none of them. Aliases are subject-only by
+design: `usd`/`fed`/`treasury` appear in nearly every FX and rates note, so
+body-scanning them would tag the whole corpus US.
+
+Effect on the same 414 messages — 27% of tags changed, 60 weak ones withdrawn:
+
+| tag | old → new | why |
+|-----|-----------|-----|
+| SG  | 63 → 37 | over-tagged on the Singapore gasoline/SOR benchmark |
+| DE  | 13 → 5  | Bund references read as "about Germany" |
+| JP  | 31 → 41 | **under**-tagged: `JPY`/`JGB`/`BoJ` were never signals |
+| None| 99 → 138 | multi-country notes now honestly unattributed |
+
+`email_common` is used only by the email lane (`ingest_outlook.py` + the CBA
+classifier) — the portal lane is unaffected.
+
+### 11.7 Backfill
+
+`_backfill_weeks.py` walks the gap in **weekly slices**, each staged into its own
+directory. Weekly rather than one 85-day pull because `ingest_outlook` rescans
+its whole staging dir every run (one shared dir would make it O(n²)), because a
+failure should cost one week rather than all of it, and because reading message
+bodies over COM is slow. Slices run strictly in order and never in parallel —
+one local Outlook, one COM client. A failed slice **halts** the driver rather
+than being skipped: a hole in the middle of a backfill is worse than a stop.
+
+### 11.8 Regulatory boilerplate is scanned as content (OPEN)
+
+Found while validating a re-tag of the pre-fix rows. `sanitize_email_html`
+strips banners and footers but **not the regulatory distribution block** — the
+paragraph in which a house lists every jurisdiction it is licensed to
+distribute in. A Westpac daily carries seven "singapore" mentions purely from:
+
+> *"singapore: this material has been prepared and issued for distribution in
+> singapore to institutional investors, accredited investors and expert
+> investors (as defined in the applicable singapore laws and regulations) …
+> recipients of this material in singapore should contact westpac singapore
+> branch …"*
+
+Measured on the 414-message week-1 slice:
+
+* 115 messages mention Singapore in the sanitized body; **50% of those carry
+  the SG legal block** rather than discussing Singapore.
+* 43 messages have both a country tag and a disclaimer block. The block starts
+  at a **median 60%** through the body (min 22%, max 87%).
+* In **all 43**, the body *before* the block names at least one country — so
+  genuine signal is competing with the noise, not absent.
+
+This is the main reason SG was the most over-tagged country before §11.6
+(63 of 414). The §11.6 fix reduced it to 37 largely by out-weighting the
+boilerplate with the subject, and it holds up on the hard cases — a note titled
+*"Korea: What's behind the tighter liquidity…"* carrying 9 SG boilerplate hits
+still resolves to **KR**, because the subject scores Korea and the pre-block
+body names Korea 5 times.
+
+**RESOLVED 2026-09-28** — trim the body at the distribution block before country scanning.
+It is strictly additive to §11.6 and cheap — a cue regex (`"this material has
+been issued for distribution"`, `"accredited investors and expert investors"`,
+`"monetary authority of singapore"`, …), cut, scan the head only. Not applied
+during the 2026-09-28 backfill **on purpose**: each slice spawns a fresh
+interpreter, so editing the classifier mid-run would have left early slices on
+the old logic and later ones on the new. The consistent fix is one re-tag pass
+afterwards.
+
+> **Do NOT re-tag from `dim_report.pdf_text`.** It is the full rendered
+> document *including* the disclaimer, so it is more contaminated than the
+> sanitized body the live path uses. A dry run over the 264 June rows proposed
+> changing 138 of them, with `None → SG` on 31 — every one driven by the legal
+> block. Re-tag from the **staged JSON** (`body_html` → sanitize → trim), which
+> exists for every backfilled row. The June rows predate route-C staging, so
+> for those the honest answer may be to leave `country_id` alone.
+
+### 11.9 Country scan — final shape (2026-09-28)
+
+The scanner ended up with four tiers, each added because the previous one lost
+a real note. In order of how much they matter:
+
+1. **Subject weighting (×3).** The subject is the author's own statement of
+   topic and was previously ignored entirely.
+2. **Subject-only aliases.** Adjectival forms, ISO currencies, central banks,
+   2-letter codes. Subject-only *by design*: `usd`, `fed` and `treasury` appear
+   in nearly every FX and rates note, so body-scanning them would tag the whole
+   corpus US.
+3. **Body-safe markers.** Sovereign tickers and central-bank acronyms
+   (`IndoGB`, `SRBI`, `JGB`, `ACGB`, `NZGB`, `KTB`, `CGB`, `MGS`, `BSP`,
+   `bund`, `OAT`, `BTP`, …) which — unlike `usd` — appear only when a note is
+   genuinely about that market. Added after a Citi desk note reading *"BI
+   surprise 25bps hike … IDR depreciation … SRBI 1Y 7.68% … Indonesia IndoGB
+   5y"* scored **1** (one literal "Indonesia") and lost its country entirely.
+   Deliberately excluded as unsafe to word-boundary match: `bi`, `mas`, `bot`,
+   `cbc`, `sun`.
+4. **Disclaimer trim**, then **threshold 2**, then **tie → subject, else None**.
+   The tie-break asks only whether the subject names exactly one of the tied
+   countries; if it names both, the note really is multi-country and gets none.
+
+Net effect on the 2,518-report email corpus (two passes, 824 then 248 rows):
+
+| country | before | after | why |
+|---------|-------:|------:|-----|
+| (none)  | 1,297  | ~730  | fewer notes left unattributed |
+| **NZ**  | 89     | ~430  | `NZ` was excluded as a 2-char code and these titles rarely spell out "New Zealand" — NZ research was effectively unfindable by country |
+| **JP**  | 152    | ~375  | `JPY`/`JGB`/`BoJ` were never signals |
+| **HK**  | 107    | ~35   | was badly over-tagged |
+| **AU**  | 219    | ~145  | weak single-mention and tie tags withdrawn |
+
+The NZ recovery is the headline: ANZ and Westpac are two of the largest email
+contributors and both run NZ dailies ("Around the Grounds", "FinanceAM",
+"Morning Report", "NZ Morning Focus"), none of which could be found by country
+before. Verified by hand on the raw vs trimmed counts — e.g. "Around the
+Grounds" reads `{us:4, australia:4, new zealand:5, singapore:7}` raw (SG wins
+on boilerplate) and `{australia:2, new zealand:5, singapore:1}` trimmed.
+
+**Tooling** (all under `playground/research/outlook/`, all re-runnable):
+`_backfill_weeks.py` (weekly slices), `_retag_countries.py` (re-tag from
+staging, never from `pdf_text`), `_reconcile_qdrant.py` (SQL↔Qdrant drift).

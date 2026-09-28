@@ -143,3 +143,138 @@ def test_vendor_code_argument_overrides_ref():
     # vendor_code kwarg wins over the ref's own vendor_code in the context.
     r = _classify(_ref(title="t", body="<p>inflation</p>", vendor="db"), vendor_code="citi")
     assert "Vendor:" in r.context
+
+
+# ── country scan: subject-weighted, thresholded, tie-safe ──────────────────
+# Before 2026-09-28 the scanner took an argmax of raw name counts over the
+# whole blob, with no threshold and ties broken by declaration order. On a
+# 414-message sample that put 15% of tags on a SINGLE passing mention and a
+# further 17% on a silent tie. Observed misfires: "Australian Morning Focus"
+# -> CN (china=1, india=1), "NZ Morning Focus" -> AU (3-way tie at 1),
+# "DB JPY Market PM Summary" -> DE (germany=2; "japan" never appeared).
+
+from ingest.classifiers.email_common import _scan_country  # noqa: E402
+
+
+def test_subject_outweighs_a_passing_body_mention():
+    """The subject states what a note is about; one body mention does not."""
+    assert _scan_country("Australian Morning Focus", "china grew. india too.") == "AU"
+
+
+def test_currency_and_abbreviation_in_the_subject_identify_the_country():
+    """'JPY'/'NZ' in a subject are decisive even if the name never appears."""
+    assert _scan_country("DB JPY Market PM Summary", "bunds in germany, germany") == "JP"
+    assert _scan_country("NZ Morning Focus", "australia japan china") == "NZ"
+    assert _scan_country("NZ Insight: Weekly Fuel Market Watch", "singapore gasoline") == "NZ"
+
+
+def test_aliases_are_not_scanned_in_the_body():
+    """Body-scanning aliases would tag the whole corpus US.
+
+    'usd', 'fed' and 'treasury' appear in virtually every FX and rates note,
+    so they are subject-only signals. A body full of them must not win.
+    """
+    got = _scan_country("Indonesia rates update", "usd usd usd fed fed treasury ust")
+    assert got == "ID"
+
+
+def test_a_single_body_mention_is_not_enough():
+    """Below the score threshold we return None — NULL beats wrong."""
+    assert _scan_country("Weekly Wrap", "one passing mention of singapore") is None
+
+
+def test_a_tie_returns_none_rather_than_list_order():
+    """A multi-country wrap belongs to no single country.
+
+    'australia' precedes 'japan' and 'china' in _COUNTRY_SCAN, so the old
+    argmax silently returned AU for this input.
+    """
+    assert _scan_country("Morning Wrap", "australia japan china") is None
+
+
+def test_unambiguous_body_evidence_still_wins_without_a_subject_hit():
+    """A note genuinely about one country is still tagged from the body."""
+    body = "indonesia " * 5 + "china"
+    assert _scan_country("Daily Alert", body) == "ID"
+
+
+def test_korea_aliases_collapse_to_one_code():
+    """'korea' and 'south korea' both normalise to KR and must not self-tie."""
+    assert _scan_country("South Korea rates", "korea korea south korea") == "KR"
+
+
+# ── regulatory distribution block must not vote on country ─────────────────
+
+from ingest.classifiers.email_common import trim_disclaimer  # noqa: E402
+
+_WESTPAC_TAIL = (
+    "singapore: this material has been prepared and issued for distribution in "
+    "singapore to institutional investors, accredited investors and expert "
+    "investors (as defined in the applicable singapore laws and regulations). "
+    "recipients of this material in singapore should contact westpac singapore "
+    "branch in respect of any matters arising from this material."
+)
+
+
+def test_disclaimer_block_is_trimmed_before_scanning():
+    """A Westpac daily carries 4+ 'singapore' hits purely from its legal block."""
+    body = ("the rba held rates today and the australian dollar rallied. "
+            "australia's labour market stayed tight. " * 6) + _WESTPAC_TAIL
+    assert "singapore" in body
+    assert "singapore" not in trim_disclaimer(body)
+
+
+def test_boilerplate_does_not_win_the_country_tag():
+    """Subject matter beats the jurisdiction list."""
+    body = ("the rba held rates today and the australian dollar rallied. "
+            "australia's labour market stayed tight. " * 6) + _WESTPAC_TAIL
+    assert _scan_country("Morning Report", body) == "AU"
+
+
+def test_a_cue_near_the_top_is_not_treated_as_a_footer():
+    """Trimming on an early cue would throw the whole note away."""
+    body = "important disclosures follow. " + ("indonesia rupiah bonds rallied. " * 40)
+    assert trim_disclaimer(body) == body
+    assert _scan_country("Indonesia daily", body) == "ID"
+
+
+def test_trim_is_a_noop_when_there_is_no_disclaimer():
+    body = "plain note about japan and jgbs with no legal tail"
+    assert trim_disclaimer(body) == body
+
+
+# ── body-safe instrument markers + subject tie-break ───────────────────────
+
+
+def test_instrument_markers_count_in_the_body():
+    """A desk note can name its market without spelling out the country.
+
+    "Citi Macro - SRBI...the new golden child in Asia?" says 'Indonesia' once
+    in the body but is unmistakably Indonesian: BI, IDR, SRBI, IndoGB. Under a
+    names-only body scan that single mention fell below the threshold and the
+    note lost its country entirely.
+    """
+    body = ("BI surprise 25bps hike to 5.5% to stem IDR depreciation. "
+            "SRBI 1Y 7.68%, 9M 7.46%. Indonesia IndoGB 5y fair value 7.3-7.7%.")
+    assert _scan_country("Citi Macro - SRBI...the new golden child in Asia?", body) == "ID"
+
+
+def test_ubiquitous_tokens_are_still_subject_only():
+    """'usd'/'fed'/'treasury' must never win from the body.
+
+    They appear in nearly every FX and rates note; body-scanning them would
+    tag the whole corpus US.
+    """
+    body = "usd usd usd fed fed fed treasury ust ust " + ("jgb boj " * 4)
+    assert _scan_country("Japan rates", body) == "JP"
+
+
+def test_subject_breaks_a_tie_when_it_names_exactly_one_side():
+    """The subject is the author's own statement of topic."""
+    # germany scores on two names + 'bunds'; japan scores on the subject alias.
+    assert _scan_country("DB JPY Market PM Summary", "bunds in germany, germany") == "JP"
+
+
+def test_subject_tie_break_does_not_rescue_a_genuinely_split_note():
+    """If the subject names both sides, it is still a multi-country note."""
+    assert _scan_country("Australia and Japan wrap", "australia japan") is None
