@@ -194,7 +194,7 @@ class TestIterPages:
 class TestRunFetchDateFilter:
     def _patch_fetch_all(self, interbank_records: list[dict], monbase_records: list[dict]):
         """Return a context manager patching fetch_all_records."""
-        def _side_effect(endpoint_slug: str) -> list[dict]:
+        def _side_effect(endpoint_slug: str, **_kw) -> list[dict]:
             if "interbank" in endpoint_slug:
                 return interbank_records
             return monbase_records
@@ -249,7 +249,7 @@ class TestRunFetchDateFilter:
 
 class TestRunFetchSeriesFilter:
     def _patch_fetch_all(self, interbank_records: list[dict], monbase_records: list[dict]):
-        def _side_effect(endpoint_slug: str) -> list[dict]:
+        def _side_effect(endpoint_slug: str, **_kw) -> list[dict]:
             if "interbank" in endpoint_slug:
                 return interbank_records
             return monbase_records
@@ -333,7 +333,7 @@ class TestRunFetchSeriesFilter:
         monbase = [_make_monbase_record("2026-01-01")]
         call_count = 0
 
-        def side_effect(slug: str) -> list[dict]:
+        def side_effect(slug: str, **_kw) -> list[dict]:
             nonlocal call_count
             call_count += 1
             return interbank if "interbank" in slug else monbase
@@ -400,3 +400,112 @@ class TestObservationShape:
         assert len(obs) == 1
         assert obs[0].imdr_code == "HKMA.MON_BASE"
         assert obs[0].value == pytest.approx(2_100_000.0)
+
+
+# ---------------------------------------------------------------------------
+# Throttle handling and incremental pagination
+#
+# Pins the three defects that kept the HK lane dark from 29 May to 5 Oct 2026:
+# a full-history walk on every run, a 405 throttle treated as fatal, and one
+# bad endpoint aborting the other eight.
+# ---------------------------------------------------------------------------
+
+class _FakeResponse:
+    def __init__(self, status_code: int, payload: dict | None = None):
+        self.status_code = status_code
+        self.reason = "Not Allowed" if status_code == 405 else "OK"
+        self._payload = payload or {}
+
+    def json(self) -> dict:
+        return self._payload
+
+    def raise_for_status(self) -> None:
+        if self.status_code >= 400:
+            import requests
+            raise requests.HTTPError(f"{self.status_code} {self.reason}", response=self)
+
+
+def _page(records: list[dict]) -> dict:
+    return {"header": {"success": True}, "result": {"records": records}}
+
+
+class TestThrottleBackoff:
+    def test_405_is_retried_not_fatal(self):
+        from playground.econ.hkma import fetch as f
+
+        ok = _page([_make_interbank_record("2026-10-05")])
+        responses = [_FakeResponse(405), _FakeResponse(405), _FakeResponse(200, ok)]
+        with patch.object(f.requests, "get", side_effect=responses) as mock_get, \
+             patch.object(f.time, "sleep"):
+            out = f._get_page("https://example/x", 0)
+        assert out == ok
+        assert mock_get.call_count == 3
+
+    def test_405_raises_after_retries_exhausted(self):
+        from playground.econ.hkma import fetch as f
+
+        n = len(f._RETRY_BACKOFF) + 1
+        with patch.object(f.requests, "get", side_effect=[_FakeResponse(405)] * n), \
+             patch.object(f.time, "sleep"):
+            with pytest.raises(RuntimeError, match="still throttling"):
+                f._get_page("https://example/x", 0)
+
+
+class TestIncrementalPagination:
+    def test_stops_once_page_runs_past_since(self):
+        """A full page older than `since` must not trigger another request."""
+        from playground.econ.hkma import fetch as f
+
+        # Newest-first full page, all of it older than the cutoff.
+        old = [_make_interbank_record(f"2024-01-{d:02d}") for d in (31, 30, 29)]
+        page = old * (f.PAGE_SIZE // 3) + old[: f.PAGE_SIZE % 3]
+        assert len(page) == f.PAGE_SIZE
+
+        with patch.object(f, "_get_page", return_value=_page(page)) as mock_page, \
+             patch.object(f.time, "sleep"):
+            got = f.fetch_all_records(
+                "some/path",
+                date_field="end_of_date",
+                since=datetime.date(2026, 5, 25),
+            )
+        assert len(got) == f.PAGE_SIZE
+        assert mock_page.call_count == 1, "should stop after the first stale page"
+
+    def test_walks_on_when_page_still_inside_window(self):
+        from playground.econ.hkma import fetch as f
+
+        fresh = [_make_interbank_record("2026-10-05")] * f.PAGE_SIZE
+        tail = [_make_interbank_record("2026-09-01")]
+        with patch.object(f, "_get_page", side_effect=[_page(fresh), _page(tail)]) as mock_page, \
+             patch.object(f.time, "sleep"):
+            got = f.fetch_all_records(
+                "some/path", date_field="end_of_date", since=datetime.date(2026, 5, 25)
+            )
+        assert len(got) == f.PAGE_SIZE + 1
+        assert mock_page.call_count == 2
+
+    def test_no_since_still_walks_all_pages(self):
+        from playground.econ.hkma import fetch as f
+
+        full = [_make_interbank_record("2024-01-01")] * f.PAGE_SIZE
+        with patch.object(f, "_get_page", side_effect=[_page(full), _page([])]), \
+             patch.object(f.time, "sleep"):
+            got = f.fetch_all_records("some/path")
+        assert len(got) == f.PAGE_SIZE
+
+
+class TestEndpointIsolation:
+    def test_one_dead_endpoint_does_not_kill_the_others(self):
+        from playground.econ.hkma import fetch as f
+
+        def side_effect(slug: str, **_kw):
+            if "interbank-liquidity" in slug:
+                raise RuntimeError("HKMA still throttling after 4 retries")
+            return [_make_monbase_record("2026-10-05")]
+
+        with patch("playground.econ.hkma.fetch.fetch_all_records", side_effect=side_effect):
+            _, obs = f.run_fetch(
+                series_filter=["agg_bal", "mon_base"], since="2026-10-01", until=None
+            )
+        codes = {o.imdr_code for o in obs}
+        assert codes == {"HKMA.MON_BASE"}, "mon_base must survive agg_bal failing"
