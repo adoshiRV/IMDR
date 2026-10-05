@@ -459,12 +459,13 @@ What consumes them downstream:
 * **Research MCP** — owner-only Qdrant MCP for ad-hoc semantic search
   (see project memory `project_research_mcp_owner_only`).
 * **Topical briefs** — ad-hoc, one-off deep dives on a single question, written to
-  `data/topical_briefs/{slug}/{slug}-topical-brief-{YYYY-MM-DD}.md` plus a
-  `{slug}-latest.md` pointer, following the `credit_briefs/` shape. No sub-agent owns
-  these (the former Mycroft spec was retired 2026-07-10); they are governed by the
+  `data/research_summary/topical/{YYYY}/{MM}/{DD}/{slug}.md`, alongside the `daily/`
+  and `weekly/` Spider editions in the same tree (optional siblings per date:
+  `assets/`, `charts/`, `bank_pdfs/`, `_archived/`). No sub-agent owns these (the
+  former Mycroft spec was retired 2026-07-10); they are governed by the
   `rvc-research-docs` skill — decision lens, named divergences, Solid/Tension/Weak
-  argument audit, source register with IMDR paths and a coverage ceiling. First
-  entry: `hkd-inflows-and-carry` (2026-10-05).
+  argument audit, source register with IMDR paths and a coverage ceiling. Recent:
+  `2026/10/05/hkd-inflows-and-carry.md`.
 
 ### Brief-support checkers
 
