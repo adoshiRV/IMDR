@@ -221,6 +221,12 @@ replaces. Rules for bulleting:
    only**. One trade per row; multi-leg bundles split; a regime view is `Macro view only`
    until an instrument is named. Titled "Street trade map" (aggregated sell-side
    positioning) — **never "where the book tilts"** (that reads as RV's own book).
+   **Every row carries where the trade is NOW versus where it STARTED** — see
+   *§ Marking rules* below. The `House` cell gains `sug {date}` (the date the idea was
+   **first suggested**, not last reaffirmed; a re-strike is appended as
+   `sug 2 Sep (re-struck 18 Sep)`), and the mark is **folded into the `Level / Entry`
+   cell**, not given a ninth column — nine will not hold at A4 portrait, and this is the
+   same fold the daily spec prescribes for its own wide trade map.
 8. **The big cross-cutting themes (support).** The 4–8 strands the whole street is
    discussing, each *built up* as a short bullet stack: who introduced it, who corroborated
    with what numbers, who dissented, what breaks it. A `Sources:` line of report_ids ends
@@ -297,7 +303,11 @@ warrants:
   tables): **# · House · Trade · Type · Level / Entry · Target / Stop · Why (rationale,
   verbatim where quoted) · Risk (what breaks it) · Status** (new / persists / target-hit
   / stopped / evolved). The **Why** and **Risk** columns are mandatory — a trade without
-  its rationale and its risk is not tradeable content. Use `n/s` where a desk did not
+  its rationale and its risk is not tradeable content. **The `Level / Entry` cell also
+  carries the mark — where the trade is now versus where it started** (`sug {date}` on the
+  `House` cell, the mark folded into `Level / Entry`); see *§ Marking rules*. `Status` says
+  what the HOUSE did with the trade; the mark says what the MARKET did to it — they are
+  different axes and neither substitutes for the other. Use `n/s` where a desk did not
   publish a field; never fabricate an entry/target/stop or a carry number. Close with an
   **INTERNAL COHERENCE CHECK** where trades interact (do two houses' trades express the
   same view, or contradict?).
@@ -431,6 +441,56 @@ separate and each item tagged. Weekly emphases:
   ranking or label the difference in the row — never rank mixed windows silently. The
   mark-time metadata from `check_session_scope.py` is the evidence here too.
 
+## Marking rules — where the trade is now versus where it started
+
+Every trade row in the doc (Tier-1 Street trade map, every per-country trade board) carries
+**where the trade is NOW against where it STARTED**. This is the honest scorecard: a house
+that has reaffirmed a trade four times is still wrong if the market has gone the other way
+since it first suggested it.
+
+**Form.** `sug {date}` goes on the `House` cell — the date the idea was **first suggested**,
+never the date it was last reaffirmed; append a re-strike as `sug 2 Sep (re-struck 18 Sep)`
+and still run the mark from the **first** date. The mark itself is **folded into the
+`Level / Entry` cell**, written as:
+
+> `… entry 1.9979 · IMDR mark 2.0027 · −0.24% offside · 32d`
+
+— the level at suggestion, the level now, the **signed** move, the verdict token, days held.
+
+**Mark from IMDR only. Never mark from a sell-side run, and never estimate.**
+
+- **Markable:** FX outrights and **crosses** (triangulate off the USD legs — SGD/KRW from
+  USD/SGD and USD/KRW — **hour-matched on both dates**, which is the same one-clock rule the
+  WoW matrix obeys); swap and OIS par-curve levels, spreads and flies — **except on a tenor
+  `check_curve_tenors.py` calls SYNTHETIC**, which is the 10Y plus a construction constant and
+  marks nothing; equity indices **whose series is sane** (a feed averaging >1% absolute daily
+  moves against its regional peers is broken, not volatile — retire it and say so).
+- **Not markable, and the cell must say so:** option structures, digitals, risk reversals and
+  ERKOs (a strike is not a price — these need a vol surface); **any cash-bond leg**;
+  **meeting-dated OIS** (IMDR carries par tenors and standard forwards, not meeting-date
+  strips — deriving one is bootstrapping, which these rules bar); **forward-starting
+  instruments** marked on the forward, never on spot; anything with no IMDR instrument.
+  Print **`not markable · {reason}`** — never a blank cell, never a guess, never a sell-side
+  mark substituted in. Where the suggestion pre-dates IMDR coverage of the instrument, print
+  `not markable · no history at suggestion`.
+
+**Sign discipline — the rule that fails most often.** The move is **signed to the trade's
+direction, never raw.** A short that has fallen is **onside while showing a minus**; a raw
+percentage on a short reads backwards and will be misread at speed. The 04 Oct 2026 edition
+caught two inverted rows in pre-lock audit — a short EUR/NZD marked "Working" that was
+−0.24% from entry, and a long SGD/IDR marked working when the cross had fallen. Both were
+sign errors, not grounding errors. **Recompute the cross from its USD legs and state the
+direction in words before trusting the number.**
+
+**Token discipline.** Always write the literal token **`onside` / `offside` / `not markable`**.
+The renderer tints the folded mark off that token and **never off the sign of the number**;
+drop the token and the row renders uncoloured. Red/green asserts a **verdict**, so it appears
+only on this mark — **never** tint curve-move tables, the WoW matrix, hero tiles or drawdown
+columns. A −4bp move is not "good", and colouring it would assert something false.
+
+**A closed or stopped trade** carries its realised outcome instead of a live mark, and keeps
+`sug {date}` so the holding period stays legible.
+
 ## Pre-lock verification — the trade-board & threshold audit (MANDATORY)
 
 The single largest error class in shipped editions is not grounding — it is
@@ -455,28 +515,35 @@ run it like the other checkers and act on every flag.
    not the unhedged bond; an option's mark is a premium, not spot. If the actual
    instrument cannot be marked from IMDR, say so (`n/s` / unmarkable) — do not
    substitute the nearest spot series without labelling the substitution.
-3. **Recompute every derived number.** Any %/bp change printed in a trade row or its
+3. **The mark: direction-sign, first-suggested date, hour-match.** For every row carrying
+   a folded `IMDR mark` (see *§ Marking rules*), check three things independently: the move
+   is **signed to the trade's direction** (a short that fell is `onside` showing a minus —
+   the 04 Oct 2026 edition caught two inverted rows this way); the mark runs from the
+   **first-suggested** date, not a re-strike; and both legs of a cross or spread are
+   **hour-matched on both dates**. A row that cannot satisfy all three prints
+   `not markable · {reason}`, never a guessed number.
+4. **Recompute every derived number.** Any %/bp change printed in a trade row or its
    surrounding prose must reproduce from the levels printed beside it (07 Sep:
    1.3854 → 1.38408 shipped as "0.8% below entry"; it is 0.095%). Entry-vs-current
    arithmetic, carry figures and target/stop distances are all recomputed, not carried
    from the draft.
-4. **Entry-date honesty.** Performance and status ("underwater", "target hit") are
+5. **Entry-date honesty.** Performance and status ("underwater", "target hit") are
    measured **from the actual entry date at the actual entry level** — never
    Monday-to-Friday for a mid-week entry. Where the entry predates the window, say what
    window the P/L covers.
-5. **Measure discipline (kills the CPI/PCE class of error).** Every threshold, tracking
+6. **Measure discipline (kills the CPI/PCE class of error).** Every threshold, tracking
    estimate and falsifier keeps its **(house · measure · exact conditional)** triplet
    intact end-to-end. Core CPI ≠ core PCE ≠ headline; m/m ≠ y/y ≠ 3m-saar; one house's
    threshold is **never** transplanted onto another house's call (07 Sep: BofA's
    "core **PCE** ≥ 0.24%" hike threshold shipped as the core-**CPI** falsifier on
    *Citi's* hold). When compressing a debate into one falsifier cell, quote the
    conditional owner by name.
-6. **Traceability without dirtying the reader pages.** Every trade row and every
+7. **Traceability without dirtying the reader pages.** Every trade row and every
    consequential quotation must be traceable: the Tier-3 source register carries the
    report_id (and page where available) keyed so a row can be re-found (House · Trade ·
    report_id). Reader pages stay free of ids (the existing rule); the register is where
    the audit trail lives.
-7. **Retrieval honesty.** Where only a title or a partial excerpt was retrieved, write
+8. **Retrieval honesty.** Where only a title or a partial excerpt was retrieved, write
    **"not established from the material reviewed"** — never convert a retrieval failure
    into "the bank has no trade", "no house covers this", or a `Stale` verdict. Absence of
    evidence in the corpus is a coverage statement, and it belongs in the production log
