@@ -1,10 +1,11 @@
 # Citi Velocity — Exploration Snapshots
 
-Last updated: 2026-06-03
+Last updated: 2026-10-12
 
 Frozen discovery snapshots from `tagbrowsing` API runs. **Do not re-run** the underlying scripts — all results are cached in `data/cache/{domain}/*.json`.
 
 - **[bonds_full.md](bonds_full.md)** — Sovereign bonds + adjacent fixed income deep probe. 19 RATES.* branches probed, 14 confirmed working: SOV (11.8K, 34 DM countries, full yield+spread+ASW cube), TSY, T_BILL, TIPS, SSA (708, 35 issuers), SSA_CS, MBS (11.3K), AGENCY_INVENTORY, FRA (incl. KRW), FRA_OIS, OIS_INVOICESPREAD, FORECAST. Resolves SOV vs SOV_CMT alias. Supersedes "partial" claims in rates_full.md. Discovered 2026-05-25.
+- **[indonesia_bonds.md](indonesia_bonds.md)** — Indonesia bonds + IDR rates. Finds `RATES.BOND.{ISIN}.{MEASURE}` (40 measures, dynamically keyed, invisible to `tagbrowsing`) and `RATES.SWAP_LIBOR.IDR.*` (11,294 tags, 5y daily par curve, 1M–50Y). **Corrects the "zero APAC EM bond coverage" verdict in [bonds_full.md](bonds_full.md).** The INDOGB bond series fails cross-vendor validation (median daily r vs BQL = +0.018) and must not be used as a mark; the IDR swap curve is usable. Probed 2026-10-12.
 - **[rates_full.md](rates_full.md)** — 135,915 tags across 24 RATES subcategories (SOV_CMT, XCCY_OIS_SWAP, BENCH_RATES, TSY, T_BILL, TIPS, INFLATION, SSA, CITIPAIN, CTOT, etc.). Discovered 2026-03-26. **Note**: SOV/MBS/AGENCY_INVENTORY entries superseded by [bonds_full.md](bonds_full.md).
 - **[rates_inflation.md](rates_inflation.md)** — 7,476 inflation tags: CPI indices + inflation swaps + swaptions. Discovered 2026-03-26.
 - **[rates_sov_cmt.md](rates_sov_cmt.md)** — SOV_CMT deep dive: 8,250 tags, 32/34 countries confirmed, 30 tenors. Discovered 2026-03-26. **Note**: canonical browsable path is `RATES.SOV.CMT.*`; `RATES.SOV_CMT.*` is a non-enumerable alias. See [bonds_full.md](bonds_full.md).

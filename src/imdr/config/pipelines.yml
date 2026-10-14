@@ -156,6 +156,9 @@ pipelines:
       - fwd
       - bfly
       - ssw
+      # 'rc' is the REQUEST family; one request returns all three measures and
+      # the response lands as rc_carry/rc_roll/rc_total (schema.py
+      # RC_MEASURE_TO_QUOTE). Do not list the storage codes here.
       - rc
     unique_columns:
       - curve_id

@@ -235,6 +235,17 @@ instruments:
       basis: "BASIS_SPREAD"
     maturities: basis_swaps
 
+  xccy_ois_swap:
+    tag_prefix: "RATES.XCCY_OIS_SWAP"
+    # Citi tag order: {prefix}.{TENOR}.BASE_LEG.{QUOTE} (quote LAST, with an
+    # extra BASE_LEG/SPREAD_LEG segment basis_swaps doesn't have).
+    # Example: RATES.XCCY_OIS_SWAP.AUD.USD.SPOT.5Y.BASE_LEG.BASIS_SPREAD
+    tag_format: "tenor_leg_first"
+    description: "G10 cross-currency OIS basis — RFR-vs-RFR basis spread in bps"
+    quote_types:
+      basis: "BASIS_SPREAD"
+    maturities: basis_swaps
+
   swap_libor:
     tag_prefix: "RATES.SWAP_LIBOR"
     tag_format: "ccy_only"
@@ -711,6 +722,730 @@ curves:
     providers:
       citi: { prefix: "RATES.BASIS_SWAPS.3S_OIS_BASIS.AUD.SPOT", instrument: basis_swaps }
 
+  # ═══ XCCY OIS Basis — G10 cross-currency RFR-vs-RFR basis spreads ═══
+  # All 10 G10 currencies x 9 counterparts = 90 directional pairs; each pair
+  # quoted on both sides (e.g. EUR vs USD and USD vs EUR) with ~opposite sign.
+  # BASE_LEG only (SPREAD_LEG mirrors it, dropped by translate.py as redundant).
+  - ccy: AUD
+    curve: XCCY_OIS_VS_CAD
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.AUD.CAD.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: AUD
+    curve: XCCY_OIS_VS_CHF
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.AUD.CHF.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: AUD
+    curve: XCCY_OIS_VS_EUR
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.AUD.EUR.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: AUD
+    curve: XCCY_OIS_VS_GBP
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.AUD.GBP.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: AUD
+    curve: XCCY_OIS_VS_JPY
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.AUD.JPY.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: AUD
+    curve: XCCY_OIS_VS_NOK
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.AUD.NOK.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: AUD
+    curve: XCCY_OIS_VS_NZD
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.AUD.NZD.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: AUD
+    curve: XCCY_OIS_VS_SEK
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.AUD.SEK.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: AUD
+    curve: XCCY_OIS_VS_USD
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.AUD.USD.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: CAD
+    curve: XCCY_OIS_VS_AUD
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.CAD.AUD.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: CAD
+    curve: XCCY_OIS_VS_CHF
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.CAD.CHF.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: CAD
+    curve: XCCY_OIS_VS_EUR
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.CAD.EUR.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: CAD
+    curve: XCCY_OIS_VS_GBP
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.CAD.GBP.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: CAD
+    curve: XCCY_OIS_VS_JPY
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.CAD.JPY.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: CAD
+    curve: XCCY_OIS_VS_NOK
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.CAD.NOK.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: CAD
+    curve: XCCY_OIS_VS_NZD
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.CAD.NZD.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: CAD
+    curve: XCCY_OIS_VS_SEK
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.CAD.SEK.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: CAD
+    curve: XCCY_OIS_VS_USD
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.CAD.USD.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: CHF
+    curve: XCCY_OIS_VS_AUD
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.CHF.AUD.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: CHF
+    curve: XCCY_OIS_VS_CAD
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.CHF.CAD.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: CHF
+    curve: XCCY_OIS_VS_EUR
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.CHF.EUR.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: CHF
+    curve: XCCY_OIS_VS_GBP
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.CHF.GBP.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: CHF
+    curve: XCCY_OIS_VS_JPY
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.CHF.JPY.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: CHF
+    curve: XCCY_OIS_VS_NOK
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.CHF.NOK.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: CHF
+    curve: XCCY_OIS_VS_NZD
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.CHF.NZD.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: CHF
+    curve: XCCY_OIS_VS_SEK
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.CHF.SEK.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: CHF
+    curve: XCCY_OIS_VS_USD
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.CHF.USD.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: EUR
+    curve: XCCY_OIS_VS_AUD
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.EUR.AUD.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: EUR
+    curve: XCCY_OIS_VS_CAD
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.EUR.CAD.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: EUR
+    curve: XCCY_OIS_VS_CHF
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.EUR.CHF.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: EUR
+    curve: XCCY_OIS_VS_GBP
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.EUR.GBP.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: EUR
+    curve: XCCY_OIS_VS_JPY
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.EUR.JPY.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: EUR
+    curve: XCCY_OIS_VS_NOK
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.EUR.NOK.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: EUR
+    curve: XCCY_OIS_VS_NZD
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.EUR.NZD.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: EUR
+    curve: XCCY_OIS_VS_SEK
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.EUR.SEK.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: EUR
+    curve: XCCY_OIS_VS_USD
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.EUR.USD.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: GBP
+    curve: XCCY_OIS_VS_AUD
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.GBP.AUD.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: GBP
+    curve: XCCY_OIS_VS_CAD
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.GBP.CAD.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: GBP
+    curve: XCCY_OIS_VS_CHF
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.GBP.CHF.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: GBP
+    curve: XCCY_OIS_VS_EUR
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.GBP.EUR.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: GBP
+    curve: XCCY_OIS_VS_JPY
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.GBP.JPY.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: GBP
+    curve: XCCY_OIS_VS_NOK
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.GBP.NOK.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: GBP
+    curve: XCCY_OIS_VS_NZD
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.GBP.NZD.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: GBP
+    curve: XCCY_OIS_VS_SEK
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.GBP.SEK.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: GBP
+    curve: XCCY_OIS_VS_USD
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.GBP.USD.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: JPY
+    curve: XCCY_OIS_VS_AUD
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.JPY.AUD.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: JPY
+    curve: XCCY_OIS_VS_CAD
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.JPY.CAD.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: JPY
+    curve: XCCY_OIS_VS_CHF
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.JPY.CHF.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: JPY
+    curve: XCCY_OIS_VS_EUR
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.JPY.EUR.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: JPY
+    curve: XCCY_OIS_VS_GBP
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.JPY.GBP.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: JPY
+    curve: XCCY_OIS_VS_NOK
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.JPY.NOK.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: JPY
+    curve: XCCY_OIS_VS_NZD
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.JPY.NZD.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: JPY
+    curve: XCCY_OIS_VS_SEK
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.JPY.SEK.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: JPY
+    curve: XCCY_OIS_VS_USD
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.JPY.USD.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: NOK
+    curve: XCCY_OIS_VS_AUD
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.NOK.AUD.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: NOK
+    curve: XCCY_OIS_VS_CAD
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.NOK.CAD.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: NOK
+    curve: XCCY_OIS_VS_CHF
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.NOK.CHF.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: NOK
+    curve: XCCY_OIS_VS_EUR
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.NOK.EUR.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: NOK
+    curve: XCCY_OIS_VS_GBP
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.NOK.GBP.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: NOK
+    curve: XCCY_OIS_VS_JPY
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.NOK.JPY.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: NOK
+    curve: XCCY_OIS_VS_NZD
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.NOK.NZD.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: NOK
+    curve: XCCY_OIS_VS_SEK
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.NOK.SEK.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: NOK
+    curve: XCCY_OIS_VS_USD
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.NOK.USD.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: NZD
+    curve: XCCY_OIS_VS_AUD
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.NZD.AUD.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: NZD
+    curve: XCCY_OIS_VS_CAD
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.NZD.CAD.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: NZD
+    curve: XCCY_OIS_VS_CHF
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.NZD.CHF.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: NZD
+    curve: XCCY_OIS_VS_EUR
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.NZD.EUR.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: NZD
+    curve: XCCY_OIS_VS_GBP
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.NZD.GBP.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: NZD
+    curve: XCCY_OIS_VS_JPY
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.NZD.JPY.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: NZD
+    curve: XCCY_OIS_VS_NOK
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.NZD.NOK.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: NZD
+    curve: XCCY_OIS_VS_SEK
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.NZD.SEK.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: NZD
+    curve: XCCY_OIS_VS_USD
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.NZD.USD.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: SEK
+    curve: XCCY_OIS_VS_AUD
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.SEK.AUD.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: SEK
+    curve: XCCY_OIS_VS_CAD
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.SEK.CAD.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: SEK
+    curve: XCCY_OIS_VS_CHF
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.SEK.CHF.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: SEK
+    curve: XCCY_OIS_VS_EUR
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.SEK.EUR.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: SEK
+    curve: XCCY_OIS_VS_GBP
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.SEK.GBP.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: SEK
+    curve: XCCY_OIS_VS_JPY
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.SEK.JPY.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: SEK
+    curve: XCCY_OIS_VS_NOK
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.SEK.NOK.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: SEK
+    curve: XCCY_OIS_VS_NZD
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.SEK.NZD.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: SEK
+    curve: XCCY_OIS_VS_USD
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.SEK.USD.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: USD
+    curve: XCCY_OIS_VS_AUD
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.USD.AUD.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: USD
+    curve: XCCY_OIS_VS_CAD
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.USD.CAD.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: USD
+    curve: XCCY_OIS_VS_CHF
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.USD.CHF.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: USD
+    curve: XCCY_OIS_VS_EUR
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.USD.EUR.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: USD
+    curve: XCCY_OIS_VS_GBP
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.USD.GBP.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: USD
+    curve: XCCY_OIS_VS_JPY
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.USD.JPY.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: USD
+    curve: XCCY_OIS_VS_NOK
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.USD.NOK.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: USD
+    curve: XCCY_OIS_VS_NZD
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.USD.NZD.SPOT", instrument: xccy_ois_swap }
+
+  - ccy: USD
+    curve: XCCY_OIS_VS_SEK
+    type: ccs
+    status: active
+    maturities: basis_swaps
+    providers:
+      citi: { prefix: "RATES.XCCY_OIS_SWAP.USD.SEK.SPOT", instrument: xccy_ois_swap }
+
 # ── Provider config ───────────────────────────────────────────────
 
 providers:
@@ -826,6 +1561,49 @@ multi_tenor_combos:
     - ["7Y", "10Y"]
     - ["10Y", "20Y"]
     - ["10Y", "30Y"]
+  rc:
+    # Roll-carry legs: [HORIZON, FWD_START, TENOR]. The Citi tag carries a
+    # trailing MEASURE (CARRY|ROLL|TOTAL_CARRY) which becomes the quote code
+    # (rc_carry/rc_roll/rc_total), so each combo below yields THREE tags.
+    #
+    # Curated like the fwd/spread grids: IDR alone exposes 8,554 ROLL_CARRY
+    # tags and USD_SOFR 32,166, so the full cube is neither affordable on the
+    # 100K/24h tag quota nor useful. 32 combos x 3 measures = 96 tags/curve.
+    # Verified present on both IDR (EM) and USD_SOFR (G10): 0 missing.
+    # Spot-starting, the standard tenor points, across all four horizons
+    - ["1M", "SPOT", "2Y"]
+    - ["1M", "SPOT", "5Y"]
+    - ["1M", "SPOT", "10Y"]
+    - ["1M", "SPOT", "30Y"]
+    - ["3M", "SPOT", "2Y"]
+    - ["3M", "SPOT", "5Y"]
+    - ["3M", "SPOT", "10Y"]
+    - ["3M", "SPOT", "30Y"]
+    - ["6M", "SPOT", "2Y"]
+    - ["6M", "SPOT", "5Y"]
+    - ["6M", "SPOT", "10Y"]
+    - ["6M", "SPOT", "30Y"]
+    - ["1Y", "SPOT", "2Y"]
+    - ["1Y", "SPOT", "5Y"]
+    - ["1Y", "SPOT", "10Y"]
+    - ["1Y", "SPOT", "30Y"]
+    # Forward-starting: the 1y/5y fwd points traders actually carry
+    - ["1M", "1Y", "5Y"]
+    - ["1M", "1Y", "10Y"]
+    - ["1M", "5Y", "5Y"]
+    - ["1M", "5Y", "10Y"]
+    - ["3M", "1Y", "5Y"]
+    - ["3M", "1Y", "10Y"]
+    - ["3M", "5Y", "5Y"]
+    - ["3M", "5Y", "10Y"]
+    - ["6M", "1Y", "5Y"]
+    - ["6M", "1Y", "10Y"]
+    - ["6M", "5Y", "5Y"]
+    - ["6M", "5Y", "10Y"]
+    - ["1Y", "1Y", "5Y"]
+    - ["1Y", "1Y", "10Y"]
+    - ["1Y", "5Y", "5Y"]
+    - ["1Y", "5Y", "10Y"]
   bfly:
     # Butterflies (short, belly, long)
     - ["2Y", "3Y", "5Y"]
@@ -898,5 +1676,7 @@ expected_ranges:
   fwd:    { min: -5.0, max: 25.0 }       # percent (forward rates)
   bfly:   { min: -100.0, max: 100.0 }    # bps (butterfly)
   ssw:    { min: -500.0, max: 500.0 }    # bps (swap-spread to govt)
-  rc:     { min: -200.0, max: 200.0 }    # bps (roll-carry)
+  rc_carry: { min: -200.0, max: 200.0 }  # bps (roll-carry: carry leg)
+  rc_roll:  { min: -200.0, max: 200.0 }  # bps (roll-carry: roll leg)
+  rc_total: { min: -200.0, max: 200.0 }  # bps (roll-carry: carry + roll)
   basis:  { min: -300.0, max: 50.0 }     # bps (BBG cross-currency basis spreads)

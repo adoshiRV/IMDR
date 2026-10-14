@@ -38,17 +38,44 @@ QUOTE_TO_CITI = {
 
 CITI_TO_QUOTE = {v: k for k, v in QUOTE_TO_CITI.items()}
 
+# ── Roll-carry: one REQUEST family, three STORAGE quotes ─────────
+#
+# The Citi tag is ROLL_CARRY.{HORIZON}.{FWD_START}.{TENOR}.{MEASURE} — four
+# segments, with a trailing measure that has nowhere to live in the
+# [ts, ccy, curve, quote, tenor, value] schema.
+#
+# 'rc' stays the single REQUEST key (so one build_tags call emits all three
+# measures and we don't pay 3x the tag quota for the same combos), and the
+# parser fans the response out into three STORAGE quotes — so a measure
+# filters like any other quote (WHERE quote='rc_carry') with no DDL.
+#
+# Until 2026-10-14 'rc' was classed single-tenor, so build_tags emitted
+# {prefix}.ROLL_CARRY.{tenor} — a 2-segment tail that can never resolve
+# against a 4-segment tag. 'rc' therefore produced ZERO rows on all 59
+# curves since inception despite sitting in pipelines.yml default_quotes.
+RC_MEASURE_TO_QUOTE = {
+    "CARRY":       "rc_carry",
+    "ROLL":        "rc_roll",
+    "TOTAL_CARRY": "rc_total",
+}
+RC_QUOTES = frozenset(RC_MEASURE_TO_QUOTE.values())
+
 # Quote types that use single tenors (e.g. 5Y)
-SINGLE_TENOR_QUOTES = {"par", "ssw", "rc", "basis"}
+SINGLE_TENOR_QUOTES = {"par", "ssw", "basis"}
 
 # Quote types that use multi-tenor encoding
-MULTI_TENOR_QUOTES = {"spread", "fwd", "bfly"}
+MULTI_TENOR_QUOTES = {"spread", "fwd", "bfly", "rc"} | RC_QUOTES
 
 # Expected leg counts per multi-tenor quote type
 MULTI_TENOR_LEGS = {
     "spread": 2,
     "fwd":    2,
     "bfly":   3,
+    # rc legs are (HORIZON, FWD_START, TENOR); the measure is in the quote.
+    "rc":       3,
+    "rc_carry": 3,
+    "rc_roll":  3,
+    "rc_total": 3,
 }
 
 
@@ -149,16 +176,33 @@ def display_tenor(tenor: str, quote: Optional[str] = None) -> str:
 
 
 def validate_quote(quote: str) -> str:
-    """Validate and return normalized quote code."""
+    """Validate and return normalized quote code.
+
+    Accepts the three rc_* storage codes as well as the request families —
+    they are valid to read and filter on, they just aren't requestable
+    (``quote_to_citi`` rejects them; request the ``rc`` family instead).
+    """
     q = quote.lower()
-    if q not in QUOTE_TO_CITI:
-        raise ValueError(f"Unknown quote type: {quote!r}. Valid: {list(QUOTE_TO_CITI.keys())}")
+    if q not in QUOTE_TO_CITI and q not in RC_QUOTES:
+        valid = list(QUOTE_TO_CITI.keys()) + sorted(RC_QUOTES)
+        raise ValueError(f"Unknown quote type: {quote!r}. Valid: {valid}")
     return q
 
 
 def quote_to_citi(quote: str) -> str:
-    """Convert internal quote code to Citi tag code."""
-    return QUOTE_TO_CITI[validate_quote(quote)]
+    """Convert internal quote code to Citi tag code.
+
+    The rc_* storage codes have no request form of their own — all three
+    come back from one ``rc`` request — so asking for a tag by storage code
+    is a bug, not something to silently map onto ROLL_CARRY.
+    """
+    q = validate_quote(quote)
+    if q in RC_QUOTES:
+        raise ValueError(
+            f"{quote!r} is a storage-only quote; request the 'rc' family instead "
+            "(one request returns all three measures)."
+        )
+    return QUOTE_TO_CITI[q]
 
 
 def citi_to_quote(citi_code: str) -> str:

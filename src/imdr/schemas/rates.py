@@ -6,7 +6,13 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-ALLOWED_QUOTES = {"par", "spread", "fwd", "bfly", "ssw", "rc", "basis"}
+from imdr.domains.rates.schema import QUOTE_TO_CITI, RC_QUOTES
+
+# Derived, not duplicated: this used to be a second hardcoded quote list and
+# duly drifted — the rc_* storage codes parsed fine but were rejected here,
+# failing the load after the fetch had already been paid for. Keep the domain
+# schema as the single source of truth for what a quote may be.
+ALLOWED_QUOTES = set(QUOTE_TO_CITI) | set(RC_QUOTES)
 ALLOWED_CURVE_TYPES = {"rfr", "ibor", "basis", "ccs"}
 ALLOWED_CURVE_STATUSES = {"active", "ceased", "reformed"}
 

@@ -45,6 +45,8 @@ PIPELINES: list[dict] = [
     {"cmd": ["python", "-m", "scripts.equity.citi.equity_vix_citi_live"], "estimated_tags": 5},
     {"cmd": ["python", "-m", "scripts.rates.citi.rates_bench_citi_live"], "estimated_tags": 10},
     {"cmd": ["python", "-m", "scripts.rates.citi.rates_basis_swaps_citi_live"], "estimated_tags": 100},
+    # G10 cross-currency OIS basis — 90 directional pairs x 20 tenors x 1 leg (BASE_LEG).
+    {"cmd": ["python", "-m", "scripts.rates.citi.rates_xccy_ois_citi_live"], "estimated_tags": 1_800},
     # Non-Citi vendor feeds (no tag quota).
     # Indonesia dual-track daily orchestrator (registered 2026-09-21).
     # REPLACES the two individual entries that used to sit here —
@@ -75,6 +77,11 @@ PIPELINES: list[dict] = [
     {"cmd": [sys.executable, "-m", "scripts.econ.us.us_daily"], "estimated_tags": 0},
     {"cmd": ["python", "-m", "scripts.prediction.polymarket.streaming", "cleanup"], "estimated_tags": 0},
     # {"cmd": ["python", "-m", "scripts.prediction.polymarket.teams_post", "--slot", "AM"], "estimated_tags": 0},
+    # Track B govt bonds (ISIN grain) — Govy Monitor SQLite -> dim_bond_instrument
+    # + fact_bond_instrument_obs + fact_bond_auction. 12 issuers incl INDOGB.
+    # Reads a COPY of the desktop app's store, so a day the app was closed just
+    # re-upserts the same rows; the MERGE makes re-runs free. No tag quota.
+    {"cmd": [sys.executable, "-m", "scripts.rates.bonds_govy"], "estimated_tags": 0},
     {"cmd": ["python", "-m", "scripts.run_vendor_feed", "barclays_skew"], "estimated_tags": 0},
     {"cmd": ["python", "-m", "scripts.run_vendor_feed", "bbg_fx_daily"], "estimated_tags": 0},
     {"cmd": ["python", "-m", "scripts.run_vendor_feed", "bbg_rates_daily"], "estimated_tags": 0},

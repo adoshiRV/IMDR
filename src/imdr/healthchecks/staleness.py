@@ -418,6 +418,33 @@ DEFAULT_SPECS: list[StalenessSpec] = [
         dim_label_cols=("series_name", "region"),
         max_stale_days=10,
     ),
+    StalenessSpec(
+        domain="Govt Bonds (ISIN)",
+        pipeline_name="rates.bonds_govy",
+        table="[rates].[fact_bond_instrument_obs]",
+        date_column="obs_date",
+        key_column="instrument_id",
+        dim_table="[dbo].[dim_bond_instrument]",
+        dim_join_col="id",
+        # issuer_code first so a whole-issuer stall reads at a glance.
+        dim_label_cols=("issuer_code", "isin", "description"),
+        dim_filter="is_active = 1",
+        breakdowns=(VENDOR_BREAKDOWN, FREQUENCY_BREAKDOWN),
+        # Per-INSTRUMENT, deliberately: the Govy desktop app stalls one
+        # issuer at a time, not the whole store. A table-wide freshness
+        # check reads MAX(obs_date) across all 12 issuers and passes on the
+        # healthy ten — which is exactly how INDOGB and UST went ~8 weeks
+        # dark (both stuck at 2026-08-13 while the rest ran to 2026-10-06)
+        # without anything firing. Keyed per instrument, those 48 bonds
+        # each flag and roll up under their issuer label.
+        #
+        # 5 business days, not the 2 used for the Citi curve feed: this is
+        # a desktop app a human leaves running, so a long weekend or a
+        # restart is normal and 2 days would cry wolf. A genuine stall runs
+        # to weeks, which 5 still catches early.
+        max_stale_days=5,
+        business_days=True,
+    ),
     # ── Equities ───────────────────────────────────────────────────
     StalenessSpec(
         domain="Equity Indices",

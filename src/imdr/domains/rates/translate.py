@@ -16,7 +16,12 @@ from typing import Any
 import pandas as pd
 
 from imdr.connectors.citi_helpers import citi_response_to_rows
-from imdr.domains.rates.schema import CITI_TO_QUOTE, COLUMNS, QUOTE_TO_CITI
+from imdr.domains.rates.schema import (
+    CITI_TO_QUOTE,
+    COLUMNS,
+    QUOTE_TO_CITI,
+    RC_MEASURE_TO_QUOTE,
+)
 from imdr.universe.rates import RatesUniverse, get_rates_universe
 
 
@@ -36,6 +41,7 @@ def citi_tag_to_internal(
       OIS:         RATES.OIS.{CCY}_{INDEX}.{QUOTE_TYPE}.{MATURITY}            (5+ parts)
       SWAP_LIBOR:  RATES.SWAP_LIBOR.{CCY}.{QUOTE_TYPE}.{MATURITY}             (5+ parts)
       BASIS_SWAPS: RATES.BASIS_SWAPS.{BASIS}.{CCY}.{START}.{TENOR}.{QUOTE}    (7 parts; quote LAST)
+      XCCY_OIS_SWAP: RATES.XCCY_OIS_SWAP.{CCY1}.{CCY2}.SPOT.{TENOR}.{LEG}.{QUOTE} (8 parts; quote LAST)
       Multi-tenor: ... .{QT}.{MAT1}.{MAT2} (6 parts) or .{MAT1}.{MAT2}.{MAT3} (7 parts)
     """
     if universe is None:
@@ -65,6 +71,19 @@ def citi_tag_to_internal(
         prefix = ".".join(parts[:5])  # RATES.BASIS_SWAPS.{BASIS}.{CCY}.{START}
         tenor_parts = [parts[5]]
         citi_qt = parts[6]
+    elif instrument == "XCCY_OIS_SWAP":
+        # RATES.XCCY_OIS_SWAP.{CCY1}.{CCY2}.SPOT.{TENOR}.{LEG}.{QUOTE}
+        if len(parts) < 8:
+            return None
+        leg = parts[6]
+        if leg != "BASE_LEG":
+            # We only ever request BASE_LEG; drop SPREAD_LEG rows that
+            # somehow come back (belt-and-suspenders — mirrors BASE_LEG
+            # with the sign flipped, not a distinct observation).
+            return None
+        prefix = ".".join(parts[:5])  # RATES.XCCY_OIS_SWAP.{CCY1}.{CCY2}.SPOT
+        tenor_parts = [parts[5]]
+        citi_qt = parts[7]
     else:
         return None
 
@@ -73,10 +92,20 @@ def citi_tag_to_internal(
         return None
     ccy, curve = resolved
 
-    # Quote type
-    quote = CITI_TO_QUOTE.get(citi_qt)
-    if quote is None:
-        return None
+    # Quote type. ROLL_CARRY is the one family whose quote depends on the tag
+    # body: {HORIZON}.{FWD_START}.{TENOR}.{MEASURE}, where the trailing measure
+    # selects one of three storage quotes. Everything else is a flat lookup.
+    if citi_qt == "ROLL_CARRY":
+        if len(tenor_parts) != 4:
+            return None
+        quote = RC_MEASURE_TO_QUOTE.get(tenor_parts[-1])
+        if quote is None:
+            return None
+        tenor_parts = tenor_parts[:3]
+    else:
+        quote = CITI_TO_QUOTE.get(citi_qt)
+        if quote is None:
+            return None
 
     # Tenor: single part for par/ssw/rc, multi for spread/fwd/bfly
     tenor = ".".join(tenor_parts) if len(tenor_parts) > 1 else tenor_parts[0]

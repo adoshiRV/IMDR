@@ -15,8 +15,9 @@ class TestUniverseLoading:
         assert universe is not None
 
     def test_curve_count(self, universe):
-        # 39 prior + 4 basis_swaps (USD/EUR/GBP/AUD 3S6S_BASIS) = 43
-        assert len(universe.all_curves()) == 43
+        # 44 prior (baseline, pre xccy_ois_swap) + 90 xccy_ois_swap
+        # (10 G10 ccys x 9 counterparts) = 134
+        assert len(universe.all_curves()) == 134
 
     def test_target_currencies(self, universe):
         ccys = universe.target_currencies()
@@ -37,7 +38,8 @@ class TestCurveLookups:
 
     def test_curves_for_ccy_jpy(self, universe):
         curves = universe.curves_for_ccy("JPY")
-        assert len(curves) == 4  # TONAR, TONAR_JSCC, TONAR_LCH, JPY_LIBOR
+        # TONAR, TONAR_JSCC, TONAR_LCH, JPY_LIBOR + 9 XCCY_OIS_VS_* = 13
+        assert len(curves) == 13
 
     def test_curves_for_ccy_usd(self, universe):
         curves = universe.curves_for_ccy("USD")
@@ -226,8 +228,8 @@ class TestCcyIndexPairs:
 class TestBaseUniverseABC:
     def test_instruments(self, universe):
         instruments = universe.instruments()
-        # 39 prior + 4 basis_swaps = 43
-        assert len(instruments) == 43
+        # 44 prior (baseline) + 90 xccy_ois_swap = 134
+        assert len(instruments) == 134
         assert "USD.SOFR" in instruments
 
     def test_api_symbols(self, universe):
@@ -271,3 +273,36 @@ class TestBasisSwaps:
     def test_resolve_prefix(self, universe):
         result = universe.resolve_prefix("RATES.BASIS_SWAPS.3S6S_BASIS.AUD.SPOT")
         assert result == ("AUD", "3S6S_BASIS")
+
+
+class TestXccyOisSwap:
+    """G10 cross-currency OIS basis — tag layout
+    `{prefix}.{TENOR}.BASE_LEG.{QUOTE}` (quote LAST, extra LEG segment)."""
+
+    def test_curve_count(self, universe):
+        curves = [
+            c for c in universe.all_curves()
+            if c.providers.get("citi", {}).get("instrument") == "xccy_ois_swap"
+        ]
+        assert len(curves) == 90
+
+    def test_curves_loaded(self, universe):
+        c = universe.get_curve("EUR", "XCCY_OIS_VS_USD")
+        assert c.type == "ccs"
+        assert c.status == "active"
+        assert c.providers["citi"]["instrument"] == "xccy_ois_swap"
+
+    def test_build_tags_tenor_leg_first_order(self, universe):
+        tags = universe.build_tags("EUR", "XCCY_OIS_VS_USD", "BASIS_SPREAD", ["5Y"])
+        assert tags == ["RATES.XCCY_OIS_SWAP.EUR.USD.SPOT.5Y.BASE_LEG.BASIS_SPREAD"]
+
+    def test_build_tags_all_tenors(self, universe):
+        tags = universe.build_tags("EUR", "XCCY_OIS_VS_USD", "BASIS_SPREAD")
+        assert len(tags) == 20  # same basis_swaps tenor grid, 3M..30Y
+
+    def test_par_returns_empty_on_xccy_curve(self, universe):
+        assert universe.build_tags("EUR", "XCCY_OIS_VS_USD", "PAR") == []
+
+    def test_resolve_prefix(self, universe):
+        result = universe.resolve_prefix("RATES.XCCY_OIS_SWAP.AUD.JPY.SPOT")
+        assert result == ("AUD", "XCCY_OIS_VS_JPY")

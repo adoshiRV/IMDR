@@ -67,10 +67,12 @@ from imdr.domains.rates.repository_bond import (
     BondInstrumentObsRepository,
     BondInstrumentRepository,
 )
+from imdr.models.audit import RunStatus
 from imdr.models.country import DimCountry
 from imdr.models.currency import DimCurrency
 from imdr.models.frequency import DimFrequency
 from imdr.models.vendor import DimVendor
+from imdr.pipelines.base import BasePipeline
 from imdr.schemas.rates_bond import (
     BondAuctionCreate,
     BondInstrumentCreate,
@@ -83,7 +85,32 @@ LIVE_DB = Path(r"Z:\Business\Research\Dashboard\Govy Monitor\BBG.Yield.DB")
 
 VENDOR_CODE = "BBG"
 FREQUENCY_CODE = "DAILY"
-DEFAULT_COUNTRIES = ["IGB", "KTB"]
+
+# Every bond issuer the Govy store carries. Widened from the original
+# ["IGB", "KTB"] pilot pair on 2026-10-12 when the full load gate cleared;
+# the ISIN->country map below already covered all twelve.
+#
+# NB these are *bond issuer* codes. ``auction_calendar`` is keyed on a
+# different, wider namespace (ISO-ish sovereign codes: FR, DE, IT, ES, UK,
+# BE, AT, NL, FI, PT, GR, IE, EU) — see AUCTION_COUNTRIES.
+DEFAULT_COUNTRIES = [
+    "ACGB", "CGB", "IGB", "INDOGB", "JGB", "KTB",
+    "MGS", "NZGB", "RPGB", "SIGB", "THAIGB", "UST",
+]
+
+# ``auction_calendar`` is keyed on a wider namespace than the bond tables:
+# the six issuer codes that also issue (IGB/JGB/UST/KTB/MGS/ACGB) plus
+# ISO-ish sovereign codes for the European issuers. Auctions are a separate
+# grain from per-bond yields, so they get their own scope rather than being
+# filtered by the bond-issuer list.
+#
+# AT, BE, PT, GR and IE are deliberately absent: they appear in the source
+# but have no dbo.dim_country row, so build_auction_creates would skip them
+# anyway. They surface in the report's skipped_unresolved_auctions count.
+DEFAULT_AUCTION_COUNTRIES = [
+    "ACGB", "IGB", "JGB", "KTB", "MGS", "UST",
+    "DE", "ES", "EU", "FI", "FR", "IT", "NL", "UK",
+]
 
 # Govy country_code -> IMDR dim_country.country_code.
 GOVY_TO_IMDR: dict[str, str] = {
@@ -112,6 +139,16 @@ _PRICING_SOURCE_MAXLEN = 12
 # Issuance Calendar H1 FY2026-27 (PIB)") exceed it. Clip rather than drop —
 # provenance stays legible even truncated.
 _SOURCE_MAXLEN = 30
+
+# security_type VARCHAR(30) / term VARCHAR(10). The IGB+KTB pilot never hit
+# these, but the European auction rows added 2026-10-12 do: 'BTFs 30Sep26,
+# 2Dec26, 16Dec26, 16Jun27' (38) and '29-Year 10-Month' (16). Both are clipped
+# in extract_auction_rows — i.e. BEFORE _dedupe_auctions_latest — so the dedup
+# key and the fact_bond_auction unique key are computed over identical values.
+# Clipping after dedup could let two raw rows collapse onto one DB key and
+# fail the MERGE. Verified over the full source: 4 rows clipped, 0 collisions.
+_SECURITY_TYPE_MAXLEN = 30
+_TERM_MAXLEN = 10
 
 # Dry-run-only placeholder so BondInstrumentObsCreate can validate its full
 # shape (pricing_source/units/quote_type/etc) without seeding
@@ -305,8 +342,8 @@ def extract_auction_rows(conn: sqlite3.Connection, countries: list[str]) -> list
             "govy_country_code": r["country_code"],
             "country_code": GOVY_TO_IMDR.get(r["country_code"], r["country_code"]),
             "auction_date": r["auction_date"],
-            "security_type": r["security_type"] or "",
-            "term": r["term"] or "",
+            "security_type": (r["security_type"] or "")[:_SECURITY_TYPE_MAXLEN],
+            "term": (r["term"] or "")[:_TERM_MAXLEN],
             "isin": r["isin"] or "",
             "cusip": _none_if_blank(r["cusip"]),
             "coupon": r["coupon"],
@@ -321,6 +358,32 @@ def extract_auction_rows(conn: sqlite3.Connection, countries: list[str]) -> list
 
 
 # ── Transform (raw dicts -> Pydantic Create models) ──────────────────────
+
+
+def live_isins_on_latest_snapshot(rows: list[dict[str, Any]]) -> set[str]:
+    """ISINs present on each issuer's OWN latest obs_date.
+
+    Not "every ISIN in the extract" — the extract spans all history, which
+    necessarily includes bonds that have since matured or left the source's
+    watchlist. Those must not count as live, or ``is_active`` never falls and
+    the staleness filter is inert.
+
+    Per issuer, because the issuers do not share a latest date: INDOGB and UST
+    stall at 2026-08-13 while the other ten run to 2026-10-06. Using one global
+    max would wrongly retire every bond of a stalled issuer.
+    """
+    # 'govy_country_code' is the issuer code (INDOGB, IGB, ...) — the same
+    # vocabulary as DEFAULT_COUNTRIES and dim_bond_instrument.issuer_code.
+    latest_by_issuer: dict[str, str] = {}
+    for r in rows:
+        issuer = r["govy_country_code"]
+        d = r["obs_date"]
+        if d > latest_by_issuer.get(issuer, ""):
+            latest_by_issuer[issuer] = d
+    return {
+        r["isin"] for r in rows
+        if r["isin"] and r["obs_date"] == latest_by_issuer.get(r["govy_country_code"])
+    }
 
 
 def build_instrument_creates(
@@ -430,7 +493,7 @@ def build_auction_creates(
     return out, skipped
 
 
-class GovyBondsPipeline:
+class GovyBondsPipeline(BasePipeline):
     """Track B ingest: Govy Monitor SQLite (read-only copy) -> IMDR ISIN-grain bond tables.
 
     ``run(no_load=True)`` extracts + validates the full shape (including a
@@ -438,16 +501,32 @@ class GovyBondsPipeline:
     it never calls a repository upsert method, so it never writes.
     ``run(no_load=False)`` additionally seeds ``dim_bond_instrument`` and
     upserts both fact tables.
+
+    ``run()`` is overridden rather than inheriting ``BasePipeline.run()``
+    because the seed-then-upsert must stay inside ONE session: the fact rows
+    reference ``instrument_id`` values that only exist once the dim seed has
+    flushed, so splitting them across the base class's transform/load stages
+    would give up the single-transaction guarantee the load review signed off
+    on. The base class's audit helpers are reused directly so a scheduled run
+    still writes an ``audit.PipelineRun`` row.
     """
+
+    pipeline_name = "rates.bonds_govy"
+    domain = "rates"
 
     def __init__(
         self,
         connector: MSSQLConnector,
         countries: list[str] | None = None,
         db_path: Path | None = None,
+        auction_countries: list[str] | None = None,
     ) -> None:
-        self._connector = connector
+        super().__init__(connector)
         self._countries = countries or list(DEFAULT_COUNTRIES)
+        self._auction_countries = (
+            auction_countries if auction_countries is not None
+            else list(DEFAULT_AUCTION_COUNTRIES)
+        )
         self._db_path = db_path
 
     def extract(self) -> dict[str, list[dict[str, Any]]]:
@@ -465,12 +544,22 @@ class GovyBondsPipeline:
             return {
                 "yield": extract_yield_rows(conn, self._countries),
                 "asw": extract_asw_rows(conn, self._countries),
-                "auction": extract_auction_rows(conn, self._countries),
+                "auction": extract_auction_rows(conn, self._auction_countries),
             }
         finally:
             conn.close()
             if tmp_dir is not None:
                 shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    def load(self, data: dict[str, Any]) -> int:
+        """Present to satisfy BasePipeline; the real load runs inside ``run()``.
+
+        See the class docstring — seeding and upserting share one session and
+        therefore one transaction, which this stage boundary cannot express.
+        """
+        raise NotImplementedError(
+            "GovyBondsPipeline loads inside run() to keep seed+upsert atomic"
+        )
 
     def _resolve_dims(self, session: Session) -> dict[str, Any]:
         vendor = session.execute(
@@ -523,9 +612,33 @@ class GovyBondsPipeline:
         }
 
     def run(self, no_load: bool = False) -> dict[str, Any]:
+        # Dry runs touch nothing, so they get no audit row — an audit trail of
+        # runs that never wrote would make staleness checks read as healthy.
+        started_at = datetime.now(timezone.utc)
+        audit_id = None if no_load else self._create_audit_record(started_at)
+        try:
+            report = self._run_inner(no_load)
+        except Exception:
+            self._finalize_audit(
+                audit_id=audit_id, status=RunStatus.FAILED, started_at=started_at
+            )
+            raise
+        self._finalize_audit(
+            audit_id=audit_id,
+            status=RunStatus.SUCCESS,
+            started_at=started_at,
+            rows_extracted=report.get("yield_rows_extracted", 0)
+            + report.get("asw_rows_extracted", 0)
+            + report.get("auction_rows_extracted", 0),
+            rows_loaded=report.get("obs_upserted", 0) + report.get("auctions_upserted", 0),
+        )
+        return report
+
+    def _run_inner(self, no_load: bool = False) -> dict[str, Any]:
         raw = self.extract()
         report: dict[str, Any] = {
             "countries": self._countries,
+            "auction_countries": self._auction_countries,
             "yield_rows_extracted": len(raw["yield"]),
             "asw_rows_extracted": len(raw["asw"]),
             "auction_rows_extracted": len(raw["auction"]),
@@ -575,8 +688,18 @@ class GovyBondsPipeline:
             obs_count = BondInstrumentObsRepository(session).bulk_upsert(transformed["obs"])
             auction_count = BondAuctionRepository(session).bulk_upsert(transformed["auctions"])
 
+            # Retire instruments the source no longer carries, so the staleness
+            # spec's is_active filter keeps meaning something as bonds mature.
+            live = live_isins_on_latest_snapshot(raw["yield"])
+            deactivated, reactivated = instrument_repo.sync_active_flags(
+                issuer_codes=self._countries, live_isins=live
+            )
+
         report.update({
             "instruments_seeded": len(instrument_id_by_isin),
+            "instruments_live": len(live),
+            "instruments_deactivated": deactivated,
+            "instruments_reactivated": reactivated,
             "obs_upserted": obs_count,
             "auctions_upserted": auction_count,
             "skipped_unresolved_obs": transformed["skipped_unresolved_obs"],

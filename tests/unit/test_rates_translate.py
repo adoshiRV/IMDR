@@ -95,6 +95,30 @@ class TestCitiTagToInternal:
             "RATES.BASIS_SWAPS.3S6S_BASIS.AUD.SPOT.5Y", universe,
         ) is None
 
+    def test_xccy_ois_swap_base_leg(self, universe):
+        # Quote LAST, extra LEG segment: {prefix}.{TENOR}.BASE_LEG.{QUOTE}
+        result = citi_tag_to_internal(
+            "RATES.XCCY_OIS_SWAP.EUR.USD.SPOT.5Y.BASE_LEG.BASIS_SPREAD", universe,
+        )
+        assert result == {"ccy": "EUR", "curve": "XCCY_OIS_VS_USD", "quote": "basis", "tenor": "5Y"}
+
+    def test_xccy_ois_swap_spread_leg_dropped(self, universe):
+        # SPREAD_LEG mirrors BASE_LEG with sign flipped — never requested,
+        # but dropped defensively if it ever comes back.
+        assert citi_tag_to_internal(
+            "RATES.XCCY_OIS_SWAP.EUR.USD.SPOT.5Y.SPREAD_LEG.BASIS_SPREAD", universe,
+        ) is None
+
+    def test_xccy_ois_swap_unknown_prefix(self, universe):
+        assert citi_tag_to_internal(
+            "RATES.XCCY_OIS_SWAP.ZZZ.USD.SPOT.5Y.BASE_LEG.BASIS_SPREAD", universe,
+        ) is None
+
+    def test_xccy_ois_swap_too_short(self, universe):
+        assert citi_tag_to_internal(
+            "RATES.XCCY_OIS_SWAP.EUR.USD.SPOT.5Y.BASE_LEG", universe,
+        ) is None
+
 
 # ── Internal → Tag ──────────────────────────────────────────────
 
@@ -114,6 +138,10 @@ class TestInternalToCitiTags:
     def test_basis_swaps_roundtrip(self, universe):
         tags = internal_to_citi_tags("AUD", "3S6S_BASIS", "basis", ["10Y"], universe=universe)
         assert tags == ["RATES.BASIS_SWAPS.3S6S_BASIS.AUD.SPOT.10Y.BASIS_SPREAD"]
+
+    def test_xccy_ois_swap_roundtrip(self, universe):
+        tags = internal_to_citi_tags("EUR", "XCCY_OIS_VS_USD", "basis", ["5Y"], universe=universe)
+        assert tags == ["RATES.XCCY_OIS_SWAP.EUR.USD.SPOT.5Y.BASE_LEG.BASIS_SPREAD"]
 
 
 # ── Response → DataFrame ───────────────────────────────────────

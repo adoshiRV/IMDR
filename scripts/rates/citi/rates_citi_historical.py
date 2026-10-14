@@ -35,8 +35,8 @@ log = structlog.get_logger(__name__)
 MODE = "range"  # "range" | "catchup" | "gaps"
 
 # range: start and end dates (YYYY-MM-DD)
-START = "2010-11-26"
-END = "2015-05-29"
+START = "2008-01-02"
+END = "2026-10-13"
 
 # catchup: how many calendar days back from today
 LOOKBACK_DAYS = 30
@@ -50,12 +50,12 @@ MAX_DAYS = 0
 # Restrict the pull to specific curves, comma-separated "CCY.CURVE"
 # (e.g. "GBP.SONIA" or "GBP.SONIA,USD.SOFR"). None = all catalog curves.
 # Tenor cannot be scoped — every curve pulls its full maturity grid.
-CURVES: str | None = "GBP.SONIA"
+CURVES: str | None = "AUD.AONIA,AUD.BBSW,CAD.CORRA,CHF.SARON,CNH.CNH_HIBOR,CNY.NDIRS,CNY.SHIBOR,EUR.EURIBOR,EUR.EUROSTR,GBP.SONIA,HKD.HIBOR,INR.MIFOR,JPY.TONAR,JPY.TONAR_JSCC,JPY.TONAR_LCH,KRW.CD,MYR.KLIBOR,NOK.NIBOR,NOK.NOWA,NZD.BKBM,NZD.NZIONA,PHP.PHIREF,SEK.STIBOR,SEK.STINA,SGD.SORA,THB.THOR,TWD.TAIBOR,USD.FEDFUND,USD.SOFR,VND.VND_REF"
 
 # Quote types (None = read from pipelines.yml default_quotes; or comma-separated override)
 # QUOTES: str | None = None
 
-QUOTES = "par"
+QUOTES = "spread,bfly"
 
 # Data frequency
 FREQUENCY = "DAILY"

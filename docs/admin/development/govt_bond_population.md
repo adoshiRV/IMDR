@@ -226,10 +226,67 @@ byte-exact `source_ticker` (double-space `GTJPYII5YR  govt`, mixed-case `GIDN30Y
    (c) `tenor_years IS NULL` guard in the extractors (would else abort the whole load on ValidationError).
    **Deferred to the scheduler-wiring gate:** refactor `GovyBondsPipeline` onto `BasePipeline` so a scheduled
    run writes an `audit.PipelineRun` row (every other domain's pipeline does; not needed for a manual load).
-4. ⏳ Track B load India+Korea **(NEEDS OK — data load; next gate)**.
-5. Track A mirror ingest + tests → backfill Korea (+6) **(needs OK to load)**.
-6. Quality checks + doc flips.
-7. Scheduler wiring **(separate explicit OK)**.
+4. ✅ **Track B LOADED — India + Korea** (the pilot pair), 4,552 obs / 32 instruments / 30 auctions.
+5. ✅ **Track B WIDENED TO ALL 12 ISSUERS + SCHEDULED 2026-10-12** — see §"Full load" below.
+6. Track A mirror ingest + tests → backfill Korea (+6) **(needs OK to load)**.
+7. Quality checks + doc flips.
+
+## Full load — all 12 issuers + daily scheduling (2026-10-12)
+
+User cleared both remaining gates ("LOAD all of it … register the tasks into the
+daily"). Driven by the Indonesia bond request — see
+[`../vendors/citi/exploration/indonesia_bonds.md`](../vendors/citi/exploration/indonesia_bonds.md)
+for why Citi's own per-ISIN bond feed was rejected as the source.
+
+**Loaded** (`python -m scripts.rates.bonds_govy`): 235 instruments, **24,390 obs**,
+221 auctions, **0 skipped**. Per issuer:
+
+| Issuer | Country | Bonds | Obs | Range |
+|---|---|---|---|---|
+| INDOGB | ID | 25 | 4,106 | 2025-12-19 → **2026-08-13** |
+| IGB | IN | 25 | 3,134 | 2025-12-19 → 2026-10-06 |
+| ACGB | AU | 26 | 2,918 | 2025-12-19 → 2026-10-06 |
+| THAIGB | TH | 16 | 2,604 | 2025-12-19 → 2026-10-06 |
+| NZGB | NZ | 12 | 2,087 | 2025-12-19 → 2026-10-06 |
+| JGB | JP | 36 | 2,024 | 2025-12-19 → 2026-10-06 |
+| RPGB | PH | 14 | 1,904 | 2025-12-19 → 2026-10-06 |
+| KTB | KR | 19 | 1,550 | 2025-12-19 → 2026-10-06 |
+| SIGB | SG | 13 | 1,494 | 2025-12-19 → 2026-10-06 |
+| MGS | MY | 8 | 1,224 | 2025-12-19 → 2026-10-06 |
+| CGB | CN | 18 | 749 | 2025-12-19 → 2026-10-06 |
+| UST | US | 23 | 596 | 2026-01-26 → **2026-08-13** |
+
+> **Source staleness, not an ingest bug**: INDOGB and UST stop at **2026-08-13**
+> in the Govy store itself while the other ten run to 2026-10-06. The desktop app
+> stopped refreshing those two legs ~8 weeks ago. IMDR now retains last-good and
+> will pick them up the moment the app resumes — but a StaleCheck on these two
+> issuers is the obvious follow-up, otherwise Indonesia silently ages.
+
+**Code changes**
+- `DEFAULT_COUNTRIES` 2 → **12 issuers**; `GOVY_TO_IMDR` already covered all of them.
+- **`DEFAULT_AUCTION_COUNTRIES` added.** `auction_calendar` is a *different, wider
+  namespace* than the bond tables — issuer codes (IGB/JGB/UST/KTB/MGS/ACGB) **plus**
+  ISO sovereign codes (DE/ES/EU/FI/FR/IT/NL/UK). It is now scoped independently of
+  the bond-issuer list (`--auction-countries`). AT/BE/PT/GR/IE appear in the source
+  but have no `dbo.dim_country` row, so they are deliberately excluded rather than
+  skipped silently.
+- **Text clipping moved into `extract_auction_rows`.** The European rows breach
+  `security_type` VARCHAR(30) (`'BTFs 30Sep26, 2Dec26, 16Dec26, 16Jun27'`, 38) and
+  `term` VARCHAR(10) (`'29-Year 10-Month'`, 16) — a pydantic `string_too_long` that
+  the IGB+KTB pilot never hit. Clipping happens **before** `_dedupe_auctions_latest`
+  so the dedup key and the `fact_bond_auction` unique key are computed over identical
+  values; clipping after dedup could collapse two raw rows onto one DB key and fail
+  the MERGE. Verified over the full source: 4 rows clipped, **0 collisions**.
+- **`GovyBondsPipeline` now subclasses `BasePipeline`** (the deferred step-3 item):
+  a scheduled run writes an `audit.PipelineRun` row. `run()` is still overridden so
+  seed-then-upsert stays in ONE transaction — the base class's stage boundary cannot
+  express that, and the load review signed off on the atomicity. Dry runs write **no**
+  audit row (an audit trail of runs that never wrote would make staleness read healthy).
+  Verified live: run 16166, `success`, 38,449 extracted / 24,611 loaded.
+- Tests 24 → **30** (clipping-before-dedup, country-scope integrity, audit identity).
+
+**Scheduled**: registered in `scripts/imdr_daily.py` (08:00 SGT, no tag quota).
+The MERGE is idempotent, so a day the Govy desktop app was closed just re-upserts.
 
 ### Decisions locked (2026-07-20, ingest build)
 - **Yield grain = ONE authoritative row per (isin, obs_date, quote_type)** — latest `snapshot_ts` wins,
@@ -261,3 +318,56 @@ byte-exact `source_ticker` (double-space `GTJPYII5YR  govt`, mixed-case `GIDN30Y
 - BBG_mirror READ-ONLY.
 - **No DDL / no data load / no prod wiring without explicit OK** — steps 2/3/4/6 gated.
 - Tests + this doc kept current (split code vs data promotion).
+
+## Staleness coverage + instrument retirement (2026-10-14)
+
+`rates.bonds_govy` is now registered in `healthchecks/staleness.py:DEFAULT_SPECS`
+— **keyed per instrument**, 5 business days, `is_active = 1` filter.
+
+**Why per instrument and not a table-wide FreshnessCheck**: the Govy desktop app
+stalls one issuer at a time. A table-wide check reads `MAX(obs_date)` across all
+12 issuers and passes on the healthy ten — which is exactly how INDOGB and UST went
+~8 weeks dark without anything firing. Wiring alone would have faked a green.
+
+**5 business days, not the 2 used for the Citi curve feed**: this is a desktop app
+a human leaves running, so a long weekend or a restart is normal and a 2-day
+threshold would cry wolf. A genuine stall runs to weeks, which 5 still catches.
+
+### Instrument retirement — the prerequisite nobody had built
+
+The first run of the check flagged **235 of 235** instruments. `is_active` is
+insert-default 1 and is **not** in the instrument MERGE, so every bond that ever
+appeared stayed active forever, matured ones included — making the `is_active = 1`
+filter inert and the check pure noise. That is the same failure that got the econ
+staleness monitor ignored (43% false-flag).
+
+`BondInstrumentRepository.sync_active_flags()` now retires instruments the source no
+longer carries, and `live_isins_on_latest_snapshot()` defines "carries" as *the
+ISINs on each issuer's OWN latest snapshot date*:
+
+- **not every ISIN in the extract** — the extract spans all history, which
+  necessarily includes bonds that have since matured;
+- **per issuer, not one global max** — INDOGB and UST sit 8 weeks behind the other
+  ten, so a single global max date would wrongly retire every bond of a stalled
+  issuer.
+
+It is scoped to the issuers in the current run (a `--countries`-narrowed run cannot
+retire issuers it never looked at) and reactivates too, so a bond returning to the
+watchlist comes back on its own. First run: **133 live, 102 retired**.
+
+After that, the check reads cleanly:
+
+| Issuer | Stale bonds | Latest | Business days behind |
+|---|---|---|---|
+| UST | 7 | 2026-08-13 | 44 |
+| **INDOGB** | **20** | **2026-08-13** | **44** |
+| the other ten | 6–16 each | 2026-10-06 | 6 |
+
+> **The whole store may now be stalling.** On 2026-10-12 ten issuers ran to
+> 2026-10-06; on 2026-10-14 they still did — 8 calendar days with no new data for
+> *any* issuer. The 6-day column above is not noise, it is the app being off.
+> Worth checking the desktop app is actually running before reading anything into
+> the bond lane.
+
+Gotcha for anyone extending this: `is_active` is a **BIT** column. SQLAlchemy renders
+`.is_(True)` as `IS 1`, which SQL Server rejects outright — compare against `1`/`0`.

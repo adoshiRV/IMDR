@@ -15,6 +15,10 @@ from pathlib import Path
 import pytest
 
 from imdr.domains.rates.govy_bonds import (
+    DEFAULT_AUCTION_COUNTRIES,
+    DEFAULT_COUNTRIES,
+    GOVY_TO_IMDR,
+    GovyBondsPipeline,
     _dedupe_auctions_latest,
     _dedupe_latest,
     _normalize_pricing_source,
@@ -25,6 +29,7 @@ from imdr.domains.rates.govy_bonds import (
     extract_asw_rows,
     extract_auction_rows,
     extract_yield_rows,
+    live_isins_on_latest_snapshot,
     open_readonly_copy,
 )
 from imdr.domains.rates.repository_bond import _DIM_BOND_INSTRUMENT_SPEC
@@ -303,6 +308,109 @@ class TestBuildAuctionCreates:
         rows = extract_auction_rows(conn, ["KTB"])
         creates, _ = build_auction_creates(rows, _COUNTRY_ID_BY_CODE, _CURRENCY_ID_BY_CODE)
         assert creates[0].currency_id == 16
+
+
+class TestAuctionTextClipping:
+    """security_type/term are clipped at EXTRACTION, before dedup.
+
+    The dedup key mirrors the fact_bond_auction unique key, so both must be
+    computed over the same (clipped) values — clipping later could let two raw
+    rows collapse onto one DB key and fail the MERGE. Regression guard for the
+    European auction rows added 2026-10-12.
+    """
+
+    def _conn_with(self, security_type: str, term: str) -> sqlite3.Connection:
+        conn = _make_source_db()
+        conn.execute(
+            "INSERT INTO auction_calendar (country_code, auction_date, security_type,"
+            " term, isin, cusip, coupon, maturity_date, reopening, offered_amount,"
+            " currency, source, fetched_at) VALUES"
+            " ('IGB','2026-09-25',?,?,'','',NULL,NULL,0,1.0,'INR','x','2026-09-25 10:00:00')",
+            (security_type, term),
+        )
+        return conn
+
+    def test_security_type_clipped_to_30_at_extraction(self) -> None:
+        raw = "BTFs 30Sep26, 2Dec26, 16Dec26, 16Jun27"
+        assert len(raw) > 30
+        rows = extract_auction_rows(self._conn_with(raw, "6-Week"), ["IGB"])
+        clipped = [r for r in rows if r["security_type"].startswith("BTFs")]
+        assert clipped and len(clipped[0]["security_type"]) == 30
+
+    def test_term_clipped_to_10_at_extraction(self) -> None:
+        raw = "29-Year 10-Month"
+        assert len(raw) > 10
+        rows = extract_auction_rows(self._conn_with("Bond", raw), ["IGB"])
+        clipped = [r for r in rows if r["security_type"] == "Bond"]
+        assert clipped and clipped[0]["term"] == "29-Year 10"
+
+    def test_clipped_values_validate_against_the_schema(self) -> None:
+        conn = self._conn_with("BTFs 30Sep26, 2Dec26, 16Dec26, 16Jun27", "29-Year 10-Month")
+        rows = extract_auction_rows(conn, ["IGB"])
+        creates, skipped = build_auction_creates(rows, _COUNTRY_ID_BY_CODE, _CURRENCY_ID_BY_CODE)
+        # Would raise pydantic ValidationError (string_too_long) before the fix.
+        assert skipped == 0
+        assert all(len(c.security_type) <= 30 and len(c.term) <= 10 for c in creates)
+
+
+class TestLiveIsinsOnLatestSnapshot:
+    """`is_active` drives the staleness spec's filter, so the live set must be
+    the ISINs on each issuer's OWN latest date — not every ISIN in history.
+    """
+
+    def _rows(self) -> list[dict]:
+        return [
+            # IGB is current; FR_OLD stopped trading before the latest date.
+            {"isin": "IGB_NEW", "govy_country_code": "IGB", "obs_date": "2026-10-06"},
+            {"isin": "IGB_NEW", "govy_country_code": "IGB", "obs_date": "2026-08-13"},
+            {"isin": "IGB_OLD", "govy_country_code": "IGB", "obs_date": "2026-08-13"},
+            # INDOGB's whole issuer stalled two months ago; both its bonds are
+            # still live *for that issuer*.
+            {"isin": "IDG_A", "govy_country_code": "INDOGB", "obs_date": "2026-08-13"},
+            {"isin": "IDG_B", "govy_country_code": "INDOGB", "obs_date": "2026-08-13"},
+            {"isin": "IDG_GONE", "govy_country_code": "INDOGB", "obs_date": "2026-05-01"},
+        ]
+
+    def test_keeps_only_the_latest_date_per_issuer(self) -> None:
+        assert live_isins_on_latest_snapshot(self._rows()) == {
+            "IGB_NEW", "IDG_A", "IDG_B",
+        }
+
+    def test_a_stalled_issuer_does_not_retire_its_whole_curve(self) -> None:
+        """A single global max date would retire every INDOGB bond just
+        because that issuer lags the other eleven."""
+        live = live_isins_on_latest_snapshot(self._rows())
+        assert {"IDG_A", "IDG_B"} <= live
+
+    def test_matured_bond_drops_out(self) -> None:
+        live = live_isins_on_latest_snapshot(self._rows())
+        assert "IGB_OLD" not in live
+        assert "IDG_GONE" not in live
+
+    def test_empty_input(self) -> None:
+        assert live_isins_on_latest_snapshot([]) == set()
+
+
+class TestDefaultCountryScopes:
+    def test_every_bond_issuer_maps_to_a_country(self) -> None:
+        """A code in DEFAULT_COUNTRIES with no GOVY_TO_IMDR entry would fall
+        through as its own raw code and silently skip every row."""
+        assert len(DEFAULT_COUNTRIES) == 12
+        assert set(DEFAULT_COUNTRIES) <= set(GOVY_TO_IMDR)
+
+    def test_auction_scope_is_a_separate_namespace(self) -> None:
+        """auction_calendar mixes issuer codes with ISO sovereign codes, so it
+        is scoped independently of the bond-issuer list."""
+        assert "INDOGB" in DEFAULT_COUNTRIES
+        assert {"FR", "DE", "IT"} <= set(DEFAULT_AUCTION_COUNTRIES)
+        # Issuers that don't appear in auction_calendar aren't requested there.
+        assert "INDOGB" not in DEFAULT_AUCTION_COUNTRIES
+
+    def test_pipeline_declares_audit_identity(self) -> None:
+        """A scheduled run must write an audit.PipelineRun row; BasePipeline
+        skips the audit record entirely when pipeline_name is blank."""
+        assert GovyBondsPipeline.pipeline_name == "rates.bonds_govy"
+        assert GovyBondsPipeline.domain == "rates"
 
 
 class TestNormalizePricingSource:

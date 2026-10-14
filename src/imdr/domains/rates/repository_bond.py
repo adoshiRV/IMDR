@@ -139,6 +139,54 @@ class BondInstrumentRepository:
         ).all()
         return {isin: instrument_id for isin, instrument_id in rows}
 
+    def sync_active_flags(
+        self,
+        issuer_codes: list[str],
+        live_isins: set[str],
+    ) -> tuple[int, int]:
+        """Align ``is_active`` with what the source still carries.
+
+        ``is_active`` is insert-default 1 and is not part of the instrument
+        MERGE, so without this every bond that ever appeared stays active
+        forever — including matured and rolled-off ones. That makes the
+        staleness spec's ``is_active = 1`` filter meaningless and the check
+        cries wolf on retired bonds (the whole estate flagged, which is how
+        the econ staleness monitor ended up ignored).
+
+        ``live_isins`` must be the ISINs on each issuer's OWN latest snapshot
+        date, not every ISIN seen in history — history naturally contains
+        bonds that have since matured.
+
+        Scoped to ``issuer_codes`` so a run narrowed with ``--countries``
+        cannot deactivate issuers it never looked at. Reactivates too, so a
+        bond returning to the source's watchlist comes back on its own.
+
+        Returns ``(n_deactivated, n_reactivated)``.
+        """
+        if not issuer_codes:
+            return (0, 0)
+
+        # is_active is a BIT column, so compare against 1/0 — SQLAlchemy
+        # renders .is_(True) as "IS 1", which SQL Server rejects outright.
+        scope = DimBondInstrument.issuer_code.in_(issuer_codes)
+
+        stale_filters = [scope, DimBondInstrument.is_active == 1]
+        if live_isins:
+            stale_filters.append(~DimBondInstrument.isin.in_(live_isins))
+        deactivated = self._session.query(DimBondInstrument).filter(
+            *stale_filters
+        ).update({DimBondInstrument.is_active: 0}, synchronize_session=False)
+
+        reactivated = 0
+        if live_isins:
+            reactivated = self._session.query(DimBondInstrument).filter(
+                scope,
+                DimBondInstrument.is_active == 0,
+                DimBondInstrument.isin.in_(live_isins),
+            ).update({DimBondInstrument.is_active: 1}, synchronize_session=False)
+
+        return (int(deactivated), int(reactivated))
+
 
 class BondInstrumentObsRepository:
     """Data access layer for [rates].[fact_bond_instrument_obs]."""

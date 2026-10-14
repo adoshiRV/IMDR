@@ -10,15 +10,19 @@ This snapshot supersedes the "partial / not probed" entries for SOV, MBS, AGENCY
 
 ---
 
+> **CORRECTION (2026-10-12)** — the "zero APAC EM bond coverage" verdict below is **wrong**, and so is "the only APAC EM rate data on Citi is `RATES.FRA.KRW`". This probe enumerated via `tagbrowsing`/`taglisting` only, which cannot see:
+> - **`RATES.BOND.{ISIN}.{MEASURE}`** — a dynamically-keyed bond namespace (40 measures) that accepts APAC EM ISINs. 22 INDOGB bonds return ~5y of daily history. **It fails cross-vendor validation and must not be used as a mark** — see [`indonesia_bonds.md`](indonesia_bonds.md).
+> - **`RATES.SWAP_LIBOR.IDR.*`** — 11,294 tags, a clean 5-year IDR par-swap curve. `SWAP_LIBOR` was never in this probe's branch list at all; it is worth re-probing for the other APAC EM currencies.
+>
+> Only `fetch_historical` can prove a tag exists. The DM `RATES.SOV` findings below are unaffected.
+
 ## Headline
 
-**Citi Velocity is a DM-only sovereign bond source.** 34 developed-market countries are covered comprehensively (yields, spreads, asset-swaps, forwards). **Zero APAC EM bond coverage**: no CN, KR, SG, IN, ID, TH, MY, HK, TW, PH, VN sovereign data exists anywhere in `RATES.*`.
-
-The only APAC EM rate data on Citi is `RATES.FRA.KRW` (money-market FRAs, not bonds).
+**Citi Velocity's `RATES.SOV` cube is DM-only.** 34 developed-market countries are covered comprehensively (yields, spreads, asset-swaps, forwards). No CN, KR, SG, IN, ID, TH, MY, HK, TW, PH, VN sovereign data exists under `RATES.SOV.*` — but see the correction above for what lives outside that branch.
 
 For an IMDR sovereign-bond pipeline, this means:
 - **DM (US/UK/JP/DE/FR/AU + 28 more)**: Citi can serve as primary or fallback source, with substantially richer metrics than BBG CSV.
-- **APAC EM (CN/KR/SG/IN/ID/TH/MY)**: BBG_mirror is the only source. No second-vendor recovery exists.
+- **APAC EM (CN/KR/SG/IN/ID/TH/MY)**: not in `RATES.SOV`. Citi carries per-ISIN bond analytics and local swap curves outside it — validate before trusting either. See [`indonesia_bonds.md`](indonesia_bonds.md).
 
 ---
 

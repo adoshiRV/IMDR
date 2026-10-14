@@ -10,7 +10,11 @@ from typing import Any
 import yaml
 from pydantic import BaseModel
 
-from imdr.domains.rates.schema import CITI_TO_QUOTE, MULTI_TENOR_QUOTES
+from imdr.domains.rates.schema import (
+    CITI_TO_QUOTE,
+    MULTI_TENOR_QUOTES,
+    RC_MEASURE_TO_QUOTE,
+)
 from imdr.universe.base import BaseUniverse, ExpectedRange
 
 _UNIVERSE_PATH = Path(__file__).parent / "rates.yml"
@@ -251,6 +255,20 @@ class RatesUniverse(BaseUniverse):
 
         # Multi-tenor quote types need combo-based tag generation
         internal_qt = CITI_TO_QUOTE.get(quote, quote.lower())
+
+        # ROLL_CARRY carries a trailing MEASURE segment, so each combo yields
+        # three tags. Emitting all three from the single 'rc' request keeps the
+        # tag-quota cost at 1x — requesting each measure separately would pay
+        # three times over for the same combos. citi_tag_to_internal splits them
+        # back out into the rc_carry/rc_roll/rc_total storage quotes.
+        if internal_qt == "rc" and tenors is None:
+            combos = self._config.multi_tenor_combos.get("rc", [])
+            return [
+                f"{prefix}.{quote}.{'.'.join(legs)}.{measure}"
+                for legs in combos
+                for measure in RC_MEASURE_TO_QUOTE
+            ]
+
         if internal_qt in MULTI_TENOR_QUOTES and tenors is None:
             combos = self._config.multi_tenor_combos.get(internal_qt, [])
             return [f"{prefix}.{quote}.{'.'.join(legs)}" for legs in combos]
@@ -262,6 +280,11 @@ class RatesUniverse(BaseUniverse):
         # Some instruments (basis_swaps) put the quote AFTER the tenor.
         if instr is not None and instr.tag_format == "tenor_first":
             return [f"{prefix}.{t}.{quote}" for t in tenors]
+        # xccy_ois_swap inserts a BASE_LEG/SPREAD_LEG segment between tenor
+        # and quote. We only ever request BASE_LEG (SPREAD_LEG mirrors it
+        # with the sign flipped).
+        if instr is not None and instr.tag_format == "tenor_leg_first":
+            return [f"{prefix}.{t}.BASE_LEG.{quote}" for t in tenors]
         return [f"{prefix}.{quote}.{t}" for t in tenors]
 
     def _instrument_for_curve(self, ccy: str, curve: str) -> "InstrumentConfig | None":
